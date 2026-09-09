@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:html/dom.dart' as dom;
 
 class RuleSection {
   final String url;
@@ -126,20 +127,122 @@ class AnimeRule {
 }
 
 class XPathParser {
-  /// Extract text from HTML node using XPath-like selector.
-  /// Supports: //tag[@attr='value']/text(), .//tag/text(), //tag/@attr
-  static String? extractText(
-    dynamic node,
-    String xpath,
-  ) {
+  static String? extractText(dynamic node, String xpath) {
     if (node == null) return null;
-    // Use xml package for XPath evaluation
-    return null; // Stub - implemented in Task 9
+    if (xpath.endsWith('/text()')) {
+      final attrXpath = xpath.replaceAll('/text()', '');
+      final attr = _extractAttribute(node, attrXpath);
+      if (attr != null) return attr;
+    }
+    if (xpath.startsWith('@')) {
+      return _extractAttribute(node, xpath);
+    }
+    if (xpath.endsWith('/@src')) {
+      return _extractAttribute(node, xpath);
+    }
+    if (xpath.endsWith('/@href')) {
+      return _extractAttribute(node, xpath);
+    }
+    final found = _findNode(node, xpath);
+    if (found != null) {
+      if (found is dom.Element) {
+        return found.text.trim();
+      }
+    }
+    if (node is dom.Element) {
+      return node.text.trim();
+    }
+    return null;
   }
 
-  /// Find all nodes matching XPath selector
-  static List<dynamic> findNodes(dynamic root, String xpath) {
-    // Stub - implemented in Task 9
+  static String? _extractAttribute(dynamic node, String xpath) {
+    if (node is dom.Element) {
+      if (xpath.contains('/@src')) {
+        return node.attributes['src'];
+      }
+      if (xpath.contains('/@href')) {
+        return node.attributes['href'];
+      }
+      if (xpath.startsWith('@')) {
+        final attrName = xpath.substring(1);
+        return node.attributes[attrName];
+      }
+    }
+    return null;
+  }
+
+  static List<dom.Element> findNodes(dynamic root, String xpath) {
+    if (root == null) return [];
+    if (root is dom.Document) {
+      return _queryAll(root, xpath);
+    }
+    if (root is dom.Element) {
+      return _queryAll(root, xpath);
+    }
     return [];
+  }
+
+  static List<dom.Element> _queryAll(dynamic parent, String xpath) {
+    final results = <dom.Element>[];
+    String selector = xpath;
+
+    if (selector.startsWith('.//')) {
+      selector = selector.substring(1);
+    }
+
+    if (selector.startsWith('//')) {
+      selector = selector.substring(2);
+    }
+
+    if (!selector.contains('[') && !selector.contains('/')) {
+      if (parent is dom.Element) {
+        results.addAll(parent.querySelectorAll(selector));
+      }
+      if (parent is dom.Document) {
+        results.addAll(parent.querySelectorAll(selector));
+      }
+      return results;
+    }
+
+    final attrMatch = RegExp(r"^(\w+)\[@(\w+)='([^']*)'\]$").firstMatch(selector);
+    if (attrMatch != null) {
+      final tag = attrMatch.group(1)!;
+      final attr = attrMatch.group(2)!;
+      final value = attrMatch.group(3)!;
+      if (parent is dom.Element) {
+        results.addAll(parent.querySelectorAll(tag).where((e) => e.attributes[attr] == value));
+      }
+      if (parent is dom.Document) {
+        results.addAll(parent.querySelectorAll(tag).where((e) => e.attributes[attr] == value));
+      }
+      return results;
+    }
+
+    final nestedMatch = RegExp(r"^(\w+)\[@(\w+)='([^']*)'\]/(\w+)$").firstMatch(selector);
+    if (nestedMatch != null) {
+      final parentTag = nestedMatch.group(1)!;
+      final parentAttr = nestedMatch.group(2)!;
+      final parentValue = nestedMatch.group(3)!;
+      final childTag = nestedMatch.group(4)!;
+      List<dom.Element> parents;
+      if (parent is dom.Element) {
+        parents = parent.querySelectorAll(parentTag).where((e) => e.attributes[parentAttr] == parentValue).toList();
+      } else if (parent is dom.Document) {
+        parents = parent.querySelectorAll(parentTag).where((e) => e.attributes[parentAttr] == parentValue).toList();
+      } else {
+        return [];
+      }
+      for (final p in parents) {
+        results.addAll(p.querySelectorAll(childTag));
+      }
+      return results;
+    }
+
+    return results;
+  }
+
+  static dom.Element? _findNode(dynamic root, String xpath) {
+    final nodes = findNodes(root, xpath);
+    return nodes.isNotEmpty ? nodes.first : null;
   }
 }
