@@ -3,7 +3,6 @@ import '../../core/source/source_manager.dart';
 import '../../core/models/work.dart';
 import 'anime_source.dart';
 import 'anime_rule.dart';
-import 'dart:convert';
 import 'package:flutter/services.dart';
 
 final sourceManagerProvider = Provider<SourceManager>((ref) {
