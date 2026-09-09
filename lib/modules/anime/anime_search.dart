@@ -15,7 +15,6 @@ class AnimeSearchPage extends ConsumerStatefulWidget {
 
 class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
   final _controller = TextEditingController();
-  final _searchEngine = SearchEngine(SourceManager());
   List<Work> _results = [];
   bool _loading = false;
   String? _error;
