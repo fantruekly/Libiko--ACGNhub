@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'anime_providers.dart';
+import 'anime_search.dart';
 
 class AnimeHomePage extends ConsumerWidget {
   const AnimeHomePage({super.key});
@@ -60,18 +61,6 @@ class AnimeHomePage extends ConsumerWidget {
           );
         },
       ),
-    );
-  }
-}
-
-class AnimeSearchPage extends StatelessWidget {
-  const AnimeSearchPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('搜索动漫')),
-      body: const Center(child: Text('搜索功能开发中')),
     );
   }
 }
