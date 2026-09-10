@@ -49,6 +49,10 @@ class WorkCard extends StatelessWidget {
                     ? CachedNetworkImage(
                         imageUrl: work.coverUrl!,
                         fit: BoxFit.cover,
+                        httpHeaders: const {
+                          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                          'Referer': 'https://bgm.tv/',
+                        },
                         placeholder: (_, __) => _PlaceholderWidget(title: work.title, color: _cardColor()),
                         errorWidget: (_, __, ___) => _PlaceholderWidget(title: work.title, color: _cardColor()),
                       )
