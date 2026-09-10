@@ -32,5 +32,19 @@ void main() {
       expect(work.extra, isEmpty);
       expect(work.coverUrl, isNull);
     });
+
+    test('Work exposes anime metadata getters from extra', () {
+      const work = Work(
+        id: 'anilist_1',
+        sourceId: 'anilist',
+        sourceName: 'AniList',
+        type: WorkType.anime,
+        title: 'Test',
+        extra: {'anilistId': 1, 'malId': 2, 'bannerUrl': 'https://x/b.jpg'},
+      );
+      expect(work.anilistId, 1);
+      expect(work.malId, 2);
+      expect(work.bannerUrl, 'https://x/b.jpg');
+    });
   });
 }
