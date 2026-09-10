@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/work.dart';
 import '../../core/widgets/dio_image.dart';
 import 'bangumi_service.dart';
 import 'anime_providers.dart';
+import 'anime_search.dart';
 
 class BangumiDetailPage extends ConsumerStatefulWidget {
   final Work work;
@@ -110,7 +111,7 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => _AnimeSourceWebView(keyword: keyword),
+                            builder: (_) => AnimeSearchPage(initialKeyword: keyword),
                           ),
                         );
                       },
@@ -147,20 +148,11 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
     );
   }
 
-  void _openWebView(BuildContext context, int bangumiId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: Text(widget.work.title)),
-          body: WebViewWidget(
-            controller: WebViewController()
-              ..setJavaScriptMode(JavaScriptMode.unrestricted)
-              ..loadRequest(Uri.parse('https://bgm.tv/subject/$bangumiId')),
-          ),
-        ),
-      ),
-    );
+  void _openWebView(BuildContext context, int bangumiId) async {
+    final uri = Uri.parse('https://bgm.tv/subject/$bangumiId');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Widget _buildGradientCover(Work work) {
@@ -183,23 +175,6 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
           style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 72, fontWeight: FontWeight.bold),
         ),
       ),
-    );
-  }
-}
-
-class _AnimeSourceWebView extends StatelessWidget {
-  final String keyword;
-  const _AnimeSourceWebView({required this.keyword});
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse('https://www.bing.com/search?q=${Uri.encodeComponent('$keyword 在线观看')}'));
-
-    return Scaffold(
-      appBar: AppBar(title: Text('搜索: $keyword')),
-      body: WebViewWidget(controller: controller),
     );
   }
 }
