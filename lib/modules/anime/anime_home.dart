@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'anime_providers.dart';
-import 'bangumi_detail_page.dart';
+import 'anime_detail_page.dart';
 import '../../core/metadata/metadata_provider.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
@@ -121,7 +121,7 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
                                   work: items[i],
                                   onTap: () => Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (_) => BangumiDetailPage(work: items[i])),
+                                    MaterialPageRoute(builder: (_) => AnimeDetailPage(work: items[i])),
                                   ),
                                 ),
                           childCount: items.length,
@@ -164,7 +164,7 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
         child: GestureDetector(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => BangumiDetailPage(work: work)),
+            MaterialPageRoute(builder: (_) => AnimeDetailPage(work: work)),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
@@ -224,7 +224,7 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
                           child: FilledButton(
                             onPressed: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => BangumiDetailPage(work: work)),
+                              MaterialPageRoute(builder: (_) => AnimeDetailPage(work: work)),
                             ),
                             style: FilledButton.styleFrom(
                               minimumSize: const Size(120, 36),

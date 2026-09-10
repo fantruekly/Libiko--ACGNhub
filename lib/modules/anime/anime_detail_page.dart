@@ -4,53 +4,47 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/work.dart';
 import 'anime_providers.dart';
-import 'anime_search.dart';
 
-class BangumiDetailPage extends ConsumerStatefulWidget {
+class AnimeDetailPage extends ConsumerStatefulWidget {
   final Work work;
-  const BangumiDetailPage({super.key, required this.work});
+  const AnimeDetailPage({super.key, required this.work});
 
   @override
-  ConsumerState<BangumiDetailPage> createState() => _BangumiDetailPageState();
+  ConsumerState<AnimeDetailPage> createState() => _AnimeDetailPageState();
 }
 
-class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
-  Map<String, dynamic>? _detail;
-  bool _loadingDetail = true;
+class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
+  late Work _work;
+  bool _loading = true;
   bool _expanded = false;
 
   @override
   void initState() {
     super.initState();
+    _work = widget.work;
     _load();
   }
 
   Future<void> _load() async {
-    final id = widget.work.extra['bangumiId'] as int?;
-    if (id == null) {
-      setState(() => _loadingDetail = false);
-      return;
-    }
-    final d = await ref.read(bangumiServiceProvider).getSubjectDetail(id);
-    if (mounted) {
-      setState(() {
-        _detail = d;
-        _loadingDetail = false;
-      });
+    try {
+      final enriched = await ref.read(metadataServiceProvider).detail(widget.work);
+      if (mounted) setState(() { _work = enriched; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final w = widget.work;
     final cs = Theme.of(context).colorScheme;
-    final id = w.extra['bangumiId'] as int?;
-    final rating = _detail?['rating'] as num?;
-    final eps = _detail?['eps'] as int?;
-    final air = _detail?['airDate'] as String?;
-    final tags = (_detail?['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [];
-    final cover = (_detail?['cover'] as String?) ?? w.coverUrl;
-    final summary = _detail?['summary'] as String?;
+    final w = _work;
+    final score = w.extra['score'] as num?;
+    final episodes = w.extra['episodes'] as int?;
+    final seasonYear = w.extra['seasonYear'] as int?;
+    final format = w.extra['format'] as String?;
+    final status = w.extra['status'] as String?;
+    final banner = w.bannerUrl;
+    final heroImage = (banner != null && banner.isNotEmpty) ? banner : w.coverUrl;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -60,15 +54,15 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
           Expanded(
             child: CustomScrollView(
               slivers: [
-                _heroImage(cover, cs),
-                _infoSection(w, cs, rating, eps, air),
-                if (tags.isNotEmpty) _tagsRow(tags),
-                _summarySection(summary, cs),
-                _episodeSection(w, cs),
+                _heroImage(heroImage, cs),
+                _infoSection(w, cs, score, episodes, seasonYear),
+                if (w.tags.isNotEmpty) _tagsRow(w.tags),
+                _summarySection(w.summary, cs),
+                _metaSection(cs, format, status, seasonYear),
               ],
             ),
           ),
-          _bottomBar(w, id),
+          _bottomBar(w),
         ],
       ),
     );
@@ -135,7 +129,7 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
     );
   }
 
-  Widget _infoSection(Work w, ColorScheme cs, num? rating, int? eps, String? air) {
+  Widget _infoSection(Work w, ColorScheme cs, num? score, int? episodes, int? seasonYear) {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -168,7 +162,7 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
-                  if (_loadingDetail)
+                  if (_loading)
                     SizedBox(
                       width: 100,
                       child: LinearProgressIndicator(
@@ -177,14 +171,14 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
                       ),
                     )
                   else ...[
-                    if (rating != null) _metaChip(Icons.star_rounded, rating.toStringAsFixed(1), Colors.amber),
-                    if (eps != null) ...[
+                    if (score != null) _metaChip(Icons.star_rounded, score.toStringAsFixed(1), Colors.amber),
+                    if (episodes != null) ...[
                       const SizedBox(height: 6),
-                      _metaChip(Icons.live_tv_rounded, '$eps 话', const Color(0xFF007AFF)),
+                      _metaChip(Icons.live_tv_rounded, '$episodes 话', const Color(0xFF007AFF)),
                     ],
-                    if (air != null) ...[
+                    if (seasonYear != null) ...[
                       const SizedBox(height: 6),
-                      _metaChip(Icons.calendar_today_rounded, air, const Color(0xFF5856D6)),
+                      _metaChip(Icons.calendar_today_rounded, '$seasonYear', const Color(0xFF5856D6)),
                     ],
                   ],
                 ],
@@ -252,7 +246,7 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
           children: [
             Text('简介', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
             const SizedBox(height: 8),
-            if (_loadingDetail)
+            if (_loading)
               SizedBox(
                 width: 100,
                 child: LinearProgressIndicator(
@@ -278,7 +272,13 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
     );
   }
 
-  Widget _episodeSection(Work w, ColorScheme cs) {
+  Widget _metaSection(ColorScheme cs, String? format, String? status, int? seasonYear) {
+    final rows = <MapEntry<String, String>>[
+      if (format != null) MapEntry('类型', format),
+      if (status != null) MapEntry('状态', _statusLabel(status)),
+      if (seasonYear != null) MapEntry('年份', '$seasonYear'),
+    ];
+    if (rows.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -288,27 +288,21 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text('剧集列表', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
-                    const Spacer(),
-                    Text('正序 ▼', style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.45))),
-                  ],
-                ),
+                Text('详细信息', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
                 const SizedBox(height: 12),
-                Text('搜索播放资源以查看剧集', style: TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.35))),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    final kw = w.extra['keyword'] as String? ?? w.title;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => AnimeSearchPage(initialKeyword: kw)),
-                    );
-                  },
-                  icon: const Icon(Icons.search, size: 18),
-                  label: const Text('搜索播放资源'),
-                ),
+                for (final row in rows)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 64,
+                          child: Text(row.key, style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.45))),
+                        ),
+                        Expanded(child: Text(row.value, style: TextStyle(fontSize: 13, color: cs.onSurface))),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -317,7 +311,21 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
     );
   }
 
-  Widget _bottomBar(Work w, int? id) {
+  String _statusLabel(String status) => switch (status) {
+        'RELEASING' => '连载中',
+        'FINISHED' => '已完结',
+        'NOT_YET_RELEASED' => '未播出',
+        'CANCELLED' => '已取消',
+        'HIATUS' => '停更',
+        _ => status,
+      };
+
+  Widget _bottomBar(Work w) {
+    final anilistId = w.anilistId;
+    final malId = w.malId;
+    final hasLink = anilistId != null || malId != null;
+    final label = anilistId != null ? '在 AniList 查看' : '在 MyAnimeList 查看';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -328,16 +336,18 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
         width: double.infinity,
         height: 48,
         child: FilledButton.icon(
-          onPressed: id != null
+          onPressed: hasLink
               ? () async {
-                  final uri = Uri.parse('https://bgm.tv/subject/$id');
+                  final uri = anilistId != null
+                      ? Uri.parse('https://anilist.co/anime/$anilistId')
+                      : Uri.parse('https://myanimelist.net/anime/$malId');
                   if (await canLaunchUrl(uri)) {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
                   }
                 }
               : null,
-          icon: const Icon(Icons.play_circle_rounded, size: 20),
-          label: const Text('在Bangumi查看'),
+          icon: const Icon(Icons.open_in_new_rounded, size: 20),
+          label: Text(label),
         ),
       ),
     );

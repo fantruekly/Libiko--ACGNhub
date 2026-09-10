@@ -5,7 +5,7 @@ import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
 import 'anime_providers.dart';
-import 'bangumi_detail_page.dart';
+import 'anime_detail_page.dart';
 
 class AnimeSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
@@ -166,7 +166,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
         work: _results[index],
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => BangumiDetailPage(work: _results[index])),
+          MaterialPageRoute(builder: (_) => AnimeDetailPage(work: _results[index])),
         ),
       ),
     );
