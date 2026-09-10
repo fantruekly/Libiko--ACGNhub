@@ -4,7 +4,7 @@ import '../models/work.dart';
 import 'metadata_provider.dart';
 
 class JikanProvider implements MetadataProvider {
-  static const perPage = 30;
+  static const perPage = 25;
   static const _weekdays = [
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
   ];
