@@ -1,82 +1,305 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ACGNhub · 界面原型</title>
-<link rel="stylesheet" href="assets/app.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACGNhub 设计原型</title>
+<style>
+:root {
+  --bg: #F2F2F7; --surface: #FFFFFF; --fg: #1C1C1E; --muted: #8E8E93;
+  --border: #E5E5EA; --accent: #007AFF; --accent-hover: #0056CC;
+  --sidebar-bg: #F9F9FC; --sidebar-active: #E8F0FE; --player-bg: #000000;
+  --anime-c: #5856D6; --comic-c: #FF9500; --novel-c: #34C759; --game-c: #AF52DE;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);height:100vh;overflow:hidden;display:flex}
+.sidebar{width:72px;min-width:72px;background:var(--sidebar-bg);display:flex;flex-direction:column;align-items:center;padding:8px 0;transition:all .3s cubic-bezier(.4,0,.2,1);z-index:10;position:relative}
+.sidebar.collapsed{width:12px;min-width:12px;padding:0;cursor:pointer}
+.sidebar.collapsed .sc{display:none}
+.sidebar.collapsed::after{content:'▶';position:absolute;left:0;top:50%;transform:translateY(-50%);font-size:10px;color:var(--accent);width:12px;text-align:center}
+.sidebar-toggle{width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(28,28,30,.4);font-size:18px;border:none;background:0 0;border-radius:8px;margin-bottom:auto;transition:background .15s}
+.sidebar-toggle:hover{background:var(--sidebar-active)}
+.sidebar-nav{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1}
+.si{width:72px;display:flex;flex-direction:column;align-items:center;padding:10px 0;cursor:pointer;border-left:3px solid transparent;transition:background .15s}
+.si:hover{background:var(--sidebar-active)}
+.si.active{border-left:3px solid var(--accent)}
+.si svg{width:24px;height:24px;color:rgba(28,28,30,.35);transition:color .15s}
+.si.active svg{color:var(--accent)}
+.si .lbl{font-size:11px;letter-spacing:.02em;margin-top:4px;color:rgba(28,28,30,.45);line-height:1.5;font-weight:400}
+.si.active .lbl{color:var(--accent);font-weight:600}
+.sd{width:40px;height:1px;background:var(--border);margin:4px 0}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:48px;background:var(--surface);border-bottom:.5px solid var(--border);display:flex;align-items:center;padding:0 16px;flex-shrink:0}
+.topbar-title{font-size:20px;font-weight:590;line-height:1.4}
+.topbar-btn{margin-left:auto;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:8px;color:rgba(28,28,30,.5);font-size:18px;border:none;background:0 0;transition:background .15s}
+.topbar-btn:hover{background:var(--sidebar-active)}
+.content{flex:1;overflow-y:auto;overflow-x:hidden}
+.content::-webkit-scrollbar{width:6px}
+.content::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:3px}
+.screen{display:none;padding-bottom:24px}
+.screen.active{display:block}
+.bp{display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;border:none;border-radius:12px;height:48px;padding:0 24px;font-size:15px;font-weight:590;cursor:pointer;width:100%}
+.bp:hover{background:var(--accent-hover)}
+.bs{display:inline-flex;align-items:center;justify-content:center;background:0 0;color:var(--accent);border:1.5px solid var(--accent);border-radius:12px;height:48px;padding:0 24px;font-size:15px;font-weight:590;cursor:pointer;width:100%}
+.bs:hover{background:var(--sidebar-active)}
+.bt{background:0 0;border:none;color:var(--accent);font-size:14px;cursor:pointer;padding:8px 12px}
+.bt:hover{text-decoration:underline}
+.pills{display:flex;gap:8px;padding:0 16px 16px}
+.pill{padding:7px 16px;border-radius:20px;font-size:13px;font-weight:510;cursor:pointer;transition:all .2s;border:1px solid var(--border);color:var(--muted);background:0 0}
+.pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pill:hover:not(.active){background:var(--sidebar-active)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;padding:0 16px 24px}
+.card{cursor:pointer;transition:transform .2s,box-shadow .2s}
+.card:hover{transform:scale(1.02);box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.cc{width:100%;aspect-ratio:.75;background:var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:200;color:rgba(0,122,255,.2);overflow:hidden}
+.cc img{width:100%;height:100%;object-fit:cover}
+.ct{font-size:13px;font-weight:510;line-height:1.45;margin-top:6px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cs{font-size:12px;line-height:1.5;color:rgba(28,28,30,.45);margin-top:2px}
+.hero{height:240px;margin:0 16px 16px;border-radius:12px;overflow:hidden;position:relative;cursor:pointer;background:#1c1c1e}
+.hero img{width:100%;height:100%;object-fit:cover}
+.hero .ol{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 60%)}
+.hero .info{position:absolute;left:20px;right:20px;bottom:20px}
+.hero .ht{font-size:24px;font-weight:600;color:#fff;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.hero .hs{font-size:13px;color:rgba(255,255,255,.7);margin-top:6px}
+.hero .hb{margin-top:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;border:none;border-radius:10px;height:36px;padding:0 20px;font-size:14px;font-weight:590;cursor:pointer}
+.hero .hb:hover{background:var(--accent-hover)}
+.sec-title{font-size:20px;font-weight:590;line-height:1.4;padding:0 16px 12px}
+.tag{display:inline-block;padding:3px 10px;background:var(--sidebar-active);color:var(--accent);font-size:11px;font-weight:510;border-radius:20px;margin:0 6px 6px 0}
+.dcover{position:relative;height:220px;background:#1c1c1e;overflow:hidden}
+.dcover img{width:100%;height:100%;object-fit:cover}
+.dcover::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,transparent 50%,var(--bg) 100%)}
+.dinfo{padding:16px;margin-top:-80px;position:relative;z-index:1;display:flex;gap:16px}
+.dthumb{width:110px;height:154px;border-radius:10px;background:var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:200;color:rgba(0,122,255,.2);overflow:hidden}
+.dthumb img{width:100%;height:100%;object-fit:cover}
+.dmeta{flex:1}
+.dtitle{font-size:20px;font-weight:600;line-height:1.35;margin-bottom:8px}
+.meta{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;margin:0 6px 6px 0}
+.dsum{padding:0 16px;font-size:13.5px;line-height:1.65;color:rgba(28,28,30,.7);margin-bottom:12px}
+.dsec{padding:4px 16px}
+.dsec-title{font-size:16px;font-weight:590;margin-bottom:8px}
+.elist{background:var(--surface);border-radius:12px;margin:0 16px;overflow:hidden}
+.ei{display:flex;align-items:center;height:48px;padding:0 16px;cursor:pointer;border-bottom:.5px solid var(--border);font-size:14px;transition:background .15s}
+.ei:hover{background:var(--sidebar-active)}
+.ei:last-child{border-bottom:none}
+.ei .ar{margin-left:auto;color:var(--muted);font-size:12px}
+.dbar{padding:16px;background:var(--surface);border-top:.5px solid var(--border);position:sticky;bottom:0}
+.player-overlay{position:fixed;inset:0;background:var(--player-bg);z-index:100;display:none;flex-direction:column}
+.player-overlay.active{display:flex}
+.ptop{height:48px;display:flex;align-items:center;padding:0 8px;background:rgba(0,0,0,.6);color:#fff;font-size:14px}
+.ptop button{background:0 0;border:none;color:#fff;font-size:18px;cursor:pointer;width:40px;height:40px;display:flex;align-items:center;justify-content:center}
+.pvid{flex:1;display:flex;align-items:center;justify-content:center;background:#111}
+.pvid span{font-size:64px;color:rgba(255,255,255,.15)}
+.pctrl{background:rgba(0,0,0,.8);padding:12px 16px 16px;color:#fff}
+.pprog{height:2px;background:rgba(255,255,255,.2);border-radius:1px;margin-bottom:12px}
+.pprog-fill{width:45%;height:100%;background:var(--accent);border-radius:1px}
+.pbtns{display:flex;align-items:center;gap:8px}
+.pbtns button{background:0 0;border:none;color:#fff;font-size:20px;cursor:pointer;width:40px;height:40px;display:flex;align-items:center;justify-content:center}
+.pbtns .play{font-size:32px;color:var(--accent)}
+.pbtns .spd{font-size:12px;border:1px solid rgba(255,255,255,.4);border-radius:4px;padding:4px 8px;width:auto;margin-left:auto}
+.peps{display:flex;gap:8px;padding:8px 16px;background:rgba(0,0,0,.9);overflow-x:auto}
+.peps span{padding:4px 12px;border-radius:4px;font-size:12px;white-space:nowrap;color:rgba(255,255,255,.6);background:rgba(255,255,255,.1);cursor:pointer}
+.peps span.active{background:var(--accent);color:#fff}
+@keyframes sh{0%,100%{opacity:.3}50%{opacity:.6}}
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;padding:16px}
+.sg .scv{width:100%;aspect-ratio:.75;background:var(--border);border-radius:10px;animation:sh 1.2s infinite}
+.sg .sl{height:12px;background:var(--border);border-radius:3px;margin-top:6px;animation:sh 1.2s infinite}
+.sg .sl.s{width:60%}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:rgba(28,28,30,.15)}
+.empty .eicon{font-size:48px;margin-bottom:16px}
+.empty .emsg{font-size:14px;color:rgba(28,28,30,.45)}
+.reader{max-width:680px;margin:32px auto;padding:0 24px 80px;font-family:"Songti SC","Noto Serif CJK SC","SimSun",serif;font-size:16px;line-height:1.8}
+.reader p{margin-bottom:16px}
+.reader-bar{position:sticky;bottom:0;background:var(--surface);border-top:.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:48px}
+.mp{display:flex;flex-direction:column;align-items:center;justify-content:center;height:calc(100vh - 48px);gap:16px}
+.mp .mc{width:80px;height:80px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff}
+.mp .mst{font-size:18px;font-weight:590}
+.mp .mds{font-size:14px;color:var(--muted)}
+.mp .mbd{padding:6px 16px;border-radius:20px;font-size:12px;font-weight:510}
+.caro{position:relative;height:220px;background:#1c1c1e;overflow:hidden}
+.caro .cd{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+.caro .cd span{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.4);cursor:pointer}
+.caro .cd span.active{width:16px;background:#fff}
+.icard{background:var(--surface);border-radius:12px;margin:0 16px 16px;padding:16px}
+.icard-row{display:flex;padding:8px 0;border-bottom:.5px solid var(--border);font-size:14px}
+.icard-row:last-child{border-bottom:none}
+.icard-row .k{color:var(--muted);width:80px;flex-shrink:0}
+.icard-row .v{color:var(--fg)}
+.srch{height:48px;background:var(--surface);border-bottom:.5px solid var(--border);display:flex;align-items:center;padding:0 8px;gap:8px}
+.srch input{flex:1;height:36px;background:var(--bg);border:none;border-radius:10px;padding:0 12px;font-size:15px;outline:none;color:var(--fg)}
+.srch input::placeholder{color:var(--muted)}
+.slist{background:var(--surface);border-radius:12px;margin:16px;overflow:hidden}
+.sitem{display:flex;align-items:center;height:48px;padding:0 16px;cursor:pointer;border-bottom:.5px solid var(--border);font-size:15px;transition:background .15s}
+.sitem:hover{background:var(--sidebar-active)}
+.sitem:last-child{border-bottom:none}
+.sitem .arw{margin-left:auto;color:var(--muted);font-size:14px}
+.toc-panel{position:fixed;top:0;right:-280px;width:280px;height:100%;background:var(--surface);z-index:50;transition:right .3s ease;box-shadow:-2px 0 16px rgba(0,0,0,.1);overflow-y:auto}
+.toc-panel.open{right:0}
+.toc-header{padding:16px;font-size:18px;font-weight:590;display:flex;justify-content:space-between;align-items:center}
+.toc-vol{padding:12px 16px 4px;font-size:15px;font-weight:590;color:var(--fg)}
+.toc-ch{padding:8px 16px 8px 32px;font-size:13px;color:rgba(28,28,30,.7);cursor:pointer}
+.toc-ch:hover{background:var(--sidebar-active)}
+.dback{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:45;display:none}
+.dback.open{display:block}
+.sheet{position:fixed;bottom:-300px;left:0;right:0;background:var(--surface);z-index:50;transition:bottom .3s ease;border-radius:16px 16px 0 0;padding:20px 24px 32px;box-shadow:0 -2px 16px rgba(0,0,0,.1)}
+.sheet.open{bottom:0}
+</style>
 </head>
 <body>
-<div id="app">
-  <header id="topbar" data-od-id="app-topbar">
-    <div class="tb-left">
-      <button class="sb-toggle" data-action="sidebar-toggle" title="收起侧边栏" aria-label="收起侧边栏" aria-expanded="true" aria-controls="sidebar-body">
-        <span class="sb-toggle-ico sb-ico-hamburger"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span>
-        <span class="sb-toggle-ico sb-ico-chevron"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-      </button>
-      <button class="tb-back" data-action="back" hidden aria-label="返回">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
-      </button>
-      <h1 class="tb-title" id="tb-title">动漫</h1>
-      <div class="tb-search" id="tb-search">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
-        <input id="tb-input" type="text" placeholder="搜索…" aria-label="搜索" />
-        <button class="clear-btn" data-action="close-search" aria-label="关闭搜索">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
-        </button>
-      </div>
-    </div>
-    <div class="tb-right">
-      <span id="tb-actions" style="display:contents"></span>
-      <button class="icon-btn" data-action="open-search" title="搜索" aria-label="搜索">
-        <span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>
-      </button>
-      <button class="avatar" data-route="#/settings" title="账户与设置" aria-label="账户与设置">A</button>
-    </div>
-  </header>
 
-  <div id="shell">
-    <nav id="sidebar" data-od-id="app-sidebar" aria-label="主导航">
-      <div class="sb-body" id="sidebar-body">
-        <div class="sb-items">
-          <a class="sb-item" data-route="#/anime" data-module="anime">
-            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M8 2.8 10.6 6M16 2.8 13.4 6"/></svg></span>
-            <span class="sb-label">动漫</span>
-          </a>
-          <a class="sb-item" data-route="#/comic" data-module="comic">
-            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h5.2a2.3 2.3 0 0 1 2.3 2.3v12.7a1.8 1.8 0 0 0-1.8-1.8H4z"/><path d="M20 4.5h-5.2A2.3 2.3 0 0 0 12.5 6.8v12.7a1.8 1.8 0 0 1 1.8-1.8H20z"/></svg></span>
-            <span class="sb-label">漫画</span>
-          </a>
-          <a class="sb-item" data-route="#/novel" data-module="novel">
-            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H10a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3z"/><path d="M21 5.5A1.5 1.5 0 0 0 19.5 4H14a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z"/></svg></span>
-            <span class="sb-label">轻小说</span>
-          </a>
-          <a class="sb-item" data-route="#/game" data-module="game">
-            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 7h9a5 5 0 0 1 4.9 4l.9 5.1a2.4 2.4 0 0 1-4.3 2.1L16.5 16h-9L6 18.2a2.4 2.4 0 0 1-4.3-2.1L2.6 11A5 5 0 0 1 7.5 7Z"/><path d="M8 10.5v3M6.5 12h3M15.5 11.5h.01M17.5 13.5h.01"/></svg></span>
-            <span class="sb-label">游戏</span>
-          </a>
-        </div>
-        <div class="sb-foot">
-          <div class="sb-divider"></div>
-          <a class="sb-item" data-route="#/settings" data-module="settings">
-            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></span>
-            <span class="sb-label">设置</span>
-          </a>
-        </div>
-      </div>
-    </nav>
+<aside class="sidebar" id="sidebar">
+  <button class="sidebar-toggle sc" onclick="toggleSidebar()">☰</button>
+  <nav class="sidebar-nav sc" id="sideNav">
+    <div class="si active" onclick="go('anime-home',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span class="lbl">动漫</span></div>
+    <div class="si" onclick="go('comic-home',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16v12H4z"/><path d="M4 10h16"/><line x1="12" y1="10" x2="12" y2="18"/></svg><span class="lbl">漫画</span></div>
+    <div class="si" onclick="go('novel-home',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span class="lbl">轻小说</span></div>
+    <div class="si" onclick="go('game-home',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="13" rx="2"/><line x1="7" y1="15" x2="10" y2="15"/><line x1="12" y1="12" x2="12" y2="18"/></svg><span class="lbl">游戏</span></div>
+  </nav>
+  <div class="sd sc"></div>
+  <div class="si sc" onclick="go('settings',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="lbl">设置</span></div>
+</aside>
 
-    <div id="main">
-      <main id="view" data-od-id="app-view" tabindex="-1"></main>
-    </div>
-  </div>
+<div class="main">
+  <div class="topbar"><span class="topbar-title" id="topTitle">动漫</span><div class="topbar-btn" onclick="toggleSearch()">🔍</div></div>
+  <div class="content" id="content"></div>
 </div>
 
-<div class="scrim" id="scrim" data-action="close-overlay"></div>
-<aside class="drawer" id="drawer" aria-hidden="true"><div class="d-head" id="drawer-head"></div><div class="d-body" id="drawer-body"></div></aside>
-<section class="sheet" id="sheet" aria-hidden="true"><div class="grab"></div><div id="sheet-body"></div></section>
-<div id="toast" role="status"></div>
+<div class="player-overlay" id="player">
+  <div class="ptop"><button onclick="closePlayer()">←</button><span>第 3 集 · 命运之夜</span></div>
+  <div class="pvid"><span>▶</span></div>
+  <div class="peps"><span>第1集 ✓</span><span>第2集 ✓</span><span class="active">第3集</span><span>第4集</span><span>第5集</span><span>第6集</span></div>
+  <div class="pctrl"><div class="pprog"><div class="pprog-fill"></div></div><div class="pbtns"><button>◁◁</button><button class="play">▶</button><button>▷▷</button><button class="spd">1.0x</button></div></div>
+</div>
 
-<script src="assets/app.js"></script>
+<div class="dback" id="backdrop" onclick="closeTOC()"></div>
+<div class="toc-panel" id="tocPanel">
+  <div class="toc-header">目录 <span style="cursor:pointer;font-size:16px;color:var(--muted)" onclick="closeTOC()">✕</span></div>
+  <div class="toc-vol">第一卷</div>
+  <div class="toc-ch" onclick="go('novel-reader');closeTOC()">序章 · 死亡与转生</div>
+  <div class="toc-ch" onclick="go('novel-reader');closeTOC()">第一章 · 洞穴中的日常</div>
+  <div class="toc-ch" onclick="go('novel-reader');closeTOC()">第二章 · 与哥布林族的相遇</div>
+  <div class="toc-vol">第二卷</div>
+  <div class="toc-ch" onclick="go('novel-reader');closeTOC()">第一章 · 新的冒险</div>
+  <div class="toc-ch" onclick="go('novel-reader');closeTOC()">第二章 · 试炼</div>
+</div>
+
+<div class="sheet" id="settingsSheet">
+  <div style="font-size:18px;font-weight:590;margin-bottom:16px">阅读设置</div>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><span style="font-size:14px">字号</span><input type="range" min="12" max="24" value="16" style="flex:1;accent-color:var(--accent)" id="fontSize"><span style="font-size:14px;font-weight:600" id="fontSizeVal">16</span></div>
+  <div style="font-size:14px;margin-bottom:8px">行距</div>
+  <div style="display:flex;gap:8px;margin-bottom:16px" id="lineGap"><span class="pill" onclick="selPill(this,'lineGap')">紧凑 1.5</span><span class="pill active" onclick="selPill(this,'lineGap')">标准 1.8</span><span class="pill" onclick="selPill(this,'lineGap')">宽松 2.2</span></div>
+  <div style="font-size:14px;margin-bottom:8px">主题</div>
+  <div style="display:flex;gap:8px" id="themeSel"><span class="pill active" onclick="selPill(this,'themeSel')">日间</span><span class="pill" onclick="selPill(this,'themeSel')">护眼</span><span class="pill" onclick="selPill(this,'themeSel')">夜间</span></div>
+</div>
+
+<script>
+const T = {
+  'anime-home':'动漫','comic-home':'漫画','novel-home':'轻小说','game-home':'游戏',
+  'anime-search':'搜索动漫','anime-detail':'详情','comic-detail':'详情',
+  'novel-detail':'详情','novel-reader':'阅读','game-detail':'详情','settings':'设置'
+};
+
+const ANIME = ['葬送的芙莉莲','迷宫饭','药屋少女的呢喃','我心里危险的东西','BanG Dream!','吹响吧！上低音号','跃动青春','天国大魔境','不死不幸','香格里拉边境','我推的孩子','夏日重现'];
+const COMIC = ['海贼王','咒术回战','间谍过家家','怪兽8号','坂本日常','胆大党','蓝色监狱','电锯人','我推的孩子','终末的女武神'];
+const NOVEL = ['关于我转生变成史莱姆这档事','无职转生','Re:从零开始的异世界生活','盾之勇者成名录','为美好的世界献上祝福','Overlord','哥布林杀手','平凡职业成就世界最强'];
+const GAME = ['サクラノ刻','アマカノ2','天使☆騒々','創作彼女の恋愛公式','金色ラブリッチェ','喫茶ステラと死神の蝶','RIDDLE JOKER','千恋＊万花'];
+
+let activeScreen = 'anime-home';
+
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+
+function go(id, el) {
+  if (el) { document.querySelectorAll('.si').forEach(i=>i.classList.remove('active')); el.classList.add('active'); }
+  activeScreen = id;
+  document.getElementById('topTitle').textContent = T[id]||'';
+  document.querySelector('.topbar-btn').style.display = id.includes('home')?'':'none';
+  render(id);
+}
+
+function toggleSearch() {
+  if (activeScreen.includes('home')) { go(activeScreen.replace('home','search')); }
+}
+
+function selPill(el, gid) {
+  document.querySelectorAll('#'+gid+' .pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function Cards(titles, src, n) {
+  let h='<div class="grid">';
+  for(let i=0;i<(n||12);i++){
+    const t=titles[i%titles.length];
+    h+=`<div class="card" onclick="go('${src}-detail')"><div class="cc">${t[0]}</div><div class="ct">${t}</div><div class="cs">${src==='anime'?'Bangumi':src==='comic'?'漫画源A':'轻小说文库'}</div></div>`;
+  }
+  return h+'</div>';
+}
+
+function Shimmer() {
+  let h='<div class="sg">';
+  for(let i=0;i<12;i++) h+='<div><div class="scv"></div><div class="sl"></div><div class="sl s"></div></div>';
+  return h+'</div>';
+}
+
+function openPlayer() { document.getElementById('player').classList.add('active'); }
+function closePlayer() { document.getElementById('player').classList.remove('active'); }
+
+function openTOC() { document.getElementById('tocPanel').classList.add('open'); document.getElementById('backdrop').classList.add('open'); }
+function closeTOC() { document.getElementById('tocPanel').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
+
+function render(id) {
+  let h='';
+  switch(id) {
+  case 'anime-home':
+    h='<div class="screen active"><div class="hero"><div class="ol"></div><div class="info"><div class="ht">葬送的芙莉莲</div><div class="hs">Bangumi · 2023 · ★8.6</div><button class="hb" onclick="go(\'anime-detail\')">立即观看</button></div></div><div class="pills" id="apills"><span class="pill" onclick="selPill(this,\'apills\')">继续观看</span><span class="pill active" onclick="selPill(this,\'apills\')">热门推荐</span><span class="pill" onclick="selPill(this,\'apills\')">最近更新</span></div><div class="sec-title">热门推荐</div>'+Cards(ANIME,'anime')+'</div>';
+    break;
+  case 'anime-search':
+    h='<div class="screen active"><div class="srch"><button class="bt" onclick="go(\'anime-home\')" style="font-size:18px;padding:0 8px">←</button><input type="text" placeholder="搜索动漫..." id="srchInput"></div><div style="padding:16px;display:flex;gap:8px"><span class="pill active" style="font-size:12px">全部源</span><span class="pill" style="font-size:12px">Bangumi</span></div><div class="empty"><div class="eicon">🔍</div><div class="emsg">输入关键词搜索动漫</div></div></div>';
+    break;
+  case 'anime-detail':
+    h='<div class="screen active"><div class="topbar"><button class="bt" onclick="go(\'anime-home\')" style="font-size:18px">←</button><span style="flex:1;font-size:16px;font-weight:590;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">葬送的芙莉莲</span><button class="bt" style="font-size:16px;color:var(--fg)">♡</button></div><div class="dcover"></div><div class="dinfo"><div class="dthumb">芙</div><div class="dmeta"><div class="dtitle">葬送的芙莉莲</div><span class="meta" style="background:rgba(245,166,35,.12);color:#F5A623">★ 8.6</span><span class="meta" style="background:rgba(0,122,255,.08);color:var(--accent)">28 话</span><span class="meta" style="background:rgba(88,86,214,.08);color:var(--anime-c)">2023-09</span></div></div><div style="padding:0 16px 12px"><span class="tag">冒险</span><span class="tag">奇幻</span><span class="tag">治愈</span><span class="tag">漫画改</span></div><div class="dsum">魔法使芙莉莲与勇者辛美尔等人历经十年的冒险，打倒魔王带来了世界和平。作为一个活了一千多年的精灵，她决定再次踏上旅途...</div><div class="dsec"><div class="dsec-title">剧集列表 <span style="font-size:12px;color:var(--muted);margin-left:8px">正序 ▼</span></div></div><div class="elist"><div class="ei" onclick="openPlayer()">第 1 集 · 冒险的终点 <span class="ar">▶</span></div><div class="ei" onclick="openPlayer()">第 2 集 · 幻影魔法 <span class="ar">▶</span></div><div class="ei" onclick="openPlayer()">第 3 集 · 杀人魔法 <span class="ar">▶</span></div><div class="ei" onclick="openPlayer()">第 4 集 · 灵魂安息之地 <span class="ar">▶</span></div><div class="ei">查看更多剧集... <span class="ar">▼</span></div></div><div style="height:80px"></div><div class="dbar"><button class="bp" onclick="openPlayer()">播放最新</button></div></div>';
+    break;
+  case 'comic-home':
+    h='<div class="screen active"><div class="hero" style="background:var(--comic-c)"><div class="ol" style="background:linear-gradient(to top,rgba(255,149,0,.7),transparent 60%)"></div><div class="info"><div class="ht">海贼王</div><div class="hs">更新至第 1124 话</div><button class="hb" onclick="go(\'comic-detail\')">开始阅读</button></div></div><div class="pills" id="cpills"><span class="pill" onclick="selPill(this,\'cpills\')">继续阅读</span><span class="pill active" onclick="selPill(this,\'cpills\')">热门推荐</span><span class="pill" onclick="selPill(this,\'cpills\')">最近更新</span></div><div class="sec-title">热门推荐</div>'+Cards(COMIC,'comic')+'</div>';
+    break;
+  case 'comic-detail':
+    h='<div class="screen active"><div class="topbar"><button class="bt" onclick="go(\'comic-home\')" style="font-size:18px">←</button><span style="flex:1;font-size:16px;font-weight:590;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">海贼王</span><button class="bt" style="font-size:12px">登录此源</button><button class="bt" style="font-size:16px;color:var(--fg)">♡</button></div><div class="dcover"></div><div class="dinfo"><div class="dthumb" style="color:rgba(255,149,0,.2)">海</div><div class="dmeta"><div class="dtitle">海贼王</div><span class="meta" style="background:rgba(255,149,0,.1);color:var(--comic-c)">更新至 1124 话</span><span class="meta" style="background:rgba(0,122,255,.08);color:var(--accent)">连载中</span></div></div><div style="padding:0 16px 12px"><span class="tag">热血</span><span class="tag">冒险</span><span class="tag">少年</span></div><div class="dsum">拥有财富、名声、权力，这世界上一切的男人「海贼王」哥尔·D·罗杰，在被行刑受死之前说了一句话，让全世界的人都涌向了大海...</div><div class="dsec"><div class="dsec-title">话数列表 <span style="font-size:12px;color:var(--muted);margin-left:8px">倒序 ▼</span></div></div><div class="elist"><div class="ei">第 1124 话 · 标题名称 <span class="ar">▶</span></div><div class="ei">第 1123 话 · 标题名称 <span class="ar">▶</span></div><div class="ei">第 1122 话 · 标题名称 <span class="ar">▶</span></div></div><div style="margin:12px 16px"><div class="icard" style="background:var(--bg);border-radius:10px"><div style="font-size:13px;color:var(--muted)">本内容来自「漫画源A」 <button class="bt" style="font-size:13px;padding:0">前往登录</button></div></div></div><div style="height:100px"></div><div class="dbar" style="display:flex;flex-direction:column;gap:8px"><button class="bp">从第 1 话开始阅读</button><button class="bs">继续阅读第 47 话</button></div></div>';
+    break;
+  case 'novel-home':
+    h='<div class="screen active"><div class="hero" style="height:160px;background:var(--novel-c)"><div class="ol" style="background:linear-gradient(to top,rgba(52,199,89,.6),transparent 60%)"></div><div class="info"><div class="ht" style="font-size:20px">轻小说文库 · 今日推荐</div><div class="hs">关于我转生变成史莱姆这档事 · 伏濑</div><button class="hb" onclick="go(\'novel-detail\')">开始阅读</button></div></div><div class="pills" id="npills"><span class="pill active" onclick="selPill(this,\'npills\')">热门排行</span><span class="pill" onclick="selPill(this,\'npills\')">最新入库</span><span class="pill" onclick="selPill(this,\'npills\')">完本精选</span></div><div class="sec-title">热门排行</div>'+Cards(NOVEL,'novel')+'</div>';
+    break;
+  case 'novel-detail':
+    h='<div class="screen active"><div class="topbar"><button class="bt" onclick="go(\'novel-home\')" style="font-size:18px">←</button><span style="flex:1;font-size:16px;font-weight:590;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">关于我转生变成史莱姆</span><button class="bt" style="font-size:16px;color:var(--fg)">Aa</button><button class="bt" style="font-size:16px;color:var(--fg)">♡</button></div><div style="display:flex;gap:16px;padding:16px"><div style="width:120px;height:160px;background:var(--border);border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;color:rgba(52,199,89,.2)">史</div><div class="dmeta"><div class="dtitle">关于我转生变成史莱姆这档事</div><div style="font-size:14px;color:var(--muted);margin-bottom:8px">伏濑 · 240万字 · 已完结</div><span class="tag">奇幻</span><span class="tag">异世界</span><span class="tag">转生</span></div></div><div class="dsum" style="margin-top:0">三上悟过着不起眼的人生，在随机杀人魔肆虐下结束了三十七年的生命。当他从沉睡中清醒过来以后，面临看不见、听不到，身体圆滚滚的危机...</div><div class="dsec"><div class="dsec-title">目录</div></div><div class="elist"><div class="ei" style="font-weight:590">第一卷 <span class="ar">▼</span></div><div class="ei" style="padding-left:32px" onclick="go(\'novel-reader\')">序章 · 死亡与转生 <span class="ar">▶</span></div><div class="ei" style="padding-left:32px" onclick="go(\'novel-reader\')">第一章 · 洞穴中的日常 <span class="ar">▶</span></div><div class="ei" style="font-weight:590">第二卷 <span class="ar">▶</span></div></div><div style="height:80px"></div><div class="dbar"><button class="bp" onclick="go(\'novel-reader\')">开始阅读</button></div></div>';
+    break;
+  case 'novel-reader':
+    h='<div class="screen active"><div class="topbar"><button class="bt" onclick="go(\'novel-detail\')" style="font-size:18px">←</button><span style="flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">序章 · 死亡与转生</span><button class="bt" style="font-size:16px;color:var(--fg)" onclick="openTOC()">☰</button><button class="bt" style="font-size:16px;color:var(--fg)" onclick="openSettings()">Aa</button></div><div class="reader"><h2 style="font-weight:600;font-size:22px;margin-bottom:24px;font-family:system-ui,sans-serif">序章 · 死亡与转生</h2><p>这是一个平稳的日子，三上悟如同往常一样走在前往公司的路上。作为一个普通的三十七岁单身男性，他的人生并没有什么特别之处——没有女朋友，没有显赫的家世，也没有特别出众的才能。</p><p>然而这一天，命运却跟他开了一个玩笑。</p><p>「啊——！」</p><p>在穿过人行横道时，一个持刀的暴徒突然冲了出来。混乱中，三上悟为了保护后辈而被刺中。倒在血泊中，他听到的最后声音是一个冰冷机械的电子音。</p><p>「已确认。获得独特技能『大贤者』。」</p><p>「已确认。获得技能『痛觉无效』。」</p><p>当三上悟再次恢复意识时，他发现自己已经不在原来的世界了。他变成了一个圆滚滚的、半透明的——史莱姆。</p></div><div class="reader-bar"><button class="bt" style="color:var(--fg)">← 上一章</button><span style="font-size:13px;color:var(--muted)">序章</span><button class="bt" style="color:var(--fg)">下一章 →</button></div></div>';
+    break;
+  case 'game-home':
+    h='<div class="screen active"><div class="caro"><div class="cd"><span class="active"></span><span></span><span></span></div></div><div class="pills" id="gpills"><span class="pill active" onclick="selPill(this,\'gpills\')">最新发布</span><span class="pill" onclick="selPill(this,\'gpills\')">高分推荐</span><span class="pill" onclick="selPill(this,\'gpills\')">品牌索引</span></div><div class="sec-title">最新发布</div>'+Cards(GAME,'game')+'</div>';
+    break;
+  case 'game-detail':
+    h='<div class="screen active"><div class="topbar"><button class="bt" onclick="go(\'game-home\')" style="font-size:18px">←</button><span style="flex:1;font-size:16px;font-weight:590;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">サクラノ刻</span><button class="bt" style="font-size:14px;color:var(--fg)">↗</button><button class="bt" style="font-size:16px;color:var(--fg)">♡</button></div><div class="caro"><div class="cd"><span class="active"></span><span></span><span></span><span></span></div></div><div style="padding:16px"><div class="dtitle">サクラノ刻</div><div style="font-size:14px;color:var(--muted);margin-bottom:8px">品牌：枕 · 发售日：2023-02-24</div><span class="tag">学园</span><span class="tag">恋爱</span><span class="tag">青春</span><span class="tag">全年龄</span></div><div class="dsum" style="margin-top:0">樱之诗的续作。时间流转，季节更迭。主人公草薙直哉在新的舞台上，继续追寻着艺术与人生的答案...</div><div class="dsec"><div class="dsec-title">详细信息</div></div><div class="icard"><div class="icard-row"><span class="k">原画</span><span class="v">基4%, 笼目, 硯</span></div><div class="icard-row"><span class="k">剧本</span><span class="v">すかぢ</span></div><div class="icard-row"><span class="k">音乐</span><span class="v">松本文紀</span></div><div class="icard-row"><span class="k">CV</span><span class="v">夏和小, 澤田なつ, 他</span></div></div><div style="padding:16px;font-size:12px;color:var(--muted);text-align:center">数据来源：nekogal.com · galgamezywz.org</div></div>';
+    break;
+  case 'settings':
+    h='<div class="screen active"><div class="slist"><div class="sitem">清除图片缓存 <span class="arw">▶</span></div><div class="sitem">源管理 <span class="arw">▶</span></div></div><div class="slist"><div class="sitem">关于 ACGNhub <span class="arw">v0.1.0</span></div></div></div>';
+    break;
+  }
+  document.getElementById('content').innerHTML = h;
+}
+
+function openSettings() {
+  document.getElementById('settingsSheet').classList.add('open');
+  document.getElementById('backdrop').classList.add('open');
+}
+
+document.getElementById('backdrop').addEventListener('click',function(){
+  document.getElementById('settingsSheet').classList.remove('open');
+  closeTOC();
+});
+
+document.getElementById('fontSize').addEventListener('input',function(){
+  document.getElementById('fontSizeVal').textContent = this.value;
+});
+
+go('anime-home');
+</script>
 </body>
 </html>
