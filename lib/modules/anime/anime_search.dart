@@ -4,7 +4,6 @@ import '../../core/models/work.dart';
 import '../../core/widgets/work_card.dart';
 import 'anime_providers.dart';
 import 'bangumi_detail_page.dart';
-import 'bangumi_service.dart';
 
 class AnimeSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
@@ -53,7 +52,9 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
         _loading = false;
       });
     } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() { _error = e.toString(); _loading = false; });
+      }
     }
   }
 

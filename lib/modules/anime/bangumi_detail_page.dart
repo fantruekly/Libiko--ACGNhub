@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/work.dart';
-import '../../core/widgets/dio_image.dart';
-import 'bangumi_service.dart';
 import 'anime_providers.dart';
 import 'anime_search.dart';
 
@@ -18,6 +17,7 @@ class BangumiDetailPage extends ConsumerStatefulWidget {
 
 class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
   Map<String, dynamic>? _detail;
+  bool _loadingDetail = true;
 
   @override
   void initState() {
@@ -27,98 +27,206 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
 
   Future<void> _loadDetail() async {
     final bangumiId = widget.work.extra['bangumiId'] as int?;
-    if (bangumiId == null) return;
+    if (bangumiId == null) {
+      setState(() => _loadingDetail = false);
+      return;
+    }
     final service = ref.read(bangumiServiceProvider);
     final detail = await service.getSubjectDetail(bangumiId);
-    if (mounted) setState(() => _detail = detail);
+    if (mounted) {
+      setState(() {
+        _detail = detail;
+        _loadingDetail = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final work = widget.work;
+    final colorScheme = Theme.of(context).colorScheme;
     final bangumiId = work.extra['bangumiId'] as int?;
+
+    final summary = _detail?['summary'] as String?;
+    final rating = _detail?['rating'] as num?;
+    final eps = _detail?['eps'] as int?;
+    final airDate = _detail?['airDate'] as String?;
+    final tags = (_detail?['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [];
+    final coverUrl = (_detail?['cover'] as String?) ?? work.coverUrl;
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
+          // Hero image background
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: 220,
             pinned: true,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              work.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            centerTitle: false,
             flexibleSpace: FlexibleSpaceBar(
-              background: work.coverUrl != null && work.coverUrl!.isNotEmpty
-                  ? DioImage(
-                      url: work.coverUrl!,
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (coverUrl != null && coverUrl.isNotEmpty)
+                    CachedNetworkImage(
+                      imageUrl: coverUrl,
                       fit: BoxFit.cover,
-                      placeholder: () => _buildGradientCover(work),
-                      errorWidget: () => _buildGradientCover(work),
+                      fadeInDuration: const Duration(milliseconds: 300),
+                      errorWidget: (_, __, ___) => _gradientBg(colorScheme),
                     )
-                  : _buildGradientCover(work),
+                  else
+                    _gradientBg(colorScheme),
+                  // Gradient fade
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.1),
+                            colorScheme.surface.withValues(alpha: 0.85),
+                            colorScheme.surface,
+                          ],
+                          stops: const [0, 0.7, 1],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Info card
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Cover
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 120, height: 168,
+                      child: coverUrl != null && coverUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: coverUrl,
+                              fit: BoxFit.cover,
+                              fadeInDuration: const Duration(milliseconds: 150),
+                              errorWidget: (_, __, ___) => _coverPlaceholder(colorScheme),
+                            )
+                          : _coverPlaceholder(colorScheme),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          work.title,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, height: 1.3),
+                        ),
+                        const SizedBox(height: 10),
+                        if (_loadingDetail)
+                          SizedBox(
+                            width: 100,
+                            child: LinearProgressIndicator(minHeight: 2, color: colorScheme.primary.withValues(alpha: 0.3)),
+                          ),
+                        if (!_loadingDetail) ...[
+                          _MetaChip(icon: Icons.star_rounded, label: rating != null ? rating.toStringAsFixed(1) : 'N/A', color: Colors.amber),
+                          const SizedBox(height: 6),
+                          _MetaChip(icon: Icons.live_tv_rounded, label: eps != null ? '$eps 话' : '? 话', color: colorScheme.primary),
+                          if (airDate != null) ...[
+                            const SizedBox(height: 6),
+                            _MetaChip(icon: Icons.calendar_today_rounded, label: airDate, color: colorScheme.tertiary),
+                          ],
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Tags
+          if (tags.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: tags.map((t) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(t, style: TextStyle(fontSize: 11, color: colorScheme.primary, fontWeight: FontWeight.w500)),
+                  )).toList(),
+                ),
+              ),
+            ),
+
+          // Action buttons
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: Row(
+                children: [
+                  if (bangumiId != null)
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _openBgm(bangumiId),
+                        icon: const Icon(Icons.play_circle_rounded, size: 20),
+                        label: const Text('在Bangumi查看'),
+                      ),
+                    ),
+                  if (bangumiId != null) const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        final keyword = work.extra['keyword'] as String? ?? work.title;
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => AnimeSearchPage(initialKeyword: keyword)));
+                      },
+                      icon: const Icon(Icons.search, size: 20),
+                      label: const Text('搜索播放资源'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Summary
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 2),
+              child: Text('简介', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(work.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  if (_detail != null) _buildMetaRow(),
-                  if (_detail?['tags'] is List && (_detail!['tags'] as List).isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Wrap(
-                        spacing: 8, runSpacing: 4,
-                        children: (_detail!['tags'] as List)
-                            .map((t) => Chip(
-                                  label: Text(t.toString(), style: const TextStyle(fontSize: 11)),
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  visualDensity: VisualDensity.compact,
-                                ))
-                            .toList(),
-                      ),
-                    ),
-                  if (work.summary != null && work.summary!.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    const Text('简介', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text(work.summary!, style: const TextStyle(fontSize: 14, height: 1.5)),
-                  ],
-                  const SizedBox(height: 28),
-                  if (bangumiId != null)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.play_circle),
-                        label: const Text('在网页中观看', style: TextStyle(fontSize: 16)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () => _openWebView(context, bangumiId),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.search),
-                      label: const Text('搜索播放资源'),
-                      onPressed: () {
-                        final keyword = work.extra['keyword'] as String? ?? work.title;
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AnimeSearchPage(initialKeyword: keyword),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                ],
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              child: Text(
+                summary?.isNotEmpty == true ? summary! : (_loadingDetail ? '正在加载…' : '暂无简介数据'),
+                style: TextStyle(fontSize: 13.5, height: 1.65, color: colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ),
           ),
@@ -127,53 +235,62 @@ class _BangumiDetailPageState extends ConsumerState<BangumiDetailPage> {
     );
   }
 
-  Widget _buildMetaRow() {
-    return Row(
-      children: [
-        if (_detail!['rating'] != null) ...[
-          const Icon(Icons.star, color: Colors.amber, size: 18),
-          const SizedBox(width: 4),
-          Text('${(_detail!['rating'] as num).toStringAsFixed(1)}',
-              style: const TextStyle(fontSize: 16, color: Colors.amber)),
-          const SizedBox(width: 16),
-        ],
-        Icon(Icons.tv, size: 16, color: Colors.grey[400]),
-        const SizedBox(width: 4),
-        Text('${_detail!['eps'] ?? '?'} 话', style: TextStyle(color: Colors.grey[400])),
-        if (_detail!['airDate'] != null) ...[
-          const SizedBox(width: 16),
-          Text(_detail!['airDate']!.toString(), style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-        ],
-      ],
-    );
-  }
-
-  void _openWebView(BuildContext context, int bangumiId) async {
+  void _openBgm(int bangumiId) async {
     final uri = Uri.parse('https://bgm.tv/subject/$bangumiId');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
-  Widget _buildGradientCover(Work work) {
-    final hash = work.title.hashCode.abs();
-    final colors = [Colors.blueGrey, Colors.teal, Colors.indigo, Colors.deepPurple];
+  Widget _gradientBg(ColorScheme colorScheme) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            colors[hash % colors.length].withValues(alpha: 0.8),
-            colors[(hash + 1) % colors.length].withValues(alpha: 0.4),
-          ],
+          colors: [colorScheme.primary.withValues(alpha: 0.3), colorScheme.tertiary.withValues(alpha: 0.2)],
+        ),
+      ),
+    );
+  }
+
+  Widget _coverPlaceholder(ColorScheme colorScheme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [colorScheme.primary.withValues(alpha: 0.15), colorScheme.tertiary.withValues(alpha: 0.08)],
         ),
       ),
       child: Center(
-        child: Text(
-          work.title.isNotEmpty ? work.title.characters.first : '?',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 72, fontWeight: FontWeight.bold),
-        ),
+        child: Icon(Icons.image_outlined, color: colorScheme.primary.withValues(alpha: 0.25), size: 32),
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _MetaChip({required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+        ],
       ),
     );
   }

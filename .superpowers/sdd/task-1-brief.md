@@ -1,88 +1,106 @@
-﻿### Task 1: Scaffold Flutter project
+﻿### Task 1: Update theme system
 
 **Files:**
-- Create: entire Flutter project structure via `flutter create`
+- Modify: `lib/main.dart`
 
 **Interfaces:**
-- Produces: Standard Flutter project with `lib/main.dart`, `pubspec.yaml`, `test/`, `windows/`
+- Produces: Updated ACGNhubApp with iOS-light color tokens, proper button themes
 
-- [ ] **Step 1: Create Flutter project**
+- [ ] **Step 1: Replace theme in lib/main.dart**
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/storage/database.dart';
+import 'shell/main_shell.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppDatabase.init();
+  runApp(const ProviderScope(child: ACGNhubApp()));
+}
+
+class ACGNhubApp extends StatelessWidget {
+  static const _accent = Color(0xFF007AFF);
+
+  const ACGNhubApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'ACGNhub',
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.light,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _accent,
+          brightness: Brightness.light,
+          primary: _accent,
+          surface: const Color(0xFFFFFFFF),
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF2F2F7),
+        appBarTheme: const AppBarTheme(
+          centerTitle: false,
+          elevation: 0,
+          scrolledUnderElevation: 0.5,
+          backgroundColor: Color(0xFFFFFFFF),
+          foregroundColor: Color(0xFF1C1C1E),
+          titleTextStyle: TextStyle(
+            fontSize: 20, fontWeight: FontWeight.w590,
+            color: Color(0xFF1C1C1E), height: 1.4,
+          ),
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0, color: const Color(0xFFFFFFFF),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          clipBehavior: Clip.antiAlias,
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: _accent, foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w590),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: _accent,
+            side: const BorderSide(color: _accent, width: 1.5),
+            minimumSize: const Size(double.infinity, 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w590),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: _accent),
+        ),
+        chipTheme: ChipThemeData(
+          backgroundColor: const Color(0xFFE8F0FE),
+          labelStyle: const TextStyle(fontSize: 11, color: _accent, fontWeight: FontWeight.w510),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          padding: EdgeInsets.zero,
+        ),
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: _accent, linearTrackColor: Color(0xFFE5E5EA),
+        ),
+        dividerTheme: const DividerThemeData(color: Color(0xFFE5E5EA), thickness: 0.5),
+      ),
+      home: const MainShell(),
+    );
+  }
+}
+```
+
+- [ ] **Step 2: Verify build**
 
 ```bash
-cd D:\ACGNhub
-flutter create --org com.acgnhub --project-name acgnhub .
+cd D:\ACGNhub; flutter build windows --debug
 ```
 
-- [ ] **Step 2: Configure pubspec.yaml with dependencies**
-
-Replace the generated `pubspec.yaml` with:
-
-```yaml
-name: acgnhub
-description: ACGNhub - Anime, Comic, Game, Novel aggregation app
-publish_to: 'none'
-version: 0.1.0
-
-environment:
-  sdk: '>=3.6.0 <4.0.0'
-
-dependencies:
-  flutter:
-    sdk: flutter
-  flutter_riverpod: ^2.6.1
-  dio: ^5.7.0
-  isar: ^3.1.0
-  isar_flutter_libs: ^3.1.0
-  flutter_cache_manager: ^3.4.1
-  media_kit: ^1.2.0
-  media_kit_video: ^1.2.0
-  media_kit_libs_windows_video: ^1.0.9
-  html: ^0.15.5
-  xml: ^6.5.0
-  cached_network_image: ^3.4.1
-  shared_preferences: ^2.3.4
-  path_provider: ^2.1.5
-  path: ^1.9.0
-  uuid: ^4.5.1
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^5.0.0
-
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/rules/
-```
-
-- [ ] **Step 3: Create assets directory**
+- [ ] **Step 3: Commit**
 
 ```bash
-mkdir -p assets\rules
+git add lib/main.dart; git commit -m "feat(theme): replace purple theme with iOS-light design tokens"
 ```
-
-- [ ] **Step 4: Run flutter pub get**
-
-```bash
-flutter pub get
-```
-
-- [ ] **Step 5: Verify project builds**
-
-```bash
-flutter build windows --debug
-```
-
-Expected: Build succeeds with no errors.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A
-git commit -m "chore: scaffold Flutter project with dependencies"
-```
-
----
-
-

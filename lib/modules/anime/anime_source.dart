@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:uuid/uuid.dart';
 import '../../core/source/source_adapter.dart';
 import '../../core/models/work.dart';
 import '../../core/models/chapter.dart';
@@ -10,7 +9,6 @@ import 'anime_rule.dart';
 class AnimeSource extends SourceAdapter {
   final AnimeRule rule;
   final HttpClient _http = HttpClient();
-  final _uuid = const Uuid();
 
   AnimeSource(this.rule);
 
@@ -46,6 +44,8 @@ class AnimeSource extends SourceAdapter {
       final link = XPathParser.extractText(node, rule.search.link) ?? '';
       if (title.isEmpty) continue;
 
+      final resolvedCover = cover != null ? resolveUrl(cover) : null;
+
       final workId = link.replaceAll(RegExp(r'[^\w]'), '_');
       works.add(Work(
         id: '$id-$workId',
@@ -53,7 +53,7 @@ class AnimeSource extends SourceAdapter {
         sourceName: name,
         type: WorkType.anime,
         title: title,
-        coverUrl: cover != null ? resolveUrl(cover) : null,
+        coverUrl: resolvedCover,
         extra: {'link': link},
       ));
     }

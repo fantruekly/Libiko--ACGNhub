@@ -145,44 +145,61 @@ class AnimeRule {
 class XPathParser {
   static String? extractText(dynamic node, String xpath) {
     if (node == null) return null;
-    if (xpath.endsWith('/text()')) {
-      final attrXpath = xpath.replaceAll('/text()', '');
-      final attr = _extractAttribute(node, attrXpath);
-      if (attr != null) return attr;
+
+    // Handle attribute extraction (e.g. ".//img/@src", "//a/@href", "@data-id")
+    final attrMatch = RegExp(r'^(.*)/@(\w+)$').firstMatch(xpath);
+    if (attrMatch != null) {
+      final elementPath = attrMatch.group(1)!;
+      final attrName = attrMatch.group(2)!;
+      // If elementPath is empty or just ".", the attribute is on the node itself
+      if (elementPath.isEmpty || elementPath == '.' || elementPath == '/') {
+        if (node is dom.Element) {
+          return node.attributes[attrName];
+        }
+        return null;
+      }
+      // Otherwise, find the child element and extract the attribute
+      final elements = findNodes(node, elementPath);
+      if (elements.isNotEmpty) {
+        final el = elements.first;
+        var value = el.attributes[attrName];
+        // Lazy-loading fallback: if src is empty/placeholder, try data-* attributes
+        if (attrName == 'src' && (value == null || value.isEmpty || value.contains('loading') || value.contains('placeholder'))) {
+          value = el.attributes['data-original'] ??
+                  el.attributes['data-src'] ??
+                  el.attributes['data-lazy-src'] ??
+                  el.attributes['data-original-src'];
+        }
+        return value;
+      }
+      return null;
     }
+
+    // Handle @attr directly
     if (xpath.startsWith('@')) {
-      return _extractAttribute(node, xpath);
+      final attrName = xpath.substring(1);
+      if (node is dom.Element) {
+        return node.attributes[attrName];
+      }
+      return null;
     }
-    if (xpath.endsWith('/@src')) {
-      return _extractAttribute(node, xpath);
-    }
-    if (xpath.endsWith('/@href')) {
-      return _extractAttribute(node, xpath);
-    }
-    final found = _findNode(node, xpath);
-    if (found != null) {
-      if (found is dom.Element) {
+
+    // Handle /text() - find the element and return its text
+    if (xpath.endsWith('/text()')) {
+      final elementPath = xpath.replaceAll('/text()', '');
+      final found = _findNode(node, elementPath);
+      if (found != null) {
         return found.text.trim();
       }
     }
+
+    // Find element and return its text
+    final found = _findNode(node, xpath);
+    if (found != null) {
+      return found.text.trim();
+    }
     if (node is dom.Element) {
       return node.text.trim();
-    }
-    return null;
-  }
-
-  static String? _extractAttribute(dynamic node, String xpath) {
-    if (node is dom.Element) {
-      if (xpath.contains('/@src')) {
-        return node.attributes['src'];
-      }
-      if (xpath.contains('/@href')) {
-        return node.attributes['href'];
-      }
-      if (xpath.startsWith('@')) {
-        final attrName = xpath.substring(1);
-        return node.attributes[attrName];
-      }
     }
     return null;
   }

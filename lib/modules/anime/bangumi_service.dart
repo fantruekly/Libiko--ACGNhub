@@ -7,15 +7,24 @@ class BangumiService {
     receiveTimeout: const Duration(seconds: 10),
     headers: {
       'User-Agent': 'ACGNhub/0.1 (https://github.com/acgnhub)',
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     },
   ));
 
   String _fixUrl(String? url) {
-    if (url == null) return '';
-    if (url.startsWith('http://')) {
-      return url.replaceFirst('http://', 'https://');
+    if (url == null || url.isEmpty) return '';
+
+    final normalized = url.startsWith('http://')
+        ? url.replaceFirst('http://', 'https://')
+        : url;
+
+    if (normalized.contains('lain.bgm.tv') || normalized.contains('bgm.tv/pic/cover')) {
+      final encodedUrl = Uri.encodeComponent(normalized);
+      return 'https://images.weserv.nl/?url=$encodedUrl';
     }
-    return url;
+
+    return normalized;
   }
 
   Future<List<Map<String, dynamic>>> getCalendar() async {

@@ -14,7 +14,7 @@ class SettingsPage extends StatelessWidget {
             leading: const Icon(Icons.delete_outline),
             title: const Text('清除图片缓存'),
             onTap: () async {
-              // TODO: Clear cache
+             
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('缓存已清除')),

@@ -14,9 +14,9 @@ class _MainShellState extends State<MainShell> {
 
   final _pages = <Widget>[
     const AnimeHomePage(),
-    const _PlaceholderPage(title: '漫画', icon: Icons.menu_book, message: '阶段2'),
-    const _PlaceholderPage(title: '轻小说', icon: Icons.auto_stories, message: '阶段3'),
-    const _PlaceholderPage(title: '游戏', icon: Icons.games, message: '阶段4'),
+    const _PlaceholderPage(title: '漫画', icon: Icons.menu_book_rounded, message: '阶段2'),
+    const _PlaceholderPage(title: '轻小说', icon: Icons.auto_stories_rounded, message: '阶段3'),
+    const _PlaceholderPage(title: '游戏', icon: Icons.games_rounded, message: '阶段4'),
   ];
 
   @override
@@ -26,11 +26,28 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
+        animationDuration: const Duration(milliseconds: 300),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '番剧'),
-          NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: '漫画'),
-          NavigationDestination(icon: Icon(Icons.auto_stories_outlined), selectedIcon: Icon(Icons.auto_stories), label: '小说'),
-          NavigationDestination(icon: Icon(Icons.games_outlined), selectedIcon: Icon(Icons.games), label: '游戏'),
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: '番剧',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.menu_book_outlined),
+            selectedIcon: Icon(Icons.menu_book_rounded),
+            label: '漫画',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.auto_stories_outlined),
+            selectedIcon: Icon(Icons.auto_stories_rounded),
+            label: '小说',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.games_outlined),
+            selectedIcon: Icon(Icons.games_rounded),
+            label: '游戏',
+          ),
         ],
       ),
     );
@@ -46,15 +63,18 @@ class _PlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(title), centerTitle: false),
+      appBar: AppBar(
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 20, color: colorScheme.primary)),
+      ),
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
-            const SizedBox(height: 16),
-            Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), fontSize: 15)),
+            Icon(icon, size: 56, color: colorScheme.onSurface.withValues(alpha: 0.12)),
+            const SizedBox(height: 20),
+            Text(message, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 16)),
           ],
         ),
       ),

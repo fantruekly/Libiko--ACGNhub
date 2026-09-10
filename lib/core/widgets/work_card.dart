@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/work.dart';
-import 'dio_image.dart';
 
 class WorkCard extends StatelessWidget {
   final Work work;
@@ -10,66 +10,70 @@ class WorkCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return GestureDetector(
       onTap: onTap,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: AspectRatio(
-              aspectRatio: 0.65,
-              child: work.coverUrl != null && work.coverUrl!.isNotEmpty
-                  ? DioImage(
-                      url: work.coverUrl!,
+              aspectRatio: 0.7,
+child: work.coverUrl != null && work.coverUrl!.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: work.coverUrl!,
                       fit: BoxFit.cover,
-                      placeholder: () => _placeholder(work),
-                      errorWidget: () => _placeholder(work),
+                      fadeInDuration: const Duration(milliseconds: 200),
+                      fadeOutDuration: const Duration(milliseconds: 100),
+                      placeholder: (_, __) => _placeholder(work, colorScheme),
+                      errorWidget: (_, url, error) {
+                        debugPrint('[IMG_ERR] $url => $error');
+                        return _placeholder(work, colorScheme);
+                      },
                     )
-                  : _placeholder(work),
+                  : _placeholder(work, colorScheme),
             ),
           ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              work.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.3,
-              ),
-            ),
+          const SizedBox(height: 3),
+          Text(
+            work.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400, color: colorScheme.onSurface.withValues(alpha: 0.75)),
           ),
         ],
       ),
     );
   }
 
-  Widget _placeholder(Work work) {
+  Widget _placeholder(Work work, ColorScheme colorScheme) {
     final hash = work.title.hashCode.abs();
     final colors = [
-      Colors.teal.shade700,
-      Colors.indigo.shade700,
-      Colors.deepPurple.shade700,
-      Colors.cyan.shade700,
-      Colors.blueGrey.shade700,
+      const Color(0xFFF3E5F5), const Color(0xFFEDE7F6), const Color(0xFFE8EAF6),
+      const Color(0xFFE0F2F1), const Color(0xFFFCE4EC),
     ];
-    final color = colors[hash % colors.length];
+    final textColors = [
+      const Color(0xFF7B1FA2), const Color(0xFF5E35B1), const Color(0xFF283593),
+      const Color(0xFF00695C), const Color(0xFFC2185B),
+    ];
+    final bgColor = colors[hash % colors.length];
+    final textColor = textColors[hash % textColors.length];
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [color.withValues(alpha: 0.7), color.withValues(alpha: 0.3)],
+          colors: [bgColor, bgColor.withValues(alpha: 0.6)],
         ),
       ),
       child: Center(
         child: Text(
-          work.title.isNotEmpty ? work.title.characters.first : '?',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 40, fontWeight: FontWeight.w300),
+          work.title.characters.first,
+          style: TextStyle(color: textColor.withValues(alpha: 0.35), fontSize: 28, fontWeight: FontWeight.w200),
         ),
       ),
     );
