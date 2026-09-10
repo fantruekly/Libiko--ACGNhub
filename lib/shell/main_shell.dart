@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../modules/anime/anime_home.dart';
+import '../modules/anime/anime_search.dart';
 import 'settings_page.dart';
+import 'app_sidebar.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -11,42 +13,153 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  late final SidebarState _sidebarState;
+
+  static const _titles = ['动漫', '漫画', '轻小说', '游戏'];
+  static const _fg = Color(0xFF1C1C1E);
+  static const _muted = Color(0xFF8E8E93);
+  static const _border = Color(0xFFE5E5EA);
+  static const _accent = Color(0xFF007AFF);
 
   final _pages = <Widget>[
     const AnimeHomePage(),
-    const _PlaceholderPage(title: '漫画', icon: Icons.menu_book_rounded, message: '阶段2'),
-    const _PlaceholderPage(title: '轻小说', icon: Icons.auto_stories_rounded, message: '阶段3'),
-    const _PlaceholderPage(title: '游戏', icon: Icons.games_rounded, message: '阶段4'),
+    _buildModulePlaceholder('漫画', Icons.menu_book_rounded, '漫画模块', '聚合多种漫画平台资源，支持登录对应平台账号', const Color(0xFFFF9500)),
+    _buildModulePlaceholder('轻小说', Icons.auto_stories_rounded, '轻小说模块', '阅读 Wenku8 文库的轻小说资源', const Color(0xFF34C759)),
+    _buildModulePlaceholder('游戏', Icons.games_rounded, '游戏模块', '浏览 Galgame 游戏资源与详细信息', const Color(0xFFAF52DE)),
   ];
+
+  static Widget _buildModulePlaceholder(String title, IconData icon, String subtitle, String desc, Color accent) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(color: accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            child: Icon(icon, size: 36, color: accent),
+          ),
+          const SizedBox(height: 24),
+          Text(subtitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _fg)),
+          const SizedBox(height: 8),
+          Text(desc, style: const TextStyle(fontSize: 14, color: _muted)),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text('即将推出', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: accent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _sidebarState = SidebarState();
+    _sidebarState.addListener(_onSidebarChanged);
+  }
+
+  void _onSidebarChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _sidebarState.removeListener(_onSidebarChanged);
+    _sidebarState.dispose();
+    super.dispose();
+  }
+
+  void _openSettings() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final collapsed = _sidebarState.collapsed;
+
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
-        animationDuration: const Duration(milliseconds: 300),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: '番剧',
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: Column(
+        children: [
+          _topBar(collapsed),
+          Expanded(
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOutCubic,
+                  width: collapsed ? 0 : 72,
+                  clipBehavior: Clip.hardEdge,
+                  decoration: const BoxDecoration(color: Color(0xFFF9F9FC)),
+                  child: OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    minWidth: 72,
+                    maxWidth: 72,
+                    child: AppSidebar(
+                      selectedIndex: _currentIndex,
+                      onChanged: (i) => setState(() => _currentIndex = i),
+                      onSettingsTap: _openSettings,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: IndexedStack(index: _currentIndex, children: _pages),
+                ),
+              ],
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book_rounded),
-            label: '漫画',
+        ],
+      ),
+    );
+  }
+
+  Widget _topBar(bool collapsed) {
+    return Container(
+      height: 48,
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFFFFF),
+        border: Border(bottom: BorderSide(color: _border, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 72,
+            child: Center(
+              child: _SidebarToggleButton(
+                collapsed: collapsed,
+                onTap: () => _sidebarState.toggle(),
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_stories_outlined),
-            selectedIcon: Icon(Icons.auto_stories_rounded),
-            label: '小说',
+          Text(
+            _titles[_currentIndex],
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _fg, height: 1.4),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.games_outlined),
-            selectedIcon: Icon(Icons.games_rounded),
-            label: '游戏',
+          const Spacer(),
+          if (_currentIndex == 0)
+            IconButton(
+              icon: const Icon(Icons.search_rounded, size: 20),
+              color: _muted,
+              splashRadius: 20,
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnimeSearchPage())),
+            ),
+          const SizedBox(width: 4),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: _openSettings,
+              child: const CircleAvatar(
+                radius: 15,
+                backgroundColor: Color(0xFFE8F0FE),
+                child: Text('A', style: TextStyle(fontSize: 13, color: _accent, fontWeight: FontWeight.w600)),
+              ),
+            ),
           ),
         ],
       ),
@@ -54,28 +167,39 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
-class _PlaceholderPage extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final String message;
+class _SidebarToggleButton extends StatelessWidget {
+  final bool collapsed;
+  final VoidCallback onTap;
 
-  const _PlaceholderPage({required this.title, required this.icon, required this.message});
+  const _SidebarToggleButton({required this.collapsed, required this.onTap});
+
+  static const _fg = Color(0xFF1C1C1E);
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 20, color: colorScheme.primary)),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: colorScheme.onSurface.withValues(alpha: 0.12)),
-            const SizedBox(height: 20),
-            Text(message, style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 16)),
-          ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: ScaleTransition(scale: anim, child: child),
+              ),
+              child: Icon(
+                collapsed ? Icons.chevron_right_rounded : Icons.menu_rounded,
+                key: ValueKey<bool>(collapsed),
+                size: 22,
+                color: _fg.withValues(alpha: 0.55),
+              ),
+            ),
+          ),
         ),
       ),
     );

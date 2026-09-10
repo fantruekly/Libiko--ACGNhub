@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/work.dart';
 import '../../core/widgets/work_card.dart';
+import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/empty_state.dart';
 import 'anime_providers.dart';
 import 'bangumi_detail_page.dart';
 
 class AnimeSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
-
   const AnimeSearchPage({super.key, this.initialKeyword});
 
   @override
@@ -15,122 +16,170 @@ class AnimeSearchPage extends ConsumerStatefulWidget {
 }
 
 class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
-  final _controller = TextEditingController();
+  final _ctrl = TextEditingController();
   List<Work> _results = [];
   bool _loading = false;
   String? _error;
+  bool _hasSearched = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.initialKeyword != null) {
-      _controller.text = widget.initialKeyword!;
+      _ctrl.text = widget.initialKeyword!;
       WidgetsBinding.instance.addPostFrameCallback((_) => _search());
     }
   }
 
   Future<void> _search() async {
-    final keyword = _controller.text.trim();
-    if (keyword.isEmpty) return;
-
-    setState(() { _loading = true; _error = null; });
-
+    final k = _ctrl.text.trim();
+    if (k.isEmpty) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _hasSearched = true;
+    });
     try {
-      final service = ref.read(bangumiServiceProvider);
-      final results = await service.searchSubject(keyword);
+      final svc = ref.read(bangumiServiceProvider);
+      final items = await svc.searchSubject(k);
       setState(() {
-        _results = results.map((item) => Work(
-          id: 'bangumi_${item['id']}',
-          sourceId: 'bangumi',
-          sourceName: 'Bangumi',
-          type: WorkType.anime,
-          title: item['title'] as String? ?? '',
-          coverUrl: item['cover'] as String?,
-          summary: item['summary'] as String?,
-          extra: {'bangumiId': item['id'], 'keyword': item['title']},
-        )).toList();
+        _results = items
+            .map((item) => Work(
+                  id: 'bgm_${item['id']}',
+                  sourceId: 'bangumi',
+                  sourceName: 'Bangumi',
+                  type: WorkType.anime,
+                  title: item['title'] as String? ?? '',
+                  coverUrl: item['cover'] as String?,
+                  summary: item['summary'] as String?,
+                  extra: {'bangumiId': item['id'], 'keyword': item['title']},
+                ))
+            .toList();
         _loading = false;
       });
     } catch (e) {
       if (mounted) {
-        setState(() { _error = e.toString(); _loading = false; });
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
       }
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: TextField(
-          controller: _controller,
-          autofocus: widget.initialKeyword == null,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: '搜索动漫...',
-            hintStyle: TextStyle(color: Colors.white54),
-            border: InputBorder.none,
-          ),
-          onSubmitted: (_) => _search(),
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _searchBar(cs),
+            Expanded(child: _body(cs)),
+          ],
         ),
-        actions: [
-          IconButton(icon: const Icon(Icons.search), onPressed: _search),
+      ),
+    );
+  }
+
+  Widget _searchBar(ColorScheme cs) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFFFFF),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.pop(context),
+            splashRadius: 20,
+          ),
+          Expanded(
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2F2F7),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.search_rounded, size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      autofocus: widget.initialKeyword == null,
+                      style: TextStyle(fontSize: 15, color: cs.onSurface),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '搜索动漫...',
+                        hintStyle: TextStyle(color: Color(0xFF8E8E93), fontSize: 15),
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      onSubmitted: (_) => _search(),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  if (_ctrl.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        _ctrl.clear();
+                        setState(() {});
+                      },
+                      child: Icon(Icons.close_rounded, size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(onPressed: _search, child: const Text('搜索', style: TextStyle(fontSize: 14))),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 16),
-                      ElevatedButton(onPressed: _search, child: const Text('重试')),
-                    ],
-                  ),
-                )
-              : _results.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.search, size: 64, color: Colors.grey),
-                          SizedBox(height: 16),
-                          Text('输入关键词搜索动漫', style: TextStyle(color: Colors.grey)),
-                        ],
-                      ),
-                    )
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(12),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        childAspectRatio: 0.7,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
-                      itemCount: _results.length,
-                      itemBuilder: (context, index) {
-                        final work = _results[index];
-                        return WorkCard(
-                          work: work,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => BangumiDetailPage(work: work),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+    );
+  }
+
+  Widget _body(ColorScheme cs) {
+    if (_loading) return const ShimmerLoader();
+    if (_error != null) {
+      return EmptyState(icon: Icons.error_outline_rounded, message: _error!, actionLabel: '重试', onAction: _search);
+    }
+    if (!_hasSearched) {
+      return const EmptyState(icon: Icons.search_rounded, message: '输入关键词搜索动漫');
+    }
+    if (_hasSearched && _results.isEmpty) {
+      return EmptyState(icon: Icons.search_off_rounded, message: '未找到「${_ctrl.text}」相关动漫，换个关键词试试');
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.66,
+      ),
+      itemCount: _results.length,
+      itemBuilder: (context, index) => WorkCard(
+        work: _results[index],
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => BangumiDetailPage(work: _results[index])),
+        ),
+      ),
     );
   }
 }

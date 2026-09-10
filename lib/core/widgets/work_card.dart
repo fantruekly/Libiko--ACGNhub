@@ -5,75 +5,78 @@ import '../models/work.dart';
 class WorkCard extends StatelessWidget {
   final Work work;
   final VoidCallback? onTap;
+  final String? subtitle;
 
-  const WorkCard({super.key, required this.work, this.onTap});
+  const WorkCard({super.key, required this.work, this.onTap, this.subtitle});
+
+  static const _accent = Color(0xFF007AFF);
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
+    final sub = subtitle ?? work.sourceName;
 
     return GestureDetector(
       onTap: onTap,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: AspectRatio(
-              aspectRatio: 0.7,
-child: work.coverUrl != null && work.coverUrl!.isNotEmpty
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: work.coverUrl != null && work.coverUrl!.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: work.coverUrl!,
                       fit: BoxFit.cover,
                       fadeInDuration: const Duration(milliseconds: 200),
-                      fadeOutDuration: const Duration(milliseconds: 100),
-                      placeholder: (_, __) => _placeholder(work, colorScheme),
-                      errorWidget: (_, url, error) {
-                        debugPrint('[IMG_ERR] $url => $error');
-                        return _placeholder(work, colorScheme);
-                      },
+                      placeholder: (_, __) => _placeholder(work),
+                      errorWidget: (_, __, ___) => _placeholder(work),
                     )
-                  : _placeholder(work, colorScheme),
+                  : _placeholder(work),
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 6),
           Text(
             work.title,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400, color: colorScheme.onSurface.withValues(alpha: 0.75)),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.45,
+              color: cs.onSurface,
+            ),
           ),
+          if (sub.isNotEmpty)
+            Text(
+              sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: cs.onSurface.withValues(alpha: 0.45),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _placeholder(Work work, ColorScheme colorScheme) {
+  Widget _placeholder(Work work) {
     final hash = work.title.hashCode.abs();
-    final colors = [
-      const Color(0xFFF3E5F5), const Color(0xFFEDE7F6), const Color(0xFFE8EAF6),
-      const Color(0xFFE0F2F1), const Color(0xFFFCE4EC),
+    final bgColors = const [
+      Color(0xFFF3E5F5),
+      Color(0xFFEDE7F6),
+      Color(0xFFE8EAF6),
+      Color(0xFFE0F2F1),
     ];
-    final textColors = [
-      const Color(0xFF7B1FA2), const Color(0xFF5E35B1), const Color(0xFF283593),
-      const Color(0xFF00695C), const Color(0xFFC2185B),
-    ];
-    final bgColor = colors[hash % colors.length];
-    final textColor = textColors[hash % textColors.length];
-
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [bgColor, bgColor.withValues(alpha: 0.6)],
-        ),
-      ),
+      color: bgColors[hash % bgColors.length],
       child: Center(
         child: Text(
           work.title.characters.first,
-          style: TextStyle(color: textColor.withValues(alpha: 0.35), fontSize: 28, fontWeight: FontWeight.w200),
+          style: TextStyle(color: _accent.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w200),
         ),
       ),
     );
