@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/source/source_manager.dart';
 import '../../core/models/work.dart';
-import '../../core/models/search_result.dart';
 import 'anime_source.dart';
 import 'anime_rule.dart';
 import 'bangumi_service.dart';
@@ -31,13 +30,10 @@ final animeSourceListProvider = FutureProvider<List<AnimeSource>>((ref) async {
 
 final bangumiServiceProvider = Provider<BangumiService>((ref) => BangumiService());
 
-final trendingAnimeProvider = FutureProvider<List<Work>>((ref) async {
-  final bangumi = ref.read(bangumiServiceProvider);
-  final calendar = await bangumi.getCalendar();
-
+List<Work> _parseItems(List<Map<String, dynamic>> items) {
   final seen = <int>{};
   final works = <Work>[];
-  for (final item in calendar) {
+  for (final item in items) {
     final id = item['id'] as int;
     if (seen.contains(id)) continue;
     seen.add(id);
@@ -57,22 +53,60 @@ final trendingAnimeProvider = FutureProvider<List<Work>>((ref) async {
     ));
   }
   return works;
+}
+
+final trendingAnimeProvider = FutureProvider<List<Work>>((ref) async {
+  try {
+    final bangumi = ref.read(bangumiServiceProvider);
+    final calendar = await bangumi.getCalendar();
+    if (calendar.isNotEmpty) return _parseItems(calendar);
+  } catch (_) {}
+
+  try {
+    final cachedJson = await rootBundle.loadString('assets/bangumi_calendar.json');
+    final cached = json.decode(cachedJson) as List<dynamic>;
+    final items = <Map<String, dynamic>>[];
+    final seen = <int>{};
+    for (final day in cached) {
+      for (final item in (day['items'] as List<dynamic>? ?? [])) {
+        final id = item['id'] as int;
+        if (seen.contains(id)) continue;
+        seen.add(id);
+        final title = item['name_cn'] as String? ?? item['name'] as String? ?? '';
+        if (title.isEmpty) continue;
+        final images = item['images'] as Map<String, dynamic>?;
+        var cover = images?['large'] as String?;
+        if (cover != null && cover.startsWith('http://')) {
+          cover = cover.replaceFirst('http://', 'https://');
+        }
+        items.add({
+          'id': id,
+          'title': title,
+          'cover': cover,
+          'summary': item['summary'] as String?,
+        });
+      }
+    }
+    return _parseItems(items);
+  } catch (_) {
+    return [];
+  }
 });
 
 final popularAnimeProvider = Provider<List<Work>>((ref) {
   const popular = [
-    {'title': '葬送的芙莉莲', 'keyword': '葬送的芙莉莲'},
-    {'title': '鬼灭之刃', 'keyword': '鬼灭之刃'},
-    {'title': '我推的孩子', 'keyword': '我推的孩子'},
-    {'title': '咒术回战', 'keyword': '咒术回战'},
-    {'title': '药屋少女的呢喃', 'keyword': '药屋少女'},
-    {'title': '迷宫饭', 'keyword': '迷宫饭'},
-    {'title': 'Re:从零开始的异世界生活', 'keyword': '从零开始'},
-    {'title': '无职转生', 'keyword': '无职转生'},
-    {'title': '想要成为影之实力者', 'keyword': '影之实力者'},
-    {'title': '我心里危险的东西', 'keyword': '我心里危险'},
-    {'title': '地狱乐', 'keyword': '地狱乐'},
-    {'title': '夏日重现', 'keyword': '夏日重现'},
+    {'title': '葬送的芙莉莲'},
+    {'title': '鬼灭之刃'},
+    {'title': '我推的孩子'},
+    {'title': '咒术回战'},
+    {'title': '药屋少女的呢喃'},
+    {'title': '迷宫饭'},
+    {'title': 'Re:从零开始的异世界生活'},
+    {'title': '无职转生'},
+    {'title': '想要成为影之实力者'},
+    {'title': '我心里危险的东西'},
+    {'title': '地狱乐'},
+    {'title': '夏日重现'},
   ];
 
   return popular.map((a) => Work(
@@ -82,6 +116,6 @@ final popularAnimeProvider = Provider<List<Work>>((ref) {
     type: WorkType.anime,
     title: a['title'] as String,
     coverUrl: null,
-    extra: {'keyword': a['keyword'] as String},
+    extra: {'keyword': a['title'] as String},
   )).toList();
 });
