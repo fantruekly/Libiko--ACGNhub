@@ -7,7 +7,6 @@ import '../../core/source/source_manager.dart';
 import '../../core/models/work.dart';
 import 'anime_source.dart';
 import 'anime_rule.dart';
-import 'bangumi_service.dart';
 
 final sourceManagerProvider = Provider<SourceManager>((ref) {
   return SourceManager();
@@ -31,69 +30,3 @@ final metadataServiceProvider = Provider<MetadataService>((ref) => MetadataServi
 final animeFeedProvider = FutureProvider.family<List<Work>, AnimeFeed>((ref, feed) {
   return ref.watch(metadataServiceProvider).feed(feed);
 });
-
-String _stableCoverUrl(String? cover) {
-  if (cover == null || cover.isEmpty) return '';
-
-  final normalized = cover.startsWith('http://')
-      ? cover.replaceFirst('http://', 'https://')
-      : cover;
-
-  if (normalized.contains('lain.bgm.tv') || normalized.contains('bgm.tv/pic/cover')) {
-    final encoded = Uri.encodeComponent(normalized);
-    return 'https://images.weserv.nl/?url=$encoded';
-  }
-
-  return normalized;
-}
-
-final trendingAnimeProvider = FutureProvider<List<Work>>((ref) async {
-  final service = BangumiService();
-  final remoteWorks = await service.getCalendar();
-
-  if (remoteWorks.isNotEmpty) {
-    return remoteWorks.map((item) {
-      final id = item['id'] as int;
-      return Work(
-        id: 'bangumi_$id',
-        sourceId: 'bangumi',
-        sourceName: '',
-        type: WorkType.anime,
-        title: item['title'] as String? ?? '',
-        coverUrl: _stableCoverUrl(item['cover'] as String?),
-        summary: item['summary'] as String?,
-        extra: {'bangumiId': id, 'keyword': item['title']},
-      );
-    }).toList();
-  }
-
-  final cachedJson = await rootBundle.loadString('assets/bangumi_calendar.json');
-  final cached = json.decode(cachedJson) as List<dynamic>;
-
-  final seen = <int>{};
-  final works = <Work>[];
-  for (final day in cached) {
-    for (final item in (day['items'] as List<dynamic>? ?? [])) {
-      final id = item['id'] as int;
-      if (seen.contains(id)) continue;
-      seen.add(id);
-      final title = item['name_cn'] as String? ?? item['name'] as String? ?? '';
-      if (title.isEmpty) continue;
-      final images = item['images'] as Map<String, dynamic>?;
-      final cover = _stableCoverUrl(images?['large'] as String? ?? images?['common'] as String?);
-      works.add(Work(
-        id: 'bangumi_$id',
-        sourceId: 'bangumi',
-        sourceName: '',
-        type: WorkType.anime,
-        title: title,
-        coverUrl: cover,
-        summary: item['summary'] as String?,
-        extra: {'bangumiId': id, 'keyword': title},
-      ));
-    }
-  }
-  return works;
-});
-
-final bangumiServiceProvider = Provider<BangumiService>((ref) => BangumiService());
