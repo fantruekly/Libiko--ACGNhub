@@ -76,6 +76,7 @@ class AnimeRule {
   final RuleSection search;
   final DetailRule detail;
   final VideoRule video;
+  final RuleSection? browse;
 
   const AnimeRule({
     required this.name,
@@ -83,6 +84,7 @@ class AnimeRule {
     required this.search,
     required this.detail,
     required this.video,
+    this.browse,
   });
 
   factory AnimeRule.fromJson(Map<String, dynamic> json) => AnimeRule(
@@ -91,6 +93,9 @@ class AnimeRule {
         search: RuleSection.fromJson(json['search'] as Map<String, dynamic>),
         detail: DetailRule.fromJson(json['detail'] as Map<String, dynamic>),
         video: VideoRule.fromJson(json['video'] as Map<String, dynamic>),
+        browse: json['browse'] != null
+            ? RuleSection.fromJson(json['browse'] as Map<String, dynamic>)
+            : null,
       );
 
   factory AnimeRule.fromJsonString(String jsonString) {
@@ -98,7 +103,7 @@ class AnimeRule {
   }
 
   String toJsonString() {
-    return json.encode({
+    final map = <String, dynamic>{
       'name': name,
       'baseUrl': baseUrl,
       'search': {
@@ -122,7 +127,18 @@ class AnimeRule {
         'playUrl': video.playUrl,
         if (video.resolutions != null) 'resolutions': video.resolutions,
       },
-    });
+    };
+    if (browse != null) {
+      map['browse'] = {
+        'url': browse!.url,
+        'list': browse!.list,
+        'title': browse!.title,
+        'cover': browse!.cover,
+        'link': browse!.link,
+        if (browse!.nextPage != null) 'nextPage': browse!.nextPage,
+      };
+    }
+    return json.encode(map);
   }
 }
 

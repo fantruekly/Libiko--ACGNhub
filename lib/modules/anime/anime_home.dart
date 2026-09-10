@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'anime_providers.dart';
 import 'anime_search.dart';
+import 'anime_detail.dart';
+import '../../core/widgets/work_card.dart';
 
 class AnimeHomePage extends ConsumerWidget {
   const AnimeHomePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sourcesAsync = ref.watch(animeSourceListProvider);
+    final worksAsync = ref.watch(animeHomeWorksProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -26,37 +28,68 @@ class AnimeHomePage extends ConsumerWidget {
           ),
         ],
       ),
-      body: sourcesAsync.when(
+      body: worksAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('加载失败: $err')),
-        data: (sources) {
-          if (sources.isEmpty) {
-            return const Center(child: Text('没有可用的动漫源'));
+        error: (err, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text('加载失败', style: TextStyle(color: Colors.grey[400], fontSize: 16)),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => ref.invalidate(animeHomeWorksProvider),
+                child: const Text('重试'),
+              ),
+            ],
+          ),
+        ),
+        data: (works) {
+          if (works.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: () => ref.refresh(animeHomeWorksProvider.future),
+              child: ListView(
+                children: const [
+                  SizedBox(height: 120),
+                  Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.live_tv, size: 64, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text('正在加载动漫列表...', style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
           }
           return RefreshIndicator(
-            onRefresh: () => ref.refresh(animeSourceListProvider.future),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text(
-                  '已加载的动漫源',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                ...sources.map((s) => Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.tv),
-                        title: Text(s.name),
-                        subtitle: Text(s.baseUrl),
-                        trailing: const Icon(Icons.chevron_right),
+            onRefresh: () => ref.refresh(animeHomeWorksProvider.future),
+            child: GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: 0.7,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: works.length,
+              itemBuilder: (context, index) {
+                final work = works[index];
+                return WorkCard(
+                  work: work,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AnimeDetailPage(work: work),
                       ),
-                    )),
-                const SizedBox(height: 24),
-                const Text(
-                  '使用搜索查找你想看的动漫',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ],
+                    );
+                  },
+                );
+              },
             ),
           );
         },

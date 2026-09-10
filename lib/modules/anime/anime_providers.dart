@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/source/source_manager.dart';
 import '../../core/models/work.dart';
@@ -12,20 +13,10 @@ final sourceManagerProvider = Provider<SourceManager>((ref) {
 final animeSourceListProvider = FutureProvider<List<AnimeSource>>((ref) async {
   final manager = ref.read(sourceManagerProvider);
 
-  // Load built-in rules
-  final manifest = await rootBundle.loadString('AssetManifest.json');
-  final ruleFiles = <String>[];
-  if (manifest.contains('assets/rules/')) {
-    final lines = manifest.split('\n');
-    for (final line in lines) {
-      if (line.contains('assets/rules/') && line.contains('.json')) {
-        final key = line.split('"')[1];
-        if (key != null) ruleFiles.add(key);
-      }
-    }
-  }
+  final manifestJson = await rootBundle.loadString('AssetManifest.json');
+  final manifest = json.decode(manifestJson) as Map<String, dynamic>;
+  final ruleFiles = manifest.keys.where((k) => k.startsWith('assets/rules/') && k.endsWith('.json')).toList();
 
-  // Load default rule if no files found in manifest
   for (final file in ruleFiles) {
     final jsonString = await rootBundle.loadString(file);
     final rule = AnimeRule.fromJsonString(jsonString);
@@ -34,4 +25,18 @@ final animeSourceListProvider = FutureProvider<List<AnimeSource>>((ref) async {
   }
 
   return manager.getByType(WorkType.anime).cast<AnimeSource>();
+});
+
+final animeHomeWorksProvider = FutureProvider<List<Work>>((ref) async {
+  final sources = await ref.watch(animeSourceListProvider.future);
+  final allWorks = <Work>[];
+
+  for (final source in sources) {
+    try {
+      final works = await source.browse();
+      allWorks.addAll(works);
+    } catch (_) {}
+  }
+
+  return allWorks;
 });

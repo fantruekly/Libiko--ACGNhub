@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/models/work.dart';
 import '../../core/models/chapter.dart';
+import '../../core/source/source_manager.dart';
 import 'anime_player.dart';
+import 'anime_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class AnimeDetailPage extends StatefulWidget {
+class AnimeDetailPage extends ConsumerStatefulWidget {
   final Work work;
 
   const AnimeDetailPage({super.key, required this.work});
 
   @override
-  State<AnimeDetailPage> createState() => _AnimeDetailPageState();
+  ConsumerState<AnimeDetailPage> createState() => _AnimeDetailPageState();
 }
 
-class _AnimeDetailPageState extends State<AnimeDetailPage> {
+class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   List<Chapter> _chapters = [];
   bool _loadingChapters = false;
 
@@ -26,8 +29,19 @@ class _AnimeDetailPageState extends State<AnimeDetailPage> {
   Future<void> _loadChapters() async {
     setState(() => _loadingChapters = true);
     try {
-      // TODO: Fetch chapters from source in Task 13
-      setState(() => _loadingChapters = false);
+      final manager = ref.read(sourceManagerProvider);
+      final adapter = manager.getById(widget.work.sourceId);
+      if (adapter != null) {
+        final link = widget.work.extra['link'] as String? ?? '';
+        final workIdWithLink = '${widget.work.id}|$link';
+        final chapters = await adapter.fetchChapters(workIdWithLink);
+        setState(() {
+          _chapters = chapters;
+          _loadingChapters = false;
+        });
+      } else {
+        setState(() => _loadingChapters = false);
+      }
     } catch (e) {
       setState(() => _loadingChapters = false);
     }

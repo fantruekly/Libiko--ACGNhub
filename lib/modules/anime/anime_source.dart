@@ -67,7 +67,7 @@ class AnimeSource extends SourceAdapter {
 
   @override
   Future<Work> fetchDetail(String workId) async {
-    final link = ''; // Extract from workId or fetch from search
+    final link = workId.contains('|') ? workId.split('|').last : '';
     final url = baseUrl + link;
     final document = await _http.getHtml(url);
 
@@ -76,15 +76,20 @@ class AnimeSource extends SourceAdapter {
     final coverUrl = rule.detail.cover != null ? XPathParser.extractText(document, rule.detail.cover!) : null;
     final author = rule.detail.author != null ? XPathParser.extractText(document, rule.detail.author!) : null;
 
+    final titleEl = document.querySelector('title');
+    final pageTitle = titleEl?.text.trim() ?? '';
+
     return Work(
       id: workId,
       sourceId: id,
       sourceName: name,
       type: WorkType.anime,
-      title: '', // Will be filled from the page
+      title: pageTitle,
       coverUrl: coverUrl != null ? resolveUrl(coverUrl) : null,
       summary: summary,
-      tags: tagsText?.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList() ?? [],
+      tags: tagsText != null
+          ? tagsText.split(RegExp(r'[,\s]+')).map((t) => t.trim()).where((t) => t.isNotEmpty).toList()
+          : [],
       author: author,
       extra: {'link': link},
     );
@@ -92,7 +97,7 @@ class AnimeSource extends SourceAdapter {
 
   @override
   Future<List<Chapter>> fetchChapters(String workId) async {
-    final link = ''; // Extract from workId or fetch
+    final link = workId.contains('|') ? workId.split('|').last : '';
     final url = baseUrl + link;
     final document = await _http.getHtml(url);
     final nodes = XPathParser.findNodes(document, rule.detail.chapters);
@@ -126,5 +131,32 @@ class AnimeSource extends SourceAdapter {
       return '${uri.scheme}://${uri.host}$url';
     }
     return '$baseUrl/$url';
+  }
+
+  Future<List<Work>> browse({int page = 1}) async {
+    if (rule.browse == null) return [];
+    final url = baseUrl + buildUrl(rule.browse!.url, page: page);
+    final document = await _http.getHtml(url);
+    final nodes = XPathParser.findNodes(document, rule.browse!.list);
+
+    final works = <Work>[];
+    for (final node in nodes) {
+      final title = XPathParser.extractText(node, rule.browse!.title) ?? '';
+      final cover = XPathParser.extractText(node, rule.browse!.cover);
+      final link = XPathParser.extractText(node, rule.browse!.link) ?? '';
+      if (title.isEmpty) continue;
+
+      final workId = '$id-${link.hashCode}';
+      works.add(Work(
+        id: workId,
+        sourceId: id,
+        sourceName: name,
+        type: WorkType.anime,
+        title: title,
+        coverUrl: cover != null ? resolveUrl(cover) : null,
+        extra: {'link': link},
+      ));
+    }
+    return works;
   }
 }
