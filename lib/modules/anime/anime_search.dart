@@ -7,7 +7,9 @@ import 'anime_providers.dart';
 import 'anime_detail.dart';
 
 class AnimeSearchPage extends ConsumerStatefulWidget {
-  const AnimeSearchPage({super.key});
+  final String? initialKeyword;
+
+  const AnimeSearchPage({super.key, this.initialKeyword});
 
   @override
   ConsumerState<AnimeSearchPage> createState() => _AnimeSearchPageState();
@@ -18,6 +20,15 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
   List<Work> _results = [];
   bool _loading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialKeyword != null) {
+      _controller.text = widget.initialKeyword!;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _search());
+    }
+  }
 
   Future<void> _search() async {
     final keyword = _controller.text.trim();

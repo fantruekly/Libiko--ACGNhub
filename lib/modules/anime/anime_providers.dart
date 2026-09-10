@@ -33,9 +33,37 @@ final animeHomeWorksProvider = FutureProvider<List<Work>>((ref) async {
 
   for (final source in sources) {
     try {
-      final works = await source.browse();
+      final works = await source.browse().timeout(const Duration(seconds: 5));
       allWorks.addAll(works);
     } catch (_) {}
+  }
+
+  if (allWorks.isEmpty) {
+    final popularAnime = [
+      {'title': '葬送的芙莉莲', 'keyword': '葬送的芙莉莲'},
+      {'title': '鬼灭之刃', 'keyword': '鬼灭之刃'},
+      {'title': '我推的孩子', 'keyword': '我推的孩子'},
+      {'title': '咒术回战', 'keyword': '咒术回战'},
+      {'title': '药屋少女的呢喃', 'keyword': '药屋少女'},
+      {'title': '迷宫饭', 'keyword': '迷宫饭'},
+      {'title': 'Re:从零开始的异世界生活', 'keyword': '从零开始'},
+      {'title': '无职转生', 'keyword': '无职转生'},
+      {'title': '想要成为影之实力者', 'keyword': '影之实力者'},
+      {'title': '我心里危险的东西', 'keyword': '我心里危险'},
+      {'title': '不死少女的谋杀闹剧', 'keyword': '不死少女'},
+      {'title': '地狱乐', 'keyword': '地狱乐'},
+    ];
+    for (final anime in popularAnime) {
+      allWorks.add(Work(
+        id: 'popular_${anime['title']}',
+        sourceId: 'popular',
+        sourceName: '热门推荐',
+        type: WorkType.anime,
+        title: anime['title'] as String,
+        coverUrl: null,
+        extra: {'keyword': anime['keyword'] as String},
+      ));
+    }
   }
 
   return allWorks;

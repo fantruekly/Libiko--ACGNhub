@@ -4,6 +4,7 @@ import 'anime_providers.dart';
 import 'anime_search.dart';
 import 'anime_detail.dart';
 import '../../core/widgets/work_card.dart';
+import '../../core/models/work.dart';
 
 class AnimeHomePage extends ConsumerWidget {
   const AnimeHomePage({super.key});
@@ -46,54 +47,67 @@ class AnimeHomePage extends ConsumerWidget {
           ),
         ),
         data: (works) {
-          if (works.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: () => ref.refresh(animeHomeWorksProvider.future),
-              child: ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Center(
-                    child: Column(
-                      children: [
-                        Icon(Icons.live_tv, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text('正在加载动漫列表...', style: TextStyle(color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
+          final grouped = <String, List<Work>>{};
+          for (final w in works) {
+            grouped.putIfAbsent(w.sourceName, () => []).add(w);
           }
+
           return RefreshIndicator(
             onRefresh: () => ref.refresh(animeHomeWorksProvider.future),
-            child: GridView.builder(
+            child: ListView(
               padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.7,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: works.length,
-              itemBuilder: (context, index) {
-                final work = works[index];
-                return WorkCard(
-                  work: work,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AnimeDetailPage(work: work),
-                      ),
-                    );
-                  },
-                );
-              },
+              children: [
+                for (final entry in grouped.entries) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      entry.key,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 0.7,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemCount: entry.value.length,
+                    itemBuilder: (context, index) {
+                      final work = entry.value[index];
+                      return WorkCard(
+                        work: work,
+                        onTap: () => _onWorkTap(context, work),
+                      );
+                    },
+                  ),
+                ],
+              ],
             ),
           );
         },
       ),
     );
+  }
+
+  void _onWorkTap(BuildContext context, Work work) {
+    if (work.sourceId == 'popular') {
+      final keyword = work.extra['keyword'] as String? ?? work.title;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AnimeSearchPage(initialKeyword: keyword),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AnimeDetailPage(work: work),
+        ),
+      );
+    }
   }
 }
