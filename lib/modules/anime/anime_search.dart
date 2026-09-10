@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/work.dart';
-import '../../core/services/search_engine.dart';
 import '../../core/widgets/work_card.dart';
 import 'anime_providers.dart';
-import 'anime_detail.dart';
+import 'bangumi_detail_page.dart';
+import 'bangumi_service.dart';
 
 class AnimeSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
@@ -34,24 +34,26 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
     final keyword = _controller.text.trim();
     if (keyword.isEmpty) return;
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() { _loading = true; _error = null; });
 
     try {
-      final manager = ref.read(sourceManagerProvider);
-      final engine = SearchEngine(manager);
-      final results = await engine.getAggregatedResults(WorkType.anime, keyword);
+      final service = ref.read(bangumiServiceProvider);
+      final results = await service.searchSubject(keyword);
       setState(() {
-        _results = results;
+        _results = results.map((item) => Work(
+          id: 'bangumi_${item['id']}',
+          sourceId: 'bangumi',
+          sourceName: 'Bangumi',
+          type: WorkType.anime,
+          title: item['title'] as String? ?? '',
+          coverUrl: item['cover'] as String?,
+          summary: item['summary'] as String?,
+          extra: {'bangumiId': item['id'], 'keyword': item['title']},
+        )).toList();
         _loading = false;
       });
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+      setState(() { _error = e.toString(); _loading = false; });
     }
   }
 
@@ -67,9 +69,11 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
       appBar: AppBar(
         title: TextField(
           controller: _controller,
-          autofocus: true,
+          autofocus: widget.initialKeyword == null,
+          style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
             hintText: '搜索动漫...',
+            hintStyle: TextStyle(color: Colors.white54),
             border: InputBorder.none,
           ),
           onSubmitted: (_) => _search(),
@@ -92,12 +96,21 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
                   ),
                 )
               : _results.isEmpty
-                  ? const Center(child: Text('输入关键词搜索动漫'))
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.search, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text('输入关键词搜索动漫', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                    )
                   : GridView.builder(
                       padding: const EdgeInsets.all(12),
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3,
-                        childAspectRatio: 0.65,
+                        childAspectRatio: 0.7,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
                       ),
@@ -110,7 +123,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => AnimeDetailPage(work: work),
+                                builder: (_) => BangumiDetailPage(work: work),
                               ),
                             );
                           },

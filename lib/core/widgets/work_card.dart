@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dio_image.dart';
 import '../models/work.dart';
 
 class WorkCard extends StatelessWidget {
@@ -46,15 +46,13 @@ class WorkCard extends StatelessWidget {
                 width: width,
                 height: imageHeight,
                 child: work.coverUrl != null && work.coverUrl!.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: work.coverUrl!,
+                    ? DioImage(
+                        url: work.coverUrl!,
+                        width: width,
+                        height: imageHeight,
                         fit: BoxFit.cover,
-                        httpHeaders: const {
-                          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                          'Referer': 'https://bgm.tv/',
-                        },
-                        placeholder: (_, __) => _PlaceholderWidget(title: work.title, color: _cardColor()),
-                        errorWidget: (_, __, ___) => _PlaceholderWidget(title: work.title, color: _cardColor()),
+                        placeholder: () => _PlaceholderWidget(title: work.title, color: _cardColor()),
+                        errorWidget: () => _PlaceholderWidget(title: work.title, color: _cardColor()),
                       )
                     : _PlaceholderWidget(title: work.title, color: _cardColor()),
               ),
