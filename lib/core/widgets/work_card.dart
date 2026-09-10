@@ -16,6 +16,21 @@ class WorkCard extends StatelessWidget {
     this.imageHeight = 200,
   });
 
+  static final _colors = [
+    Colors.blueGrey,
+    Colors.teal,
+    Colors.indigo,
+    Colors.brown,
+    Colors.deepPurple,
+    Colors.cyan,
+    Colors.pink,
+  ];
+
+  Color _cardColor() {
+    final hash = work.title.hashCode.abs();
+    return _colors[hash % _colors.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -30,20 +45,14 @@ class WorkCard extends StatelessWidget {
               child: SizedBox(
                 width: width,
                 height: imageHeight,
-                child: work.coverUrl != null
+                child: work.coverUrl != null && work.coverUrl!.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: work.coverUrl!,
                         fit: BoxFit.cover,
-                        placeholder: (_, __) => Container(color: Colors.grey[800]),
-                        errorWidget: (_, __, ___) => Container(
-                          color: Colors.grey[800],
-                          child: const Icon(Icons.broken_image, color: Colors.grey),
-                        ),
+                        placeholder: (_, __) => _PlaceholderWidget(title: work.title, color: _cardColor()),
+                        errorWidget: (_, __, ___) => _PlaceholderWidget(title: work.title, color: _cardColor()),
                       )
-                    : Container(
-                        color: Colors.grey[800],
-                        child: const Icon(Icons.image, color: Colors.grey, size: 48),
-                      ),
+                    : _PlaceholderWidget(title: work.title, color: _cardColor()),
               ),
             ),
             const SizedBox(height: 6),
@@ -59,6 +68,37 @@ class WorkCard extends StatelessWidget {
                 style: TextStyle(fontSize: 11, color: Colors.grey[500]),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaceholderWidget extends StatelessWidget {
+  final String title;
+  final Color color;
+
+  const _PlaceholderWidget({required this.title, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final firstChar = title.isNotEmpty ? title.characters.first : '?';
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withValues(alpha: 0.8), color.withValues(alpha: 0.4)],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          firstChar,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.9),
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
