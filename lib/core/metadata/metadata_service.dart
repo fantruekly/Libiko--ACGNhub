@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../models/work.dart';
 import 'anilist_provider.dart';
 import 'jikan_provider.dart';
@@ -50,7 +52,7 @@ class MetadataService {
         return result;
       } catch (e) {
         lastError = e;
-        if (provider == anilist) {
+        if (provider == anilist && e is DioException) {
           _anilistDisabledUntil = _now().add(_disableDuration);
         }
       }

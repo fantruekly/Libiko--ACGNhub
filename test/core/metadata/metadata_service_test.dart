@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:acgnhub/core/metadata/metadata_provider.dart';
 import 'package:acgnhub/core/metadata/metadata_service.dart';
@@ -17,21 +18,21 @@ class _FakeProvider implements MetadataProvider {
   @override
   Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
     calls++;
-    if (fail) throw Exception('$id down');
+    if (fail) throw DioException(requestOptions: RequestOptions(path: '/$id'));
     return _items();
   }
 
   @override
   Future<List<Work>> search(String keyword, {int page = 1}) async {
     calls++;
-    if (fail) throw Exception('$id down');
+    if (fail) throw DioException(requestOptions: RequestOptions(path: '/$id'));
     return _items();
   }
 
   @override
   Future<Work> detail(Work work) async {
     calls++;
-    if (fail) throw Exception('$id down');
+    if (fail) throw DioException(requestOptions: RequestOptions(path: '/$id'));
     return work;
   }
 }
