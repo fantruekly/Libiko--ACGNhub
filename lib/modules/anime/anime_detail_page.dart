@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/work.dart';
 import 'anime_providers.dart';
+import 'anime_search.dart';
 
 class AnimeDetailPage extends ConsumerStatefulWidget {
   final Work work;
@@ -58,6 +59,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 _infoSection(w, cs, score, episodes, seasonYear),
                 if (w.tags.isNotEmpty) _tagsRow(w.tags),
                 _summarySection(w.summary, cs),
+                _playSection(w, cs),
                 _metaSection(cs, format, status, seasonYear),
               ],
             ),
@@ -267,6 +269,37 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _playSection(Work w, ColorScheme cs) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('播放', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    final kw = w.extra['keyword'] as String? ?? w.title;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => AnimeSearchPage(initialKeyword: kw)),
+                    );
+                  },
+                  icon: const Icon(Icons.search, size: 18),
+                  label: const Text('搜索播放资源'),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
