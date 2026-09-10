@@ -1,0 +1,30 @@
+{
+  "name": "AnFuns动漫",
+  "baseUrl": "https://www.anfunsv.cc",
+  "browse": {
+    "url": "/",
+    "list": "//div[contains(@class,'module-item')]",
+    "title": ".//a/@title",
+    "cover": ".//img/@src",
+    "link": ".//a/@href"
+  },
+  "search": {
+    "url": "/search/{keyword}----------{page}---.html",
+    "list": "//div[contains(@class,'module-item')]",
+    "title": ".//a/@title",
+    "cover": ".//img/@src",
+    "link": ".//a/@href"
+  },
+  "detail": {
+    "summary": "//div[@class='module-info-introduction-content']/text()",
+    "tags": "//div[@class='module-info-tag-link']/a/text()",
+    "cover": "//div[@class='module-item-pic']/img/@src",
+    "chapters": "//div[@class='module-play-list']/a",
+    "chapterTitle": ".//span/text()",
+    "chapterLink": ".//@href"
+  },
+  "video": {
+    "playUrl": "//iframe/@src",
+    "resolutions": "//select/option/@value"
+  }
+}

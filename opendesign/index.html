@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ACGNhub · 界面原型</title>
+<link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+<div id="app">
+  <header id="topbar" data-od-id="app-topbar">
+    <div class="tb-left">
+      <button class="sb-toggle" data-action="sidebar-toggle" title="收起侧边栏" aria-label="收起侧边栏" aria-expanded="true" aria-controls="sidebar-body">
+        <span class="sb-toggle-ico sb-ico-hamburger"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span>
+        <span class="sb-toggle-ico sb-ico-chevron"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+      </button>
+      <button class="tb-back" data-action="back" hidden aria-label="返回">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h1 class="tb-title" id="tb-title">动漫</h1>
+      <div class="tb-search" id="tb-search">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        <input id="tb-input" type="text" placeholder="搜索…" aria-label="搜索" />
+        <button class="clear-btn" data-action="close-search" aria-label="关闭搜索">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="tb-right">
+      <span id="tb-actions" style="display:contents"></span>
+      <button class="icon-btn" data-action="open-search" title="搜索" aria-label="搜索">
+        <span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg></span>
+      </button>
+      <button class="avatar" data-route="#/settings" title="账户与设置" aria-label="账户与设置">A</button>
+    </div>
+  </header>
+
+  <div id="shell">
+    <nav id="sidebar" data-od-id="app-sidebar" aria-label="主导航">
+      <div class="sb-body" id="sidebar-body">
+        <div class="sb-items">
+          <a class="sb-item" data-route="#/anime" data-module="anime">
+            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M8 2.8 10.6 6M16 2.8 13.4 6"/></svg></span>
+            <span class="sb-label">动漫</span>
+          </a>
+          <a class="sb-item" data-route="#/comic" data-module="comic">
+            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5h5.2a2.3 2.3 0 0 1 2.3 2.3v12.7a1.8 1.8 0 0 0-1.8-1.8H4z"/><path d="M20 4.5h-5.2A2.3 2.3 0 0 0 12.5 6.8v12.7a1.8 1.8 0 0 1 1.8-1.8H20z"/></svg></span>
+            <span class="sb-label">漫画</span>
+          </a>
+          <a class="sb-item" data-route="#/novel" data-module="novel">
+            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H10a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3z"/><path d="M21 5.5A1.5 1.5 0 0 0 19.5 4H14a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z"/></svg></span>
+            <span class="sb-label">轻小说</span>
+          </a>
+          <a class="sb-item" data-route="#/game" data-module="game">
+            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 7h9a5 5 0 0 1 4.9 4l.9 5.1a2.4 2.4 0 0 1-4.3 2.1L16.5 16h-9L6 18.2a2.4 2.4 0 0 1-4.3-2.1L2.6 11A5 5 0 0 1 7.5 7Z"/><path d="M8 10.5v3M6.5 12h3M15.5 11.5h.01M17.5 13.5h.01"/></svg></span>
+            <span class="sb-label">游戏</span>
+          </a>
+        </div>
+        <div class="sb-foot">
+          <div class="sb-divider"></div>
+          <a class="sb-item" data-route="#/settings" data-module="settings">
+            <span class="sb-ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></span>
+            <span class="sb-label">设置</span>
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <div id="main">
+      <main id="view" data-od-id="app-view" tabindex="-1"></main>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" data-action="close-overlay"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"><div class="d-head" id="drawer-head"></div><div class="d-body" id="drawer-body"></div></aside>
+<section class="sheet" id="sheet" aria-hidden="true"><div class="grab"></div><div id="sheet-body"></div></section>
+<div id="toast" role="status"></div>
+
+<script src="assets/app.js"></script>
+</body>
+</html>
