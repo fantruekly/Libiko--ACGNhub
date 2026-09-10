@@ -40,21 +40,10 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
       _hasSearched = true;
     });
     try {
-      final svc = ref.read(bangumiServiceProvider);
-      final items = await svc.searchSubject(k);
+      final results = await ref.read(metadataServiceProvider).search(k);
+      if (!mounted) return;
       setState(() {
-        _results = items
-            .map((item) => Work(
-                  id: 'bgm_${item['id']}',
-                  sourceId: 'bangumi',
-                  sourceName: 'Bangumi',
-                  type: WorkType.anime,
-                  title: item['title'] as String? ?? '',
-                  coverUrl: item['cover'] as String?,
-                  summary: item['summary'] as String?,
-                  extra: {'bangumiId': item['id'], 'keyword': item['title']},
-                ))
-            .toList();
+        _results = results;
         _loading = false;
       });
     } catch (e) {
