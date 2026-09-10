@@ -98,12 +98,10 @@ class AniListProvider implements MetadataProvider {
     final variables = <String, dynamic>{};
     final String query;
     if (work.anilistId != null) {
-      query = 'query(\$id:Int){Media(id:\$id,type:ANIME){$_media meanScore '
-          'characters(sort:ROLE,perPage:12){nodes{name{full} image{large}}}}}';
+      query = 'query(\$id:Int){Media(id:\$id,type:ANIME){$_media}}';
       variables['id'] = work.anilistId;
     } else if (work.malId != null) {
-      query = 'query(\$idMal:Int){Media(idMal:\$idMal,type:ANIME){$_media meanScore '
-          'characters(sort:ROLE,perPage:12){nodes{name{full} image{large}}}}}';
+      query = 'query(\$idMal:Int){Media(idMal:\$idMal,type:ANIME){$_media}}';
       variables['idMal'] = work.malId;
     } else {
       throw StateError('AniListProvider.detail requires anilistId or malId');
