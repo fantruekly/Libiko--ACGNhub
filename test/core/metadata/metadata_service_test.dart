@@ -37,6 +37,31 @@ class _FakeProvider implements MetadataProvider {
   }
 }
 
+class _SlowFakeProvider extends _FakeProvider {
+  int _concurrent = 0;
+  int maxConcurrent = 0;
+  _SlowFakeProvider(super.id);
+
+  Future<void> _track() async {
+    _concurrent++;
+    if (_concurrent > maxConcurrent) maxConcurrent = _concurrent;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    _concurrent--;
+  }
+
+  @override
+  Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
+    await _track();
+    return super.feed(feed, page: page);
+  }
+
+  @override
+  Future<List<Work>> search(String keyword, {int page = 1}) async {
+    await _track();
+    return super.search(keyword, page: page);
+  }
+}
+
 void main() {
   test('falls back to Jikan when AniList fails, then skips AniList for 10 min', () async {
     var now = DateTime(2026, 9, 10, 12);
@@ -70,5 +95,31 @@ void main() {
     await service.feed(AnimeFeed.trending);
     await service.feed(AnimeFeed.trending);
     expect(anilist.calls, 1);
+  });
+
+  test('invalidate forces a refetch', () async {
+    final anilist = _FakeProvider('anilist');
+    final jikan = _FakeProvider('jikan');
+    final service = MetadataService(anilist: anilist, jikan: jikan);
+
+    await service.feed(AnimeFeed.trending);
+    await service.feed(AnimeFeed.trending);
+    expect(anilist.calls, 1);
+
+    service.invalidate('feed:trending:');
+    await service.feed(AnimeFeed.trending);
+    expect(anilist.calls, 2);
+  });
+
+  test('serializes Jikan calls (no overlap)', () async {
+    final anilist = _FakeProvider('anilist', fail: true);
+    final jikan = _SlowFakeProvider('jikan');
+    final service = MetadataService(anilist: anilist, jikan: jikan);
+
+    await Future.wait([
+      service.feed(AnimeFeed.trending),
+      service.search('a'),
+    ]);
+    expect(jikan.maxConcurrent, 1);
   });
 }

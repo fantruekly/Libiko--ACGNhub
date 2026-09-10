@@ -71,10 +71,11 @@ class AniListProvider implements MetadataProvider {
         final start = DateTime(now.year, now.month, now.day);
         final end = start.add(const Duration(days: 1));
         final data = await _post(
-          'query(\$start:Int,\$end:Int){Page(perPage:$perPage){'
-          'airingSchedules(airingAt_greater:\$start,airingAt_lesser:\$end,sort:TIME){'
-          'media{$_media}}}}',
+          'query(\$page:Int,\$perPage:Int,\$start:Int,\$end:Int){Page(page:\$page,perPage:\$perPage){'
+          'airingSchedules(airingAt_greater:\$start,airingAt_lesser:\$end,sort:TIME){media{$_media}}}}',
           {
+            'page': page,
+            'perPage': perPage,
             'start': start.millisecondsSinceEpoch ~/ 1000,
             'end': end.millisecondsSinceEpoch ~/ 1000,
           },

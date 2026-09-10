@@ -26,6 +26,7 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
   int _page = 1;
   bool _loadingMore = false;
   bool _hasMore = true;
+  int _generation = 0;
 
   @override
   void initState() {
@@ -53,22 +54,28 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
       _page = 1;
       _hasMore = true;
       _loadingMore = false;
+      _generation++;
     });
   }
 
   Future<void> _loadMore() async {
+    final gen = _generation;
+    final feed = _feed;
+    final nextPage = _page + 1;
     setState(() => _loadingMore = true);
     try {
-      final next = await ref.read(metadataServiceProvider).feed(_feed, page: _page + 1);
-      if (!mounted) return;
+      final next = await ref.read(metadataServiceProvider).feed(feed, page: nextPage);
+      if (!mounted || gen != _generation) return;
       setState(() {
-        _page++;
+        _page = nextPage;
         _extra.addAll(next);
         _hasMore = next.length >= _perPage;
         _loadingMore = false;
       });
     } catch (_) {
-      if (mounted) setState(() { _loadingMore = false; _hasMore = false; });
+      if (mounted && gen == _generation) {
+        setState(() { _loadingMore = false; _hasMore = false; });
+      }
     }
   }
 
@@ -89,7 +96,14 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
         final items = [...works, ..._extra];
         return RefreshIndicator(
           onRefresh: () async {
-            setState(() { _extra.clear(); _page = 1; _hasMore = true; });
+            ref.read(metadataServiceProvider).invalidate('feed:${_feed.name}:');
+            setState(() {
+              _extra.clear();
+              _page = 1;
+              _hasMore = true;
+              _loadingMore = false;
+              _generation++;
+            });
             ref.invalidate(animeFeedProvider(_feed));
           },
           child: CustomScrollView(

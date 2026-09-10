@@ -16,6 +16,18 @@ class MetadataService {
   DateTime? _anilistDisabledUntil;
   final Map<String, _CacheEntry> _cache = {};
 
+  Future<void> _jikanChain = Future<void>.value();
+
+  Future<T> _serializeJikan<T>(Future<T> Function() task) {
+    final result = _jikanChain.then((_) => task());
+    _jikanChain = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  void invalidate(String prefix) {
+    _cache.removeWhere((key, _) => key.startsWith(prefix));
+  }
+
   MetadataService({
     MetadataProvider? anilist,
     MetadataProvider? jikan,
@@ -46,7 +58,9 @@ class MetadataService {
     Object? lastError;
     for (final provider in order) {
       try {
-        final result = await op(provider);
+        final result = provider == jikan
+            ? await _serializeJikan(() => op(provider))
+            : await op(provider);
         if (provider == anilist) _anilistDisabledUntil = null;
         _cache[key] = _CacheEntry(_now(), result);
         return result;
