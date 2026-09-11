@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/metadata/bangumi_provider.dart';
 import 'package:acgnhub/core/metadata/metadata_cache.dart';
 import 'package:acgnhub/core/metadata/metadata_provider.dart';
 import 'package:acgnhub/core/metadata/metadata_service.dart';
@@ -96,6 +97,7 @@ class _FlakyProvider extends _FakeProvider {
 }
 
 MetadataService _service({
+  MetadataProvider? bangumi,
   MetadataProvider? anilist,
   MetadataProvider? jikan,
   MetadataCache? cache,
@@ -103,6 +105,7 @@ MetadataService _service({
   DateTime Function()? now,
 }) {
   return MetadataService(
+    bangumi: bangumi ?? _FakeProvider('bangumi', fail: true),
     anilist: anilist ?? _FakeProvider('anilist'),
     jikan: jikan ?? _FakeProvider('jikan'),
     cache: cache ?? _FakeCache(),
@@ -113,6 +116,17 @@ MetadataService _service({
 }
 
 void main() {
+  test('tries Bangumi first, then falls back', () async {
+    final bangumi = _FakeProvider('bangumi', fail: true);
+    final anilist = _FakeProvider('anilist');
+    final service = _service(bangumi: bangumi, anilist: anilist);
+
+    final works = await service.feed(AnimeFeed.trending);
+    expect(works.single.sourceId, 'anilist');
+    expect(bangumi.calls, 1);
+    expect(anilist.calls, 1);
+  });
+
   test('falls back to Jikan when AniList fails, then skips AniList for 10 min', () async {
     var now = DateTime(2026, 9, 10, 12);
     final anilist = _FakeProvider('anilist', fail: true);

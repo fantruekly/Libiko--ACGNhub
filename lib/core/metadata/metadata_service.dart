@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../models/work.dart';
 import 'anilist_provider.dart';
+import 'bangumi_provider.dart';
 import 'jikan_provider.dart';
 import 'metadata_cache.dart';
 import 'metadata_provider.dart';
@@ -13,6 +14,7 @@ import 'metadata_provider.dart';
 typedef MetadataSeedLoader = Future<List<Work>> Function();
 
 class MetadataService {
+  final MetadataProvider bangumi;
   final MetadataProvider anilist;
   final MetadataProvider jikan;
   final DateTime Function() _now;
@@ -23,7 +25,9 @@ class MetadataService {
   static const _cacheTtl = Duration(minutes: 5);
   static const _maxAttempts = 4;
 
-  DateTime? _anilistDisabledUntil;
+  final Map<String, DateTime> _disabledUntil = {};
+
+  List<MetadataProvider> get _providers => [bangumi, anilist, jikan];
   final Map<String, _CacheEntry> _cache = {};
   List<Work>? _seed;
 
@@ -32,19 +36,22 @@ class MetadataService {
   final Map<String, DateTime> _lastRequest = {};
 
   MetadataService({
+    MetadataProvider? bangumi,
     MetadataProvider? anilist,
     MetadataProvider? jikan,
     DateTime Function()? now,
     MetadataCache? cache,
     MetadataSeedLoader? seedLoader,
     Map<String, Duration>? intervals,
-  })  : anilist = anilist ?? AniListProvider(),
+  })  : bangumi = bangumi ?? BangumiProvider(),
+        anilist = anilist ?? AniListProvider(),
         jikan = jikan ?? JikanProvider(),
         _now = now ?? DateTime.now,
         cache = cache ?? PrefsMetadataCache(),
         seedLoader = seedLoader ?? _defaultSeedLoader,
         _intervals = intervals ??
             const {
+              'bangumi': Duration(milliseconds: 300),
               'anilist': Duration(milliseconds: 1000),
               'jikan': Duration(milliseconds: 350),
             };
@@ -107,9 +114,11 @@ class MetadataService {
       return cached.value as T;
     }
 
-    final skipAniList =
-        _anilistDisabledUntil != null && _now().isBefore(_anilistDisabledUntil!);
-    final order = skipAniList ? [jikan, anilist] : [anilist, jikan];
+    var order = _providers.where((p) {
+      final until = _disabledUntil[p.id];
+      return until == null || !_now().isBefore(until);
+    }).toList();
+    if (order.isEmpty) order = List.of(_providers);
 
     Object? lastError;
     for (final provider in order) {
@@ -117,13 +126,13 @@ class MetadataService {
         final result = provider == jikan
             ? await _serializeJikan(() => _withRetry(() => _call(provider, () => op(provider))))
             : await _withRetry(() => _call(provider, () => op(provider)));
-        if (provider == anilist) _anilistDisabledUntil = null;
+        _disabledUntil.remove(provider.id);
         _cache[key] = _CacheEntry(_now(), result);
         return result;
       } catch (e) {
         lastError = e;
-        if (provider == anilist && e is DioException) {
-          _anilistDisabledUntil = _now().add(_disableDuration);
+        if (e is DioException) {
+          _disabledUntil[provider.id] = _now().add(_disableDuration);
         }
       }
     }
