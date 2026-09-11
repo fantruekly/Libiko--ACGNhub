@@ -116,7 +116,7 @@ class BangumiProvider implements MetadataProvider {
       sourceName: 'Bangumi',
       type: WorkType.anime,
       title: title,
-      coverUrl: _https(cover),
+      coverUrl: _cover(cover),
       summary: (item['summary'] as String?)?.trim(),
       tags: isDetail ? tags : const [],
       extra: {
@@ -129,8 +129,10 @@ class BangumiProvider implements MetadataProvider {
     );
   }
 
-  static String? _https(String? url) {
+  static String? _cover(String? url) {
     if (url == null || url.isEmpty) return null;
-    return url.startsWith('http://') ? url.replaceFirst('http://', 'https://') : url;
+    final https = url.startsWith('http://') ? url.replaceFirst('http://', 'https://') : url;
+    if (https.contains('images.weserv.nl')) return https;
+    return 'https://images.weserv.nl/?url=${Uri.encodeComponent(https)}&w=300';
   }
 }

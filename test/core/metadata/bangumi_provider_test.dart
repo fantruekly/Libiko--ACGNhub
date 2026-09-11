@@ -55,7 +55,7 @@ void main() {
     final w = works.first;
     expect(w.id, 'bangumi_456080');
     expect(w.title, '转学后班上的清纯可爱美少女');
-    expect(w.coverUrl, 'https://lain.bgm.tv/pic/cover/l/ce/e2/456080_C4q4C.jpg');
+    expect(w.coverUrl, 'https://images.weserv.nl/?url=https%3A%2F%2Flain.bgm.tv%2Fpic%2Fcover%2Fl%2Fce%2Fe2%2F456080_C4q4C.jpg&w=300');
     expect(w.summary, '幼かった夏の終わり。');
     expect(w.extra['bangumiId'], 456080);
     expect(w.extra['score'], closeTo(5.6, 0.001));

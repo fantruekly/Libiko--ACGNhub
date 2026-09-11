@@ -45,9 +45,9 @@ Future<void> main() async {
         'sourceName': 'Bangumi',
         'type': 'anime',
         'title': title,
-        'coverUrl': cover == null
+        'coverUrl': cover == null || cover.isEmpty
             ? null
-            : (cover.startsWith('http://') ? cover.replaceFirst('http://', 'https://') : cover),
+            : 'https://images.weserv.nl/?url=${Uri.encodeComponent(cover.startsWith('http://') ? cover.replaceFirst('http://', 'https://') : cover)}&w=300',
         'summary': (m['summary'] as String?)?.trim(),
         'tags': ((m['tags'] as List<dynamic>?) ?? [])
             .map((t) => (t as Map<String, dynamic>)['name'] as String)
