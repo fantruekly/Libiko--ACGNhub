@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'anime_providers.dart';
 import 'anime_detail_page.dart';
 import '../../core/metadata/metadata_provider.dart';
@@ -109,7 +108,6 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
           child: CustomScrollView(
             controller: _scroll,
             slivers: [
-              if (items.isNotEmpty) _hero(items.first),
               _pills(),
               _sectionTitle(_label, cs),
               items.isEmpty
@@ -171,100 +169,10 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
         AnimeFeed.today => '今日放送',
       };
 
-  Widget _hero(Work work) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-        child: GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => AnimeDetailPage(work: work)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              height: 240,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (work.coverUrl != null && work.coverUrl!.isNotEmpty)
-                    CachedNetworkImage(
-                      imageUrl: work.coverUrl!,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 300),
-                      errorWidget: (_, __, ___) => Container(color: const Color(0xFF1C1C1E)),
-                    )
-                  else
-                    Container(color: const Color(0xFF1C1C1E)),
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
-                          stops: const [0.5, 1],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 20,
-                    right: 20,
-                    bottom: 20,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          work.title,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            height: 1.3,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          work.sourceName,
-                          style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.7)),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 36,
-                          child: FilledButton(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => AnimeDetailPage(work: work)),
-                            ),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(120, 36),
-                              backgroundColor: _accent,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            child: const Text('查看详情', style: TextStyle(fontSize: 14)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _pills() {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         child: Row(
           children: [
             _pill('热门推荐', AnimeFeed.trending),

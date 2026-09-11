@@ -44,8 +44,6 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final seasonYear = w.extra['seasonYear'] as int?;
     final format = w.extra['format'] as String?;
     final status = w.extra['status'] as String?;
-    final banner = w.bannerUrl;
-    final heroImage = (banner != null && banner.isNotEmpty) ? banner : w.coverUrl;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -55,7 +53,6 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           Expanded(
             child: CustomScrollView(
               slivers: [
-                _heroImage(heroImage, cs),
                 _infoSection(w, cs, score, episodes, seasonYear),
                 if (w.tags.isNotEmpty) _tagsRow(w.tags),
                 _summarySection(w.summary, cs),
@@ -98,43 +95,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _heroImage(String? cover, ColorScheme cs) {
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: 220,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (cover != null && cover.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: cover,
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(color: cs.primary.withValues(alpha: 0.1)),
-              )
-            else
-              Container(color: cs.primary.withValues(alpha: 0.1)),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, const Color(0xFFF2F2F7)],
-                    stops: const [0.6, 1],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _infoSection(Work w, ColorScheme cs, num? score, int? episodes, int? seasonYear) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

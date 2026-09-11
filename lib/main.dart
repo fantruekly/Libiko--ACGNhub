@@ -22,6 +22,7 @@ class ACGNhubApp extends StatelessWidget {
       themeMode: ThemeMode.light,
       theme: ThemeData(
         useMaterial3: true,
+        fontFamily: 'Microsoft YaHei',
         colorScheme: ColorScheme.fromSeed(
           seedColor: _accent,
           brightness: Brightness.light,
