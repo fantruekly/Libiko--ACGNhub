@@ -13,16 +13,25 @@ Future<void> main() async {
     },
   ));
 
-  final res = await dio.get('/calendar');
-  final days = res.data as List<dynamic>;
-  final works = <Map<String, dynamic>>[];
-  final seen = <int>{};
+  final cal = await dio.get('/calendar');
+  final days = cal.data as List<dynamic>;
 
+  final ids = <int>[];
+  final seen = <int>{};
   for (final day in days) {
     for (final item in ((day as Map<String, dynamic>)['items'] as List<dynamic>? ?? [])) {
-      final m = item as Map<String, dynamic>;
-      final id = m['id'] as int;
-      if (!seen.add(id)) continue;
+      final id = (item as Map<String, dynamic>)['id'] as int;
+      if (seen.add(id)) ids.add(id);
+      if (ids.length >= 40) break;
+    }
+    if (ids.length >= 40) break;
+  }
+
+  final works = <Map<String, dynamic>>[];
+  for (final id in ids) {
+    try {
+      final res = await dio.get('/v0/subjects/$id');
+      final m = res.data as Map<String, dynamic>;
       final nameCn = (m['name_cn'] as String?)?.trim() ?? '';
       final name = (m['name'] as String?)?.trim() ?? '';
       final title = nameCn.isNotEmpty ? nameCn : name;
@@ -40,18 +49,21 @@ Future<void> main() async {
             ? null
             : (cover.startsWith('http://') ? cover.replaceFirst('http://', 'https://') : cover),
         'summary': (m['summary'] as String?)?.trim(),
-        'tags': <String>[],
+        'tags': ((m['tags'] as List<dynamic>?) ?? [])
+            .map((t) => (t as Map<String, dynamic>)['name'] as String)
+            .toList(),
         'author': null,
         'extra': {
           'bangumiId': id,
           'score': rating?['score'],
-          'episodes': m['eps'],
-          'airDate': m['air_date'],
+          'episodes': m['eps'] ?? m['total_episodes'],
+          'airDate': m['date'],
         },
       });
-      if (works.length >= 40) break;
+    } catch (e) {
+      stderr.writeln('skip $id: $e');
     }
-    if (works.length >= 40) break;
+    await Future<void>.delayed(const Duration(milliseconds: 300));
   }
 
   await File('assets/anime_seed.json').writeAsString(
