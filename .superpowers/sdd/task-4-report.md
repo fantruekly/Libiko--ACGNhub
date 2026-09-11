@@ -1,76 +1,128 @@
-# Task 4 Report: MetadataService (fallback + cache)
+# Task 4 Report: Regenerate the offline seed from Bangumi
 
-## What I implemented
-Created `MetadataService` in `lib/core/metadata/metadata_service.dart` with:
-- Constructor `MetadataService({MetadataProvider? anilist, MetadataProvider? jikan, DateTime Function()? now})`, defaulting to `AniListProvider()`, `JikanProvider()`, and `DateTime.now`.
-- `feed(AnimeFeed, {int page})`, `search(String, {int page})`, `detail(Work)` — all routed through a generic `_run<T>`.
-- Provider fallback: tries AniList first, falls back to Jikan on error. On AniList failure, disables AniList for 10 minutes (`_disableDuration`); on AniList success, clears the disable. While disabled, Jikan is tried first.
-- In-memory cache keyed per call, TTL 5 minutes (`_cacheTtl`).
+## Status
+DONE_WITH_CONCERNS
 
-Applied the brief's corrected import path: `import '../models/work.dart';` (brief had the wrong `../../models/work.dart`).
+## Summary
+Replaced the English (Jikan) offline seed with one regenerated from Bangumi's `/calendar`
+(current season). Per the brief, the generator is Dart (`tool/gen_seed.dart`, Dio/BoringSSL)
+rather than PowerShell, because curl/.NET fail on Bangumi's TLS revocation check. The generator
+was created verbatim from the brief and produced 40 entries with Chinese titles, https covers,
+and `extra = {bangumiId, score, episodes, airDate}`. `flutter test` passes and the change is
+committed.
 
-Created test `test/core/metadata/metadata_service_test.dart` verbatim from the brief.
+## What was done
+1. Created `tool/gen_seed.dart` exactly as specified in the brief (verbatim).
+2. Ran it from the repo root: `$env:Path = "C:\flutter\bin;$env:Path"; dart run tool/gen_seed.dart`
+   — succeeded on the first attempt.
+3. Verified the asset: 40 `bangumi_*` entries, 0 `http://` covers (all https), valid `Work` shape.
+4. Ran the full `flutter test` suite (37 tests) — all passed.
+5. Committed `tool/gen_seed.dart` and `assets/anime_seed.json`.
 
-## TDD evidence
-
-### RED
-Command: `flutter test test/core/metadata/metadata_service_test.dart`
-Output (key lines):
+## Exact generator output
 ```
-Failed to load ".../metadata_service_test.dart":
-Compilation failed ... Error when reading 'lib/core/metadata/metadata_service.dart': 系统找不到指定的文件。
-Error: Method not found: 'MetadataService'.
-00:00 +0 -1: Some tests failed.
+wrote 40 entries
 ```
+N = 40, which satisfies the brief's expectation of N >= 30.
 
-### GREEN
-Command: `flutter test test/core/metadata/metadata_service_test.dart`
-Output:
+## Asset verification
 ```
-00:00 +0: falls back to Jikan when AniList fails, then skips AniList for 10 min
-00:00 +1: caches identical calls for 5 minutes
-00:00 +2: All tests passed!
+ids=40            (number of "id": "bangumi_*" entries)
+httpCovers=0      (no insecure covers; all covers are https://lain.bgm.tv/...)
+nonEmptySummary=0 (see Concerns)
 ```
+Spot check of the first entry:
+```json
+{
+  "id": "bangumi_456080",
+  "sourceId": "bangumi",
+  "sourceName": "Bangumi",
+  "type": "anime",
+  "title": "转学后班上的清纯可爱美少女，竟是小时候玩在一起的哥们儿",
+  "coverUrl": "https://lain.bgm.tv/pic/cover/l/ce/e2/456080_C4q4C.jpg",
+  "summary": "",
+  "tags": [],
+  "author": null,
+  "extra": {
+    "bangumiId": 456080,
+    "score": 5,
+    "episodes": null,
+    "airDate": "2026-07-06"
+  }
+}
+```
+The shape matches `Work.fromJson` in `lib/core/models/work.dart` and the loader in
+`lib/core/metadata/metadata_service.dart:242`.
 
-### Regression check
-Command: `flutter test test/core/metadata/`
-Output: `00:00 +5: All tests passed!`
-
-### Static analysis
-Command: `flutter analyze lib/core/metadata/metadata_service.dart test/core/metadata/metadata_service_test.dart`
-Output: `No issues found!`
+## Flutter test result
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+```
+Output (tail):
+```
+00:03 +37: All tests passed!
+```
+37/37 passed.
 
 ## Files changed
-- Added: `lib/core/metadata/metadata_service.dart`
-- Added: `test/core/metadata/metadata_service_test.dart`
+- `tool/gen_seed.dart` — new (committed)
+- `assets/anime_seed.json` — replaced with the regenerated 40-entry Bangumi seed (committed)
 
 ## Commit
-`4f634d8 feat(metadata): add MetadataService with fallback and cache`
-
-## Self-review findings
-- Fallback/cache logic matches the two brief tests exactly; verified by passing suite.
-- `_run<T>` caches `Object?` and casts back to `T`; safe for the `List<Work>`/`Work` return types in use.
-- Cache key for `detail` uses `anilistId ?? malId ?? work.id`, matching the brief.
-- Analyzer clean on both new files.
-- No unrelated files staged; commit contains only the two task files.
+```
+76c3a04 chore(seed): regenerate offline seed from Bangumi calendar
+```
+2 files changed, 742 insertions(+), 548 deletions(-).
 
 ## Concerns
-- None blocking. Note: the `now` injection is only used for cache/disable timing; cache TTL relies on a monotonic-ish wall clock, so system clock changes could affect cache behaviour (acceptable per brief).
+- **Empty summaries.** All 40 entries have `"summary": ""`. Bangumi's `/calendar` endpoint does
+  not return a `summary` field, so the generator's `(m['summary'] as String?)?.trim()` yields
+  null/empty. The brief's interface mentioned Chinese `summary`, but that field is simply absent
+  from this endpoint. The app can still hydrate full summaries on demand via the Bangumi detail
+  provider (`lib/core/metadata/bangumi_provider.dart`). If non-empty seed summaries are required,
+  the generator would need a follow-up per-work `/v0/subjects/{id}` fetch.
+- **`episodes` is also null** for every entry (same reason: `/calendar` omits `eps`). `score` and
+  `airDate` are populated.
+- The generator was used verbatim per the brief; I did not add extra fetches to fill these gaps.
+- `tool/gen_seed.ps1` shows as a pre-existing unstaged deletion in the working tree. It was not
+  part of this task's commit (the brief stages only `tool/gen_seed.dart` and
+  `assets/anime_seed.json`).
 
-## Fix: transient-only AniList disable
+## Fix: seed summaries
 
-### Changes
-- `lib/core/metadata/metadata_service.dart`: added `import 'package:dio/dio.dart';`. In `_run<T>`, the catch block now disables AniList only when `e is DioException`, so non-transient/programming errors no longer trip the 10-minute circuit breaker.
-- `test/core/metadata/metadata_service_test.dart`: added `import 'package:dio/dio.dart';`; `_FakeProvider` now throws `DioException(requestOptions: RequestOptions(path: '/$id'))` instead of a generic `Exception` in `feed`, `search`, and `detail`, exercising the transient-error path.
+### Change
+Replaced the generator body so it no longer trusts the `/calendar` items for detail fields.
+`tool/gen_seed.dart` now collects up to 40 unique ids from `/calendar`, then fetches
+`GET /v0/subjects/{id}` for each id (300 ms apart) and maps the richer subject payload:
+`name_cn`/`name` for the title, `images.large`/`images.common` for the cover, `summary` for the
+summary, `tags[].name` for tags, `rating.score` for the score, `eps`/`total_episodes` for the
+episode count, and `date` for the air date. Per-id failures are logged to stderr and skipped.
 
-### Test
-Command: `flutter test test/core/metadata/metadata_service_test.dart`
-Output:
+### Generator output
 ```
-00:00 +0: loading D:/ACGNhub/test/core/metadata/metadata_service_test.dart
-00:00 +0: falls back to Jikan when AniList fails, then skips AniList for 10 min
-00:00 +1: caches identical calls for 5 minutes
-00:00 +2: All tests passed!
+wrote 40 entries
 ```
 
-Analyze: `flutter analyze lib/core/metadata/metadata_service.dart test/core/metadata/metadata_service_test.dart` → `No issues found! (ran in 0.8s)`
+### Summary count
+```
+total=40
+withSummary=39
+```
+39 of 40 entries now carry a non-empty summary (> 10 chars); previously it was 0.
+
+### Test result
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+```
+Output (tail):
+```
+00:02 +37: All tests passed!
+```
+37/37 passed.
+
+### Commit
+```
+fix(seed): fetch subject details so seed entries have summaries
+```

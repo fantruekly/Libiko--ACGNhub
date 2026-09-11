@@ -1,69 +1,97 @@
-﻿### Task 4: Create HttpClient service
+### Task 4: Regenerate the offline seed from Bangumi
 
 **Files:**
-- Create: `lib/core/services/http_client.dart`
+- Create: `tool/gen_seed.dart`
+- Replace: `assets/anime_seed.json`
 
 **Interfaces:**
-- Consumes: `dio` package
-- Produces: `HttpClient` class with `get`, `post`, `getHtml` methods
+- Produces: `assets/anime_seed.json` — a JSON array of up to 40 `Work`-shaped objects with Chinese `title`, `summary`, `coverUrl` (https), and `extra = {bangumiId, score, episodes, airDate}`.
 
-- [ ] **Step 1: Create directory**
+**Note:** the generator must be **Dart** (Dio/BoringSSL), not PowerShell — curl/.NET fail on Bangumi's TLS revocation check.
 
-```bash
-mkdir -p lib\core\services
-```
+- [ ] **Step 1: Write the Dart generator**
 
-- [ ] **Step 2: Write HttpClient**
-
-Create `lib/core/services/http_client.dart`:
+Create `tool/gen_seed.dart`:
 
 ```dart
+import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:html/parser.dart' as html_parser;
-import 'package:html/dom.dart' as dom;
 
-class HttpClient {
-  static final HttpClient _instance = HttpClient._();
-  factory HttpClient() => _instance;
-  HttpClient._();
-
-  final Dio _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 15),
+Future<void> main() async {
+  final dio = Dio(BaseOptions(
+    baseUrl: 'https://api.bgm.tv',
+    connectTimeout: const Duration(seconds: 20),
+    receiveTimeout: const Duration(seconds: 20),
     headers: {
-      'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      'User-Agent': 'ACGNhub/0.1 (https://github.com/acgnhub)',
+      'Accept': 'application/json',
     },
   ));
 
-  Future<Response> get(String url, {Map<String, String>? headers}) async {
-    return _dio.get(url, options: Options(headers: headers));
+  final res = await dio.get('/calendar');
+  final days = res.data as List<dynamic>;
+  final works = <Map<String, dynamic>>[];
+  final seen = <int>{};
+
+  for (final day in days) {
+    for (final item in ((day as Map<String, dynamic>)['items'] as List<dynamic>? ?? [])) {
+      final m = item as Map<String, dynamic>;
+      final id = m['id'] as int;
+      if (!seen.add(id)) continue;
+      final nameCn = (m['name_cn'] as String?)?.trim() ?? '';
+      final name = (m['name'] as String?)?.trim() ?? '';
+      final title = nameCn.isNotEmpty ? nameCn : name;
+      if (title.isEmpty) continue;
+      final images = m['images'] as Map<String, dynamic>?;
+      final cover = images?['large'] as String? ?? images?['common'] as String?;
+      final rating = m['rating'] as Map<String, dynamic>?;
+      works.add({
+        'id': 'bangumi_$id',
+        'sourceId': 'bangumi',
+        'sourceName': 'Bangumi',
+        'type': 'anime',
+        'title': title,
+        'coverUrl': cover == null
+            ? null
+            : (cover.startsWith('http://') ? cover.replaceFirst('http://', 'https://') : cover),
+        'summary': (m['summary'] as String?)?.trim(),
+        'tags': <String>[],
+        'author': null,
+        'extra': {
+          'bangumiId': id,
+          'score': rating?['score'],
+          'episodes': m['eps'],
+          'airDate': m['air_date'],
+        },
+      });
+      if (works.length >= 40) break;
+    }
+    if (works.length >= 40) break;
   }
 
-  Future<Response> post(String url, {dynamic data, Map<String, String>? headers}) async {
-    return _dio.post(url, data: data, options: Options(headers: headers));
-  }
-
-  Future<dom.Document> getHtml(String url, {Map<String, String>? headers}) async {
-    final response = await get(url, headers: headers);
-    return html_parser.parse(response.data.toString());
-  }
-
-  void setCookie(String url, String name, String value) {
-    _dio.options.headers['Cookie'] = '$name=$value';
-  }
+  await File('assets/anime_seed.json').writeAsString(
+    const JsonEncoder.withIndent('  ').convert(works),
+  );
+  stdout.writeln('wrote ${works.length} entries');
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Run the generator**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; dart run tool/gen_seed.dart`
+Expected: `wrote <N> entries` with N ≥ 30.
+
+- [ ] **Step 3: Verify the asset and tests**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+Expected: all tests pass.
+
+- [ ] **Step 4: Commit (only if user asked)**
 
 ```bash
-git add lib/core/services/
-git commit -m "feat(core): add HttpClient service with dio"
+git add tool/gen_seed.dart assets/anime_seed.json
+git commit -m "chore(seed): regenerate offline seed from Bangumi calendar"
 ```
 
 ---
-
-

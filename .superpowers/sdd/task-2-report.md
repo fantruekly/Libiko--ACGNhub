@@ -1,70 +1,114 @@
-# Task 2 Report: MetadataProvider interface + JikanProvider
+# Task 2 Report: Make Bangumi primary + generalize the breaker
 
-## Status: DONE_WITH_CONCERNS
+**Status:** DONE_WITH_CONCERNS
 
-## What I implemented
-- `lib/core/metadata/metadata_provider.dart` — `enum AnimeFeed { trending, season, today }` and abstract `MetadataProvider` (`id`, `feed`, `search`, `detail`).
-- `lib/core/metadata/jikan_provider.dart` — `JikanProvider` implementing `MetadataProvider` against the Jikan v4 API (`https://api.jikan.moe/v4`), with `feed`, `search`, `detail`, plus `@visibleForTesting` static `parseList` / `parseItem` and helpers `_title`, `_clean`.
-- `test/core/metadata/jikan_provider_test.dart` — `parseList` mapping test from the brief.
+## What was implemented
+Made `BangumiProvider` the first metadata provider and replaced the single
+AniList-only circuit breaker with a per-provider transient-disable map.
+
+- `lib/core/metadata/metadata_service.dart`
+  - Added `import 'bangumi_provider.dart';`.
+  - Added `final MetadataProvider bangumi;` field.
+  - Constructor now accepts `MetadataProvider? bangumi` (defaults to
+    `BangumiProvider()`) and defines `_intervals` with a `'bangumi': 300ms`
+    entry.
+  - Replaced `DateTime? _anilistDisabledUntil` with
+    `final Map<String, DateTime> _disabledUntil = {}` plus
+    `List<MetadataProvider> get _providers => [bangumi, anilist, jikan];`.
+  - Rewrote `_run<T>` to filter out providers whose disable window has not
+    elapsed, fall back to the full list if all are disabled, and record/clear
+    the breaker per provider id (`_disabledUntil[provider.id]`).
+- `test/core/metadata/metadata_service_test.dart`
+  - Added the `bangumi_provider.dart` import.
+  - `_service` helper now takes a `bangumi` parameter and defaults it to a
+    failing `_FakeProvider('bangumi', fail: true)`.
+  - Added test `tries Bangumi first, then falls back`.
 
 ## TDD evidence
 
 ### RED
-Command: `flutter test test/core/metadata/jikan_provider_test.dart`
-
+Command: `flutter test test/core/metadata/metadata_service_test.dart`
+Output (failing, compile error):
 ```
-00:00 +0: loading D:/ACGNhub/test/core/metadata/jikan_provider_test.dart
-flutter : test/core/metadata/jikan_provider_test.dart:2:8: Error: Error when reading 'lib/core/metadata/jikan_provider.dart': 系统找不到指定的文件
-...
-  Failed to load "D:/ACGNhub/test/core/metadata/jikan_provider_test.dart":
-  Compilation failed for testPath=D:/ACGNhub/test/core/metadata/jikan_provider_test.dart: ... Error: Undefined name 'JikanProvider'.
+test/core/metadata/metadata_service_test.dart:108:5: Error: No named parameter with the name 'bangumi'.
+    bangumi: bangumi ?? _FakeProvider('bangumi', fail: true),
+    ^^^^^^^
+lib/core/metadata/metadata_service.dart:34:3: Context: Found this candidate, but the arguments don't match.
+  MetadataService({
+  ^^^^^^^^^^^^^^^
 00:00 +0 -1: Some tests failed.
 ```
 
-(Note: after adding the implementation, a second compile error surfaced from the brief's import path — see Concerns. After correcting the import to `../models/work.dart`, the test compiled and ran.)
-
 ### GREEN
-Command: `flutter test test/core/metadata/jikan_provider_test.dart`
-
+Command: `flutter test test/core/metadata/metadata_service_test.dart`
+Output (passing):
 ```
-00:00 +0: loading D:/ACGNhub/test/core/metadata/jikan_provider_test.dart
-00:00 +0: parseList maps a Jikan response to Work items
-00:00 +1: All tests passed!
+00:00 +0: tries Bangumi first, then falls back
+00:00 +1: falls back to Jikan when AniList fails, then skips AniList for 10 min
+00:00 +2: caches identical calls for 5 minutes
+00:00 +3: invalidate forces a refetch
+00:00 +4: serializes Jikan calls (no overlap)
+00:00 +5: retries transient provider failures
+00:01 +6: returns disk-cached feed when all providers fail
+00:01 +7: returns seed when all providers fail and no cache
+00:01 +8: All tests passed!
 ```
 
-Analyzer: `flutter analyze lib/core/metadata test/core/metadata` → `No issues found!`
+Full suite: `flutter test` → `00:04 +37: All tests passed!`
 
 ## Files changed
-- Added `lib/core/metadata/metadata_provider.dart`
-- Added `lib/core/metadata/jikan_provider.dart`
-- Added `test/core/metadata/jikan_provider_test.dart`
+- `lib/core/metadata/metadata_service.dart` (+? / -?): see diff — new
+  `bangumi` field/param, per-provider `_disabledUntil` map, rewritten `_run`.
+- `test/core/metadata/metadata_service_test.dart` (+14 / -0): import, `_service`
+  helper update, new ordering test.
 
-Commit: `dbf3fda feat(metadata): add MetadataProvider interface and JikanProvider`
-
-## Self-review
-- Completeness: interface, provider, and test all match the brief's interface contract. `Work` constructor usage (`id`, `sourceId`, `sourceName`, `type`, `title`, `coverUrl`, `summary`, `tags`, `extra`) verified against `lib/core/models/work.dart:15`.
-- Quality: analyzer clean; test green; code matches brief verbatim apart from the import fix.
-- YAGNI: no extra methods/abstractions beyond the brief.
-- Test hygiene: single focused unit test on pure parsing (no network), matching brief scope.
+## Self-review findings
+- Implementation matches the brief's Step 3 code verbatim.
+- `_run` behavior verified against every existing test: default failing Bangumi
+  is transparently skipped so `anilist`/`jikan` call-count assertions hold; the
+  per-provider breaker disables AniList for 1 minute (re-enabled after the
+  11-minute jump) exactly as before.
+- `anime_detail_page_test.dart` still constructs `MetadataService` with only
+  `anilist`/`jikan`; the now-default real `BangumiProvider` fails fast (the test
+  work has no `bangumiId`, so `detail` throws `StateError`, not a retried
+  `DioException`). Full suite passes, no timeout.
+- `flutter analyze` on the two files reports 1 warning: the
+  `bangumi_provider.dart` import added to the test file is unused (the test uses
+  `_FakeProvider('bangumi')`, not `BangumiProvider`). This import was specified
+  verbatim in the brief, so it was kept as instructed rather than removed.
 
 ## Concerns
-1. **Brief bug — import path (fixed).** The brief specified `import '../../models/work.dart';` in both new files. From `lib/core/metadata/`, that resolves to `lib/models/work.dart` (does not exist). The correct path is `../models/work.dart` (Work lives at `lib/core/models/work.dart`). I corrected both files to make the code compile; this is the only deviation from verbatim.
-2. **Test coverage limited to `parseList`.** `feed`/`search`/`detail`, the `_title` fallback chain, and `_clean` HTML-entity handling are untested. This matches the brief's single-test scope, but network paths are unverified.
-3. **`parseItem` assumes `mal_id` is present/non-null** (`item['mal_id'] as int`); a malformed response would throw rather than skip. Per brief.
-4. **`_clean` only unescapes `&amp;`** and strips tags — other HTML entities (`&quot;`, `&#39;`, `&lt;`, etc.) pass through. Per brief.
-5. **`bannerUrl` is always set to `null`** in `extra`; the `Work.bannerUrl` getter therefore returns null for Jikan works. Per brief.
+- The test file's `import 'package:acgnhub/core/metadata/bangumi_provider.dart';`
+  is unused and produces an analyzer warning. Recommend removing it in a
+  follow-up unless a later task adds a direct `BangumiProvider` reference to the
+  test.
 
-## Fix: perPage 25
+## Fix: unused import
 
-Change: `lib/core/metadata/jikan_provider.dart:7` — `static const perPage = 30;` → `static const perPage = 25;` (Jikan v4 caps `limit` at 25; 30 causes a 504). No other changes.
+Removed the unused `import 'package:acgnhub/core/metadata/bangumi_provider.dart';`
+line from `test/core/metadata/metadata_service_test.dart`. The test uses
+`_FakeProvider('bangumi')`, not `BangumiProvider`, so the import made
+`flutter analyze` fail. No other changes were made.
 
-Test command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/jikan_provider_test.dart`
+### Commands and output
 
-Output:
+`flutter analyze test/core/metadata/metadata_service_test.dart`
 ```
-00:00 +0: loading D:/ACGNhub/test/core/metadata/jikan_provider_test.dart
-00:00 +0: parseList maps a Jikan response to Work items
-00:00 +1: All tests passed!
+Analyzing metadata_service_test.dart...
+No issues found! (ran in 0.9s)
 ```
 
-Analyzer: `flutter analyze lib/core/metadata/jikan_provider.dart` → `No issues found! (ran in 0.3s)`
+`flutter test test/core/metadata/metadata_service_test.dart`
+```
+00:00 +0: tries Bangumi first, then falls back
+00:00 +1: falls back to Jikan when AniList fails, then skips AniList for 10 min
+00:00 +2: caches identical calls for 5 minutes
+00:00 +3: invalidate forces a refetch
+00:00 +4: serializes Jikan calls (no overlap)
+00:00 +5: retries transient provider failures
+00:01 +6: returns disk-cached feed when all providers fail
+00:01 +7: returns seed when all providers fail and no cache
+00:01 +8: All tests passed!
+```
+
+Commit: `fix(test): drop unused import in metadata service test`

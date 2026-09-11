@@ -147,3 +147,52 @@ Output:
 ```
 00:05 +38: All tests passed!
 ```
+
+## Fix: fast covers
+
+### Change
+Bangumi covers from `lain.bgm.tv` are ~900 KB and take 12–28 s each on this
+network. They are now routed through `images.weserv.nl` with `w=300`
+(edge-cached, ~37 KB in ~150 ms).
+
+- `lib/core/metadata/bangumi_provider.dart`: replaced the `_https` helper with
+  `_cover`, which upgrades `http://` to `https://`, wraps the URL in
+  `https://images.weserv.nl/?url=<encoded>&w=300`, and does not double-wrap a
+  URL that already points at `images.weserv.nl`. `_parseItem` now calls
+  `_cover(cover)`.
+- `tool/gen_seed.dart`: the seed's `coverUrl` uses the same wrapping (and now
+  treats an empty cover as `null`).
+- `test/core/metadata/bangumi_provider_test.dart`: the cover expectation now
+  asserts the weserv URL.
+
+### Generator output
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; dart run tool/gen_seed.dart
+```
+Output:
+```
+wrote 40 entries
+```
+Verified: `coverUrl=40 weserv=40 lainDirect=0` — every seed cover starts with
+`https://images.weserv.nl/`.
+
+### Test result
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+```
+Output:
+```
+Analyzing 2 items...
+No issues found! (ran in 2.1s)
+```
+
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+```
+Output:
+```
+00:05 +38: All tests passed!
+```

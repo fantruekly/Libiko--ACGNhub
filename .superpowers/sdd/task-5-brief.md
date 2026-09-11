@@ -1,92 +1,41 @@
-﻿### Task 5: Create CacheManager and Database
+### Task 5: Add metadata Riverpod providers
 
 **Files:**
-- Create: `lib/core/services/cache_manager.dart`
-- Create: `lib/core/storage/database.dart`
+- Modify: `lib/modules/anime/anime_providers.dart`
 
 **Interfaces:**
-- Consumes: `flutter_cache_manager`, `isar`, `path_provider`
-- Produces: `AppCacheManager`, `AppDatabase` classes
+- Consumes: `MetadataService`, `AnimeFeed`.
+- Produces: `metadataServiceProvider` (`Provider<MetadataService>`), `animeFeedProvider` (`FutureProvider.family<List<Work>, AnimeFeed>`). Keeps existing providers until Task 9.
 
-- [ ] **Step 1: Create directories**
+- [ ] **Step 1: Add imports and providers**
 
-```bash
-mkdir -p lib\core\storage
-```
-
-- [ ] **Step 2: Write AppCacheManager**
-
-Create `lib/core/services/cache_manager.dart`:
+In `lib/modules/anime/anime_providers.dart`, add these imports at the top:
 
 ```dart
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-
-class AppCacheManager extends CacheManager with ImageCacheManager {
-  static const key = 'acgnhub_cache';
-
-  static final AppCacheManager _instance = AppCacheManager._();
-  factory AppCacheManager() => _instance;
-  AppCacheManager._()
-      : super(Config(
-          key,
-          stalePeriod: const Duration(days: 7),
-          maxNrOfCacheObjects: 500,
-          repo: JsonCacheInfoRepository(databaseName: key),
-          fileService: HttpFileService(),
-        ));
-}
+import '../../core/metadata/metadata_provider.dart';
+import '../../core/metadata/metadata_service.dart';
 ```
 
-- [ ] **Step 3: Write AppDatabase**
-
-Create `lib/core/storage/database.dart`:
+Add after `animeSourceListProvider`:
 
 ```dart
-import 'package:shared_preferences/shared_preferences.dart';
+final metadataServiceProvider = Provider<MetadataService>((ref) => MetadataService());
 
-class AppDatabase {
-  static AppDatabase? _instance;
-  late final SharedPreferences _prefs;
-
-  AppDatabase._();
-
-  static Future<AppDatabase> init() async {
-    if (_instance != null) return _instance!;
-    _instance = AppDatabase._();
-    _instance!._prefs = await SharedPreferences.getInstance();
-    return _instance!;
-  }
-
-  factory AppDatabase() {
-    if (_instance == null) {
-      throw StateError('AppDatabase not initialized. Call AppDatabase.init() first.');
-    }
-    return _instance!;
-  }
-
-  String? getString(String key) => _prefs.getString(key);
-  Future<bool> setString(String key, String value) => _prefs.setString(key, value);
-
-  bool? getBool(String key) => _prefs.getBool(key);
-  Future<bool> setBool(String key, bool value) => _prefs.setBool(key, value);
-
-  int? getInt(String key) => _prefs.getInt(key);
-  Future<bool> setInt(String key, int value) => _prefs.setInt(key, value);
-
-  List<String> getStringList(String key) => _prefs.getStringList(key) ?? [];
-  Future<bool> setStringList(String key, List<String> value) => _prefs.setStringList(key, value);
-
-  Future<bool> remove(String key) => _prefs.remove(key);
-}
+final animeFeedProvider = FutureProvider.family<List<Work>, AnimeFeed>((ref, feed) {
+  return ref.watch(metadataServiceProvider).feed(feed);
+});
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 2: Verify it compiles**
+
+Run: `flutter analyze lib/modules/anime/anime_providers.dart`
+Expected: No errors (warnings about unused old providers are fine).
+
+- [ ] **Step 3: Commit (only if user asked)**
 
 ```bash
-git add lib/core/services/cache_manager.dart lib/core/storage/
-git commit -m "feat(core): add AppCacheManager and AppDatabase"
+git add lib/modules/anime/anime_providers.dart
+git commit -m "feat(anime): expose metadata service and feed provider"
 ```
 
 ---
-
-

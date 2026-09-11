@@ -1,28 +1,33 @@
-# Task 7 Report: Common UI Widgets
+# Task 7 Report: Rewrite anime search to use the metadata service
 
-**Status:** Complete
-**Date:** 2026-09-09
-**Commit:** `54aab4f` - feat(core): add common UI widgets WorkCard, LoadingWidget, ErrorWidget
+## What was implemented
+Replaced the body of `_search()` in `lib/modules/anime/anime_search.dart` so it calls
+`ref.read(metadataServiceProvider).search(k)` and assigns the returned `List<Work>`
+directly to `_results`. Removed the previous `bangumiServiceProvider.searchSubject(k)`
+call and the manual `Work` mapping. Added a `mounted` guard before `setState` on the
+success path. Loading/error/empty states and the rest of the widget are unchanged.
 
-## Files Created
+## Files changed
+- `lib/modules/anime/anime_search.dart` (3 insertions, 14 deletions)
 
-| File | Widget | Description |
-|------|--------|-------------|
-| `lib/core/widgets/work_card.dart` | `WorkCard` | Displays a work's cover image, title, and source name. Uses `cached_network_image` for loading. |
-| `lib/core/widgets/loading_widget.dart` | `AppLoadingWidget` | Centered loading spinner with optional message text. |
-| `lib/core/widgets/error_widget.dart` | `AppErrorWidget` | Centered error display with icon, message, and optional retry button. |
-
-## Interfaces
-
-- **Consumes:** `Work` model from `lib/core/models/work.dart`, `cached_network_image` package (^3.4.1)
-- **Produces:** `WorkCard`, `AppLoadingWidget`, `AppErrorWidget`
+## Imports review
+- `anime_providers.dart` kept — still required for `metadataServiceProvider`.
+- `bangumi_detail_page.dart` kept — `BangumiDetailPage` is still referenced at the
+  `WorkCard` `onTap` (renamed later in Task 8).
+- `work.dart` kept — `List<Work> _results` still uses `Work`.
 
 ## Verification
+Command: `flutter analyze lib/modules/anime/anime_search.dart`
+Result: `No issues found! (ran in 1.1s)`
 
-- Flutter/Dart CLI not available on PATH; manual code review confirms correctness.
-- All three widgets are `StatelessWidget` with proper constructors and key parameters.
-- `WorkCard` matches the `Work` model fields (`coverUrl`, `title`, `sourceName`).
+## Commit
+`4a1a7f0` feat(anime): search via metadata service
+
+## Self-review findings
+- `_search()` matches the brief verbatim.
+- No unused imports (analyzer reports no issues).
+- Error handling preserved via try/catch.
+- `_hasSearched`, `_loading`, `_error`, `_results` state semantics preserved.
 
 ## Concerns
-
-- None.
+None.

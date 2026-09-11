@@ -1,15 +1,16 @@
-﻿Task 1: complete (commits 7df8be2..0027fac, review clean)
-Task 2: complete (commits 0027fac..711674e, review clean)
-Task 3: complete (commits 711674e..3c4f86f, review clean)
-Task 4: complete (commits 3c4f86f..f594faf, review clean)
-Task 5: complete (commits f594faf..6501418, review clean)
-Task 6: complete (commits 6501418..ef83cf7, review clean)
-Task 7: complete (commits ef83cf7..54aab4f, review clean)
-Task 8: complete (commits 54aab4f..fe4c097, review clean)
-Task 9: complete (commits fe4c097..b852cdd, review clean)
-Task 10: complete (commits b852cdd..df705d2, review clean)
-Task 11: complete (commits df705d2..796da70, review clean)
-Task 12: complete (commits 796da70..404f913, review clean)
-Task 13: complete (commits 404f913..b0f1eab, review clean)
-Task 14: complete (commits b0f1eab..1497b1e, review clean)
-Fix: final review issues resolved (commit 3be6128, settings access fixed, unused imports cleaned)
+﻿# SDD Progress Ledger
+
+Plan: docs/superpowers/plans/2026-09-10-bangumi-metadata-source.md
+Base commit: e440fb2 (before Task 1)
+Amendments: Task 4 generator fetches /v0/subjects/{id} for summaries; final fixes (feed pagination, clock test, transient-only disable, zero-field normalization).
+
+Task 1: complete (commits e440fb2..ac9f022, review clean)
+Task 2: complete (commits ac9f022..6daa107, review clean after unused-import fix)
+Task 3: complete (commits 6daa107..90208e2, review clean)
+Task 4: complete (commits 90208e2..7e10dba, review clean after summary fix)
+Task 5: complete (verification passed; final review 'with fixes' resolved in 597ed0c, re-review approved)
+
+Final review: e440fb2..7e10dba -> No with fixes (1 Critical + 3 Important)
+Final fixes: 7e10dba..597ed0c -> re-review approved
+Verification: analyze clean; 38/38 tests; windows debug build OK.
+Seed: 40 entries, 39 summaries, 0 zero-value score/episodes.

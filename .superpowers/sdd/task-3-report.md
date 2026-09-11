@@ -1,103 +1,31 @@
-# Task 3 Report: AniListProvider
+# Task 3 Report: Remove the source label from cards
 
-## Summary
+## Status: DONE
 
-Implemented `AniListProvider` for the AniList GraphQL API, following TDD (RED → GREEN).
+## What changed
+Modified `lib/core/widgets/work_card.dart`:
+- Removed the `final String? subtitle;` field.
+- Removed `this.subtitle` from the constructor; signature is now `WorkCard({super.key, required this.work, this.onTap})`.
+- Removed the `final sub = subtitle ?? work.sourceName;` local.
+- Removed the conditional `if (sub.isNotEmpty) Text(sub, ...)` widget.
+- Kept the `const SizedBox(height: 6)` spacer between the cover and the title (not orphaned — it separates cover from title).
+- `Column.children` now ends with the title `Text` (2-line clamp) only.
 
-- Created `lib/core/metadata/anilist_provider.dart` implementing the `MetadataProvider`
-  interface (`id`, `feed`, `search`, `detail`) plus static parsers
-  `parsePage`, `parseAiring`, `parseMedia`.
-- Created `test/core/metadata/anilist_provider_test.dart` with the brief's two tests.
+## Verification
+`$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib/core/widgets/work_card.dart`
 
-### Deviation from brief (approved by coordinator)
-- Brief's implementation wrote `import '../../models/work.dart';`, which is wrong from
-  `lib/core/metadata/`. Used the correct `import '../models/work.dart';`. Everything else
-  is verbatim from the brief.
+Result: `No issues found! (ran in 1.4s)`
 
-## TDD Evidence
+Also grepped `lib/` for `subtitle`; remaining matches are unrelated:
+- `lib/shell/main_shell.dart` (local parameter of an unrelated helper)
+- `lib/shell/settings_page.dart` (`ListTile.subtitle`)
 
-### RED — before implementation
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/anilist_provider_test.dart
-```
-Output (excerpt):
-```
-Error: Error when reading 'lib/core/metadata/anilist_provider.dart': 系统找不到指定的文件。
-Error: Undefined name 'AniListProvider'.
-00:00 +0 -1: Some tests failed.
-```
+## Files changed
+- `lib/core/widgets/work_card.dart` (1 insertion, 14 deletions)
 
-### GREEN — after implementation
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/anilist_provider_test.dart
-```
-Output:
-```
-00:00 +0: parsePage maps AniList media to Work items
-00:00 +1: parseAiring reads nested media
-00:00 +2: All tests passed!
-```
-
-### Full suite (regression check)
-```
-00:02 +17: All tests passed!
-```
-
-### Analyzer
-```
-flutter analyze lib/core/metadata/anilist_provider.dart test/core/metadata/anilist_provider_test.dart
-No issues found!
-```
-
-## Files Changed
-
-- `lib/core/metadata/anilist_provider.dart` (new)
-- `test/core/metadata/anilist_provider_test.dart` (new)
-
-Commit: `2ffd7a2 feat(metadata): add AniListProvider`
-
-## Self-Review
-
-- **Completeness:** All interface members implemented; all three static parsers present and
-  match the interface/`Work` model. Tests cover `parsePage` and `parseAiring`.
-- **Quality:** Verbatim from brief except the corrected relative import. Analyzer clean, no
-  unused imports.
-- **YAGNI:** No extra abstraction added. GraphQL fields `season`, `popularity`, and `color`
-  are requested but unused downstream (carried over from brief; left as-is).
-- **Test hygiene:** Tests assert on public parser output only; no network calls; deterministic.
+## Commit
+- `90208e2` style(anime): drop the source label from work cards
 
 ## Concerns
-
-1. `detail()` requests `meanScore` and `characters(...)` in the GraphQL query, but
-   `parseMedia` never maps them into `Work.extra`, so that detail-only data is discarded.
-   If a later task (detail page) expects score/characters, this needs a follow-up.
-2. `_strip` only decodes `&quot;` and `&amp;`; other HTML entities (e.g. `&#039;`, `&mdash;`)
-   pass through. Minor cosmetic risk.
-3. `season` is fetched in `_media` but not stored in `extra`; test does not require it.
-
-## Fix: drop unused detail fields
-
-Removed the unused `meanScore` and `characters(sort:ROLE,perPage:12){...}` fragments from
-both branches of `detail()` in `lib/core/metadata/anilist_provider.dart`, so each query is
-now just `{_media}` (addressing Concern 1). No other changes.
-
-### Test command and output
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/anilist_provider_test.dart
-```
-Output:
-```
-00:00 +0: loading D:/ACGNhub/test/core/metadata/anilist_provider_test.dart
-00:00 +0: parsePage maps AniList media to Work items
-00:00 +1: parseAiring reads nested media
-00:00 +2: All tests passed!
-```
-
-### Analyzer
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib/core/metadata/anilist_provider.dart
-No issues found! (ran in 0.3s)
-```
+- None. `WorkCard` callers (`anime_home.dart`, `anime_search.dart`) do not pass `subtitle`, so no call sites needed updating.
+- Unrelated pre-existing working-tree changes (`.superpowers/sdd/*`, `tool/gen_seed.ps1`, untracked docs) were left untouched; only `work_card.dart` was staged, per the brief.
