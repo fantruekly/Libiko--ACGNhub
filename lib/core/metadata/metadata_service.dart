@@ -131,7 +131,7 @@ class MetadataService {
         return result;
       } catch (e) {
         lastError = e;
-        if (e is DioException) {
+        if (_isTransient(e)) {
           _disabledUntil[provider.id] = _now().add(_disableDuration);
         }
       }

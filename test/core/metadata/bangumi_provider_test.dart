@@ -1,5 +1,32 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:acgnhub/core/metadata/bangumi_provider.dart';
+import 'package:acgnhub/core/metadata/metadata_provider.dart';
+
+class _FakeAdapter implements HttpClientAdapter {
+  final dynamic data;
+  _FakeAdapter(this.data);
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return ResponseBody.fromString(
+      jsonEncode(data),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 void main() {
   final calendarItem = {
@@ -70,5 +97,23 @@ void main() {
     expect(w.tags, ['奇幻', '冒险']);
     expect(w.extra['episodes'], 28);
     expect(w.extra['score'], closeTo(8.9, 0.001));
+  });
+
+  test('feed(today) filters to the injected weekday; page>1 is empty; trending sorts by score', () async {
+    final days = [
+      {'weekday': {'id': 4}, 'items': [{'id': 1, 'name': 'A', 'name_cn': '甲', 'rating': {'score': 8.0}}]},
+      {'weekday': {'id': 5}, 'items': [{'id': 2, 'name': 'B', 'name_cn': '乙', 'rating': {'score': 9.0}}]},
+    ];
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.bgm.tv'))
+      ..httpClientAdapter = _FakeAdapter(days);
+    final provider = BangumiProvider(dio: dio, now: () => DateTime(2026, 9, 10)); // Thursday = weekday 4
+
+    final today = await provider.feed(AnimeFeed.today);
+    expect(today.single.id, 'bangumi_1');
+
+    expect(await provider.feed(AnimeFeed.season, page: 2), isEmpty);
+
+    final trending = await provider.feed(AnimeFeed.trending);
+    expect(trending.first.id, 'bangumi_2'); // 9.0 before 8.0
   });
 }

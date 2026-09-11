@@ -55,8 +55,12 @@ Future<void> main() async {
         'author': null,
         'extra': {
           'bangumiId': id,
-          'score': rating?['score'],
-          'episodes': m['eps'] ?? m['total_episodes'],
+          'score': (rating?['score'] is num && (rating!['score'] as num) > 0)
+              ? (rating['score'] as num).toDouble()
+              : null,
+          'episodes': ((m['eps'] ?? m['total_episodes']) is num && ((m['eps'] ?? m['total_episodes']) as num) > 0)
+              ? ((m['eps'] ?? m['total_episodes']) as num).toInt()
+              : null,
           'airDate': m['date'],
         },
       });

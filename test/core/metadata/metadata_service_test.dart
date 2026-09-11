@@ -23,8 +23,16 @@ class _FakeProvider implements MetadataProvider {
   @override
   final String id;
   bool fail;
+  bool transient;
   int calls = 0;
-  _FakeProvider(this.id, {this.fail = false});
+  _FakeProvider(this.id, {this.fail = false, this.transient = false});
+
+  DioException _error() => DioException(
+        requestOptions: RequestOptions(path: '/$id'),
+        response: transient
+            ? Response(requestOptions: RequestOptions(path: '/$id'), statusCode: 503)
+            : null,
+      );
 
   List<Work> _items() => [
         Work(id: '${id}_1', sourceId: id, sourceName: id, type: WorkType.anime, title: id),
@@ -33,21 +41,21 @@ class _FakeProvider implements MetadataProvider {
   @override
   Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
     calls++;
-    if (fail) throw DioException(requestOptions: RequestOptions(path: '/$id'));
+    if (fail) throw _error();
     return _items();
   }
 
   @override
   Future<List<Work>> search(String keyword, {int page = 1}) async {
     calls++;
-    if (fail) throw DioException(requestOptions: RequestOptions(path: '/$id'));
+    if (fail) throw _error();
     return _items();
   }
 
   @override
   Future<Work> detail(Work work) async {
     calls++;
-    if (fail) throw DioException(requestOptions: RequestOptions(path: '/$id'));
+    if (fail) throw _error();
     return work;
   }
 }
@@ -128,18 +136,18 @@ void main() {
 
   test('falls back to Jikan when AniList fails, then skips AniList for 10 min', () async {
     var now = DateTime(2026, 9, 10, 12);
-    final anilist = _FakeProvider('anilist', fail: true);
+    final anilist = _FakeProvider('anilist', fail: true, transient: true);
     final jikan = _FakeProvider('jikan');
     final service = _service(anilist: anilist, jikan: jikan, now: () => now);
 
     final first = await service.feed(AnimeFeed.trending);
     expect(first.single.sourceId, 'jikan');
-    expect(anilist.calls, 1);
+    expect(anilist.calls, 4); // retried up to _maxAttempts before being disabled
     expect(jikan.calls, 1);
 
     // Within 10 min: different key, AniList is skipped entirely.
     await service.feed(AnimeFeed.trending, page: 2);
-    expect(anilist.calls, 1);
+    expect(anilist.calls, 4);
     expect(jikan.calls, 2);
 
     // After 10 min: AniList is retried (now healthy).
@@ -147,7 +155,7 @@ void main() {
     now = now.add(const Duration(minutes: 11));
     final third = await service.feed(AnimeFeed.trending, page: 3);
     expect(third.single.sourceId, 'anilist');
-    expect(anilist.calls, 2);
+    expect(anilist.calls, 5);
   });
 
   test('caches identical calls for 5 minutes', () async {

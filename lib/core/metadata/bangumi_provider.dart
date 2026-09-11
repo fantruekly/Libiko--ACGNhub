@@ -7,8 +7,9 @@ class BangumiProvider implements MetadataProvider {
   static const _base = 'https://api.bgm.tv';
 
   final Dio _dio;
+  final DateTime Function() _now;
 
-  BangumiProvider({Dio? dio})
+  BangumiProvider({Dio? dio, DateTime Function()? now})
       : _dio = dio ??
             Dio(BaseOptions(
               baseUrl: _base,
@@ -18,18 +19,20 @@ class BangumiProvider implements MetadataProvider {
                 'User-Agent': 'ACGNhub/0.1 (https://github.com/acgnhub)',
                 'Accept': 'application/json',
               },
-            ));
+            )),
+        _now = now ?? DateTime.now;
 
   @override
   String get id => 'bangumi';
 
   @override
   Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
+    if (page > 1) return const [];
     final res = await _dio.get('/calendar');
     final days = res.data as List<dynamic>;
     switch (feed) {
       case AnimeFeed.today:
-        return parseCalendar(days, onlyWeekday: DateTime.now().weekday);
+        return parseCalendar(days, onlyWeekday: _now().weekday);
       case AnimeFeed.season:
         return parseCalendar(days);
       case AnimeFeed.trending:
@@ -98,7 +101,10 @@ class BangumiProvider implements MetadataProvider {
     final images = item['images'] as Map<String, dynamic>?;
     final cover = images?['large'] as String? ?? images?['common'] as String?;
     final rating = item['rating'] as Map<String, dynamic>?;
-    final score = rating?['score'];
+    final rawScore = rating?['score'];
+    final score = (rawScore is num && rawScore > 0) ? rawScore.toDouble() : null;
+    final rawEps = item['eps'];
+    final episodes = (rawEps is num && rawEps > 0) ? rawEps.toInt() : null;
     final tags = (item['tags'] as List<dynamic>?)
             ?.map((t) => (t as Map<String, dynamic>)['name'] as String)
             .toList() ??
@@ -115,8 +121,8 @@ class BangumiProvider implements MetadataProvider {
       tags: isDetail ? tags : const [],
       extra: {
         'bangumiId': id,
-        'score': score is num ? score.toDouble() : null,
-        'episodes': item['eps'],
+        'score': score,
+        'episodes': episodes,
         'airDate': item['air_date'] ?? item['date'],
         'rank': item['rank'],
       },

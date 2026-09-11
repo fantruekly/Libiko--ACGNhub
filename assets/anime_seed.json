@@ -42,7 +42,7 @@
     "author": null,
     "extra": {
       "bangumiId": 456080,
-      "score": 5,
+      "score": 5.0,
       "episodes": 12,
       "airDate": "2026-07-06"
     }
@@ -187,7 +187,7 @@
     "extra": {
       "bangumiId": 569116,
       "score": 7.1,
-      "episodes": 0,
+      "episodes": null,
       "airDate": "2026-07-06"
     }
   },
@@ -234,7 +234,7 @@
     "author": null,
     "extra": {
       "bangumiId": 569671,
-      "score": 6,
+      "score": 6.0,
       "episodes": 12,
       "airDate": "2026-07-06"
     }
@@ -351,8 +351,8 @@
     "author": null,
     "extra": {
       "bangumiId": 595884,
-      "score": 0,
-      "episodes": 0,
+      "score": null,
+      "episodes": null,
       "airDate": "2026-07-13"
     }
   },
@@ -399,7 +399,7 @@
     "author": null,
     "extra": {
       "bangumiId": 607340,
-      "score": 7,
+      "score": 7.0,
       "episodes": 12,
       "airDate": "2026-07-06"
     }
@@ -427,8 +427,8 @@
     "author": null,
     "extra": {
       "bangumiId": 607933,
-      "score": 2,
-      "episodes": 0,
+      "score": 2.0,
+      "episodes": null,
       "airDate": "2026-07-20"
     }
   },
@@ -514,7 +514,7 @@
     "extra": {
       "bangumiId": 637339,
       "score": 6.1,
-      "episodes": 0,
+      "episodes": null,
       "airDate": "2026-07-06"
     }
   },
@@ -533,8 +533,8 @@
     "author": null,
     "extra": {
       "bangumiId": 663444,
-      "score": 6,
-      "episodes": 0,
+      "score": 6.0,
+      "episodes": null,
       "airDate": "2026-07-20"
     }
   },
@@ -567,12 +567,12 @@
       "战斗",
       "2025",
       "搞笑",
-      "动画",
       "渡航",
+      "动画",
       "2026年",
       "街霸",
-      "格斗",
       "日常",
+      "格斗",
       "街霸6",
       "喜剧",
       "未确定",
@@ -713,7 +713,7 @@
     "author": null,
     "extra": {
       "bangumiId": 541285,
-      "score": 7,
+      "score": 7.0,
       "episodes": 13,
       "airDate": "2026-07-07"
     }
@@ -761,7 +761,7 @@
     "author": null,
     "extra": {
       "bangumiId": 584641,
-      "score": 6,
+      "score": 6.0,
       "episodes": 9,
       "airDate": "2026-07-07"
     }
@@ -933,8 +933,8 @@
     "author": null,
     "extra": {
       "bangumiId": 638995,
-      "score": 4,
-      "episodes": 0,
+      "score": 4.0,
+      "episodes": null,
       "airDate": "2026-07-07"
     }
   },
@@ -1167,7 +1167,7 @@
     "author": null,
     "extra": {
       "bangumiId": 532053,
-      "score": 0,
+      "score": null,
       "episodes": 52,
       "airDate": "2026-07-01"
     }
@@ -1215,7 +1215,7 @@
     "author": null,
     "extra": {
       "bangumiId": 558064,
-      "score": 6,
+      "score": 6.0,
       "episodes": 12,
       "airDate": "2026-07-01"
     }
@@ -1264,7 +1264,7 @@
     "extra": {
       "bangumiId": 565701,
       "score": 5.8,
-      "episodes": 0,
+      "episodes": null,
       "airDate": "2026-07-08"
     }
   },
@@ -1311,8 +1311,8 @@
     "author": null,
     "extra": {
       "bangumiId": 572613,
-      "score": 6,
-      "episodes": 0,
+      "score": 6.0,
+      "episodes": null,
       "airDate": "2026-07-08"
     }
   },
@@ -1422,27 +1422,27 @@
       "2026",
       "异世界",
       "日本",
-      "田口清隆",
       "漫改",
+      "田口清隆",
       "校园",
       "续作",
       "Clevatess",
       "续集",
       "动画",
-      "冒险",
       "クレバテス",
       "未定档",
+      "冒险",
       "田村睦心",
       "中村悠一",
       "小柳啓伍",
-      "会泽沙弥",
       "关智一",
       "TVA",
+      "小柳启伍",
+      "会泽沙弥",
       "26夏",
-      "追番",
-      "原创",
       "克雷瓦提斯",
-      "白石晴香"
+      "白石晴香",
+      "追番"
     ],
     "author": null,
     "extra": {
@@ -1544,7 +1544,7 @@
     "extra": {
       "bangumiId": 625215,
       "score": 4.8,
-      "episodes": 0,
+      "episodes": null,
       "airDate": "2026-07-08"
     }
   },
@@ -1592,7 +1592,7 @@
     "extra": {
       "bangumiId": 630163,
       "score": 4.1,
-      "episodes": 0,
+      "episodes": null,
       "airDate": "2026-07-01"
     }
   },
@@ -1634,7 +1634,7 @@
     "extra": {
       "bangumiId": 630164,
       "score": 3.9,
-      "episodes": 0,
+      "episodes": null,
       "airDate": "2026-07-08"
     }
   },
