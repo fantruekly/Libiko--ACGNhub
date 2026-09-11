@@ -291,6 +291,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                             _videoEpisodes = null;
                             _videoError = null;
                             _selectedItem = null;
+                            _videoLoading = false;
                           });
                         },
                       ),
