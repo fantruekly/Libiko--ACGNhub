@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/work.dart';
+import '../../core/widgets/rating_stars.dart';
 import 'anime_providers.dart';
 import 'anime_search.dart';
 
@@ -39,7 +40,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final w = _work;
-    final score = w.extra['score'] as num?;
+    final score = (w.extra['score'] as num?)?.toDouble();
     final episodes = w.extra['episodes'] as int?;
     final seasonYear = w.extra['seasonYear'] as int?;
     final format = w.extra['format'] as String?;
@@ -53,11 +54,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           Expanded(
             child: CustomScrollView(
               slivers: [
-                _infoSection(w, cs, score, episodes, seasonYear),
+                _infoSection(w, cs, score, episodes, seasonYear, format, status),
                 if (w.tags.isNotEmpty) _tagsRow(w.tags),
                 _summarySection(w.summary, cs),
                 _playSection(w, cs),
-                _metaSection(cs, format, status, seasonYear),
               ],
             ),
           ),
@@ -95,7 +95,15 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _infoSection(Work w, ColorScheme cs, num? score, int? episodes, int? seasonYear) {
+  Widget _infoSection(
+    Work w,
+    ColorScheme cs,
+    double? score,
+    int? episodes,
+    int? seasonYear,
+    String? format,
+    String? status,
+  ) {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
@@ -137,15 +145,20 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       ),
                     )
                   else ...[
-                    if (score != null) _metaChip(Icons.star_rounded, score.toStringAsFixed(1), Colors.amber),
-                    if (episodes != null) ...[
-                      const SizedBox(height: 6),
-                      _metaChip(Icons.live_tv_rounded, '$episodes 话', const Color(0xFF007AFF)),
+                    if (score != null) ...[
+                      RatingStars(score: score),
+                      const SizedBox(height: 10),
                     ],
-                    if (seasonYear != null) ...[
-                      const SizedBox(height: 6),
-                      _metaChip(Icons.calendar_today_rounded, '$seasonYear', const Color(0xFF5856D6)),
-                    ],
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (episodes != null) _metaChip(Icons.live_tv_rounded, '$episodes 话', const Color(0xFF007AFF)),
+                        if (seasonYear != null) _metaChip(Icons.calendar_today_rounded, '$seasonYear', const Color(0xFF5856D6)),
+                        if (status != null) _metaChip(Icons.info_outline_rounded, _statusLabel(status), Colors.teal),
+                        if (format != null) _metaChip(Icons.movie_outlined, format, Colors.deepPurple),
+                      ],
+                    ),
                   ],
                 ],
               ),
@@ -221,7 +234,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 ),
               )
             else if (summary == null || summary.isEmpty)
-              Text('暂无简介数据', style: TextStyle(fontSize: 13.5, color: cs.onSurface.withValues(alpha: 0.35)))
+              Text('暂无简介', style: TextStyle(fontSize: 13.5, color: cs.onSurface.withValues(alpha: 0.35)))
             else
               GestureDetector(
                 onTap: () => setState(() => _expanded = !_expanded),
@@ -269,49 +282,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _metaSection(ColorScheme cs, String? format, String? status, int? seasonYear) {
-    final rows = <MapEntry<String, String>>[
-      if (format != null) MapEntry('类型', format),
-      if (status != null) MapEntry('状态', _statusLabel(status)),
-      if (seasonYear != null) MapEntry('年份', '$seasonYear'),
-    ];
-    if (rows.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('详细信息', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
-                const SizedBox(height: 12),
-                for (final row in rows)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 64,
-                          child: Text(row.key, style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.45))),
-                        ),
-                        Expanded(child: Text(row.value, style: TextStyle(fontSize: 13, color: cs.onSurface))),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   String _statusLabel(String status) => switch (status) {
-        'RELEASING' => '连载中',
-        'FINISHED' => '已完结',
-        'NOT_YET_RELEASED' => '未播出',
+        'RELEASING' || 'Currently Airing' => '连载中',
+        'FINISHED' || 'Finished Airing' => '已完结',
+        'NOT_YET_RELEASED' || 'Not yet aired' => '未播出',
         'CANCELLED' => '已取消',
         'HIATUS' => '停更',
         _ => status,
