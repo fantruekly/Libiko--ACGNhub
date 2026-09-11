@@ -33,7 +33,7 @@ void main() {
     expect(w.summary, 'A pirate adventure.');
     expect(w.tags, ['Action', 'Adventure']);
     expect(w.anilistId, 21);
-    expect(w.extra['score'], 88);
+    expect(w.extra['score'], closeTo(8.8, 0.001));
     expect(w.extra['episodes'], 1000);
     expect(w.extra['seasonYear'], 1999);
     expect(w.extra['format'], 'TV');

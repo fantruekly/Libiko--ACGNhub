@@ -168,7 +168,7 @@ class AniListProvider implements MetadataProvider {
         'titleNative': native,
         'titleEnglish': english,
         'bannerUrl': m['bannerImage'],
-        'score': m['averageScore'],
+        'score': _normalizeScore(m['averageScore']),
         'episodes': m['episodes'],
         'duration': m['duration'],
         'status': m['status'],
@@ -177,6 +177,11 @@ class AniListProvider implements MetadataProvider {
         'studios': studios,
       },
     );
+  }
+
+  static double? _normalizeScore(dynamic averageScore) {
+    if (averageScore is num) return averageScore / 10;
+    return null;
   }
 
   static String? _strip(String? s) {
