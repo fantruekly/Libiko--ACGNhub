@@ -4,8 +4,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/work.dart';
 import '../../core/widgets/rating_stars.dart';
+import '../../core/video/agedm_source.dart';
+import '../../core/video/gimy_source.dart';
+import '../../core/video/stream_resolver.dart';
+import '../../core/video/video_source.dart';
 import 'anime_providers.dart';
-import 'anime_search.dart';
+import 'video_player_page.dart';
 
 class AnimeDetailPage extends ConsumerStatefulWidget {
   final Work work;
@@ -19,6 +23,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   late Work _work;
   bool _loading = true;
   bool _expanded = false;
+  final List<VideoSource> _sources = [AgedmSource(), GimySource()];
+  int _sourceIndex = 0;
+  List<VideoItem>? _videoResults;
+  List<VideoEpisode>? _videoEpisodes;
+  bool _videoLoading = false;
+  String? _videoError;
 
   @override
   void initState() {
@@ -261,24 +271,148 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('播放', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
+                Text('播放源', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    final kw = w.extra['keyword'] as String? ?? w.title;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => AnimeSearchPage(initialKeyword: kw)),
-                    );
-                  },
-                  icon: const Icon(Icons.search, size: 18),
-                  label: const Text('搜索播放资源'),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (var i = 0; i < _sources.length; i++)
+                      ChoiceChip(
+                        label: Text(_sources[i].name),
+                        selected: _sourceIndex == i,
+                        onSelected: (_) {
+                          setState(() {
+                            _sourceIndex = i;
+                            _videoResults = null;
+                            _videoEpisodes = null;
+                            _videoError = null;
+                          });
+                        },
+                      ),
+                  ],
                 ),
+                const SizedBox(height: 12),
+                if (_videoLoading)
+                  const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
+                else if (_videoError != null)
+                  Text(_videoError!, style: const TextStyle(color: Colors.redAccent, fontSize: 13))
+                else if (_videoEpisodes != null)
+                  _episodeGrid(cs)
+                else if (_videoResults != null)
+                  _resultList(cs)
+                else
+                  OutlinedButton.icon(
+                    onPressed: () => _searchVideos(w),
+                    icon: const Icon(Icons.search, size: 18),
+                    label: const Text('搜索播放资源'),
+                  ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _resultList(ColorScheme cs) {
+    final results = _videoResults!;
+    if (results.isEmpty) {
+      return Text('未找到资源', style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.5)));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final item in results)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _loadEpisodes(item),
+          ),
+      ],
+    );
+  }
+
+  Widget _episodeGrid(ColorScheme cs) {
+    final eps = _videoEpisodes!;
+    if (eps.isEmpty) {
+      return Text('暂无剧集', style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.5)));
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final ep in eps)
+          ActionChip(
+            label: Text(ep.title, style: const TextStyle(fontSize: 12)),
+            onPressed: () => _playEpisode(ep),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _searchVideos(Work w) async {
+    setState(() {
+      _videoLoading = true;
+      _videoError = null;
+      _videoResults = null;
+      _videoEpisodes = null;
+    });
+    try {
+      final results = await _sources[_sourceIndex].search(w.title);
+      if (!mounted) return;
+      setState(() {
+        _videoResults = results;
+        _videoLoading = false;
+        if (results.isEmpty) _videoError = '未找到资源';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _videoLoading = false;
+        _videoError = '搜索失败：$e';
+      });
+    }
+  }
+
+  Future<void> _loadEpisodes(VideoItem item) async {
+    setState(() {
+      _videoLoading = true;
+      _videoError = null;
+    });
+    try {
+      final eps = await _sources[_sourceIndex].episodes(item.detailUrl);
+      if (!mounted) return;
+      setState(() {
+        _videoEpisodes = eps;
+        _videoLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _videoLoading = false;
+        _videoError = '获取剧集失败：$e';
+      });
+    }
+  }
+
+  Future<void> _playEpisode(VideoEpisode ep) async {
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    final url = await StreamResolver().resolve(ep.playUrl);
+    if (!mounted) return;
+    Navigator.of(context).pop(); // close the loading dialog
+    if (url == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => VideoPlayerPage(title: _work.title, streamUrl: url)),
     );
   }
 
