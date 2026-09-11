@@ -69,4 +69,34 @@ void main() {
     expect(find.text('暂无简介'), findsOneWidget);
     expect(find.byType(RatingStars), findsNothing);
   });
+
+  testWidgets('shows basic-info chips including translated status', (tester) async {
+    const work = Work(
+      id: 'anilist_2',
+      sourceId: 'anilist',
+      sourceName: 'AniList',
+      type: WorkType.anime,
+      title: 'Chips',
+      summary: 'S.',
+      extra: {
+        'anilistId': 2,
+        'score': 8.5,
+        'episodes': 12,
+        'seasonYear': 2024,
+        'status': 'Finished Airing',
+        'format': 'TV',
+      },
+    );
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [metadataServiceProvider.overrideWithValue(_offlineService())],
+      child: const MaterialApp(home: AnimeDetailPage(work: work)),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('12 话'), findsOneWidget);
+    expect(find.text('2024'), findsOneWidget);
+    expect(find.text('已完结'), findsOneWidget);
+    expect(find.text('TV'), findsOneWidget);
+  });
 }

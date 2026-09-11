@@ -20,4 +20,17 @@ void main() {
     expect(find.byIcon(Icons.star_rounded), findsNothing);
     expect(find.text('0.0'), findsOneWidget);
   });
+
+  testWidgets('clamps scores above 10', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: RatingStars(score: 20))));
+    expect(find.byIcon(Icons.star_rounded), findsNWidgets(5));
+    expect(find.text('10.0'), findsOneWidget);
+  });
+
+  testWidgets('below the half threshold shows no half star', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: RatingStars(score: 8.4))));
+    expect(find.byIcon(Icons.star_rounded), findsNWidgets(4));
+    expect(find.byIcon(Icons.star_half_rounded), findsNothing);
+    expect(find.byIcon(Icons.star_outline_rounded), findsOneWidget);
+  });
 }

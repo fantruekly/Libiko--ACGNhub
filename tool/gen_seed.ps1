@@ -22,6 +22,8 @@ foreach ($it in $items) {
   if ($it.images -and $it.images.jpg -and $it.images.jpg.large_image_url) { $cover = $it.images.jpg.large_image_url }
   $tags = @()
   if ($it.genres) { $tags = @($it.genres | ForEach-Object { $_.name }) }
+  $summary = $it.synopsis
+  if ($summary) { $summary = ($summary -replace '<[^>]+>', '').Trim() }
   $works.Add([ordered]@{
     id         = "seed_$malId"
     sourceId   = "seed"
@@ -29,7 +31,7 @@ foreach ($it in $items) {
     type       = "anime"
     title      = $title
     coverUrl   = $cover
-    summary    = $it.synopsis
+    summary    = $summary
     tags       = $tags
     author     = $null
     extra      = [ordered]@{
