@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
+import '../core/widgets/glass_surface.dart';
 import '../modules/anime/anime_home.dart';
 import '../modules/anime/anime_search.dart';
 import 'settings_page.dart';
@@ -11,8 +13,9 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WindowListener {
   int _currentIndex = 0;
+  bool _isMaximized = false;
   late final SidebarState _sidebarState;
 
   static const _titles = ['动漫', '漫画', '轻小说', '游戏'];
@@ -60,8 +63,22 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(this);
+    windowManager.isMaximized().then((v) {
+      if (mounted) setState(() => _isMaximized = v);
+    });
     _sidebarState = SidebarState();
     _sidebarState.addListener(_onSidebarChanged);
+  }
+
+  @override
+  void onWindowMaximize() {
+    if (mounted) setState(() => _isMaximized = true);
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    if (mounted) setState(() => _isMaximized = false);
   }
 
   void _onSidebarChanged() {
@@ -70,6 +87,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    windowManager.removeListener(this);
     _sidebarState.removeListener(_onSidebarChanged);
     _sidebarState.dispose();
     super.dispose();
@@ -87,7 +105,7 @@ class _MainShellState extends State<MainShell> {
       backgroundColor: const Color(0xFFF2F2F7),
       body: Column(
         children: [
-          _topBar(collapsed),
+          _titleBar(collapsed),
           Expanded(
             child: Row(
               children: [
@@ -119,49 +137,56 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _topBar(bool collapsed) {
-    return Container(
-      height: 48,
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
-        border: Border(bottom: BorderSide(color: _border, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 72,
-            child: Center(
-              child: _SidebarToggleButton(
-                collapsed: collapsed,
-                onTap: () => _sidebarState.toggle(),
+  Widget _titleBar(bool collapsed) {
+    return DragToMoveArea(
+      child: GlassSurface(
+        borderRadius: BorderRadius.zero,
+        blur: 18,
+        color: const Color(0xF2FFFFFF),
+        child: Container(
+          height: 48,
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: _border, width: 0.5)),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 72,
+                child: Center(
+                  child: _SidebarToggleButton(
+                    collapsed: collapsed,
+                    onTap: () => _sidebarState.toggle(),
+                  ),
+                ),
               ),
-            ),
-          ),
-          Text(
-            _titles[_currentIndex],
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _fg, height: 1.4),
-          ),
-          const Spacer(),
-          if (_currentIndex == 0)
-            IconButton(
-              icon: const Icon(Icons.search_rounded, size: 20),
-              color: _muted,
-              splashRadius: 20,
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnimeSearchPage())),
-            ),
-          const SizedBox(width: 4),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: _openSettings,
-              child: const CircleAvatar(
-                radius: 15,
-                backgroundColor: Color(0xFFE8F0FE),
-                child: Text('A', style: TextStyle(fontSize: 13, color: _accent, fontWeight: FontWeight.w600)),
+              Text(
+                _titles[_currentIndex],
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _fg, height: 1.4),
               ),
-            ),
+              const Spacer(),
+              if (_currentIndex == 0)
+                IconButton(
+                  icon: const Icon(Icons.search_rounded, size: 20),
+                  color: _muted,
+                  splashRadius: 20,
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnimeSearchPage())),
+                ),
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: _openSettings,
+                  child: const CircleAvatar(
+                    radius: 15,
+                    backgroundColor: Color(0xFFE8F0FE),
+                    child: Text('A', style: TextStyle(fontSize: 13, color: _accent, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ),
+              _WindowControls(isMaximized: _isMaximized),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -199,6 +224,83 @@ class _SidebarToggleButton extends StatelessWidget {
                 color: _fg.withValues(alpha: 0.55),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WindowControls extends StatelessWidget {
+  final bool isMaximized;
+  const _WindowControls({required this.isMaximized});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _WindowButton(
+          icon: Icons.remove_rounded,
+          tooltip: '最小化',
+          onTap: () => windowManager.minimize(),
+        ),
+        _WindowButton(
+          icon: isMaximized ? Icons.filter_none_rounded : Icons.crop_square_rounded,
+          tooltip: isMaximized ? '还原' : '最大化',
+          onTap: () async {
+            if (await windowManager.isMaximized()) {
+              await windowManager.unmaximize();
+            } else {
+              await windowManager.maximize();
+            }
+          },
+        ),
+        _WindowButton(
+          icon: Icons.close_rounded,
+          tooltip: '关闭',
+          danger: true,
+          onTap: () => windowManager.close(),
+        ),
+      ],
+    );
+  }
+}
+
+class _WindowButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool danger;
+  final VoidCallback onTap;
+
+  const _WindowButton({required this.icon, required this.tooltip, required this.onTap, this.danger = false});
+
+  @override
+  State<_WindowButton> createState() => _WindowButtonState();
+}
+
+class _WindowButtonState extends State<_WindowButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hovered = _hover;
+    final bg = hovered ? (widget.danger ? const Color(0xFFE81123) : const Color(0x0D000000)) : Colors.transparent;
+    final fg = (hovered && widget.danger) ? Colors.white : const Color(0xFF1C1C1E).withValues(alpha: 0.55);
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            width: 46,
+            height: 48,
+            color: bg,
+            alignment: Alignment.center,
+            child: Icon(widget.icon, size: 16, color: fg),
           ),
         ),
       ),

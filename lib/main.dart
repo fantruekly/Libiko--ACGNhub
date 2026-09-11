@@ -1,13 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:window_manager/window_manager.dart';
 import 'core/storage/database.dart';
 import 'shell/main_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  await windowManager.ensureInitialized();
   await AppDatabase.init();
+
+  const windowOptions = WindowOptions(
+    size: Size(1280, 800),
+    minimumSize: Size(960, 640),
+    center: true,
+    title: 'ACGNhub',
+    titleBarStyle: TitleBarStyle.hidden,
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
   runApp(const ProviderScope(child: ACGNhubApp()));
 }
 
