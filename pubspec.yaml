@@ -30,3 +30,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/rules/
+    - assets/anime_seed.json

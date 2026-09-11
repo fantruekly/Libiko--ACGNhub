@@ -1,8 +1,23 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/metadata/metadata_cache.dart';
 import 'package:acgnhub/core/metadata/metadata_provider.dart';
 import 'package:acgnhub/core/metadata/metadata_service.dart';
 import 'package:acgnhub/core/models/work.dart';
+
+class _FakeCache implements MetadataCache {
+  final Map<String, String> store = {};
+
+  @override
+  Future<String?> read(String key) async => store[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    store[key] = value;
+  }
+}
 
 class _FakeProvider implements MetadataProvider {
   @override
@@ -62,12 +77,47 @@ class _SlowFakeProvider extends _FakeProvider {
   }
 }
 
+class _FlakyProvider extends _FakeProvider {
+  int remainingFailures;
+  _FlakyProvider(super.id, {required this.remainingFailures});
+
+  @override
+  Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
+    calls++;
+    if (remainingFailures > 0) {
+      remainingFailures--;
+      throw DioException(
+        requestOptions: RequestOptions(path: '/$id'),
+        response: Response(requestOptions: RequestOptions(path: '/$id'), statusCode: 504),
+      );
+    }
+    return _items();
+  }
+}
+
+MetadataService _service({
+  MetadataProvider? anilist,
+  MetadataProvider? jikan,
+  MetadataCache? cache,
+  MetadataSeedLoader? seedLoader,
+  DateTime Function()? now,
+}) {
+  return MetadataService(
+    anilist: anilist ?? _FakeProvider('anilist'),
+    jikan: jikan ?? _FakeProvider('jikan'),
+    cache: cache ?? _FakeCache(),
+    seedLoader: seedLoader ?? () async => const [],
+    now: now,
+    intervals: const {},
+  );
+}
+
 void main() {
   test('falls back to Jikan when AniList fails, then skips AniList for 10 min', () async {
     var now = DateTime(2026, 9, 10, 12);
     final anilist = _FakeProvider('anilist', fail: true);
     final jikan = _FakeProvider('jikan');
-    final service = MetadataService(anilist: anilist, jikan: jikan, now: () => now);
+    final service = _service(anilist: anilist, jikan: jikan, now: () => now);
 
     final first = await service.feed(AnimeFeed.trending);
     expect(first.single.sourceId, 'jikan');
@@ -89,8 +139,7 @@ void main() {
 
   test('caches identical calls for 5 minutes', () async {
     final anilist = _FakeProvider('anilist');
-    final jikan = _FakeProvider('jikan');
-    final service = MetadataService(anilist: anilist, jikan: jikan);
+    final service = _service(anilist: anilist);
 
     await service.feed(AnimeFeed.trending);
     await service.feed(AnimeFeed.trending);
@@ -99,8 +148,7 @@ void main() {
 
   test('invalidate forces a refetch', () async {
     final anilist = _FakeProvider('anilist');
-    final jikan = _FakeProvider('jikan');
-    final service = MetadataService(anilist: anilist, jikan: jikan);
+    final service = _service(anilist: anilist);
 
     await service.feed(AnimeFeed.trending);
     await service.feed(AnimeFeed.trending);
@@ -114,12 +162,56 @@ void main() {
   test('serializes Jikan calls (no overlap)', () async {
     final anilist = _FakeProvider('anilist', fail: true);
     final jikan = _SlowFakeProvider('jikan');
-    final service = MetadataService(anilist: anilist, jikan: jikan);
+    final service = _service(anilist: anilist, jikan: jikan);
 
     await Future.wait([
       service.feed(AnimeFeed.trending),
       service.search('a'),
     ]);
     expect(jikan.maxConcurrent, 1);
+  });
+
+  test('retries transient provider failures', () async {
+    final anilist = _FakeProvider('anilist', fail: true);
+    final jikan = _FlakyProvider('jikan', remainingFailures: 2);
+    final service = _service(anilist: anilist, jikan: jikan);
+
+    final works = await service.feed(AnimeFeed.trending);
+    expect(works, isNotEmpty);
+    expect(jikan.calls, 3);
+  });
+
+  test('returns disk-cached feed when all providers fail', () async {
+    final cache = _FakeCache();
+    cache.store['feed:trending:1'] = jsonEncode([
+      Work(
+        id: 'cached_1',
+        sourceId: 'cached',
+        sourceName: 'Cached',
+        type: WorkType.anime,
+        title: 'Cached Anime',
+      ).toJson(),
+    ]);
+    final service = _service(
+      anilist: _FakeProvider('anilist', fail: true),
+      jikan: _FakeProvider('jikan', fail: true),
+      cache: cache,
+    );
+
+    final works = await service.feed(AnimeFeed.trending);
+    expect(works.single.id, 'cached_1');
+  });
+
+  test('returns seed when all providers fail and no cache', () async {
+    final service = _service(
+      anilist: _FakeProvider('anilist', fail: true),
+      jikan: _FakeProvider('jikan', fail: true),
+      seedLoader: () async => [
+        Work(id: 'seed_1', sourceId: 'seed', sourceName: 'Seed', type: WorkType.anime, title: 'Seed Anime'),
+      ],
+    );
+
+    final works = await service.feed(AnimeFeed.trending);
+    expect(works.single.id, 'seed_1');
   });
 }
