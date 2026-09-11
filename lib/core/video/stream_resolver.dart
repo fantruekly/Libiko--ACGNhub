@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class StreamResolver {
@@ -43,7 +44,8 @@ class StreamResolver {
       );
       await webView.run();
       return await completer.future.timeout(timeout, onTimeout: () => null);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[StreamResolver] resolve failed for $playPageUrl: $e');
       return null;
     } finally {
       try {

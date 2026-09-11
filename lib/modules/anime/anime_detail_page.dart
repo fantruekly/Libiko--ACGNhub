@@ -29,6 +29,9 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   List<VideoEpisode>? _videoEpisodes;
   bool _videoLoading = false;
   String? _videoError;
+  int _videoGen = 0;
+  VideoItem? _selectedItem;
+  Future<void> Function()? _retry;
 
   @override
   void initState() {
@@ -282,10 +285,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                         selected: _sourceIndex == i,
                         onSelected: (_) {
                           setState(() {
+                            _videoGen++;
                             _sourceIndex = i;
                             _videoResults = null;
                             _videoEpisodes = null;
                             _videoError = null;
+                            _selectedItem = null;
                           });
                         },
                       ),
@@ -295,10 +300,26 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 if (_videoLoading)
                   const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
                 else if (_videoError != null)
-                  Text(_videoError!, style: const TextStyle(color: Colors.redAccent, fontSize: 13))
-                else if (_videoEpisodes != null)
-                  _episodeGrid(cs)
-                else if (_videoResults != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_videoError!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+                      if (_retry != null)
+                        TextButton(onPressed: _retry, child: const Text('重试')),
+                    ],
+                  )
+                else if (_videoEpisodes != null) ...[
+                  if (_selectedItem != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _videoEpisodes = null),
+                        icon: const Icon(Icons.arrow_back, size: 16),
+                        label: const Text('返回结果'),
+                      ),
+                    ),
+                  _episodeGrid(cs),
+                ] else if (_videoResults != null)
                   _resultList(cs)
                 else
                   OutlinedButton.icon(
@@ -352,59 +373,85 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Future<void> _searchVideos(Work w) async {
+    final gen = ++_videoGen;
+    final source = _sources[_sourceIndex];
     setState(() {
       _videoLoading = true;
       _videoError = null;
       _videoResults = null;
       _videoEpisodes = null;
+      _retry = () => _searchVideos(w);
     });
     try {
-      final results = await _sources[_sourceIndex].search(w.title);
-      if (!mounted) return;
+      final results = await source.search(w.title);
+      if (!mounted || gen != _videoGen) return;
       setState(() {
         _videoResults = results;
         _videoLoading = false;
         if (results.isEmpty) _videoError = '未找到资源';
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || gen != _videoGen) return;
       setState(() {
         _videoLoading = false;
-        _videoError = '搜索失败：$e';
+        _videoError = '搜索失败，请重试';
       });
     }
   }
 
   Future<void> _loadEpisodes(VideoItem item) async {
+    final gen = ++_videoGen;
+    final source = _sources[_sourceIndex];
     setState(() {
+      _selectedItem = item;
       _videoLoading = true;
       _videoError = null;
+      _retry = () => _loadEpisodes(item);
     });
     try {
-      final eps = await _sources[_sourceIndex].episodes(item.detailUrl);
-      if (!mounted) return;
+      final eps = await source.episodes(item.detailUrl);
+      if (!mounted || gen != _videoGen) return;
       setState(() {
         _videoEpisodes = eps;
         _videoLoading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || gen != _videoGen) return;
       setState(() {
         _videoLoading = false;
-        _videoError = '获取剧集失败：$e';
+        _videoError = '获取剧集失败，请重试';
       });
     }
   }
 
   Future<void> _playEpisode(VideoEpisode ep) async {
     final messenger = ScaffoldMessenger.of(context);
+    var cancelled = false;
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (dialogContext) => AlertDialog(
+        content: const Row(
+          children: [
+            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(width: 16),
+            Text('正在解析播放地址…'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              cancelled = true;
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('取消'),
+          ),
+        ],
+      ),
     );
     final url = await StreamResolver().resolve(ep.playUrl);
     if (!mounted) return;
+    if (cancelled) return;
     Navigator.of(context).pop(); // close the loading dialog
     if (url == null) {
       messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
