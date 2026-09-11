@@ -24,7 +24,8 @@ class GlassSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(borderRadius: borderRadius, boxShadow: boxShadow),
+      decoration:
+          BoxDecoration(borderRadius: borderRadius, boxShadow: boxShadow),
       child: ClipRRect(
         borderRadius: borderRadius,
         child: BackdropFilter(

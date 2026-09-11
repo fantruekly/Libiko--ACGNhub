@@ -30,12 +30,18 @@ class _FakeProvider implements MetadataProvider {
   DioException _error() => DioException(
         requestOptions: RequestOptions(path: '/$id'),
         response: transient
-            ? Response(requestOptions: RequestOptions(path: '/$id'), statusCode: 503)
+            ? Response(
+                requestOptions: RequestOptions(path: '/$id'), statusCode: 503)
             : null,
       );
 
   List<Work> _items() => [
-        Work(id: '${id}_1', sourceId: id, sourceName: id, type: WorkType.anime, title: id),
+        Work(
+            id: '${id}_1',
+            sourceId: id,
+            sourceName: id,
+            type: WorkType.anime,
+            title: id),
       ];
 
   @override
@@ -96,7 +102,8 @@ class _FlakyProvider extends _FakeProvider {
       remainingFailures--;
       throw DioException(
         requestOptions: RequestOptions(path: '/$id'),
-        response: Response(requestOptions: RequestOptions(path: '/$id'), statusCode: 504),
+        response: Response(
+            requestOptions: RequestOptions(path: '/$id'), statusCode: 504),
       );
     }
     return _items();
@@ -134,7 +141,8 @@ void main() {
     expect(anilist.calls, 1);
   });
 
-  test('falls back to Jikan when AniList fails, then skips AniList for 10 min', () async {
+  test('falls back to Jikan when AniList fails, then skips AniList for 10 min',
+      () async {
     var now = DateTime(2026, 9, 10, 12);
     final anilist = _FakeProvider('anilist', fail: true, transient: true);
     final jikan = _FakeProvider('jikan');
@@ -142,7 +150,8 @@ void main() {
 
     final first = await service.feed(AnimeFeed.trending);
     expect(first.single.sourceId, 'jikan');
-    expect(anilist.calls, 4); // retried up to _maxAttempts before being disabled
+    expect(
+        anilist.calls, 4); // retried up to _maxAttempts before being disabled
     expect(jikan.calls, 1);
 
     // Within 10 min: different key, AniList is skipped entirely.
@@ -228,7 +237,12 @@ void main() {
       anilist: _FakeProvider('anilist', fail: true),
       jikan: _FakeProvider('jikan', fail: true),
       seedLoader: () async => [
-        Work(id: 'seed_1', sourceId: 'seed', sourceName: 'Seed', type: WorkType.anime, title: 'Seed Anime'),
+        Work(
+            id: 'seed_1',
+            sourceId: 'seed',
+            sourceName: 'Seed',
+            type: WorkType.anime,
+            title: 'Seed Anime'),
       ],
     );
 

@@ -14,7 +14,8 @@ class HttpClient {
     headers: {
       'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept':
+          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     },
   ));
@@ -23,11 +24,13 @@ class HttpClient {
     return _dio.get(url, options: Options(headers: headers));
   }
 
-  Future<Response> post(String url, {dynamic data, Map<String, String>? headers}) async {
+  Future<Response> post(String url,
+      {dynamic data, Map<String, String>? headers}) async {
     return _dio.post(url, data: data, options: Options(headers: headers));
   }
 
-  Future<dom.Document> getHtml(String url, {Map<String, String>? headers}) async {
+  Future<dom.Document> getHtml(String url,
+      {Map<String, String>? headers}) async {
     final response = await get(url, headers: headers);
     return html_parser.parse(response.data.toString());
   }

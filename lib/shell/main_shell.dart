@@ -26,12 +26,16 @@ class _MainShellState extends State<MainShell> with WindowListener {
 
   final _pages = <Widget>[
     const AnimeHomePage(),
-    _buildModulePlaceholder('漫画', Icons.menu_book_rounded, '漫画模块', '聚合多种漫画平台资源，支持登录对应平台账号', const Color(0xFFFF9500)),
-    _buildModulePlaceholder('轻小说', Icons.auto_stories_rounded, '轻小说模块', '阅读 Wenku8 文库的轻小说资源', const Color(0xFF34C759)),
-    _buildModulePlaceholder('游戏', Icons.games_rounded, '游戏模块', '浏览 Galgame 游戏资源与详细信息', const Color(0xFFAF52DE)),
+    _buildModulePlaceholder('漫画', Icons.menu_book_rounded, '漫画模块',
+        '聚合多种漫画平台资源，支持登录对应平台账号', const Color(0xFFFF9500)),
+    _buildModulePlaceholder('轻小说', Icons.auto_stories_rounded, '轻小说模块',
+        '阅读 Wenku8 文库的轻小说资源', const Color(0xFF34C759)),
+    _buildModulePlaceholder('游戏', Icons.games_rounded, '游戏模块',
+        '浏览 Galgame 游戏资源与详细信息', const Color(0xFFAF52DE)),
   ];
 
-  static Widget _buildModulePlaceholder(String title, IconData icon, String subtitle, String desc, Color accent) {
+  static Widget _buildModulePlaceholder(
+      String title, IconData icon, String subtitle, String desc, Color accent) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -39,11 +43,15 @@ class _MainShellState extends State<MainShell> with WindowListener {
           Container(
             width: 80,
             height: 80,
-            decoration: BoxDecoration(color: accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20)),
             child: Icon(icon, size: 36, color: accent),
           ),
           const SizedBox(height: 24),
-          Text(subtitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _fg)),
+          Text(subtitle,
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w600, color: _fg)),
           const SizedBox(height: 8),
           Text(desc, style: const TextStyle(fontSize: 14, color: _muted)),
           const SizedBox(height: 24),
@@ -53,7 +61,9 @@ class _MainShellState extends State<MainShell> with WindowListener {
               color: accent.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text('即将推出', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: accent)),
+            child: Text('即将推出',
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w500, color: accent)),
           ),
         ],
       ),
@@ -94,7 +104,8 @@ class _MainShellState extends State<MainShell> with WindowListener {
   }
 
   void _openSettings() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const SettingsPage()));
   }
 
   @override
@@ -161,7 +172,11 @@ class _MainShellState extends State<MainShell> with WindowListener {
               ),
               Text(
                 _titles[_currentIndex],
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _fg, height: 1.4),
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: _fg,
+                    height: 1.4),
               ),
               const Spacer(),
               if (_currentIndex == 0)
@@ -169,7 +184,10 @@ class _MainShellState extends State<MainShell> with WindowListener {
                   icon: const Icon(Icons.search_rounded, size: 20),
                   color: _muted,
                   splashRadius: 20,
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnimeSearchPage())),
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AnimeSearchPage())),
                 ),
               const SizedBox(width: 4),
               Padding(
@@ -179,7 +197,11 @@ class _MainShellState extends State<MainShell> with WindowListener {
                   child: const CircleAvatar(
                     radius: 15,
                     backgroundColor: Color(0xFFE8F0FE),
-                    child: Text('A', style: TextStyle(fontSize: 13, color: _accent, fontWeight: FontWeight.w600)),
+                    child: Text('A',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: _accent,
+                            fontWeight: FontWeight.w600)),
                   ),
                 ),
               ),
@@ -246,7 +268,9 @@ class _WindowControls extends StatelessWidget {
           onTap: () => windowManager.minimize(),
         ),
         _WindowButton(
-          icon: isMaximized ? Icons.filter_none_rounded : Icons.crop_square_rounded,
+          icon: isMaximized
+              ? Icons.filter_none_rounded
+              : Icons.crop_square_rounded,
           tooltip: isMaximized ? '还原' : '最大化',
           onTap: () async {
             if (await windowManager.isMaximized()) {
@@ -273,7 +297,11 @@ class _WindowButton extends StatefulWidget {
   final bool danger;
   final VoidCallback onTap;
 
-  const _WindowButton({required this.icon, required this.tooltip, required this.onTap, this.danger = false});
+  const _WindowButton(
+      {required this.icon,
+      required this.tooltip,
+      required this.onTap,
+      this.danger = false});
 
   @override
   State<_WindowButton> createState() => _WindowButtonState();
@@ -285,8 +313,12 @@ class _WindowButtonState extends State<_WindowButton> {
   @override
   Widget build(BuildContext context) {
     final hovered = _hover;
-    final bg = hovered ? (widget.danger ? const Color(0xFFE81123) : const Color(0x0D000000)) : Colors.transparent;
-    final fg = (hovered && widget.danger) ? Colors.white : const Color(0xFF1C1C1E).withValues(alpha: 0.55);
+    final bg = hovered
+        ? (widget.danger ? const Color(0xFFE81123) : const Color(0x0D000000))
+        : Colors.transparent;
+    final fg = (hovered && widget.danger)
+        ? Colors.white
+        : const Color(0xFF1C1C1E).withValues(alpha: 0.55);
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(

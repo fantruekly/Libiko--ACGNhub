@@ -84,11 +84,15 @@ class BangumiProvider implements MetadataProvider {
   @visibleForTesting
   static List<Work> parseSearch(dynamic data) {
     final list = ((data is Map ? data['list'] : data) as List<dynamic>?) ?? [];
-    return list.map((e) => _parseItem(e as Map<String, dynamic>)).whereType<Work>().toList();
+    return list
+        .map((e) => _parseItem(e as Map<String, dynamic>))
+        .whereType<Work>()
+        .toList();
   }
 
   @visibleForTesting
-  static Work parseDetail(Map<String, dynamic> d) => _parseItem(d, isDetail: true)!;
+  static Work parseDetail(Map<String, dynamic> d) =>
+      _parseItem(d, isDetail: true)!;
 
   static Work? _parseItem(Map<String, dynamic> item, {bool isDetail = false}) {
     final id = item['id'] as int?;
@@ -102,7 +106,8 @@ class BangumiProvider implements MetadataProvider {
     final cover = images?['large'] as String? ?? images?['common'] as String?;
     final rating = item['rating'] as Map<String, dynamic>?;
     final rawScore = rating?['score'];
-    final score = (rawScore is num && rawScore > 0) ? rawScore.toDouble() : null;
+    final score =
+        (rawScore is num && rawScore > 0) ? rawScore.toDouble() : null;
     final rawEps = item['eps'];
     final episodes = (rawEps is num && rawEps > 0) ? rawEps.toInt() : null;
     final tags = (item['tags'] as List<dynamic>?)
@@ -131,7 +136,9 @@ class BangumiProvider implements MetadataProvider {
 
   static String? _cover(String? url) {
     if (url == null || url.isEmpty) return null;
-    final https = url.startsWith('http://') ? url.replaceFirst('http://', 'https://') : url;
+    final https = url.startsWith('http://')
+        ? url.replaceFirst('http://', 'https://')
+        : url;
     if (https.contains('images.weserv.nl')) return https;
     return 'https://images.weserv.nl/?url=${Uri.encodeComponent(https)}&w=300';
   }

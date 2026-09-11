@@ -85,7 +85,8 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: const BoxDecoration(
         color: Color(0xFFFFFFFF),
-        border: Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+        border:
+            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
       ),
       child: Row(
         children: [
@@ -104,7 +105,8 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.search_rounded, size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
+                  Icon(Icons.search_rounded,
+                      size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
@@ -114,7 +116,8 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
                       decoration: const InputDecoration(
                         border: InputBorder.none,
                         hintText: '搜索动漫...',
-                        hintStyle: TextStyle(color: Color(0xFF8E8E93), fontSize: 15),
+                        hintStyle:
+                            TextStyle(color: Color(0xFF8E8E93), fontSize: 15),
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -128,14 +131,17 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
                         _ctrl.clear();
                         setState(() {});
                       },
-                      child: Icon(Icons.close_rounded, size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
+                      child: Icon(Icons.close_rounded,
+                          size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
                     ),
                 ],
               ),
             ),
           ),
           const SizedBox(width: 8),
-          TextButton(onPressed: _search, child: const Text('搜索', style: TextStyle(fontSize: 14))),
+          TextButton(
+              onPressed: _search,
+              child: const Text('搜索', style: TextStyle(fontSize: 14))),
         ],
       ),
     );
@@ -144,13 +150,19 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
   Widget _body(ColorScheme cs) {
     if (_loading) return const ShimmerLoader();
     if (_error != null) {
-      return EmptyState(icon: Icons.error_outline_rounded, message: _error!, actionLabel: '重试', onAction: _search);
+      return EmptyState(
+          icon: Icons.error_outline_rounded,
+          message: _error!,
+          actionLabel: '重试',
+          onAction: _search);
     }
     if (!_hasSearched) {
       return const EmptyState(icon: Icons.search_rounded, message: '输入关键词搜索动漫');
     }
     if (_hasSearched && _results.isEmpty) {
-      return EmptyState(icon: Icons.search_off_rounded, message: '未找到「${_ctrl.text}」相关动漫，换个关键词试试');
+      return EmptyState(
+          icon: Icons.search_off_rounded,
+          message: '未找到「${_ctrl.text}」相关动漫，换个关键词试试');
     }
 
     return GridView.builder(
@@ -166,7 +178,8 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
         work: _results[index],
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => AnimeDetailPage(work: _results[index])),
+          MaterialPageRoute(
+              builder: (_) => AnimeDetailPage(work: _results[index])),
         ),
       ),
     );

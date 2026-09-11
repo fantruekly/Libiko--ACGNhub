@@ -15,13 +15,15 @@ class AppDatabase {
 
   factory AppDatabase() {
     if (_instance == null) {
-      throw StateError('AppDatabase not initialized. Call AppDatabase.init() first.');
+      throw StateError(
+          'AppDatabase not initialized. Call AppDatabase.init() first.');
     }
     return _instance!;
   }
 
   String? getString(String key) => _prefs.getString(key);
-  Future<bool> setString(String key, String value) => _prefs.setString(key, value);
+  Future<bool> setString(String key, String value) =>
+      _prefs.setString(key, value);
 
   bool? getBool(String key) => _prefs.getBool(key);
   Future<bool> setBool(String key, bool value) => _prefs.setBool(key, value);
@@ -30,7 +32,8 @@ class AppDatabase {
   Future<bool> setInt(String key, int value) => _prefs.setInt(key, value);
 
   List<String> getStringList(String key) => _prefs.getStringList(key) ?? [];
-  Future<bool> setStringList(String key, List<String> value) => _prefs.setStringList(key, value);
+  Future<bool> setStringList(String key, List<String> value) =>
+      _prefs.setStringList(key, value);
 
   Future<bool> remove(String key) => _prefs.remove(key);
 }

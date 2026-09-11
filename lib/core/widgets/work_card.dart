@@ -63,7 +63,10 @@ class WorkCard extends StatelessWidget {
       child: Center(
         child: Text(
           work.title.characters.first,
-          style: TextStyle(color: _accent.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w400),
+          style: TextStyle(
+              color: _accent.withValues(alpha: 0.2),
+              fontSize: 28,
+              fontWeight: FontWeight.w400),
         ),
       ),
     );

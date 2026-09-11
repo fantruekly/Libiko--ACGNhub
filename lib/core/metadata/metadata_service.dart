@@ -124,7 +124,8 @@ class MetadataService {
     for (final provider in order) {
       try {
         final result = provider == jikan
-            ? await _serializeJikan(() => _withRetry(() => _call(provider, () => op(provider))))
+            ? await _serializeJikan(
+                () => _withRetry(() => _call(provider, () => op(provider))))
             : await _withRetry(() => _call(provider, () => op(provider)));
         _disabledUntil.remove(provider.id);
         _cache[key] = _CacheEntry(_now(), result);
@@ -140,7 +141,7 @@ class MetadataService {
   }
 
   Future<T> _withRetry<T>(Future<T> Function() op) async {
-    for (var attempt = 1; ; attempt++) {
+    for (var attempt = 1;; attempt++) {
       try {
         return await op();
       } catch (e) {

@@ -63,7 +63,8 @@ class ACGNhubApp extends StatelessWidget {
         cardTheme: CardThemeData(
           elevation: 0,
           color: const Color(0xFFFFFFFF),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           clipBehavior: Clip.antiAlias,
         ),
         filledButtonTheme: FilledButtonThemeData(
@@ -71,8 +72,10 @@ class ACGNhubApp extends StatelessWidget {
             backgroundColor: _accent,
             foregroundColor: Colors.white,
             minimumSize: const Size(double.infinity, 48),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            textStyle:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
@@ -80,8 +83,10 @@ class ACGNhubApp extends StatelessWidget {
             foregroundColor: _accent,
             side: const BorderSide(color: _accent, width: 1.5),
             minimumSize: const Size(double.infinity, 48),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            textStyle:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
@@ -89,15 +94,18 @@ class ACGNhubApp extends StatelessWidget {
         ),
         chipTheme: ChipThemeData(
           backgroundColor: const Color(0xFFE8F0FE),
-          labelStyle: const TextStyle(fontSize: 11, color: _accent, fontWeight: FontWeight.w500),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          labelStyle: const TextStyle(
+              fontSize: 11, color: _accent, fontWeight: FontWeight.w500),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           padding: EdgeInsets.zero,
         ),
         progressIndicatorTheme: const ProgressIndicatorThemeData(
           color: _accent,
           linearTrackColor: Color(0xFFE5E5EA),
         ),
-        dividerTheme: const DividerThemeData(color: Color(0xFFE5E5EA), thickness: 0.5),
+        dividerTheme:
+            const DividerThemeData(color: Color(0xFFE5E5EA), thickness: 0.5),
       ),
       home: const MainShell(),
     );

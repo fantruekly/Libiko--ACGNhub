@@ -30,7 +30,8 @@ class GimySource implements VideoSource {
 
   @override
   Future<List<VideoItem>> search(String keyword) async {
-    final res = await _dio.get('/search/-------------.html', queryParameters: {'wd': keyword});
+    final res = await _dio
+        .get('/search/-------------.html', queryParameters: {'wd': keyword});
     return parseSearch(res.data.toString());
   }
 
@@ -66,7 +67,8 @@ class GimySource implements VideoSource {
     for (final a in doc.querySelectorAll('a[href*="/ep-"]')) {
       final href = a.attributes['href'] ?? '';
       if (href.isEmpty) continue;
-      final road = RegExp(r'/ep-\d+-(\d+)-\d+').firstMatch(href)?.group(1) ?? '1';
+      final road =
+          RegExp(r'/ep-\d+-(\d+)-\d+').firstMatch(href)?.group(1) ?? '1';
       final list = byRoad.putIfAbsent(road, () => []);
       final text = a.text.trim();
       list.add(VideoEpisode(
@@ -92,7 +94,9 @@ class GimySource implements VideoSource {
 
   static String _abs(String url, String base) {
     if (url.startsWith('http')) {
-      return url.startsWith('http://') ? url.replaceFirst('http://', 'https://') : url;
+      return url.startsWith('http://')
+          ? url.replaceFirst('http://', 'https://')
+          : url;
     }
     if (url.startsWith('//')) return 'https:$url';
     if (url.startsWith('/')) return '$base$url';

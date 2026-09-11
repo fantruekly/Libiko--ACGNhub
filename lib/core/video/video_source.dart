@@ -4,7 +4,11 @@ class VideoItem {
   final String? cover;
   final String detailUrl;
 
-  const VideoItem({required this.id, required this.title, this.cover, required this.detailUrl});
+  const VideoItem(
+      {required this.id,
+      required this.title,
+      this.cover,
+      required this.detailUrl});
 }
 
 class VideoEpisode {
@@ -13,7 +17,11 @@ class VideoEpisode {
   final int index;
   final String playUrl;
 
-  const VideoEpisode({required this.id, required this.title, required this.index, required this.playUrl});
+  const VideoEpisode(
+      {required this.id,
+      required this.title,
+      required this.index,
+      required this.playUrl});
 }
 
 abstract class VideoSource {

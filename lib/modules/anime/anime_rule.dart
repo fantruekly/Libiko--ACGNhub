@@ -164,11 +164,15 @@ class XPathParser {
         final el = elements.first;
         var value = el.attributes[attrName];
         // Lazy-loading fallback: if src is empty/placeholder, try data-* attributes
-        if (attrName == 'src' && (value == null || value.isEmpty || value.contains('loading') || value.contains('placeholder'))) {
+        if (attrName == 'src' &&
+            (value == null ||
+                value.isEmpty ||
+                value.contains('loading') ||
+                value.contains('placeholder'))) {
           value = el.attributes['data-original'] ??
-                  el.attributes['data-src'] ??
-                  el.attributes['data-lazy-src'] ??
-                  el.attributes['data-original-src'];
+              el.attributes['data-src'] ??
+              el.attributes['data-lazy-src'] ??
+              el.attributes['data-original-src'];
         }
         return value;
       }
@@ -237,21 +241,27 @@ class XPathParser {
       return results;
     }
 
-    final attrMatch = RegExp(r"^(\w+)\[@(\w+)='([^']*)'\]$").firstMatch(selector);
+    final attrMatch =
+        RegExp(r"^(\w+)\[@(\w+)='([^']*)'\]$").firstMatch(selector);
     if (attrMatch != null) {
       final tag = attrMatch.group(1)!;
       final attr = attrMatch.group(2)!;
       final value = attrMatch.group(3)!;
       if (parent is dom.Element) {
-        results.addAll(parent.querySelectorAll(tag).where((e) => e.attributes[attr] == value));
+        results.addAll(parent
+            .querySelectorAll(tag)
+            .where((e) => e.attributes[attr] == value));
       }
       if (parent is dom.Document) {
-        results.addAll(parent.querySelectorAll(tag).where((e) => e.attributes[attr] == value));
+        results.addAll(parent
+            .querySelectorAll(tag)
+            .where((e) => e.attributes[attr] == value));
       }
       return results;
     }
 
-    final nestedMatch = RegExp(r"^(\w+)\[@(\w+)='([^']*)'\]/(\w+)$").firstMatch(selector);
+    final nestedMatch =
+        RegExp(r"^(\w+)\[@(\w+)='([^']*)'\]/(\w+)$").firstMatch(selector);
     if (nestedMatch != null) {
       final parentTag = nestedMatch.group(1)!;
       final parentAttr = nestedMatch.group(2)!;
@@ -259,9 +269,15 @@ class XPathParser {
       final childTag = nestedMatch.group(4)!;
       List<dom.Element> parents;
       if (parent is dom.Element) {
-        parents = parent.querySelectorAll(parentTag).where((e) => e.attributes[parentAttr] == parentValue).toList();
+        parents = parent
+            .querySelectorAll(parentTag)
+            .where((e) => e.attributes[parentAttr] == parentValue)
+            .toList();
       } else if (parent is dom.Document) {
-        parents = parent.querySelectorAll(parentTag).where((e) => e.attributes[parentAttr] == parentValue).toList();
+        parents = parent
+            .querySelectorAll(parentTag)
+            .where((e) => e.attributes[parentAttr] == parentValue)
+            .toList();
       } else {
         return [];
       }

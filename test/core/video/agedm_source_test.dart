@@ -57,8 +57,10 @@ void main() {
   });
 
   test('search sends the query parameter to /search', () async {
-    final adapter = _RecordingAdapter('<h5 class="card-title"><a href="/detail/1">T</a></h5>');
-    final dio = Dio(BaseOptions(baseUrl: 'https://www.agedm.io', responseType: ResponseType.plain))
+    final adapter = _RecordingAdapter(
+        '<h5 class="card-title"><a href="/detail/1">T</a></h5>');
+    final dio = Dio(BaseOptions(
+        baseUrl: 'https://www.agedm.io', responseType: ResponseType.plain))
       ..httpClientAdapter = adapter;
     final source = AgedmSource(dio: dio);
 

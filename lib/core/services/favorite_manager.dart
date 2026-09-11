@@ -7,7 +7,9 @@ class FavoriteManager {
 
   List<Work> getFavorites({WorkType? type}) {
     final jsonList = AppDatabase().getStringList(_key);
-    final works = jsonList.map((j) => Work.fromJson(json.decode(j) as Map<String, dynamic>)).toList();
+    final works = jsonList
+        .map((j) => Work.fromJson(json.decode(j) as Map<String, dynamic>))
+        .toList();
     if (type != null) {
       return works.where((w) => w.type == type).toList();
     }

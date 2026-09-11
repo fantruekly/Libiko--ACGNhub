@@ -40,7 +40,9 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
   }
 
   void _onScroll() {
-    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 400 && _hasMore && !_loadingMore) {
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 400 &&
+        _hasMore &&
+        !_loadingMore) {
       _loadMore();
     }
   }
@@ -63,7 +65,8 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
     final nextPage = _page + 1;
     setState(() => _loadingMore = true);
     try {
-      final next = await ref.read(metadataServiceProvider).feed(feed, page: nextPage);
+      final next =
+          await ref.read(metadataServiceProvider).feed(feed, page: nextPage);
       if (!mounted || gen != _generation) return;
       setState(() {
         _page = nextPage;
@@ -73,7 +76,10 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
       });
     } catch (_) {
       if (mounted && gen == _generation) {
-        setState(() { _loadingMore = false; _hasMore = false; });
+        setState(() {
+          _loadingMore = false;
+          _hasMore = false;
+        });
       }
     }
   }
@@ -114,13 +120,15 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
                   ? SliverToBoxAdapter(
                       child: SizedBox(
                         height: 300,
-                        child: EmptyState(icon: Icons.live_tv_rounded, message: '暂无内容'),
+                        child: EmptyState(
+                            icon: Icons.live_tv_rounded, message: '暂无内容'),
                       ),
                     )
                   : SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 5,
                           mainAxisSpacing: 16,
                           crossAxisSpacing: 16,
@@ -133,7 +141,9 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
                                   work: items[i],
                                   onTap: () => Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (_) => AnimeDetailPage(work: items[i])),
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            AnimeDetailPage(work: items[i])),
                                   ),
                                 ),
                           childCount: items.length,
@@ -216,7 +226,11 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Text(
           title,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: cs.onSurface, height: 1.4),
+          style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+              height: 1.4),
         ),
       ),
     );

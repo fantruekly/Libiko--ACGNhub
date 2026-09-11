@@ -13,9 +13,11 @@ class _FailingProvider implements MetadataProvider {
   @override
   String get id => 'fail';
   @override
-  Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async => throw Exception('offline');
+  Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async =>
+      throw Exception('offline');
   @override
-  Future<List<Work>> search(String keyword, {int page = 1}) async => throw Exception('offline');
+  Future<List<Work>> search(String keyword, {int page = 1}) async =>
+      throw Exception('offline');
   @override
   Future<Work> detail(Work work) async => throw Exception('offline');
 }
@@ -70,7 +72,8 @@ void main() {
     expect(find.byType(RatingStars), findsNothing);
   });
 
-  testWidgets('shows basic-info chips including translated status', (tester) async {
+  testWidgets('shows basic-info chips including translated status',
+      (tester) async {
     const work = Work(
       id: 'anilist_2',
       sourceId: 'anilist',

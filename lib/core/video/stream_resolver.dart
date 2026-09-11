@@ -25,8 +25,10 @@ class StreamResolver {
         await webview.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
       } catch (_) {}
 
-      subs.add(webview.onM3USourceLoaded.listen((data) => finish(data['url'] ?? '')));
-      subs.add(webview.onVideoSourceLoaded.listen((data) => finish(data['url'] ?? '')));
+      subs.add(webview.onM3USourceLoaded
+          .listen((data) => finish(data['url'] ?? '')));
+      subs.add(webview.onVideoSourceLoaded
+          .listen((data) => finish(data['url'] ?? '')));
 
       await webview.loadUrl(playPageUrl);
       final url = await completer.future.timeout(timeout, onTimeout: () {

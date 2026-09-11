@@ -33,7 +33,8 @@ class AnimeSource extends SourceAdapter {
 
   @override
   Future<SearchResult> search(String keyword, {int page = 1}) async {
-    final url = baseUrl + buildUrl(rule.search.url, keyword: keyword, page: page);
+    final url =
+        baseUrl + buildUrl(rule.search.url, keyword: keyword, page: page);
     final document = await _http.getHtml(url);
     final nodes = XPathParser.findNodes(document, rule.search.list);
 
@@ -71,10 +72,17 @@ class AnimeSource extends SourceAdapter {
     final url = baseUrl + link;
     final document = await _http.getHtml(url);
 
-    final summary = XPathParser.extractText(document, rule.detail.summary) ?? '';
-    final tagsText = rule.detail.tags != null ? XPathParser.extractText(document, rule.detail.tags!) : null;
-    final coverUrl = rule.detail.cover != null ? XPathParser.extractText(document, rule.detail.cover!) : null;
-    final author = rule.detail.author != null ? XPathParser.extractText(document, rule.detail.author!) : null;
+    final summary =
+        XPathParser.extractText(document, rule.detail.summary) ?? '';
+    final tagsText = rule.detail.tags != null
+        ? XPathParser.extractText(document, rule.detail.tags!)
+        : null;
+    final coverUrl = rule.detail.cover != null
+        ? XPathParser.extractText(document, rule.detail.cover!)
+        : null;
+    final author = rule.detail.author != null
+        ? XPathParser.extractText(document, rule.detail.author!)
+        : null;
 
     final titleEl = document.querySelector('title');
     final pageTitle = titleEl?.text.trim() ?? '';
@@ -88,7 +96,11 @@ class AnimeSource extends SourceAdapter {
       coverUrl: coverUrl != null ? resolveUrl(coverUrl) : null,
       summary: summary,
       tags: tagsText != null
-          ? tagsText.split(RegExp(r'[,\s]+')).map((t) => t.trim()).where((t) => t.isNotEmpty).toList()
+          ? tagsText
+              .split(RegExp(r'[,\s]+'))
+              .map((t) => t.trim())
+              .where((t) => t.isNotEmpty)
+              .toList()
           : [],
       author: author,
       extra: {'link': link},
@@ -104,8 +116,11 @@ class AnimeSource extends SourceAdapter {
 
     final chapters = <Chapter>[];
     for (var i = 0; i < nodes.length; i++) {
-      final title = XPathParser.extractText(nodes[i], rule.detail.chapterTitle) ?? '第${i + 1}集';
-      final chLink = XPathParser.extractText(nodes[i], rule.detail.chapterLink) ?? '';
+      final title =
+          XPathParser.extractText(nodes[i], rule.detail.chapterTitle) ??
+              '第${i + 1}集';
+      final chLink =
+          XPathParser.extractText(nodes[i], rule.detail.chapterLink) ?? '';
       chapters.add(Chapter(
         id: '$workId-ch$i',
         workId: workId,

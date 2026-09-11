@@ -54,7 +54,8 @@ void main() {
 
   test('search sends the wd parameter to /search', () async {
     final adapter = _RecordingAdapter('<a href="/vod/1.html">T</a>');
-    final dio = Dio(BaseOptions(baseUrl: 'https://gimy.tv', responseType: ResponseType.plain))
+    final dio = Dio(BaseOptions(
+        baseUrl: 'https://gimy.tv', responseType: ResponseType.plain))
       ..httpClientAdapter = adapter;
     final source = GimySource(dio: dio);
 

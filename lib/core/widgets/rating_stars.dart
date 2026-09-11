@@ -24,14 +24,17 @@ class RatingStars extends StatelessWidget {
           Icon(
             i < full
                 ? Icons.star_rounded
-                : (i == full && hasHalf ? Icons.star_half_rounded : Icons.star_outline_rounded),
+                : (i == full && hasHalf
+                    ? Icons.star_half_rounded
+                    : Icons.star_outline_rounded),
             size: size,
             color: _gold,
           ),
         const SizedBox(width: 6),
         Text(
           s.clamp(0, 10).toStringAsFixed(1),
-          style: TextStyle(fontSize: size * 0.8, fontWeight: FontWeight.w600, color: _gold),
+          style: TextStyle(
+              fontSize: size * 0.8, fontWeight: FontWeight.w600, color: _gold),
         ),
       ],
     );

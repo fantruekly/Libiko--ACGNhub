@@ -6,7 +6,8 @@ class VideoPlayerPage extends StatefulWidget {
   final String title;
   final String streamUrl;
 
-  const VideoPlayerPage({super.key, required this.title, required this.streamUrl});
+  const VideoPlayerPage(
+      {super.key, required this.title, required this.streamUrl});
 
   @override
   State<VideoPlayerPage> createState() => _VideoPlayerPageState();
@@ -47,7 +48,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         child: _error != null
             ? Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('播放失败：$_error', style: const TextStyle(color: Colors.white70)),
+                child: Text('播放失败：$_error',
+                    style: const TextStyle(color: Colors.white70)),
               )
             : Video(controller: _controller),
       ),

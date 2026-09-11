@@ -18,13 +18,16 @@ class ShimmerLoader extends StatefulWidget {
   State<ShimmerLoader> createState() => _ShimmerLoaderState();
 }
 
-class _ShimmerLoaderState extends State<ShimmerLoader> with SingleTickerProviderStateMixin {
+class _ShimmerLoaderState extends State<ShimmerLoader>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat();
   }
 
   @override
@@ -38,7 +41,8 @@ class _ShimmerLoaderState extends State<ShimmerLoader> with SingleTickerProvider
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {
-        final o = 0.3 + 0.3 * (_ctrl.value < 0.5 ? _ctrl.value * 2 : (1 - _ctrl.value) * 2);
+        final o = 0.3 +
+            0.3 * (_ctrl.value < 0.5 ? _ctrl.value * 2 : (1 - _ctrl.value) * 2);
         return GridView.builder(
           padding: widget.padding,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -54,7 +58,8 @@ class _ShimmerLoaderState extends State<ShimmerLoader> with SingleTickerProvider
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Container(color: const Color(0xFFE5E5EA).withValues(alpha: o)),
+                  child: Container(
+                      color: const Color(0xFFE5E5EA).withValues(alpha: o)),
                 ),
               ),
               const SizedBox(height: 6),

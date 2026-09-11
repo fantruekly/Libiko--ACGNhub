@@ -16,7 +16,9 @@ final animeSourceListProvider = FutureProvider<List<AnimeSource>>((ref) async {
   final manager = ref.read(sourceManagerProvider);
   final manifestJson = await rootBundle.loadString('AssetManifest.json');
   final manifest = json.decode(manifestJson) as Map<String, dynamic>;
-  final ruleFiles = manifest.keys.where((k) => k.startsWith('assets/rules/') && k.endsWith('.json')).toList();
+  final ruleFiles = manifest.keys
+      .where((k) => k.startsWith('assets/rules/') && k.endsWith('.json'))
+      .toList();
   for (final file in ruleFiles) {
     final jsonString = await rootBundle.loadString(file);
     final rule = AnimeRule.fromJsonString(jsonString);
@@ -25,8 +27,10 @@ final animeSourceListProvider = FutureProvider<List<AnimeSource>>((ref) async {
   return manager.getByType(WorkType.anime).cast<AnimeSource>();
 });
 
-final metadataServiceProvider = Provider<MetadataService>((ref) => MetadataService());
+final metadataServiceProvider =
+    Provider<MetadataService>((ref) => MetadataService());
 
-final animeFeedProvider = FutureProvider.family<List<Work>, AnimeFeed>((ref, feed) {
+final animeFeedProvider =
+    FutureProvider.family<List<Work>, AnimeFeed>((ref, feed) {
   return ref.watch(metadataServiceProvider).feed(feed);
 });

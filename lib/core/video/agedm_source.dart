@@ -66,7 +66,8 @@ class AgedmSource implements VideoSource {
     for (final a in doc.querySelectorAll('a[href*="/play/"]')) {
       final href = a.attributes['href'] ?? '';
       if (href.isEmpty) continue;
-      final road = RegExp(r'/play/\d+/(\d+)/').firstMatch(href)?.group(1) ?? '1';
+      final road =
+          RegExp(r'/play/\d+/(\d+)/').firstMatch(href)?.group(1) ?? '1';
       final list = byRoad.putIfAbsent(road, () => []);
       final text = a.text.trim();
       list.add(VideoEpisode(
@@ -92,7 +93,9 @@ class AgedmSource implements VideoSource {
 
   static String _abs(String url, String base) {
     if (url.startsWith('http')) {
-      return url.startsWith('http://') ? url.replaceFirst('http://', 'https://') : url;
+      return url.startsWith('http://')
+          ? url.replaceFirst('http://', 'https://')
+          : url;
     }
     if (url.startsWith('//')) return 'https:$url';
     if (url.startsWith('/')) return '$base$url';
