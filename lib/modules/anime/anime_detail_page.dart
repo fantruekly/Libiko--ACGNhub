@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/work.dart';
+import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/video/agedm_source.dart';
 import '../../core/video/gimy_source.dart';
@@ -74,7 +74,6 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               ],
             ),
           ),
-          _bottomBar(w),
         ],
       ),
     );
@@ -268,10 +267,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+        child: GlassSurface(
+          borderRadius: BorderRadius.circular(16),
+          padding: const EdgeInsets.all(16),
+          border: Border.all(color: const Color(0xFFE5E5EA)),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
+          ],
+          child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('播放源', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
@@ -324,13 +327,19 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   _resultList(cs)
                 else
                   OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      backgroundColor: const Color(0x0F007AFF),
+                      side: const BorderSide(color: Color(0x59007AFF)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                     onPressed: () => _searchVideos(w),
                     icon: const Icon(Icons.search, size: 18),
                     label: const Text('搜索播放资源'),
                   ),
               ],
             ),
-          ),
         ),
       ),
     );
@@ -374,8 +383,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
-                color: cs.primary.withValues(alpha: 0.06),
-                border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
+                color: cs.primary.withValues(alpha: 0.08),
+                border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -489,37 +498,4 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         'HIATUS' => '停更',
         _ => status,
       };
-
-  Widget _bottomBar(Work w) {
-    final anilistId = w.anilistId;
-    final malId = w.malId;
-    final hasLink = anilistId != null || malId != null;
-    final label = anilistId != null ? '在 AniList 查看' : '在 MyAnimeList 查看';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
-        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: FilledButton.icon(
-          onPressed: hasLink
-              ? () async {
-                  final uri = anilistId != null
-                      ? Uri.parse('https://anilist.co/anime/$anilistId')
-                      : Uri.parse('https://myanimelist.net/anime/$malId');
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                }
-              : null,
-          icon: const Icon(Icons.open_in_new_rounded, size: 20),
-          label: Text(label),
-        ),
-      ),
-    );
-  }
 }
