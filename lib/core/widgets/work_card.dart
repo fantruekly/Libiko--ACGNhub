@@ -5,16 +5,14 @@ import '../models/work.dart';
 class WorkCard extends StatelessWidget {
   final Work work;
   final VoidCallback? onTap;
-  final String? subtitle;
 
-  const WorkCard({super.key, required this.work, this.onTap, this.subtitle});
+  const WorkCard({super.key, required this.work, this.onTap});
 
   static const _accent = Color(0xFF007AFF);
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final sub = subtitle ?? work.sourceName;
 
     return GestureDetector(
       onTap: onTap,
@@ -47,17 +45,6 @@ class WorkCard extends StatelessWidget {
               color: cs.onSurface,
             ),
           ),
-          if (sub.isNotEmpty)
-            Text(
-              sub,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.5,
-                color: cs.onSurface.withValues(alpha: 0.45),
-              ),
-            ),
         ],
       ),
     );
@@ -76,7 +63,7 @@ class WorkCard extends StatelessWidget {
       child: Center(
         child: Text(
           work.title.characters.first,
-          style: TextStyle(color: _accent.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w200),
+          style: TextStyle(color: _accent.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w400),
         ),
       ),
     );

@@ -1,24 +1,81 @@
-### Task 1 Report: Scaffold Flutter project
+# Task 1 Report: `BangumiProvider`
 
-**Status:** DONE_WITH_CONCERNS
+## Status
+DONE_WITH_CONCERNS (minor: one import path in the brief was incorrect and had to be fixed)
 
-**Commits:**
-- `aa99291` - chore: scaffold Flutter project with dependencies
+## What I implemented
+Created `lib/core/metadata/bangumi_provider.dart` implementing the existing
+`MetadataProvider` interface (`id`, `feed`, `search`, `detail`) plus the static
+test seams `parseCalendar`, `parseSearch`, and `parseDetail`. Also created the
+test `test/core/metadata/bangumi_provider_test.dart` verbatim from the brief.
 
-**Test results:**
-- `flutter test`: 1 test passed (Counter increments smoke test)
-- `flutter build windows --debug`: Build succeeded, `acgnhub.exe` generated (~1 MB)
+Implementation is the brief's code verbatim with a single necessary correction:
+the brief's import `import '../../models/work.dart';` resolves to
+`lib/models/work.dart` (nonexistent). The correct path from
+`lib/core/metadata/` is `../models/work.dart`, matching
+`lib/core/metadata/metadata_provider.dart`. Changed only that line.
 
-**Concerns:**
-1. **Network restrictions:** GitHub is blocked from this network. The build requires downloading pre-built libraries (mpv, ANGLE) from GitHub releases via the `media_kit_libs_windows_video` plugin. These were downloaded manually using the system proxy at `127.0.0.1:10888` with `curl -k`. Future builds will need the proxy configured via `HTTP_PROXY`/`HTTPS_PROXY` environment variables, or the pre-downloaded `*.7z` files preserved in `build/windows/x64/`.
-2. **Admin privileges required:** The CMake install step defaults to `C:/Program Files/acgnhub` which requires elevation. Build was run as Administrator. This may be a CMake version incompatibility with `CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT`.
-3. **Android SDK not installed:** Only Windows desktop target is functional. Android development requires Android SDK setup.
-4. **CMake policy warnings (CMP0175):** The `media_kit_libs_windows_video` plugin's CMakeLists.txt triggers deprecation warnings about `add_custom_command()` without explicit `POST_BUILD`. These are non-fatal but indicate the plugin needs updating for newer CMake versions.
+## TDD evidence
 
-### Fix: Add .gitkeep to assets/rules/
+### RED
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/bangumi_provider_test.dart
+```
+Output (failing):
+```
+Error: Error when reading 'lib/core/metadata/bangumi_provider.dart': 系统找不到指定的文件。
+import 'package:acgnhub/core/metadata/bangumi_provider.dart';
+Error: Undefined name 'BangumiProvider'.
+00:00 +0 -1: Some tests failed.
+```
 
-**What was fixed:** `assets/rules/` directory existed on disk but contained no files — Git does not track empty directories. Added a `.gitkeep` placeholder to ensure the directory is version-tracked.
+### GREEN
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/bangumi_provider_test.dart
+```
+Output (passing):
+```
+00:00 +0: parseCalendar maps items to Work with the Chinese name and https cover
+00:00 +1: parseCalendar onlyWeekday filters days
+00:00 +2: parseSearch reads data.list
+00:00 +3: parseDetail reads tags and falls back to name when name_cn is empty
+00:00 +4: All tests passed!
+```
 
-**Commit:** `0027fac` — `fix: add .gitkeep to assets/rules/`
+### Analyzer
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib/core/metadata/bangumi_provider.dart test/core/metadata/bangumi_provider_test.dart
+No issues found! (ran in 1.7s)
+```
 
-**Verification:** `git status` shows clean working tree. The `.gitkeep` file is committed and the `assets/rules/` directory is now tracked via its contents.
+## Files changed
+- `lib/core/metadata/bangumi_provider.dart` (new)
+- `test/core/metadata/bangumi_provider_test.dart` (new)
+
+## Commit
+- `ac9f022` feat(metadata): add BangumiProvider
+
+## Self-review findings
+- Implementation matches the brief exactly except the corrected relative import.
+- `parseCalendar` de-duplicates by `bangumiId` and honors `onlyWeekday`; verified by tests.
+- `parseDetail` extracts tags only in detail mode (`tags` empty for feed/search), as specified.
+- Cover URLs are upgraded from `http://` to `https://`; verified by test.
+- `feed(AnimeFeed.today)` filters by `DateTime.now().weekday`; `trending` sorts by score desc;
+  `season` returns the full calendar. Matches brief.
+- `detail` requires `extra['bangumiId']` and throws `StateError` otherwise.
+- Only the two task files were staged; unrelated working-tree changes were left untouched.
+
+## Concerns
+1. The brief's import path was wrong; fixed to `../models/work.dart`. The delivered code
+   therefore differs from the brief by that one line. All tests/analyzer pass.
+2. `search` uses Bangumi's legacy endpoint `GET /search/subject/{keyword}?type=2&responseGroup=small`.
+   Bangumi has largely moved to `POST /v0/search/subjects`; the legacy endpoint may be
+   deprecated/unreliable. Out of scope for this task (brief specified the legacy call), but
+   worth flagging for a follow-up if search returns empty in practice.
+3. `parseCalendar` casts `w.extra['bangumiId'] as int` unconditionally in the `seen.add`
+   expression; items without an `id` are filtered by `_parseItem` returning null, so this is
+   safe, but a malformed non-int `id` would throw. Bangumi always returns int ids.
+4. `feed(season)` returns the whole weekly calendar rather than a true seasonal filter; this is
+   the brief's intended behavior for now.

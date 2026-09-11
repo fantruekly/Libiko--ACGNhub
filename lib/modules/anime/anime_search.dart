@@ -5,7 +5,7 @@ import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
 import 'anime_providers.dart';
-import 'bangumi_detail_page.dart';
+import 'anime_detail_page.dart';
 
 class AnimeSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
@@ -40,21 +40,10 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
       _hasSearched = true;
     });
     try {
-      final svc = ref.read(bangumiServiceProvider);
-      final items = await svc.searchSubject(k);
+      final results = await ref.read(metadataServiceProvider).search(k);
+      if (!mounted) return;
       setState(() {
-        _results = items
-            .map((item) => Work(
-                  id: 'bgm_${item['id']}',
-                  sourceId: 'bangumi',
-                  sourceName: 'Bangumi',
-                  type: WorkType.anime,
-                  title: item['title'] as String? ?? '',
-                  coverUrl: item['cover'] as String?,
-                  summary: item['summary'] as String?,
-                  extra: {'bangumiId': item['id'], 'keyword': item['title']},
-                ))
-            .toList();
+        _results = results;
         _loading = false;
       });
     } catch (e) {
@@ -177,7 +166,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
         work: _results[index],
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => BangumiDetailPage(work: _results[index])),
+          MaterialPageRoute(builder: (_) => AnimeDetailPage(work: _results[index])),
         ),
       ),
     );

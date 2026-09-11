@@ -1,227 +1,151 @@
-﻿### Task 2: Create core data models
+### Task 2: Make Bangumi primary + generalize the breaker
 
 **Files:**
-- Create: `lib/core/models/work.dart`
-- Create: `lib/core/models/chapter.dart`
-- Create: `lib/core/models/source.dart`
-- Create: `lib/core/models/search_result.dart`
-- Create: `test/core/models/work_test.dart`
+- Modify: `lib/core/metadata/metadata_service.dart`
+- Test: `test/core/metadata/metadata_service_test.dart`
 
 **Interfaces:**
-- Produces: `Work`, `Chapter`, `SourceInfo`, `SearchResult` classes with `fromJson`/`toJson`
+- Consumes: `BangumiProvider` (Task 1).
+- Produces: `MetadataService({MetadataProvider? bangumi, MetadataProvider? anilist, MetadataProvider? jikan, DateTime Function()? now, MetadataCache? cache, MetadataSeedLoader? seedLoader, Map<String, Duration>? intervals})`; provider order `[bangumi, anilist, jikan]`; per-provider transient disable.
 
-- [ ] **Step 1: Create directory structure**
+- [ ] **Step 1: Update the test helper to inject a failing Bangumi**
+
+In `test/core/metadata/metadata_service_test.dart`, add an import at the top:
+```dart
+import 'package:acgnhub/core/metadata/bangumi_provider.dart';
+```
+and change the `_service` helper to:
+```dart
+MetadataService _service({
+  MetadataProvider? bangumi,
+  MetadataProvider? anilist,
+  MetadataProvider? jikan,
+  MetadataCache? cache,
+  MetadataSeedLoader? seedLoader,
+  DateTime Function()? now,
+}) {
+  return MetadataService(
+    bangumi: bangumi ?? _FakeProvider('bangumi', fail: true),
+    anilist: anilist ?? _FakeProvider('anilist'),
+    jikan: jikan ?? _FakeProvider('jikan'),
+    cache: cache ?? _FakeCache(),
+    seedLoader: seedLoader ?? () async => const [],
+    now: now,
+    intervals: const {},
+  );
+}
+```
+(The default failing Bangumi makes the existing assertions about `anilist`/`jikan` call counts still hold.)
+
+Add this new test inside `main()`:
+```dart
+  test('tries Bangumi first, then falls back', () async {
+    final bangumi = _FakeProvider('bangumi', fail: true);
+    final anilist = _FakeProvider('anilist');
+    final service = _service(bangumi: bangumi, anilist: anilist);
+
+    final works = await service.feed(AnimeFeed.trending);
+    expect(works.single.sourceId, 'anilist');
+    expect(bangumi.calls, 1);
+    expect(anilist.calls, 1);
+  });
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/metadata_service_test.dart`
+Expected: FAIL — `MetadataService` has no `bangumi` parameter (compile error).
+
+- [ ] **Step 3: Update `MetadataService`**
+
+In `lib/core/metadata/metadata_service.dart`:
+
+1. Add the import:
+```dart
+import 'bangumi_provider.dart';
+```
+
+2. Add the `bangumi` field and change the constructor:
+```dart
+  final MetadataProvider bangumi;
+  final MetadataProvider anilist;
+  final MetadataProvider jikan;
+```
+and:
+```dart
+  MetadataService({
+    MetadataProvider? bangumi,
+    MetadataProvider? anilist,
+    MetadataProvider? jikan,
+    DateTime Function()? now,
+    MetadataCache? cache,
+    MetadataSeedLoader? seedLoader,
+    Map<String, Duration>? intervals,
+  })  : bangumi = bangumi ?? BangumiProvider(),
+        anilist = anilist ?? AniListProvider(),
+        jikan = jikan ?? JikanProvider(),
+        _now = now ?? DateTime.now,
+        cache = cache ?? PrefsMetadataCache(),
+        seedLoader = seedLoader ?? _defaultSeedLoader,
+        _intervals = intervals ??
+            const {
+              'bangumi': Duration(milliseconds: 300),
+              'anilist': Duration(milliseconds: 1000),
+              'jikan': Duration(milliseconds: 350),
+            };
+```
+
+3. Replace the `DateTime? _anilistDisabledUntil;` field with:
+```dart
+  final Map<String, DateTime> _disabledUntil = {};
+
+  List<MetadataProvider> get _providers => [bangumi, anilist, jikan];
+```
+
+4. Replace the body of `_run<T>` with:
+```dart
+  Future<T> _run<T>(String key, Future<T> Function(MetadataProvider) op) async {
+    final cached = _cache[key];
+    if (cached != null && _now().difference(cached.at) < _cacheTtl) {
+      return cached.value as T;
+    }
+
+    var order = _providers.where((p) {
+      final until = _disabledUntil[p.id];
+      return until == null || !_now().isBefore(until);
+    }).toList();
+    if (order.isEmpty) order = List.of(_providers);
+
+    Object? lastError;
+    for (final provider in order) {
+      try {
+        final result = provider == jikan
+            ? await _serializeJikan(() => _withRetry(() => _call(provider, () => op(provider))))
+            : await _withRetry(() => _call(provider, () => op(provider)));
+        _disabledUntil.remove(provider.id);
+        _cache[key] = _CacheEntry(_now(), result);
+        return result;
+      } catch (e) {
+        lastError = e;
+        if (e is DioException) {
+          _disabledUntil[provider.id] = _now().add(_disableDuration);
+        }
+      }
+    }
+    throw Exception('All metadata providers failed: $lastError');
+  }
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/metadata_service_test.dart`
+Expected: PASS.
+
+- [ ] **Step 5: Commit (only if user asked)**
 
 ```bash
-mkdir -p lib\core\models
-mkdir -p test\core\models
-```
-
-- [ ] **Step 2: Write Work model**
-
-Create `lib/core/models/work.dart`:
-
-```dart
-enum WorkType { anime, comic, novel, game }
-
-class Work {
-  final String id;
-  final String sourceId;
-  final String sourceName;
-  final WorkType type;
-  final String title;
-  final String? coverUrl;
-  final String? summary;
-  final List<String> tags;
-  final String? author;
-  final Map<String, dynamic> extra;
-
-  const Work({
-    required this.id,
-    required this.sourceId,
-    required this.sourceName,
-    required this.type,
-    required this.title,
-    this.coverUrl,
-    this.summary,
-    this.tags = const [],
-    this.author,
-    this.extra = const {},
-  });
-
-  factory Work.fromJson(Map<String, dynamic> json) => Work(
-        id: json['id'] as String,
-        sourceId: json['sourceId'] as String,
-        sourceName: json['sourceName'] as String,
-        type: WorkType.values.byName(json['type'] as String),
-        title: json['title'] as String,
-        coverUrl: json['coverUrl'] as String?,
-        summary: json['summary'] as String?,
-        tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
-        author: json['author'] as String?,
-        extra: json['extra'] as Map<String, dynamic>? ?? {},
-      );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'sourceId': sourceId,
-        'sourceName': sourceName,
-        'type': type.name,
-        'title': title,
-        'coverUrl': coverUrl,
-        'summary': summary,
-        'tags': tags,
-        'author': author,
-        'extra': extra,
-      };
-}
-```
-
-- [ ] **Step 3: Write Chapter model**
-
-Create `lib/core/models/chapter.dart`:
-
-```dart
-class Chapter {
-  final String id;
-  final String workId;
-  final String title;
-  final int index;
-  final String? url;
-  final Map<String, dynamic> extra;
-
-  const Chapter({
-    required this.id,
-    required this.workId,
-    required this.title,
-    required this.index,
-    this.url,
-    this.extra = const {},
-  });
-
-  factory Chapter.fromJson(Map<String, dynamic> json) => Chapter(
-        id: json['id'] as String,
-        workId: json['workId'] as String,
-        title: json['title'] as String,
-        index: json['index'] as int,
-        url: json['url'] as String?,
-        extra: json['extra'] as Map<String, dynamic>? ?? {},
-      );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'workId': workId,
-        'title': title,
-        'index': index,
-        'url': url,
-        'extra': extra,
-      };
-}
-```
-
-- [ ] **Step 4: Write SourceInfo model**
-
-Create `lib/core/models/source.dart`:
-
-```dart
-import 'work.dart';
-
-class SourceInfo {
-  final String id;
-  final String name;
-  final WorkType type;
-  final String baseUrl;
-  final String? description;
-
-  const SourceInfo({
-    required this.id,
-    required this.name,
-    required this.type,
-    required this.baseUrl,
-    this.description,
-  });
-}
-```
-
-- [ ] **Step 5: Write SearchResult model**
-
-Create `lib/core/models/search_result.dart`:
-
-```dart
-import 'work.dart';
-
-class SearchResult {
-  final List<Work> works;
-  final int totalPages;
-  final int currentPage;
-  final bool hasMore;
-
-  const SearchResult({
-    required this.works,
-    required this.totalPages,
-    required this.currentPage,
-  }) : hasMore = currentPage < totalPages;
-}
-```
-
-- [ ] **Step 6: Write tests**
-
-Create `test/core/models/work_test.dart`:
-
-```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/models/work.dart';
-
-void main() {
-  group('Work', () {
-    test('fromJson and toJson roundtrip', () {
-      final json = {
-        'id': 'test_1',
-        'sourceId': 'src_1',
-        'sourceName': 'TestSource',
-        'type': 'anime',
-        'title': 'Test Anime',
-        'coverUrl': 'https://example.com/cover.jpg',
-        'summary': 'A test anime',
-        'tags': ['action', 'comedy'],
-        'author': 'Test Author',
-        'extra': {'year': 2024},
-      };
-      final work = Work.fromJson(json);
-      expect(work.toJson(), json);
-    });
-
-    test('default values', () {
-      final work = Work(
-        id: '1',
-        sourceId: 's1',
-        sourceName: 'S',
-        type: WorkType.anime,
-        title: 'T',
-      );
-      expect(work.tags, isEmpty);
-      expect(work.extra, isEmpty);
-      expect(work.coverUrl, isNull);
-    });
-  });
-}
-```
-
-- [ ] **Step 7: Run tests**
-
-```bash
-flutter test test/core/models/work_test.dart
-```
-
-Expected: All tests pass.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add lib/core/models/ test/core/models/
-git commit -m "feat(core): add data models Work, Chapter, SourceInfo, SearchResult"
+git add lib/core/metadata/metadata_service.dart test/core/metadata/metadata_service_test.dart
+git commit -m "feat(metadata): make Bangumi primary and generalize the provider breaker"
 ```
 
 ---
-
-
