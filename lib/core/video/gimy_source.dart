@@ -62,21 +62,21 @@ class GimySource implements VideoSource {
   @visibleForTesting
   static List<VideoEpisode> parseEpisodes(String html, String base) {
     final doc = html_parser.parse(html);
-    final eps = <VideoEpisode>[];
-    var i = 0;
+    final byRoad = <String, List<VideoEpisode>>{};
     for (final a in doc.querySelectorAll('a[href*="/ep-"]')) {
       final href = a.attributes['href'] ?? '';
       if (href.isEmpty) continue;
+      final road = RegExp(r'/ep-\d+-(\d+)-\d+').firstMatch(href)?.group(1) ?? '1';
+      final list = byRoad.putIfAbsent(road, () => []);
       final text = a.text.trim();
-      eps.add(VideoEpisode(
+      list.add(VideoEpisode(
         id: href,
-        title: text.isEmpty ? '第${i + 1}集' : text,
-        index: i,
+        title: text.isEmpty ? '第${list.length + 1}集' : text,
+        index: list.length,
         playUrl: _abs(href, base),
       ));
-      i++;
     }
-    return eps;
+    return byRoad.isEmpty ? const [] : byRoad.values.first;
   }
 
   static String? _ancestorImg(dom.Element a) {

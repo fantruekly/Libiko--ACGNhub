@@ -361,13 +361,30 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       return Text('暂无剧集', style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.5)));
     }
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 10,
+      runSpacing: 10,
       children: [
         for (final ep in eps)
-          ActionChip(
-            label: Text(ep.title, style: const TextStyle(fontSize: 12)),
-            onPressed: () => _playEpisode(ep),
+          InkWell(
+            onTap: () => _playEpisode(ep),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 104,
+              height: 44,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: cs.primary.withValues(alpha: 0.06),
+                border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                ep.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: cs.primary),
+              ),
+            ),
           ),
       ],
     );
@@ -453,7 +470,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final url = await StreamResolver().resolve(ep.playUrl);
     if (!mounted) return;
     if (cancelled) return;
-    Navigator.of(context).pop(); // close the loading dialog
+    Navigator.of(context).pop();
     if (url == null) {
       messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
       return;

@@ -1,68 +1,52 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:webview_windows/webview_windows.dart';
 
+/// Resolves a video source's play page to a playable stream URL, mirroring
+/// Kazumi's approach: load the page in a headless WebView2 and rely on the
+/// (forked) `webview_windows` native m3u8/video detection. The user never sees
+/// the source site — playback happens in the app's own media_kit player.
 class StreamResolver {
-  static final _mediaRe = RegExp(r'\.(m3u8|mp4)(\?|$)', caseSensitive: false);
-
   Future<String?> resolve(
     String playPageUrl, {
-    Duration timeout = const Duration(seconds: 25),
+    Duration timeout = const Duration(seconds: 30),
   }) async {
     final completer = Completer<String?>();
-    HeadlessInAppWebView? webView;
+    final webview = HeadlessWebview();
+    final subs = <StreamSubscription>[];
 
-    void finish(String? url) {
-      if (!completer.isCompleted) completer.complete(url);
+    void finish(String url) {
+      if (url.isNotEmpty && !completer.isCompleted) completer.complete(url);
     }
 
     try {
-      webView = HeadlessInAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(playPageUrl)),
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          useShouldInterceptRequest: true,
-          mediaPlaybackRequiresUserGesture: false,
-        ),
-        onWebViewCreated: (controller) {
-          controller.addJavaScriptHandler(
-            handlerName: 'stream',
-            callback: (args) {
-              if (args.isNotEmpty) finish(args.first.toString());
-              return null;
-            },
-          );
-        },
-        shouldInterceptRequest: (controller, request) async {
-          final url = request.url.toString();
-          if (_mediaRe.hasMatch(url)) finish(url);
-          return null;
-        },
-        onLoadStop: (controller, url) async {
-          await controller.evaluateJavascript(source: _hookJs);
-        },
-      );
-      await webView.run();
-      return await completer.future.timeout(timeout, onTimeout: () => null);
+      await webview.run();
+      try {
+        await webview.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
+      } catch (_) {}
+
+      subs.add(webview.onM3USourceLoaded.listen((data) => finish(data['url'] ?? '')));
+      subs.add(webview.onVideoSourceLoaded.listen((data) => finish(data['url'] ?? '')));
+
+      await webview.loadUrl(playPageUrl);
+      final url = await completer.future.timeout(timeout, onTimeout: () {
+        debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');
+        return null;
+      });
+      debugPrint('[StreamResolver] resolved=$url');
+      return url;
     } catch (e) {
-      debugPrint('[StreamResolver] resolve failed for $playPageUrl: $e');
+      debugPrint('[StreamResolver] failed for $playPageUrl: $e');
       return null;
     } finally {
+      for (final s in subs) {
+        try {
+          await s.cancel();
+        } catch (_) {}
+      }
       try {
-        await webView?.dispose();
+        await webview.dispose();
       } catch (_) {}
     }
   }
-
-  static const _hookJs = r'''
-  (function(){
-    if (window.__streamHooked) return; window.__streamHooked = true;
-    function report(u){ try{ if(u && /\.(m3u8|mp4)(\?|$)/i.test(u)){ window.flutter_inappwebview.callHandler('stream', u); } }catch(e){} }
-    var oo = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(m,u){ report(u); return oo.apply(this, arguments); };
-    var of = window.fetch;
-    if (of) { window.fetch = function(i){ report(typeof i === 'string' ? i : (i && i.url)); return of.apply(this, arguments); }; }
-    setInterval(function(){ document.querySelectorAll('video').forEach(function(v){ if(v.src) report(v.src); if(v.currentSrc) report(v.currentSrc); }); }, 1000);
-  })();
-  ''';
 }

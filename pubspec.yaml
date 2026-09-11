@@ -20,7 +20,9 @@ dependencies:
   path: ^1.9.0
   uuid: ^4.5.1
   url_launcher: ^6.3.1
-  flutter_inappwebview: ^6.1.5
+  webview_windows:
+    git:
+      url: https://github.com/Predidit/flutter-webview-windows.git
   media_kit: ^1.2.0
   media_kit_video: ^1.2.0
   media_kit_libs_windows_video: ^1.0.9
