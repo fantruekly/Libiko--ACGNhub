@@ -57,26 +57,28 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
     if (i < 0 || i >= widget.episodes.length) return;
     final gen = ++_gen;
     final previous = _currentIndex;
+    final episode = widget.episodes[i];
+    final work = widget.work;
+    final history = ref.read(watchHistoryProvider.notifier);
     setState(() {
       _resolving = true;
       _error = null;
       _currentIndex = i;
     });
-    final url = await StreamResolver().resolve(widget.episodes[i].playUrl);
+    final url = await StreamResolver().resolve(episode.playUrl);
     if (!mounted || gen != _gen) return;
     if (url == null) {
       setState(() {
         _resolving = false;
         _currentIndex = previous;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
       return;
     }
     setState(() => _resolving = false);
     await _player.open(Media(url));
-    ref
-        .read(watchHistoryProvider.notifier)
-        .record(widget.work, widget.episodes[i]);
+    if (gen == _gen) history.record(work, episode);
   }
 
   MaterialDesktopVideoControlsThemeData _controlsTheme(BuildContext context, {bool showEpisodes = true}) {
