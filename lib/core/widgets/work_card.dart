@@ -22,18 +22,20 @@ class WorkCard extends StatelessWidget {
           Expanded(
             child: Hero(
               tag: 'work_${work.id}',
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: work.coverUrl != null && work.coverUrl!.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: work.coverUrl!,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 400,
-                        fadeInDuration: const Duration(milliseconds: 200),
-                        placeholder: (_, __) => _placeholder(work),
-                        errorWidget: (_, __, ___) => _placeholder(work),
-                      )
-                    : _placeholder(work),
+              child: RepaintBoundary(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: work.coverUrl != null && work.coverUrl!.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: work.coverUrl!,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 400,
+                          fadeInDuration: const Duration(milliseconds: 200),
+                          placeholder: (_, __) => _placeholder(work),
+                          errorWidget: (_, __, ___) => _placeholder(work),
+                        )
+                      : _placeholder(work),
+                ),
               ),
             ),
           ),

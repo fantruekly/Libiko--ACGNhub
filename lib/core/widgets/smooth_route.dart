@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 
-/// A slightly slower, smoother route transition (fade + subtle rise) used for
-/// card → detail navigation so the shared-element (Hero) flight feels fluid.
+/// A slightly slower, smoother route transition (fade only) used for
+/// card → detail navigation. A fade (rather than fade + slide) keeps the
+/// repainted area small, so the shared-element (Hero) flight stays smooth.
 Route<T> smoothRoute<T>(Widget page) {
   return PageRouteBuilder<T>(
-    transitionDuration: const Duration(milliseconds: 480),
-    reverseTransitionDuration: const Duration(milliseconds: 360),
+    transitionDuration: const Duration(milliseconds: 380),
+    reverseTransitionDuration: const Duration(milliseconds: 300),
     pageBuilder: (_, __, ___) => page,
     transitionsBuilder: (_, animation, __, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      );
       return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 0.03), end: Offset.zero).animate(curved),
-          child: child,
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
         ),
+        child: child,
       );
     },
   );
