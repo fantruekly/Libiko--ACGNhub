@@ -10,9 +10,9 @@
     "userAgent": "",
     "baseURL": "https://www.dcc3.com/",
     "searchURL": "https://www.dcc3.com/search/?wd=@keyword",
-    "searchList": "//div[3]/ul/li",
+    "searchList": "//div[contains(@class,'search container')]/ul/li",
     "searchName": "//h3/a",
     "searchResult": "//h3/a",
-    "chapterRoads": "//div[4]/div/div/ul",
+    "chapterRoads": "//div[@class='playlist']/div[@class='row']",
     "chapterResult": "//li/a"
 }
