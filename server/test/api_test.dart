@@ -96,4 +96,81 @@ void main() {
     expect(res.statusCode, 200);
     expect(await jsonOf(res), {'id': 1, 'username': 'alice'});
   });
+
+  Future<String> registerToken(String username) async {
+    final json = await jsonOf(await call('POST', '/api/auth/register',
+        body: {'username': username, 'password': 'secret1'}));
+    return json['token'] as String;
+  }
+
+  test('follows: put, list, delete', () async {
+    final token = await registerToken('alice');
+    final put = await call('PUT', '/api/follows',
+        token: token,
+        body: {
+          'work': {'id': 'w1', 'title': 'A'},
+          'updatedAt': 100,
+        });
+    expect(put.statusCode, 200);
+
+    final list = await jsonOf(await call('GET', '/api/follows', token: token));
+    expect((list['items'] as List), hasLength(1));
+    expect((list['items'] as List).first['work']['id'], 'w1');
+
+    final del = await call('DELETE', '/api/follows/w1?updatedAt=200', token: token);
+    expect(del.statusCode, 200);
+    final after = await jsonOf(await call('GET', '/api/follows', token: token));
+    expect(after['items'], isEmpty);
+  });
+
+  test('follows: an older put does not overwrite a newer one (LWW)', () async {
+    final token = await registerToken('alice');
+    await call('PUT', '/api/follows',
+        token: token, body: {'work': {'id': 'w1', 'title': 'new'}, 'updatedAt': 200});
+    final stale = await jsonOf(await call('PUT', '/api/follows',
+        token: token, body: {'work': {'id': 'w1', 'title': 'old'}, 'updatedAt': 100}));
+    expect(stale['work']['title'], 'new');
+    expect(stale['updatedAt'], 200);
+  });
+
+  test('history: put, list by watchedAt desc, clear', () async {
+    final token = await registerToken('alice');
+    await call('PUT', '/api/history', token: token, body: {
+      'work': {'id': 'w1'}, 'episodeTitle': '第1集', 'episodeIndex': 0,
+      'watchedAt': 100, 'updatedAt': 100,
+    });
+    await call('PUT', '/api/history', token: token, body: {
+      'work': {'id': 'w2'}, 'episodeTitle': '第9集', 'episodeIndex': 8,
+      'watchedAt': 300, 'updatedAt': 300,
+    });
+
+    final list = await jsonOf(await call('GET', '/api/history', token: token));
+    final items = list['items'] as List;
+    expect(items.map((e) => e['work']['id']).toList(), ['w2', 'w1']);
+    expect(items.first['episodeTitle'], '第9集');
+
+    final cleared = await call('DELETE', '/api/history?updatedAt=400', token: token);
+    expect(cleared.statusCode, 200);
+    expect((await jsonOf(await call('GET', '/api/history', token: token)))['items'],
+        isEmpty);
+  });
+
+  test('follows and history reject a missing body field with 400', () async {
+    final token = await registerToken('alice');
+    expect((await call('PUT', '/api/follows',
+            token: token, body: {'updatedAt': 1}))
+        .statusCode, 400);
+    expect((await call('PUT', '/api/history',
+            token: token, body: {'work': {'id': 'w1'}}))
+        .statusCode, 400);
+  });
+
+  test('one user cannot see another user\'s follows', () async {
+    final a = await registerToken('alice');
+    final b = await registerToken('bob');
+    await call('PUT', '/api/follows',
+        token: a, body: {'work': {'id': 'w1'}, 'updatedAt': 1});
+    final list = await jsonOf(await call('GET', '/api/follows', token: b));
+    expect(list['items'], isEmpty);
+  });
 }

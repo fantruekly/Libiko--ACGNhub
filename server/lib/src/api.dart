@@ -19,6 +19,12 @@ class Api {
       ..post('/api/auth/register', _register)
       ..post('/api/auth/login', _login)
       ..post('/api/auth/refresh', _refresh)
+      ..get('/api/follows', _auth(_listFollows))
+      ..put('/api/follows', _auth(_putFollow))
+      ..delete('/api/follows/<workId>', _deleteFollowRoute)
+      ..get('/api/history', _auth(_listHistory))
+      ..put('/api/history', _auth(_putHistory))
+      ..delete('/api/history', _auth(_clearHistory))
       ..get('/api/me', _auth(_me));
     return Pipeline().addHandler(_guard(router.call));
   }
@@ -142,5 +148,116 @@ class Api {
     final user = db.findUserById(_ctxUserId(req));
     if (user == null) return _error(401, 'unauthorized', 'Unknown user');
     return _json(200, {'id': user['id'], 'username': user['username']});
+  }
+
+  /// `shelf_router` passes the path parameter as a second argument.
+  Future<Response> _deleteFollowRoute(Request req, String workId) =>
+      _auth((r) => _deleteFollow(r, workId))(req);
+
+  Future<Response> _listFollows(Request req) async {
+    final items = db.listFollows(_ctxUserId(req)).map((row) {
+      return {
+        'work': jsonDecode(row['work_json'] as String),
+        'updatedAt': row['client_updated_at'],
+      };
+    }).toList();
+    return _json(200, {'items': items});
+  }
+
+  Future<Response> _putFollow(Request req) async {
+    final body = await _readJson(req);
+    if (body == null) return _error(400, 'bad_request', 'Expected a JSON object');
+    final work = body['work'];
+    final updatedAt = body['updatedAt'];
+    if (work is! Map<String, dynamic> || work['id'] is! String) {
+      return _error(400, 'bad_request', 'work.id is required');
+    }
+    if (updatedAt is! int) {
+      return _error(400, 'bad_request', 'updatedAt must be an integer');
+    }
+    final row = db.upsertFollow(
+      userId: _ctxUserId(req),
+      workId: work['id'] as String,
+      work: work,
+      updatedAt: updatedAt,
+    );
+    return _json(200, {
+      'work': jsonDecode(row['work_json'] as String),
+      'updatedAt': row['client_updated_at'],
+    });
+  }
+
+  Future<Response> _deleteFollow(Request req, String workId) async {
+    final updatedAt =
+        int.tryParse(req.url.queryParameters['updatedAt'] ?? '');
+    if (updatedAt == null) {
+      return _error(400, 'bad_request', 'updatedAt query parameter is required');
+    }
+    final row = db.upsertFollow(
+      userId: _ctxUserId(req),
+      workId: workId,
+      work: const {},
+      updatedAt: updatedAt,
+      deleted: true,
+    );
+    return _json(200, {'workId': workId, 'updatedAt': row['client_updated_at']});
+  }
+
+  Future<Response> _listHistory(Request req) async {
+    final items = db.listHistory(_ctxUserId(req)).map((row) {
+      return {
+        'work': jsonDecode(row['work_json'] as String),
+        'episodeTitle': row['episode_title'],
+        'episodeIndex': row['episode_index'],
+        'watchedAt': row['watched_at'],
+        'updatedAt': row['client_updated_at'],
+      };
+    }).toList();
+    return _json(200, {'items': items});
+  }
+
+  Future<Response> _putHistory(Request req) async {
+    final body = await _readJson(req);
+    if (body == null) return _error(400, 'bad_request', 'Expected a JSON object');
+    final work = body['work'];
+    final episodeTitle = body['episodeTitle'];
+    final episodeIndex = body['episodeIndex'];
+    final watchedAt = body['watchedAt'];
+    final updatedAt = body['updatedAt'];
+    if (work is! Map<String, dynamic> || work['id'] is! String) {
+      return _error(400, 'bad_request', 'work.id is required');
+    }
+    if (episodeTitle is! String ||
+        episodeIndex is! int ||
+        watchedAt is! int ||
+        updatedAt is! int) {
+      return _error(400, 'bad_request',
+          'episodeTitle, episodeIndex, watchedAt and updatedAt are required');
+    }
+    final row = db.upsertHistory(
+      userId: _ctxUserId(req),
+      workId: work['id'] as String,
+      work: work,
+      episodeTitle: episodeTitle,
+      episodeIndex: episodeIndex,
+      watchedAt: watchedAt,
+      updatedAt: updatedAt,
+    );
+    return _json(200, {
+      'work': jsonDecode(row['work_json'] as String),
+      'episodeTitle': row['episode_title'],
+      'episodeIndex': row['episode_index'],
+      'watchedAt': row['watched_at'],
+      'updatedAt': row['client_updated_at'],
+    });
+  }
+
+  Future<Response> _clearHistory(Request req) async {
+    final updatedAt = int.tryParse(req.url.queryParameters['updatedAt'] ?? '');
+    if (updatedAt == null) {
+      return _error(400, 'bad_request', 'updatedAt query parameter is required');
+    }
+    final count = db.clearHistory(_ctxUserId(req), updatedAt);
+    return _json(200, {'deleted': count});
   }
 }
