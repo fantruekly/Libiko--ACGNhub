@@ -38,6 +38,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     _player.stream.error.listen((e) {
       if (mounted) setState(() => _error = e);
     });
+    if (widget.episodes.isEmpty) return;
     _currentIndex = widget.initialIndex.clamp(0, widget.episodes.length - 1);
     _playIndex(_currentIndex);
   }
@@ -52,6 +53,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     if (_resolving) return;
     if (i < 0 || i >= widget.episodes.length) return;
     final gen = ++_gen;
+    final previous = _currentIndex;
     setState(() {
       _resolving = true;
       _error = null;
@@ -59,15 +61,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     });
     final url = await StreamResolver().resolve(widget.episodes[i].playUrl);
     if (!mounted || gen != _gen) return;
-    setState(() => _resolving = false);
     if (url == null) {
+      setState(() {
+        _resolving = false;
+        _currentIndex = previous;
+      });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
       return;
     }
+    setState(() => _resolving = false);
     await _player.open(Media(url));
   }
 
-  MaterialDesktopVideoControlsThemeData _controlsTheme(BuildContext context) {
+  MaterialDesktopVideoControlsThemeData _controlsTheme(BuildContext context, {bool showEpisodes = true}) {
     return MaterialDesktopVideoControlsThemeData(
       controlsHoverDuration: const Duration(seconds: 3),
       topButtonBar: [
@@ -93,10 +99,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         const MaterialDesktopVolumeButton(),
         const MaterialDesktopPositionIndicator(),
         const Spacer(),
-        MaterialDesktopCustomButton(
-          icon: const Icon(Icons.list_rounded),
-          onPressed: () => setState(() => _panelOpen = !_panelOpen),
-        ),
+        if (showEpisodes)
+          MaterialDesktopCustomButton(
+            icon: const Icon(Icons.list_rounded),
+            onPressed: () => setState(() => _panelOpen = !_panelOpen),
+          ),
         const MaterialDesktopFullscreenButton(),
       ],
     );
@@ -111,7 +118,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           Positioned.fill(
             child: MaterialDesktopVideoControlsTheme(
               normal: _controlsTheme(context),
-              fullscreen: _controlsTheme(context),
+              fullscreen: _controlsTheme(context, showEpisodes: false),
               child: Video(
                 controller: _controller,
                 fit: BoxFit.contain,
@@ -121,10 +128,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             ),
           ),
           if (_resolving)
-            const Positioned.fill(
-              child: ColoredBox(
-                color: Color(0x99000000),
-                child: Center(child: CircularProgressIndicator()),
+            const Positioned(
+              top: 72,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                ),
               ),
             ),
           if (_error != null)
@@ -158,9 +171,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text('选集', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                    child: Row(
+                      children: [
+                        const Text('选集', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+                          tooltip: '关闭',
+                          onPressed: () => setState(() => _panelOpen = false),
+                        ),
+                      ],
+                    ),
                   ),
                   Expanded(
                     child: ListView.builder(
