@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
+import 'core/account/account_service.dart';
 import 'core/storage/database.dart';
 import 'shell/main_shell.dart';
 
@@ -10,6 +13,9 @@ void main() async {
   MediaKit.ensureInitialized();
   await windowManager.ensureInitialized();
   await AppDatabase.init();
+
+  final container = ProviderContainer();
+  unawaited(container.read(accountProvider.notifier).load());
 
   const windowOptions = WindowOptions(
     size: Size(1280, 800),
@@ -23,7 +29,8 @@ void main() async {
     await windowManager.focus();
   });
 
-  runApp(const ProviderScope(child: ACGNhubApp()));
+  runApp(UncontrolledProviderScope(
+      container: container, child: const ACGNhubApp()));
 }
 
 class ACGNhubApp extends StatelessWidget {
