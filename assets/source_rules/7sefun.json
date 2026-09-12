@@ -9,9 +9,9 @@
   "userAgent": "",
   "baseURL": "https://www.7sefun.top/",
   "searchURL": "https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword",
-  "searchList": "//div[2]/div[2]/div[2]/div[2]/div",
-  "searchName": "//div[2]/text()",
-  "searchResult": "//a",
-  "chapterRoads": "//div[2]/div[2]/div[2]/div/div[2]/div[1]//div",
-  "chapterResult": "//a"
+  "searchList": "//div[@class='videos']/div",
+  "searchName": ".//div[@class='video-by']/text()",
+  "searchResult": ".//a[@class='video-wrapper']",
+  "chapterRoads": "//div[contains(@class,'vod-play-list-container')]",
+  "chapterResult": ".//a"
 }
