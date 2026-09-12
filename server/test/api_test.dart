@@ -67,7 +67,7 @@ void main() {
     final res = await call('POST', '/api/auth/register',
         body: {
           'username': 'alice',
-          'password': List.filled(73, 'a').join(),
+          'password': List.filled(25, '中').join(),
         });
     expect(res.statusCode, 400);
     expect((await jsonOf(res))['error'], 'bad_request');
