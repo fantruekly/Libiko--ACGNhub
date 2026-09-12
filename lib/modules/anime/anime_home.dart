@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'anime_providers.dart';
 import 'anime_detail_page.dart';
+import 'anime_history.dart';
 import '../../core/metadata/metadata_provider.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
@@ -9,83 +10,38 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/models/work.dart';
 
-class AnimeHomePage extends ConsumerStatefulWidget {
+class AnimeHomePage extends ConsumerWidget {
   const AnimeHomePage({super.key});
 
   @override
-  ConsumerState<AnimeHomePage> createState() => _AnimeHomePageState();
-}
-
-class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
-  static const _accent = Color(0xFF007AFF);
-  static const _feeds = [AnimeFeed.season, AnimeFeed.trending, AnimeFeed.today];
-  static const _labels = ['本季新番', '热门推荐', '今日放送'];
-
-  final _controller = PageController();
-  int _index = 0;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _goTo(int i) {
-    if (i == _index) return;
-    setState(() => _index = i);
-    _controller.animateToPage(
-      i,
-      duration: const Duration(milliseconds: 340),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              for (var i = 0; i < _feeds.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                _pill(_labels[i], i),
-              ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    return const DefaultTabController(
+      length: 4,
+      child: Column(
+        children: [
+          TabBar(
+            labelColor: Color(0xFF007AFF),
+            unselectedLabelColor: Color(0xFF8E8E93),
+            indicatorColor: Color(0xFF007AFF),
+            dividerColor: Color(0xFFE5E5EA),
+            tabs: [
+              Tab(text: '本季新番'),
+              Tab(text: '热门推荐'),
+              Tab(text: '今日放送'),
+              Tab(text: '历史记录'),
             ],
           ),
-        ),
-        Expanded(
-          child: PageView(
-            controller: _controller,
-            onPageChanged: (i) => setState(() => _index = i),
-            children: [for (final f in _feeds) _FeedView(feed: f)],
+          Expanded(
+            child: TabBarView(
+              children: [
+                _FeedView(feed: AnimeFeed.season),
+                _FeedView(feed: AnimeFeed.trending),
+                _FeedView(feed: AnimeFeed.today),
+                AnimeHistoryView(),
+              ],
+            ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _pill(String label, int i) {
-    final sel = _index == i;
-    return GestureDetector(
-      onTap: () => _goTo(i),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: BoxDecoration(
-          color: sel ? _accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: sel ? null : Border.all(color: const Color(0xFFE5E5EA)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: sel ? Colors.white : const Color(0xFF8E8E93),
-          ),
-        ),
+        ],
       ),
     );
   }
