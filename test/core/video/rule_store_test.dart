@@ -51,7 +51,7 @@ void main() {
     expect(files, hasLength(5));
     expect(
       files.map((f) => p.basename(f.path)).toList(),
-      ['7sefun.json', 'MXdm.json', 'akianime.json', 'ezdmw.json', 'gugu3.json'],
+      ['7sefun.json', 'MXdm.json', 'akianime.json', 'baimao.json', 'gugu3.json'],
     );
     for (final file in files) {
       final rule = SourceRule.fromJsonString(await file.readAsString());
