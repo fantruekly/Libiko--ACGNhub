@@ -142,18 +142,21 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: 110,
-                  height: 154,
-                  child: w.coverUrl != null && w.coverUrl!.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: w.coverUrl!,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => _coverPlaceholder(cs),
-                        )
-                      : _coverPlaceholder(cs),
+              Hero(
+                tag: 'work_${w.id}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 110,
+                    height: 154,
+                    child: w.coverUrl != null && w.coverUrl!.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: w.coverUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => _coverPlaceholder(cs),
+                          )
+                        : _coverPlaceholder(cs),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),

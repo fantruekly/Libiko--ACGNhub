@@ -20,17 +20,20 @@ class WorkCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: work.coverUrl != null && work.coverUrl!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: work.coverUrl!,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 200),
-                      placeholder: (_, __) => _placeholder(work),
-                      errorWidget: (_, __, ___) => _placeholder(work),
-                    )
-                  : _placeholder(work),
+            child: Hero(
+              tag: 'work_${work.id}',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: work.coverUrl != null && work.coverUrl!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: work.coverUrl!,
+                        fit: BoxFit.cover,
+                        fadeInDuration: const Duration(milliseconds: 200),
+                        placeholder: (_, __) => _placeholder(work),
+                        errorWidget: (_, __, ___) => _placeholder(work),
+                      )
+                    : _placeholder(work),
+              ),
             ),
           ),
           const SizedBox(height: 6),
