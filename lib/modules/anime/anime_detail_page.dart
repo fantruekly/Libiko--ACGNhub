@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/rating_stars.dart';
@@ -33,6 +34,9 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   int _videoGen = 0;
   VideoItem? _selectedItem;
   Future<void> Function()? _retry;
+  List<AnimeCharacter>? _characters;
+  List<RelatedWork>? _related;
+  bool _loadingExtras = false;
 
   @override
   void initState() {
@@ -53,6 +57,21 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+    _loadExtras();
+  }
+
+  Future<void> _loadExtras() async {
+    setState(() => _loadingExtras = true);
+    final svc = ref.read(metadataServiceProvider);
+    final chars = await svc.characters(_work);
+    final rel = await svc.related(_work);
+    if (mounted) {
+      setState(() {
+        _characters = chars;
+        _related = rel;
+        _loadingExtras = false;
+      });
     }
   }
 
@@ -114,8 +133,144 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _charactersTab(ColorScheme cs) => const Center(child: Text('角色'));
-  Widget _relatedTab(ColorScheme cs) => const Center(child: Text('关联'));
+  Widget _charactersTab(ColorScheme cs) {
+    if (_loadingExtras) return const Center(child: CircularProgressIndicator());
+    final chars = _characters ?? const <AnimeCharacter>[];
+    if (chars.isEmpty) {
+      return Center(child: Text('暂无角色信息', style: TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.4))));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: chars.length,
+      itemBuilder: (context, i) {
+        final c = chars[i];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(width: 56, height: 56, child: _image(c.image, cs)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            c.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        if (c.relation != null && c.relation!.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: cs.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(c.relation!, style: TextStyle(fontSize: 11, color: cs.primary)),
+                          ),
+                      ],
+                    ),
+                    for (final a in c.actors)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            ClipOval(child: SizedBox(width: 24, height: 24, child: _image(a.image, cs))),
+                            const SizedBox(width: 8),
+                            Text('CV: ${a.name}', style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6))),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _relatedTab(ColorScheme cs) {
+    if (_loadingExtras) return const Center(child: CircularProgressIndicator());
+    final rel = _related ?? const <RelatedWork>[];
+    if (rel.isEmpty) {
+      return Center(child: Text('暂无关联作品', style: TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.4))));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: rel.length,
+      itemBuilder: (context, i) {
+        final r = rel[i];
+        return InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AnimeDetailPage(
+                work: Work(
+                  id: 'bangumi_${r.bangumiId}',
+                  sourceId: 'bangumi',
+                  sourceName: 'Bangumi',
+                  type: WorkType.anime,
+                  title: r.title,
+                  coverUrl: r.image,
+                  extra: {'bangumiId': r.bangumiId},
+                ),
+              ),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(width: 56, height: 80, child: _image(r.image, cs)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(r.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, height: 1.35)),
+                      if (r.relation != null && r.relation!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(r.relation!, style: TextStyle(fontSize: 12, color: cs.primary)),
+                        ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: cs.onSurface.withValues(alpha: 0.2)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _image(String? url, ColorScheme cs) {
+    if (url == null || url.isEmpty) {
+      return Container(color: cs.primary.withValues(alpha: 0.08));
+    }
+    return CachedNetworkImage(
+      imageUrl: url,
+      fit: BoxFit.cover,
+      placeholder: (_, __) => Container(color: cs.primary.withValues(alpha: 0.06)),
+      errorWidget: (_, __, ___) => Container(color: cs.primary.withValues(alpha: 0.08)),
+    );
+  }
 
   Widget _header(Work w, ColorScheme cs) {
     return Container(
