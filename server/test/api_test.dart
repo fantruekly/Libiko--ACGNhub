@@ -173,4 +173,47 @@ void main() {
     final list = await jsonOf(await call('GET', '/api/follows', token: b));
     expect(list['items'], isEmpty);
   });
+
+  test('sync returns changes after the given seq and a nextSeq cursor', () async {
+    final token = await registerToken('alice');
+    await call('PUT', '/api/follows',
+        token: token, body: {'work': {'id': 'w1'}, 'updatedAt': 100});
+
+    final first = await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
+    expect((first['follows'] as List), hasLength(1));
+    expect((first['follows'] as List).first['deleted'], false);
+    final next = first['nextSeq'] as int;
+    expect(next, greaterThan(0));
+
+    final second =
+        await jsonOf(await call('GET', '/api/sync?sinceSeq=$next', token: token));
+    expect(second['follows'], isEmpty);
+    expect(second['history'], isEmpty);
+  });
+
+  test('sync surfaces tombstones with deleted true', () async {
+    final token = await registerToken('alice');
+    await call('PUT', '/api/follows',
+        token: token, body: {'work': {'id': 'w1'}, 'updatedAt': 100});
+    await call('DELETE', '/api/follows/w1?updatedAt=200', token: token);
+
+    final sync = await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
+    final follows = sync['follows'] as List;
+    expect(follows, hasLength(1));
+    expect(follows.first['deleted'], true);
+    expect(follows.first['work']['id'], 'w1');
+  });
+
+  test('sync includes history with its fields', () async {
+    final token = await registerToken('alice');
+    await call('PUT', '/api/history', token: token, body: {
+      'work': {'id': 'w1'}, 'episodeTitle': '第3集', 'episodeIndex': 2,
+      'watchedAt': 100, 'updatedAt': 100,
+    });
+    final sync = await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
+    final history = sync['history'] as List;
+    expect(history, hasLength(1));
+    expect(history.first['episodeTitle'], '第3集');
+    expect(history.first['deleted'], false);
+  });
 }

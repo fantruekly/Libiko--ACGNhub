@@ -25,6 +25,7 @@ class Api {
       ..get('/api/history', _auth(_listHistory))
       ..put('/api/history', _auth(_putHistory))
       ..delete('/api/history', _auth(_clearHistory))
+      ..get('/api/sync', _auth(_sync))
       ..get('/api/me', _auth(_me));
     return Pipeline().addHandler(_guard(router.call));
   }
@@ -193,10 +194,15 @@ class Api {
     if (updatedAt == null) {
       return _error(400, 'bad_request', 'updatedAt query parameter is required');
     }
+    final userId = _ctxUserId(req);
+    final existing = db.getFollow(userId, workId);
+    final work = existing == null
+        ? const <String, dynamic>{}
+        : jsonDecode(existing['work_json'] as String) as Map<String, dynamic>;
     final row = db.upsertFollow(
-      userId: _ctxUserId(req),
+      userId: userId,
       workId: workId,
-      work: const {},
+      work: work,
       updatedAt: updatedAt,
       deleted: true,
     );
@@ -259,5 +265,35 @@ class Api {
     }
     final count = db.clearHistory(_ctxUserId(req), updatedAt);
     return _json(200, {'deleted': count});
+  }
+
+  Future<Response> _sync(Request req) async {
+    final userId = _ctxUserId(req);
+    final sinceSeq = int.tryParse(req.url.queryParameters['sinceSeq'] ?? '0') ?? 0;
+
+    final follows = db.followsSince(userId, sinceSeq).map((row) {
+      return {
+        'work': jsonDecode(row['work_json'] as String),
+        'updatedAt': row['client_updated_at'],
+        'deleted': (row['deleted'] as int) == 1,
+      };
+    }).toList();
+
+    final history = db.historySince(userId, sinceSeq).map((row) {
+      return {
+        'work': jsonDecode(row['work_json'] as String),
+        'episodeTitle': row['episode_title'],
+        'episodeIndex': row['episode_index'],
+        'watchedAt': row['watched_at'],
+        'updatedAt': row['client_updated_at'],
+        'deleted': (row['deleted'] as int) == 1,
+      };
+    }).toList();
+
+    return _json(200, {
+      'follows': follows,
+      'history': history,
+      'nextSeq': db.currentSeq(userId),
+    });
   }
 }
