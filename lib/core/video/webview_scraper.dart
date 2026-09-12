@@ -102,8 +102,14 @@ class WebviewScraper {
       } catch (_) {}
       await webview.setUserAgent(userAgent ?? kBrowserUserAgent);
 
+      var currentUrl = '';
+      subs.add(webview.url.listen((value) => currentUrl = value));
+
       subs.add(webview.loadingState.listen((state) {
-        if (state == LoadingState.navigationCompleted && !loaded.isCompleted) {
+        if (state == LoadingState.navigationCompleted &&
+            currentUrl.isNotEmpty &&
+            currentUrl != 'about:blank' &&
+            !loaded.isCompleted) {
           loaded.complete();
         }
       }));

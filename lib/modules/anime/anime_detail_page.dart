@@ -52,6 +52,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   List<RelatedWork>? _related;
   bool _loadingExtras = false;
   Timer? _searchTimer;
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
 
   @override
   void dispose() {
+    _disposed = true;
     _searchTimer?.cancel();
     super.dispose();
   }
@@ -583,6 +585,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     var next = 0;
     Future<void> worker() async {
       while (next < queue.length) {
+        if (_disposed) return;
         final r = queue[next];
         next++;
         await _searchOne(r, gen);
@@ -593,6 +596,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Future<void> _searchOne(_SourceResult r, int gen) async {
+    if (_disposed) return;
     try {
       final items =
           await r.source.search(_work.title).timeout(const Duration(seconds: 25));
@@ -701,6 +705,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       if (!mounted) return;
       messenger.showSnackBar(
           SnackBar(content: Text('规则无效：${e.message}')));
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+          const SnackBar(content: Text('导入失败，请重试')));
     }
   }
 
