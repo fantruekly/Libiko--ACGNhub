@@ -43,7 +43,7 @@ String buildSearchScript(SourceRule rule) => '''
       href: __attr(${jsonEncode(rule.searchResult)}, list[i], 'href')
     });
   }
-  return JSON.stringify(rows);
+  return rows;
 })()
 ''';
 
@@ -63,13 +63,27 @@ String buildEpisodesScript(SourceRule rule) => '''
       });
     }
   }
-  return JSON.stringify(out);
+  return out;
 })()
 ''';
 
 /// Loads a URL in a headless WebView and evaluates an extraction script.
 /// Mirrors [StreamResolver]'s lifecycle: create, run, load, dispose.
 class WebviewScraper {
+  /// Normalizes an `executeScript` result to a list. The webview returns the
+  /// decoded JSON value; accept a `List` directly and tolerate a JSON string.
+  @visibleForTesting
+  static List<dynamic> decodeResult(dynamic result) {
+    if (result is List) return result;
+    if (result is String) {
+      try {
+        final decoded = jsonDecode(result);
+        if (decoded is List) return decoded;
+      } catch (_) {}
+    }
+    return const <dynamic>[];
+  }
+
   Future<dynamic> fetchJson({
     required String url,
     required String script,
@@ -104,7 +118,8 @@ class WebviewScraper {
         } catch (_) {
           result = null;
         }
-        if (result is List && result.isNotEmpty) return result;
+        final list = decodeResult(result);
+        if (list.isNotEmpty) return list;
         if (attempt < attempts - 1) {
           await Future.delayed(const Duration(milliseconds: 600));
         }
