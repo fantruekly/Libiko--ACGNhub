@@ -368,7 +368,7 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
 class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
 ```
 
-Replace the two remaining `widget.title` uses with `widget.work.title`.
+Replace the single remaining `widget.title` use (in the top button bar's `Text`) with `widget.work.title`.
 
 In `_playIndex`, after `await _player.open(Media(url));` add:
 

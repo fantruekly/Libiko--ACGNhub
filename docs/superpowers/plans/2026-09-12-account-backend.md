@@ -80,7 +80,7 @@ Create `server/test/database_test.dart`:
 
 ```dart
 import 'package:acgnhub_server/src/database.dart';
-import 'package:sqlite3/sqlite3.dart';
+import 'package:sqlite3/sqlite3.dart' hide Database;
 import 'package:test/test.dart';
 
 void main() {
@@ -120,25 +120,30 @@ Expected: FAIL — `database.dart` not found.
 import 'dart:ffi';
 import 'dart:io';
 
+import 'package:sqlite3/common.dart';
 import 'package:sqlite3/open.dart';
-import 'package:sqlite3/sqlite3.dart';
+import 'package:sqlite3/sqlite3.dart' hide Database;
+
+void _overrideWindowsSqlite() {
+  if (Platform.isWindows) {
+    open.overrideFor(
+        OperatingSystem.windows, () => DynamicLibrary.open('winsqlite3.dll'));
+  }
+}
 
 class Database {
   Database._(this._db);
 
-  final sqlite3.Database _db;
+  final CommonDatabase _db;
 
   static Database open(String path) {
-    if (Platform.isWindows) {
-      open.overrideFor(
-          OperatingSystem.windows, () => DynamicLibrary.open('winsqlite3.dll'));
-    }
+    _overrideWindowsSqlite();
     final db = sqlite3.open(path);
     _migrate(db);
     return Database._(db);
   }
 
-  static void _migrate(sqlite3.Database db) {
+  static void _migrate(CommonDatabase db) {
     db.execute('''
       CREATE TABLE IF NOT EXISTS users (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -430,22 +435,27 @@ Add inside `class Database` (after `_bumpSeq`):
 
   int clearHistory(int userId, int updatedAt) {
     final rows = _db.select(
-        'SELECT work_id FROM history WHERE user_id = ? AND deleted = 0', [userId]);
+        'SELECT work_id, work_json, episode_title, episode_index, watched_at, '
+        'client_updated_at FROM history WHERE user_id = ? AND deleted = 0',
+        [userId]);
     for (final row in rows) {
+      final stored = row['client_updated_at'] as int;
       upsertHistory(
         userId: userId,
         workId: row['work_id'] as String,
-        work: const {},
-        episodeTitle: '',
-        episodeIndex: 0,
-        watchedAt: 0,
-        updatedAt: updatedAt,
+        work: jsonDecode(row['work_json'] as String) as Map<String, dynamic>,
+        episodeTitle: row['episode_title'] as String,
+        episodeIndex: row['episode_index'] as int,
+        watchedAt: row['watched_at'] as int,
+        updatedAt: updatedAt > stored ? updatedAt : stored + 1,
         deleted: true,
       );
     }
     return rows.length;
   }
 ```
+
+Note two things about `clearHistory`: it must force the tombstone past the LWW guard (`stored + 1` when the stored timestamp is newer), and it must **preserve each row's payload** (`work_json` and the history fields) so a client receiving the tombstone via `/api/sync` can identify which work it refers to.
 
 Add `import 'dart:convert';` at the top of the file.
 
@@ -610,7 +620,7 @@ git commit -m "feat(server): add bcrypt hashing and JWT issuing/verification"
 
 **Interfaces:**
 - Consumes: `Database` (Tasks 1–2), `Auth` (Task 3).
-- Produces: `class Api { Api(Database db, Auth auth); Handler get handler; }` plus `@visibleForTesting static const jsonHeaders`.
+- Produces: `class Api { Api(Database db, Auth auth); final Database db; final Auth auth; Handler get handler; }`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1050,10 +1060,15 @@ Add these handlers (before the closing brace of `class Api`):
     if (updatedAt == null) {
       return _error(400, 'bad_request', 'updatedAt query parameter is required');
     }
+    final userId = _ctxUserId(req);
+    final existing = db.getFollow(userId, workId);
+    final work = existing == null
+        ? const <String, dynamic>{}
+        : jsonDecode(existing['work_json'] as String) as Map<String, dynamic>;
     final row = db.upsertFollow(
-      userId: _ctxUserId(req),
+      userId: userId,
       workId: workId,
-      work: const {},
+      work: work,
       updatedAt: updatedAt,
       deleted: true,
     );
@@ -1315,7 +1330,11 @@ COPY . .
 RUN dart pub get --offline
 
 FROM dart:stable
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libsqlite3-0 \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+COPY --from=build /root/.pub-cache /root/.pub-cache
 COPY --from=build /app /app
 ENV PORT=8080
 ENV ACGHUB_DB_PATH=/data/acgnhub.db
@@ -1323,6 +1342,16 @@ VOLUME /data
 EXPOSE 8080
 CMD ["dart", "run", "bin/server.dart"]
 ```
+
+Also create `server/.dockerignore`:
+
+```
+.dart_tool/
+data/
+test/
+```
+
+The runtime stage must copy the build stage's pub cache and install `libsqlite3-0` (the `sqlite3` package only overrides the Windows library), otherwise `dart run` cannot resolve dependencies or open the database.
 
 - [ ] **Step 3: Analyze**
 
