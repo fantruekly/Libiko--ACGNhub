@@ -187,7 +187,7 @@ git commit -m "feat(video): add Kazumi-compatible SourceRule model"
 
 **Interfaces:**
 - Consumes: `SourceRule` (Task 1).
-- Produces: `const String kBrowserUserAgent`; `String buildSearchScript(SourceRule rule)`; `String buildEpisodesScript(SourceRule rule)`; `class WebviewScraper { Future<dynamic> fetchJson({required String url, required String script, String? userAgent, Duration timeout, int attempts}); }`.
+- Produces: `const String kBrowserUserAgent`; `String buildSearchScript(SourceRule rule)`; `String buildEpisodesScript(SourceRule rule)`; `class WebviewScraper { static List<dynamic> decodeResult(dynamic result); Future<dynamic> fetchJson({required String url, required String script, String? userAgent, Duration timeout, int attempts}); }`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -216,14 +216,26 @@ void main() {
     expect(js, contains('"//div[2]/div[2]/div[2]/div[2]/div"'));
     expect(js, contains('"//div[2]/text()"'));
     expect(js, contains('"//a"'));
-    expect(js, contains('JSON.stringify'));
+    expect(js, contains('return rows;'));
+    expect(js, isNot(contains('JSON.stringify')));
   });
 
-  test('buildEpisodesScript embeds the chapter XPaths and returns JSON', () {
+  test('buildEpisodesScript embeds the chapter XPaths and returns an array', () {
     final js = buildEpisodesScript(_rule);
     expect(js, contains('"//div[2]/div[2]/div[2]/div/div[2]/div[1]//div"'));
     expect(js, contains('"//a"'));
-    expect(js, contains('JSON.stringify'));
+    expect(js, contains('return out;'));
+    expect(js, isNot(contains('JSON.stringify')));
+  });
+
+  test('decodeResult passes a list through and decodes a JSON string', () {
+    expect(WebviewScraper.decodeResult([
+      {'name': 'a'}
+    ]), hasLength(1));
+    expect(WebviewScraper.decodeResult('[{"name":"a"}]'), hasLength(1));
+    expect(WebviewScraper.decodeResult('"oops"'), isEmpty);
+    expect(WebviewScraper.decodeResult(null), isEmpty);
+    expect(WebviewScraper.decodeResult('not json'), isEmpty);
   });
 }
 ```
@@ -281,7 +293,7 @@ String buildSearchScript(SourceRule rule) => '''
       href: __attr(${jsonEncode(rule.searchResult)}, list[i], 'href')
     });
   }
-  return JSON.stringify(rows);
+  return rows;
 })()
 ''';
 
@@ -301,13 +313,27 @@ String buildEpisodesScript(SourceRule rule) => '''
       });
     }
   }
-  return JSON.stringify(out);
+  return out;
 })()
 ''';
 
 /// Loads a URL in a headless WebView and evaluates an extraction script.
 /// Mirrors [StreamResolver]'s lifecycle: create, run, load, dispose.
 class WebviewScraper {
+  /// Normalizes an `executeScript` result to a list. The webview returns the
+  /// decoded JSON value; accept a `List` directly and tolerate a JSON string.
+  @visibleForTesting
+  static List<dynamic> decodeResult(dynamic result) {
+    if (result is List) return result;
+    if (result is String) {
+      try {
+        final decoded = jsonDecode(result);
+        if (decoded is List) return decoded;
+      } catch (_) {}
+    }
+    return const <dynamic>[];
+  }
+
   Future<dynamic> fetchJson({
     required String url,
     required String script,
@@ -342,7 +368,8 @@ class WebviewScraper {
         } catch (_) {
           result = null;
         }
-        if (result is List && result.isNotEmpty) return result;
+        final list = decodeResult(result);
+        if (list.isNotEmpty) return list;
         if (attempt < attempts - 1) {
           await Future.delayed(const Duration(milliseconds: 600));
         }
@@ -368,7 +395,7 @@ class WebviewScraper {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart`
-Expected: PASS (2 tests).
+Expected: PASS (3 tests).
 
 - [ ] **Step 5: Verify it compiles**
 
