@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:acgnhub/core/video/rule_store.dart';
 import 'package:acgnhub/core/video/source_rule.dart';
 
@@ -48,6 +49,10 @@ void main() {
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));
     expect(files, hasLength(5));
+    expect(
+      files.map((f) => p.basename(f.path)).toList(),
+      ['7sefun.json', 'MXdm.json', 'akianime.json', 'ezdmw.json', 'gugu3.json'],
+    );
     for (final file in files) {
       final rule = SourceRule.fromJsonString(await file.readAsString());
       expect(rule.name, isNotEmpty, reason: file.path);

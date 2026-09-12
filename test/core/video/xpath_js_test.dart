@@ -18,6 +18,10 @@ void main() {
     final js = buildSearchScript(_rule);
     expect(js, contains('document.evaluate'));
     expect(js, contains('function __rel('));
+    expect(
+      js,
+      contains("return xpath.indexOf('//') === 0 ? '.' + xpath : xpath;"),
+    );
     expect(js, contains('__ev("//div[2]/div[2]/div[2]/div[2]/div", document)'));
     expect(js, contains('__txt(__rel("//div[2]/text()"), list[i])'));
     expect(js, contains('__attr(__rel("//a"), list[i], \'href\')'));
