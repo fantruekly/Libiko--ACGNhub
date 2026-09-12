@@ -11,7 +11,10 @@ void main() {
           'title_english': 'Frieren: Beyond Journey\'s End',
           'title_japanese': '葬送のフリーレン',
           'images': {
-            'jpg': {'image_url': 'https://cdn/x.jpg', 'large_image_url': 'https://cdn/x-l.jpg'},
+            'jpg': {
+              'image_url': 'https://cdn/x.jpg',
+              'large_image_url': 'https://cdn/x-l.jpg'
+            },
           },
           'synopsis': '<p>A mage <i>journeys</i>.</p>',
           'genres': [

@@ -14,7 +14,10 @@ class AniListProvider implements MetadataProvider {
             Dio(BaseOptions(
               connectTimeout: const Duration(seconds: 20),
               receiveTimeout: const Duration(seconds: 20),
-              headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
             ));
 
   @override
@@ -38,8 +41,10 @@ class AniListProvider implements MetadataProvider {
     studios(isMain: true) { nodes { name } }
   ''';
 
-  Future<Map<String, dynamic>> _post(String query, [Map<String, dynamic>? variables]) async {
-    final res = await _dio.post(_endpoint, data: {'query': query, 'variables': variables ?? {}});
+  Future<Map<String, dynamic>> _post(String query,
+      [Map<String, dynamic>? variables]) async {
+    final res = await _dio
+        .post(_endpoint, data: {'query': query, 'variables': variables ?? {}});
     final body = res.data as Map<String, dynamic>;
     if (body['errors'] != null) {
       throw Exception('AniList error: ${body['errors']}');
@@ -63,7 +68,12 @@ class AniListProvider implements MetadataProvider {
           'query(\$page:Int,\$perPage:Int,\$season:MediaSeason,\$seasonYear:Int){'
           'Page(page:\$page,perPage:\$perPage){media(type:ANIME,season:\$season,'
           'seasonYear:\$seasonYear,sort:POPULARITY_DESC,isAdult:false){$_media}}}',
-          {'page': page, 'perPage': perPage, 'season': season, 'seasonYear': year},
+          {
+            'page': page,
+            'perPage': perPage,
+            'season': season,
+            'seasonYear': year
+          },
         );
         return parsePage(data);
       case AnimeFeed.today:
@@ -134,7 +144,8 @@ class AniListProvider implements MetadataProvider {
     final page = data['Page'] as Map<String, dynamic>?;
     final schedules = (page?['airingSchedules'] as List<dynamic>?) ?? [];
     return schedules
-        .map((s) => parseMedia((s as Map<String, dynamic>)['media'] as Map<String, dynamic>))
+        .map((s) => parseMedia(
+            (s as Map<String, dynamic>)['media'] as Map<String, dynamic>))
         .toList();
   }
 
@@ -143,10 +154,11 @@ class AniListProvider implements MetadataProvider {
     final id = m['id'] as int;
     final title = (m['title'] as Map<String, dynamic>?) ?? {};
     final cover = m['coverImage'] as Map<String, dynamic>?;
-    final studios = ((m['studios'] as Map<String, dynamic>?)?['nodes'] as List<dynamic>?)
-            ?.map((s) => (s as Map<String, dynamic>)['name'] as String)
-            .toList() ??
-        [];
+    final studios =
+        ((m['studios'] as Map<String, dynamic>?)?['nodes'] as List<dynamic>?)
+                ?.map((s) => (s as Map<String, dynamic>)['name'] as String)
+                .toList() ??
+            [];
     final native = title['native'] as String?;
     final romaji = title['romaji'] as String?;
     final english = title['english'] as String?;

@@ -53,5 +53,6 @@ class Work {
 
   int? get anilistId => extra['anilistId'] as int?;
   int? get malId => extra['malId'] as int?;
+  int? get bangumiId => extra['bangumiId'] as int?;
   String? get bannerUrl => extra['bannerUrl'] as String?;
 }

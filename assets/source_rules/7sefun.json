@@ -1,0 +1,17 @@
+{
+  "api": "4",
+  "type": "anime",
+  "name": "七色番",
+  "version": "1.3",
+  "muliSources": true,
+  "useWebview": true,
+  "useNativePlayer": true,
+  "userAgent": "",
+  "baseURL": "https://www.7sefun.top/",
+  "searchURL": "https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword",
+  "searchList": "//div[@class='videos']/div",
+  "searchName": ".//div[@class='video-by']/text()",
+  "searchResult": ".//a[@class='video-wrapper']",
+  "chapterRoads": "//div[contains(@class,'vod-play-list-container')]",
+  "chapterResult": ".//a"
+}

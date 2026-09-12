@@ -1,114 +1,158 @@
-# Task 2 Report: Make Bangumi primary + generalize the breaker
+# Task 2 Report: `WebviewScraper` + XPath→JS script builders
 
-**Status:** DONE_WITH_CONCERNS
+## Status
+DONE
 
-## What was implemented
-Made `BangumiProvider` the first metadata provider and replaced the single
-AniList-only circuit breaker with a per-provider transient-disable map.
+## What I implemented
+- `lib/core/video/webview_scraper.dart`, exactly as specified in the brief:
+  - `const String kBrowserUserAgent` (Chrome 120 desktop UA).
+  - `String buildSearchScript(SourceRule rule)` — emits an IIFE embedding the rule's
+    `searchList`/`searchName`/`searchResult` XPaths via `jsonEncode`, uses `document.evaluate`
+    helpers (`__ev`/`__txt`/`__attr`), and returns `JSON.stringify` of `[{name, href}]`.
+  - `String buildEpisodesScript(SourceRule rule)` — emits an IIFE embedding
+    `chapterRoads`/`chapterResult`, scoping the result query to the first road element,
+    returning `JSON.stringify` of `[{title, href}]`.
+  - `class WebviewScraper.fetchJson(...)` — headless WebView lifecycle mirroring
+    `StreamResolver`: `HeadlessWebview()` → `run()` → `setPopupWindowPolicy(deny)` →
+    `setUserAgent(...)` → subscribe `loadingState` for `navigationCompleted` → `loadUrl` →
+    wait with `timeout` → retry `executeScript` up to `attempts` times (600ms backoff) →
+    dispose in `finally`. Returns the extracted `List`, `const <dynamic>[]` when empty, or
+    `null` on failure.
+- `test/core/video/xpath_js_test.dart` — the brief's 2 unit tests, verbatim.
 
-- `lib/core/metadata/metadata_service.dart`
-  - Added `import 'bangumi_provider.dart';`.
-  - Added `final MetadataProvider bangumi;` field.
-  - Constructor now accepts `MetadataProvider? bangumi` (defaults to
-    `BangumiProvider()`) and defines `_intervals` with a `'bangumi': 300ms`
-    entry.
-  - Replaced `DateTime? _anilistDisabledUntil` with
-    `final Map<String, DateTime> _disabledUntil = {}` plus
-    `List<MetadataProvider> get _providers => [bangumi, anilist, jikan];`.
-  - Rewrote `_run<T>` to filter out providers whose disable window has not
-    elapsed, fall back to the full list if all are disabled, and record/clear
-    the breaker per provider id (`_disabledUntil[provider.id]`).
-- `test/core/metadata/metadata_service_test.dart`
-  - Added the `bangumi_provider.dart` import.
-  - `_service` helper now takes a `bangumi` parameter and defaults it to a
-    failing `_FakeProvider('bangumi', fail: true)`.
-  - Added test `tries Bangumi first, then falls back`.
+`SourceRule` was not modified.
+
+## What I tested and results
+- Focused test: `flutter test test/core/video/xpath_js_test.dart` → **2 tests passed**.
+- Full suite: `flutter test` → **55 tests passed**.
+- Static analysis: `flutter analyze lib test` → **No issues found!**
+
+The `WebviewScraper` runtime path is not unit-testable under `flutter test` (needs the
+Windows runner/WebView2), per the brief. It is verified to compile and type-check via
+`flutter analyze`.
 
 ## TDD evidence
 
 ### RED
-Command: `flutter test test/core/metadata/metadata_service_test.dart`
-Output (failing, compile error):
+Command:
 ```
-test/core/metadata/metadata_service_test.dart:108:5: Error: No named parameter with the name 'bangumi'.
-    bangumi: bangumi ?? _FakeProvider('bangumi', fail: true),
-    ^^^^^^^
-lib/core/metadata/metadata_service.dart:34:3: Context: Found this candidate, but the arguments don't match.
-  MetadataService({
-  ^^^^^^^^^^^^^^^
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart
+```
+Output (excerpt):
+```
+test/core/video/xpath_js_test.dart:3:8: Error: Error when reading 'lib/core/video/webview_scraper.dart': 系统找不到指定的文件。
+import 'package:acgnhub/core/video/webview_scraper.dart';
+test/core/video/xpath_js_test.dart:18:16: Error: Method not found: 'buildSearchScript'.
+test/core/video/xpath_js_test.dart:27:16: Error: Method not found: 'buildEpisodesScript'.
+00:00 +0 -1: loading D:/ACGNhub/test/core/video/xpath_js_test.dart [E]
+  Failed to load "D:/ACGNhub/test/core/video/xpath_js_test.dart":
+  Compilation failed for testPath=D:/ACGNhub/test/core/video/xpath_js_test.dart
 00:00 +0 -1: Some tests failed.
 ```
+Why expected: `webview_scraper.dart` and both builder functions did not exist yet, so the
+test could not compile — proving the test exercises the missing feature rather than passing
+against pre-existing code.
 
 ### GREEN
-Command: `flutter test test/core/metadata/metadata_service_test.dart`
-Output (passing):
+Command:
 ```
-00:00 +0: tries Bangumi first, then falls back
-00:00 +1: falls back to Jikan when AniList fails, then skips AniList for 10 min
-00:00 +2: caches identical calls for 5 minutes
-00:00 +3: invalidate forces a refetch
-00:00 +4: serializes Jikan calls (no overlap)
-00:00 +5: retries transient provider failures
-00:01 +6: returns disk-cached feed when all providers fail
-00:01 +7: returns seed when all providers fail and no cache
-00:01 +8: All tests passed!
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart
 ```
-
-Full suite: `flutter test` → `00:04 +37: All tests passed!`
+Output:
+```
+00:00 +0: buildSearchScript embeds the search XPaths and returns JSON
+00:00 +1: buildEpisodesScript embeds the chapter XPaths and returns JSON
+00:00 +2: All tests passed!
+```
 
 ## Files changed
-- `lib/core/metadata/metadata_service.dart` (+? / -?): see diff — new
-  `bangumi` field/param, per-provider `_disabledUntil` map, rewritten `_run`.
-- `test/core/metadata/metadata_service_test.dart` (+14 / -0): import, `_service`
-  helper update, new ordering test.
+- Added `lib/core/video/webview_scraper.dart` (127 lines).
+- Added `test/core/video/xpath_js_test.dart` (31 lines).
+
+Commit:
+- `e504d96` feat(video): add headless webview scraper and XPath-to-JS builders
 
 ## Self-review findings
-- Implementation matches the brief's Step 3 code verbatim.
-- `_run` behavior verified against every existing test: default failing Bangumi
-  is transparently skipped so `anilist`/`jikan` call-count assertions hold; the
-  per-provider breaker disables AniList for 1 minute (re-enabled after the
-  11-minute jump) exactly as before.
-- `anime_detail_page_test.dart` still constructs `MetadataService` with only
-  `anilist`/`jikan`; the now-default real `BangumiProvider` fails fast (the test
-  work has no `bangumiId`, so `detail` throws `StateError`, not a retried
-  `DioException`). Full suite passes, no timeout.
-- `flutter analyze` on the two files reports 1 warning: the
-  `bangumi_provider.dart` import added to the test file is unused (the test uses
-  `_FakeProvider('bangumi')`, not `BangumiProvider`). This import was specified
-  verbatim in the brief, so it was kept as instructed rather than removed.
+- Completeness: all Produces interfaces (`kBrowserUserAgent`, `buildSearchScript`,
+  `buildEpisodesScript`, `WebviewScraper.fetchJson`) are present with the specified
+  signatures. `SourceRule` untouched.
+- Verbatim fidelity: implementation and test match the brief character-for-character.
+- Quality: lifecycle, subscription cancellation, and dispose are wrapped defensively like
+  the existing `StreamResolver`; no leaks of the WebView on any path.
+- YAGNI: no extra parameters, classes, or speculative features added.
+- Tests verify real behavior: they assert that the generated JS actually embeds the exact
+  quoted XPaths (via `jsonEncode`) and calls `document.evaluate`/`JSON.stringify`. The
+  assertions are string-`contains` based, as mandated by the brief — they confirm the
+  builder output shape but do not execute the JS. Runtime extraction correctness depends on
+  Task 3 / manual Windows-runner validation.
 
 ## Concerns
-- The test file's `import 'package:acgnhub/core/metadata/bangumi_provider.dart';`
-  is unused and produces an analyzer warning. Recommend removing it in a
-  follow-up unless a later task adds a direct `BangumiProvider` reference to the
-  test.
+- `WebviewScraper.fetchJson` is not exercised by any automated test (inherent: headless
+  WebView2 requires the Windows runner). Its runtime behavior (navigation-completed timing,
+  `executeScript` decoding of the returned JSON string into a `List`, retry semantics) is
+  unverified until Task 3 or a manual run.
+- `executeScript` is assumed to auto-decode the `JSON.stringify` payload into a `List`
+  (consistent with `webview_windows` behavior and the brief's `result is List` check); if
+  it instead returns a `String`, the scraper would return `const <dynamic>[]`. Worth
+  confirming in Task 3 integration.
+- The test file's path in the brief is `test/core/video/xpath_js_test.dart`, while the
+  task's Context mentions tests live in `test/core/video/` — consistent, no conflict.
 
-## Fix: unused import
+## Fix report
 
-Removed the unused `import 'package:acgnhub/core/metadata/bangumi_provider.dart';`
-line from `test/core/metadata/metadata_service_test.dart`. The test uses
-`_FakeProvider('bangumi')`, not `BangumiProvider`, so the import made
-`flutter analyze` fail. No other changes were made.
+### What changed
+Confirmed bug: `buildSearchScript`/`buildEpisodesScript` returned `JSON.stringify(...)`,
+i.e. a JS **string**. `HeadlessWebview.executeScript` returns the WebView2 JSON result
+already decoded by `json.decode`, so a JS string arrives as a Dart `String`, never a
+`List`; `fetchJson`'s `result is List` check always failed and it always returned `[]`.
 
-### Commands and output
+- `lib/core/video/webview_scraper.dart`
+  1. `buildSearchScript`: `return JSON.stringify(rows);` → `return rows;`.
+  2. `buildEpisodesScript`: `return JSON.stringify(out);` → `return out;`.
+  3. Added `@visibleForTesting static List<dynamic> WebviewScraper.decodeResult(dynamic)`
+     — returns a `List` as-is, tolerates a JSON string that decodes to a list, otherwise
+     returns `const <dynamic>[]`.
+  4. `fetchJson` retry loop: `if (result is List && result.isNotEmpty) return result;` →
+     `final list = decodeResult(result); if (list.isNotEmpty) return list;`.
+  - `document.evaluate` and `jsonEncode`-embedded XPaths left unchanged.
+- `test/core/video/xpath_js_test.dart`
+  - Replaced the two `contains('JSON.stringify')` assertions with array-return contract
+    assertions (`return rows;` / `return out;` plus `isNot(contains('JSON.stringify'))`).
+  - Added 4 `decodeResult` unit tests: `List` as-is, JSON string → list, non-list JSON
+    string → empty, `null`/non-JSON string → empty.
 
-`flutter analyze test/core/metadata/metadata_service_test.dart`
+### Commands run and output
+1. Focused test:
 ```
-Analyzing metadata_service_test.dart...
-No issues found! (ran in 0.9s)
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart
+```
+```
+00:00 +0: loading D:/ACGNhub/test/core/video/xpath_js_test.dart
+00:00 +0: buildSearchScript embeds the search XPaths and returns JSON
+00:00 +1: buildEpisodesScript embeds the chapter XPaths and returns JSON
+00:00 +2: decodeResult returns a List as-is
+00:00 +3: decodeResult decodes a JSON string to a list
+00:00 +4: decodeResult returns empty for a non-list JSON string
+00:00 +5: decodeResult returns empty for null and non-JSON strings
+00:00 +6: All tests passed!
 ```
 
-`flutter test test/core/metadata/metadata_service_test.dart`
+2. Static analysis:
 ```
-00:00 +0: tries Bangumi first, then falls back
-00:00 +1: falls back to Jikan when AniList fails, then skips AniList for 10 min
-00:00 +2: caches identical calls for 5 minutes
-00:00 +3: invalidate forces a refetch
-00:00 +4: serializes Jikan calls (no overlap)
-00:00 +5: retries transient provider failures
-00:01 +6: returns disk-cached feed when all providers fail
-00:01 +7: returns seed when all providers fail and no cache
-00:01 +8: All tests passed!
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+```
+```
+Analyzing 2 items...
+No issues found! (ran in 1.5s)
 ```
 
-Commit: `fix(test): drop unused import in metadata service test`
+3. Full suite:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+```
+```
+00:06 +59: All tests passed!
+```
+
+### Commit
+- `5a79918` fix(video): return extraction arrays directly so executeScript decodes to a list

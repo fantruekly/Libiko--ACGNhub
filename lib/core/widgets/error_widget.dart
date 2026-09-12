@@ -18,7 +18,9 @@ class AppErrorWidget extends StatelessWidget {
         children: [
           const Icon(Icons.error_outline, color: Colors.red, size: 48),
           const SizedBox(height: 16),
-          Text(message, style: const TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+          Text(message,
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center),
           if (onRetry != null) ...[
             const SizedBox(height: 16),
             ElevatedButton(onPressed: onRetry, child: const Text('閲嶈瘯')),

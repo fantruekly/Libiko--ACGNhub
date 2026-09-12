@@ -1,198 +1,84 @@
-# Task 5 Report: Add metadata Riverpod providers
-
-## Status
-DONE
+# Task 5 Report: Detail-page resource section
 
 ## What I implemented
-Added two new Riverpod providers to `lib/modules/anime/anime_providers.dart`, exactly as specified in the brief, while leaving all existing providers untouched:
 
-- Imports added:
-  - `../../core/metadata/metadata_provider.dart` (for `AnimeFeed`)
-  - `../../core/metadata/metadata_service.dart` (for `MetadataService`)
-- `metadataServiceProvider` (`Provider<MetadataService>`) — constructs a `MetadataService`.
-- `animeFeedProvider` (`FutureProvider.family<List<Work>, AnimeFeed>`) — watches `metadataServiceProvider` and calls `feed(feed)`.
+Replaced the anime detail page's per-source 播放源 block with an aggregated 播放资源 section, applying the brief's edits verbatim to `lib/modules/anime/anime_detail_page.dart`.
 
-Both new providers were inserted immediately after `animeSourceListProvider`. Existing `sourceManagerProvider`, `animeSourceListProvider`, `trendingAnimeProvider`, and `bangumiServiceProvider` are unchanged (to be removed in Task 9).
+- **Imports**: removed `agedm_source.dart` / `gimy_source.dart`; added `stream_resolver.dart` and `video_sources.dart` alongside the existing `video_source.dart`.
+- **Top-level types**: added `_SourceStatus { loading, done, failed }` and `_SourceResult` (source, status, items, seq).
+- **State fields**: removed `_sources`, `_sourceIndex`, `_videoResults`, `_videoEpisodes`, `_videoLoading`, `_videoError`, `_videoGen`, `_selectedItem`, `_retry`; added `_sourceResults`, `_searchGen`, `_searchSeq`, `_expandedItem`, `_expandedSource`, `_episodes`, `_episodesLoading`, `_episodesError`.
+- **Auto-search**: `_load()` now calls `_scheduleSearch()`, which after a 300 ms delay invokes `_searchAllSources()`. That reads `videoSourcesProvider`, resets per-source result state, and fans out across all sources with a concurrency cap of 3 workers. Each `_searchOne` applies a 25 s timeout, guards with `mounted` + generation, and records done/failed plus a completion sequence.
+- **Flattening**: `_flatResults` yields `(VideoItem, VideoSource)` tuples ordered by source completion sequence.
+- **Expansion**: `_expandItem` toggles a card, lazily loads episodes, and supports retry; `_playEpisode` shows a modal spinner, resolves via `StreamResolver`, surfaces `无法解析播放地址` on failure, and pushes `VideoPlayerPage`.
+- **UI**: `_playSection` renders a GlassSurface header (`播放资源`, live `搜索中 n/total` or `共 n 条` counter, refresh button) and the aggregated cards. `_resourceCard` renders a 52 px bar (matched title left, source-name chip right) that expands to `_episodeArea`, which shows loading / error+retry / empty / episode-button states.
 
-## Verification
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib/modules/anime/anime_providers.dart
-```
-Result:
-```
-Analyzing anime_providers.dart...
-No issues found! (ran in 0.7s)
-```
+Old `_playSection`, `_resultList`, `_episodeGrid`, `_searchVideos`, `_loadEpisodes`, `_playEpisode` (and all old state fields) were fully removed.
+
+## What I verified
+
+- `flutter analyze lib` → `No issues found! (ran in 1.5s)`
+- `flutter build windows --debug` → `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (14.4 s; only a pre-existing CMake CMP0175 dev warning from `webview_windows`)
+- Grep confirmed no remaining references to any removed field/method (`_sources`, `_sourceIndex`, `_videoResults`, `_videoEpisodes`, `_videoLoading`, `_videoError`, `_videoGen`, `_selectedItem`, `_retry`, `_searchVideos`, `_loadEpisodes`, `_resultList`, `_episodeGrid`, `AgedmSource`, `GimySource`) outside the `video_sources.dart` import substring.
 
 ## Files changed
-- `lib/modules/anime/anime_providers.dart` (+8 lines)
 
-## Commit
-- `afc67b7` feat(anime): expose metadata service and feed provider
-
-Only the specified file was staged/committed. Other pre-existing working-tree modifications (`.superpowers/sdd/*`, untracked docs) were left untouched.
+- `lib/modules/anime/anime_detail_page.dart` (328 insertions, 193 deletions)
 
 ## Self-review findings
-- Imports match the brief verbatim.
-- Provider signatures match the interfaces: `Provider<MetadataService>` and `FutureProvider.family<List<Work>, AnimeFeed>`.
-- `Work` was already imported, so no duplicate import.
-- `AnimeFeed` is correctly sourced from `metadata_provider.dart`; `flutter analyze` reports no unused-import warnings.
-- Placement after `animeSourceListProvider` is as requested.
-- Existing providers untouched.
+
+- No dead code: every new method/field is referenced (`_scheduleSearch`, `_searchAllSources`, `_searchOne`, `_flatResults`, `_expandItem`, `_playEpisode`, `_playSection`, `_resourceCard`, `_episodeArea`, `_expandedSource`, `_searchSeq`, `_SourceResult.seq`).
+- Removed the now-unused `Work w` usage only where appropriate; `_playSection` keeps its `(Work w, ColorScheme cs)` signature (called from `_overviewTab`).
+- Concurrency, generation-guard, and mounted-guard patterns match the brief and existing conventions.
+- 2-space indentation and no added comments, per project convention.
 
 ## Concerns
-- None. No unit test is required for this task; `flutter analyze` is clean.
 
-## Final review fixes
+- If `videoSourcesProvider` throws (e.g. rule store failure), `_searchAllSources` returns silently and the section shows `正在准备播放源…` indefinitely with no retry affordance. This matches the brief's code exactly; noting it as a minor UX edge case for a future task.
 
-Applied three code-review fixes for the anime detail-page feature.
+## Fix report
 
-1. **Fix 1 (Important) — basic-info chips + status translation test.**
-   Added `shows basic-info chips including translated status` to
-   `test/modules/anime/anime_detail_page_test.dart`, asserting `12 话`, `2024`,
-   `已完结` (from `Finished Airing`), and `TV` render.
+### What changed
 
-2. **Fix 2 (Minor) — RatingStars boundary tests.**
-   Added `clamps scores above 10` (score 20 → 5 full stars, label `10.0`) and
-   `below the half threshold shows no half star` (score 8.4 → 4 full, 0 half,
-   1 outline) to `test/core/widgets/rating_stars_test.dart`.
+Fixed a review finding where the episode error UI's `重试` button called `_expandItem(item, source)` with `item` already equal to `_expandedItem`. `_expandItem` begins with `if (identical(_expandedItem, item))` and takes the toggle-**collapse** branch, so the retry cleared the error and collapsed the card instead of re-fetching episodes.
 
-3. **Fix 3 (Minor) — strip HTML from seed synopsis.**
-   In `tool/gen_seed.ps1`, the loop now computes
-   `$summary = $it.synopsis; if ($summary) { $summary = ($summary -replace '<[^>]+>', '').Trim() }`
-   and the `summary` field writes `$summary`. Generator was not re-run.
+- Extracted the episode fetch into a new `_loadEpisodes(VideoItem item, VideoSource source)` method that sets `_expandedSource`, clears `_episodes`/`_episodesError`, sets `_episodesLoading = true`, awaits `source.episodes(item.detailUrl)`, and applies the existing `mounted` + `identical(_expandedItem, item)` guards on both the success and error paths.
+- Rewrote `_expandItem` to: collapse (clearing `_expandedItem`, `_expandedSource`, `_episodes`, `_episodesError`, `_episodesLoading`) when the tapped item is already expanded; otherwise `setState(() => _expandedItem = item)` and `await _loadEpisodes(item, source)`.
+- Changed the episode-area retry `TextButton`'s `onPressed` to call `_loadEpisodes(item, source)` instead of `_expandItem(item, source)`.
+- In `_searchAllSources`, the results reset now also sets `_expandedSource = null;` alongside the existing `_expandedItem = null;`.
 
-### Verification
+No other behavior changed.
 
-Command:
+### Commands run and output
+
+`$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib`
+
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
-```
-Output:
-```
-Analyzing 2 items...
-No issues found! (ran in 1.2s)
+Analyzing lib...
+No issues found! (ran in 1.5s)
 ```
 
-Command:
+`$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
+
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
-```
-Output:
-```
-00:01 +32: All tests passed!
+Building Windows application...                                    13.2s
+√ Built build\windows\x64\runner\Debug\acgnhub.exe
 ```
 
-## Final review fixes
+(Only the pre-existing CMake CMP0175 dev warning from `webview_windows` was emitted.)
 
-Applied four code-review fixes for the Bangumi metadata feature.
+### Control-flow trace
 
-1. **Fix 1 (Critical) — stop feed pagination.** In
-   `lib/core/metadata/bangumi_provider.dart`, `feed` now returns `const []`
-   for `page > 1`, so the non-paginated `/calendar` endpoint no longer repeats
-   the same list forever under infinite scroll.
+**Retry button while expanded and in the error state:**
 
-2. **Fix 2 (Important) — inject a clock and test `feed`.** Added a
-   `DateTime Function() _now` field/param to `BangumiProvider` (defaults to
-   `DateTime.now`) and used `_now().weekday` in the `AnimeFeed.today` case.
-   Added a `_FakeAdapter` (dio `HttpClientAdapter`) plus a `feed(...)` test to
-   `test/core/metadata/bangumi_provider_test.dart` covering injected-weekday
-   filtering, `page > 1` being empty, and trending score sort.
+1. `_episodeArea` renders the error branch because `_episodesError != null`.
+2. User taps `重试`; `onPressed` reads `final item = _expandedItem; final source = _expandedSource;`. Both are non-null (the card is expanded and `_loadEpisodes` previously set `_expandedSource`), so the null guard does not return.
+3. `_loadEpisodes(item, source)` is called directly. It does **not** inspect `identical(_expandedItem, item)` to collapse — it unconditionally clears the error and starts loading, then calls `source.episodes(item.detailUrl)`.
+4. On success, `setState` sets `_episodes = eps` and `_episodesLoading = false`; on failure, it sets `_episodesError = '获取剧集失败，请重试'`. Either way the card stays expanded and a fresh fetch reached `source.episodes(...)`.
 
-3. **Fix 3 (Important) — transient-only disable.** In
-   `lib/core/metadata/metadata_service.dart`, `_run`'s catch now disables a
-   provider only when `_isTransient(e)` (5xx/429/timeouts/connection errors)
-   instead of on any `DioException`.
+**Tapping the card again (collapse):**
 
-4. **Fix 4 (Important) — normalize 0 to null for score/episodes.** In
-   `bangumi_provider.dart` `_parseItem`, `score`/`episodes` of `0` now map to
-   `null`; the same normalization was applied in `tool/gen_seed.dart`'s `extra`
-   map, and the seed was regenerated.
+1. `_resourceCard`'s `InkWell.onTap` calls `_expandItem(item, source)`.
+2. Because `identical(_expandedItem, item)` is true for the currently expanded card, `_expandItem` takes the collapse branch: it sets `_expandedItem = null`, `_expandedSource = null`, `_episodes = null`, `_episodesError = null`, `_episodesLoading = false`, and returns before any fetch.
+3. `_resourceCard` recomputes `expanded = identical(_expandedItem, item)` as false, so `_episodeArea()` is not rendered — the card collapses.
 
-Two existing tests were also adjusted to the new semantics:
-- `test/core/metadata/bangumi_provider_test.dart` gained the
-  `metadata_provider.dart` import (for `AnimeFeed`).
-- `test/core/metadata/metadata_service_test.dart`'s `_FakeProvider` gained a
-  `transient` flag (503 response) so the "skips AniList" test exercises
-  transient-only disabling; call-count assertions account for the
-  `_maxAttempts` retries.
-
-### Verification
-
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; dart run tool/gen_seed.dart
-```
-Output:
-```
-wrote 40 entries
-```
-
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
-```
-Output:
-```
-Analyzing 2 items...
-No issues found! (ran in 1.8s)
-```
-
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
-```
-Output:
-```
-00:05 +38: All tests passed!
-```
-
-## Fix: fast covers
-
-### Change
-Bangumi covers from `lain.bgm.tv` are ~900 KB and take 12–28 s each on this
-network. They are now routed through `images.weserv.nl` with `w=300`
-(edge-cached, ~37 KB in ~150 ms).
-
-- `lib/core/metadata/bangumi_provider.dart`: replaced the `_https` helper with
-  `_cover`, which upgrades `http://` to `https://`, wraps the URL in
-  `https://images.weserv.nl/?url=<encoded>&w=300`, and does not double-wrap a
-  URL that already points at `images.weserv.nl`. `_parseItem` now calls
-  `_cover(cover)`.
-- `tool/gen_seed.dart`: the seed's `coverUrl` uses the same wrapping (and now
-  treats an empty cover as `null`).
-- `test/core/metadata/bangumi_provider_test.dart`: the cover expectation now
-  asserts the weserv URL.
-
-### Generator output
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; dart run tool/gen_seed.dart
-```
-Output:
-```
-wrote 40 entries
-```
-Verified: `coverUrl=40 weserv=40 lainDirect=0` — every seed cover starts with
-`https://images.weserv.nl/`.
-
-### Test result
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
-```
-Output:
-```
-Analyzing 2 items...
-No issues found! (ran in 2.1s)
-```
-
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
-```
-Output:
-```
-00:05 +38: All tests passed!
-```
+The retry path and the collapse path are now distinct: retry always reaches `source.episodes(...)` while expanded, and re-tapping the card always collapses without fetching.

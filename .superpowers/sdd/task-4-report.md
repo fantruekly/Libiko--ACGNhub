@@ -1,128 +1,133 @@
-# Task 4 Report: Regenerate the offline seed from Bangumi
+# Task 4 Report: `RuleStore`, source registry, and the bundled 7sefun rule
 
 ## Status
-DONE_WITH_CONCERNS
+DONE
 
-## Summary
-Replaced the English (Jikan) offline seed with one regenerated from Bangumi's `/calendar`
-(current season). Per the brief, the generator is Dart (`tool/gen_seed.dart`, Dio/BoringSSL)
-rather than PowerShell, because curl/.NET fail on Bangumi's TLS revocation check. The generator
-was created verbatim from the brief and produced 40 entries with Chinese titles, https covers,
-and `extra = {bangumiId, score, episodes, airDate}`. `flutter test` passes and the change is
-committed.
+## What I implemented
+Followed the brief's TDD order exactly, code verbatim.
 
-## What was done
-1. Created `tool/gen_seed.dart` exactly as specified in the brief (verbatim).
-2. Ran it from the repo root: `$env:Path = "C:\flutter\bin;$env:Path"; dart run tool/gen_seed.dart`
-   — succeeded on the first attempt.
-3. Verified the asset: 40 `bangumi_*` entries, 0 `http://` covers (all https), valid `Work` shape.
-4. Ran the full `flutter test` suite (37 tests) — all passed.
-5. Committed `tool/gen_seed.dart` and `assets/anime_seed.json`.
+1. `test/core/video/rule_store_test.dart` — two tests: `mergeRules` dedupe
+   (imported wins) and the bundled 7sefun JSON parsing from disk.
+2. `assets/source_rules/7sefun.json` — the bundled Kazumi-compatible 七色番 rule.
+3. `pubspec.yaml` — added `- assets/source_rules/` under `flutter: assets:`
+   (kept `assets/rules/` and `assets/anime_seed.json`).
+4. `lib/core/video/rule_store.dart` — `RuleStore` with `loadAll()`,
+   `loadBuiltIn()` (reads `AssetManifest.json`, filters `assets/source_rules/*.json`),
+   `loadImported()` (reads `<app support dir>/rules/`), `importJson(rawJson)`
+   (parses then persists, throws `FormatException` via `SourceRule` on invalid input),
+   `_safeName`, and `@visibleForTesting static mergeRules` (imported wins by name).
+   Plus `ruleStoreProvider`.
+5. `lib/core/video/video_sources.dart` — `buildSources(rules)` (AgedmSource,
+   GimySource, then one `RuleVideoSource` per rule) and `videoSourcesProvider`
+   (`FutureProvider` awaiting `loadAll()`).
 
-## Exact generator output
-```
-wrote 40 entries
-```
-N = 40, which satisfies the brief's expectation of N >= 30.
+## What I tested and results
+- Focused: `flutter test test/core/video/rule_store_test.dart` → `+2: All tests passed!`
+- Analyze: `flutter analyze lib test` → `No issues found! (ran in 2.4s)`
+- Full suite: `flutter test` → `+65: All tests passed!`
 
-## Asset verification
-```
-ids=40            (number of "id": "bangumi_*" entries)
-httpCovers=0      (no insecure covers; all covers are https://lain.bgm.tv/...)
-nonEmptySummary=0 (see Concerns)
-```
-Spot check of the first entry:
-```json
-{
-  "id": "bangumi_456080",
-  "sourceId": "bangumi",
-  "sourceName": "Bangumi",
-  "type": "anime",
-  "title": "转学后班上的清纯可爱美少女，竟是小时候玩在一起的哥们儿",
-  "coverUrl": "https://lain.bgm.tv/pic/cover/l/ce/e2/456080_C4q4C.jpg",
-  "summary": "",
-  "tags": [],
-  "author": null,
-  "extra": {
-    "bangumiId": 456080,
-    "score": 5,
-    "episodes": null,
-    "airDate": "2026-07-06"
-  }
-}
-```
-The shape matches `Work.fromJson` in `lib/core/models/work.dart` and the loader in
-`lib/core/metadata/metadata_service.dart:242`.
+Per the brief, `loadBuiltIn`/`loadImported`/`importJson` asset+disk paths are not
+unit-tested (integration-tested manually); only `mergeRules` and the bundled
+JSON parse are unit-tested.
 
-## Flutter test result
-Command:
+## TDD evidence
+
+### RED
+Command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_store_test.dart`
+
+Output (excerpt):
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+test/core/video/rule_store_test.dart:4:8: Error: Error when reading 'lib/core/video/rule_store.dart': 系统找不到指定的文件。
+import 'package:acgnhub/core/video/rule_store.dart';
+test/core/video/rule_store_test.dart:20:20: Error: Undefined name 'RuleStore'.
+    final merged = RuleStore.mergeRules(
+00:00 +0 -1: ... Failed to load ... Compilation failed
 ```
-Output (tail):
+Why expected: the test imports `rule_store.dart` and references `RuleStore`,
+neither of which existed yet — a compile failure for the missing feature, not a typo.
+
+### GREEN
+Command: same as above, after creating the JSON, pubspec entry, and both lib files.
+
+Output (excerpt):
 ```
-00:03 +37: All tests passed!
+00:00 +0: mergeRules dedupes by name and imported wins
+00:00 +1: bundled 7sefun rule parses from disk
+00:00 +2: All tests passed!
 ```
-37/37 passed.
 
 ## Files changed
-- `tool/gen_seed.dart` — new (committed)
-- `assets/anime_seed.json` — replaced with the regenerated 40-entry Bangumi seed (committed)
+- `assets/source_rules/7sefun.json` (new)
+- `lib/core/video/rule_store.dart` (new)
+- `lib/core/video/video_sources.dart` (new)
+- `test/core/video/rule_store_test.dart` (new)
+- `pubspec.yaml` (modified: added asset dir)
 
 ## Commit
-```
-76c3a04 chore(seed): regenerate offline seed from Bangumi calendar
-```
-2 files changed, 742 insertions(+), 548 deletions(-).
+- `de5a29f` feat(video): add rule store, source registry, and bundled 7sefun rule
+
+## Self-review findings
+- Completeness: all brief files and interfaces present; `loadAll`, `loadBuiltIn`,
+  `loadImported`, `importJson`, `mergeRules`, `ruleStoreProvider`,
+  `buildSources`, `videoSourcesProvider` all match the specified signatures.
+- Quality/YAGNI: no extra code beyond the brief; 2-space indentation; no comments
+  beyond the brief's doc comments.
+- Real behavior: `mergeRules` is exercised with real `SourceRule` objects; the
+  bundled rule test parses the real asset file, so a broken JSON or missing
+  required field would fail.
 
 ## Concerns
-- **Empty summaries.** All 40 entries have `"summary": ""`. Bangumi's `/calendar` endpoint does
-  not return a `summary` field, so the generator's `(m['summary'] as String?)?.trim()` yields
-  null/empty. The brief's interface mentioned Chinese `summary`, but that field is simply absent
-  from this endpoint. The app can still hydrate full summaries on demand via the Bangumi detail
-  provider (`lib/core/metadata/bangumi_provider.dart`). If non-empty seed summaries are required,
-  the generator would need a follow-up per-work `/v0/subjects/{id}` fetch.
-- **`episodes` is also null** for every entry (same reason: `/calendar` omits `eps`). `score` and
-  `airDate` are populated.
-- The generator was used verbatim per the brief; I did not add extra fetches to fill these gaps.
-- `tool/gen_seed.ps1` shows as a pre-existing unstaged deletion in the working tree. It was not
-  part of this task's commit (the brief stages only `tool/gen_seed.dart` and
-  `assets/anime_seed.json`).
+- **Weak "imported wins" assertion:** the test's two `b` rules are built by the
+  same helper, so their `baseUrl` is identical (`https://b.test/`). The assertion
+  `merged.firstWhere(name=='b').baseUrl == 'https://b.test/'` passes whether the
+  built-in or the imported copy won, so the test does not actually distinguish the
+  two. The dedupe-by-name set assertion is valid; the precedence claim is not truly
+  verified. This is the brief's verbatim test — I did not modify it. A stronger test
+  would give the imported `b` a distinct field value.
+- `loadBuiltIn()` depends on `AssetManifest.json` at runtime, which is not covered
+  by any unit test here (per the brief); it is only exercised when the app runs.
 
-## Fix: seed summaries
+## Fix report
 
-### Change
-Replaced the generator body so it no longer trusts the `/calendar` items for detail fields.
-`tool/gen_seed.dart` now collects up to 40 unique ids from `/calendar`, then fetches
-`GET /v0/subjects/{id}` for each id (300 ms apart) and maps the richer subject payload:
-`name_cn`/`name` for the title, `images.large`/`images.common` for the cover, `summary` for the
-summary, `tags[].name` for tags, `rating.score` for the score, `eps`/`total_episodes` for the
-episode count, and `date` for the air date. Per-id failures are logged to stderr and skipped.
+### What changed
+Edited only `test/core/video/rule_store_test.dart`:
+- Added `_ruleWith(String name, String baseUrl)`, which builds a `SourceRule` with
+  an explicit `baseUrl`; the existing `_rule(name)` helper was left unchanged.
+- Updated the `mergeRules dedupes by name and imported wins` test so the imported
+  `b` is built with `_ruleWith('b', 'https://b-imported.test/')` and the assertion
+  checks `baseUrl == 'https://b-imported.test/'`. The built-in `b` still has
+  `https://b.test/`, so the assertion now distinguishes the two copies and can
+  fail if precedence is wrong. No other test and no file under `lib/` was touched.
 
-### Generator output
+### Commands run and output
+1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_store_test.dart`
+   ```
+   00:00 +0: mergeRules dedupes by name and imported wins
+   00:00 +1: bundled 7sefun rule parses from disk
+   00:00 +2: All tests passed!
+   ```
+2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+   ```
+   Analyzing 2 items...
+   No issues found! (ran in 1.4s)
+   ```
+3. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+   ```
+   00:06 +65: All tests passed!
+   ```
+
+### Reversed-precedence observation
+Temporarily swapped the two list arguments (imported list first, built-in list
+second) and re-ran the focused test. It failed as required, proving the assertion
+now genuinely detects precedence:
+
 ```
-wrote 40 entries
+00:00 +0: mergeRules dedupes by name and imported wins
+00:00 +0 -1: mergeRules dedupes by name and imported wins [E]
+  Expected: 'https://b-imported.test/'
+    Actual: 'https://b.test/'
+00:00 +1 -1: Some tests failed.
 ```
 
-### Summary count
-```
-total=40
-withSummary=39
-```
-39 of 40 entries now carry a non-empty summary (> 10 chars); previously it was 0.
-
-### Test result
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
-```
-Output (tail):
-```
-00:02 +37: All tests passed!
-```
-37/37 passed.
-
-### Commit
-```
-fix(seed): fetch subject details so seed entries have summaries
-```
+The swap was then reverted, and the focused test passed again (`+2: All tests
+passed!`).

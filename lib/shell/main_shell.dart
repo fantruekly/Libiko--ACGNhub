@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
+import '../core/widgets/glass_surface.dart';
+import '../core/widgets/window_controls.dart';
 import '../modules/anime/anime_home.dart';
 import '../modules/anime/anime_search.dart';
 import 'settings_page.dart';
@@ -23,12 +26,16 @@ class _MainShellState extends State<MainShell> {
 
   final _pages = <Widget>[
     const AnimeHomePage(),
-    _buildModulePlaceholder('漫画', Icons.menu_book_rounded, '漫画模块', '聚合多种漫画平台资源，支持登录对应平台账号', const Color(0xFFFF9500)),
-    _buildModulePlaceholder('轻小说', Icons.auto_stories_rounded, '轻小说模块', '阅读 Wenku8 文库的轻小说资源', const Color(0xFF34C759)),
-    _buildModulePlaceholder('游戏', Icons.games_rounded, '游戏模块', '浏览 Galgame 游戏资源与详细信息', const Color(0xFFAF52DE)),
+    _buildModulePlaceholder('漫画', Icons.menu_book_rounded, '漫画模块',
+        '聚合多种漫画平台资源，支持登录对应平台账号', const Color(0xFFFF9500)),
+    _buildModulePlaceholder('轻小说', Icons.auto_stories_rounded, '轻小说模块',
+        '阅读 Wenku8 文库的轻小说资源', const Color(0xFF34C759)),
+    _buildModulePlaceholder('游戏', Icons.games_rounded, '游戏模块',
+        '浏览 Galgame 游戏资源与详细信息', const Color(0xFFAF52DE)),
   ];
 
-  static Widget _buildModulePlaceholder(String title, IconData icon, String subtitle, String desc, Color accent) {
+  static Widget _buildModulePlaceholder(
+      String title, IconData icon, String subtitle, String desc, Color accent) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -36,11 +43,15 @@ class _MainShellState extends State<MainShell> {
           Container(
             width: 80,
             height: 80,
-            decoration: BoxDecoration(color: accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20)),
             child: Icon(icon, size: 36, color: accent),
           ),
           const SizedBox(height: 24),
-          Text(subtitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _fg)),
+          Text(subtitle,
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w600, color: _fg)),
           const SizedBox(height: 8),
           Text(desc, style: const TextStyle(fontSize: 14, color: _muted)),
           const SizedBox(height: 24),
@@ -50,7 +61,9 @@ class _MainShellState extends State<MainShell> {
               color: accent.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text('即将推出', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: accent)),
+            child: Text('即将推出',
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w500, color: accent)),
           ),
         ],
       ),
@@ -76,7 +89,8 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _openSettings() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const SettingsPage()));
   }
 
   @override
@@ -87,7 +101,7 @@ class _MainShellState extends State<MainShell> {
       backgroundColor: const Color(0xFFF2F2F7),
       body: Column(
         children: [
-          _topBar(collapsed),
+          _titleBar(collapsed),
           Expanded(
             child: Row(
               children: [
@@ -119,49 +133,67 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _topBar(bool collapsed) {
-    return Container(
-      height: 48,
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
-        border: Border(bottom: BorderSide(color: _border, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 72,
-            child: Center(
-              child: _SidebarToggleButton(
-                collapsed: collapsed,
-                onTap: () => _sidebarState.toggle(),
+  Widget _titleBar(bool collapsed) {
+    return DragToMoveArea(
+      child: GlassSurface(
+        borderRadius: BorderRadius.zero,
+        blur: 18,
+        color: const Color(0xF2FFFFFF),
+        child: Container(
+          height: 48,
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: _border, width: 0.5)),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 72,
+                child: Center(
+                  child: _SidebarToggleButton(
+                    collapsed: collapsed,
+                    onTap: () => _sidebarState.toggle(),
+                  ),
+                ),
               ),
-            ),
-          ),
-          Text(
-            _titles[_currentIndex],
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _fg, height: 1.4),
-          ),
-          const Spacer(),
-          if (_currentIndex == 0)
-            IconButton(
-              icon: const Icon(Icons.search_rounded, size: 20),
-              color: _muted,
-              splashRadius: 20,
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnimeSearchPage())),
-            ),
-          const SizedBox(width: 4),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: _openSettings,
-              child: const CircleAvatar(
-                radius: 15,
-                backgroundColor: Color(0xFFE8F0FE),
-                child: Text('A', style: TextStyle(fontSize: 13, color: _accent, fontWeight: FontWeight.w600)),
+              Text(
+                _titles[_currentIndex],
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: _fg,
+                    height: 1.4),
               ),
-            ),
+              const Spacer(),
+              if (_currentIndex == 0)
+                IconButton(
+                  icon: const Icon(Icons.search_rounded, size: 20),
+                  color: _muted,
+                  splashRadius: 20,
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AnimeSearchPage())),
+                ),
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: _openSettings,
+                  child: const CircleAvatar(
+                    radius: 15,
+                    backgroundColor: Color(0xFFE8F0FE),
+                    child: Text('A',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: _accent,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ),
+              const WindowControls(),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

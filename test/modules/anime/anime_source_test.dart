@@ -35,14 +35,16 @@ void main() {
 
     test('resolveUrl resolves relative paths', () {
       final source = AnimeSource(rule);
-      expect(source.resolveUrl('http://example.com/img.jpg'), 'http://example.com/img.jpg');
+      expect(source.resolveUrl('http://example.com/img.jpg'),
+          'http://example.com/img.jpg');
       expect(source.resolveUrl('//cdn.com/img.jpg'), 'https://cdn.com/img.jpg');
       expect(source.resolveUrl('/img.jpg'), 'https://test.com/img.jpg');
     });
 
     test('buildUrl replaces placeholders', () {
       final source = AnimeSource(rule);
-      final url = source.buildUrl('/search?keyword={keyword}&page={page}', keyword: 'test', page: 2);
+      final url = source.buildUrl('/search?keyword={keyword}&page={page}',
+          keyword: 'test', page: 2);
       expect(url, '/search?keyword=test&page=2');
     });
   });

@@ -1,151 +1,204 @@
-### Task 2: Make Bangumi primary + generalize the breaker
+### Task 2: `WebviewScraper` + XPath→JS script builders
 
 **Files:**
-- Modify: `lib/core/metadata/metadata_service.dart`
-- Test: `test/core/metadata/metadata_service_test.dart`
+- Create: `lib/core/video/webview_scraper.dart`
+- Test: `test/core/video/xpath_js_test.dart`
 
 **Interfaces:**
-- Consumes: `BangumiProvider` (Task 1).
-- Produces: `MetadataService({MetadataProvider? bangumi, MetadataProvider? anilist, MetadataProvider? jikan, DateTime Function()? now, MetadataCache? cache, MetadataSeedLoader? seedLoader, Map<String, Duration>? intervals})`; provider order `[bangumi, anilist, jikan]`; per-provider transient disable.
+- Consumes: `SourceRule` (Task 1).
+- Produces: `const String kBrowserUserAgent`; `String buildSearchScript(SourceRule rule)`; `String buildEpisodesScript(SourceRule rule)`; `class WebviewScraper { Future<dynamic> fetchJson({required String url, required String script, String? userAgent, Duration timeout, int attempts}); }`.
 
-- [ ] **Step 1: Update the test helper to inject a failing Bangumi**
+- [ ] **Step 1: Write the failing test**
 
-In `test/core/metadata/metadata_service_test.dart`, add an import at the top:
+Create `test/core/video/xpath_js_test.dart`:
+
 ```dart
-import 'package:acgnhub/core/metadata/bangumi_provider.dart';
-```
-and change the `_service` helper to:
-```dart
-MetadataService _service({
-  MetadataProvider? bangumi,
-  MetadataProvider? anilist,
-  MetadataProvider? jikan,
-  MetadataCache? cache,
-  MetadataSeedLoader? seedLoader,
-  DateTime Function()? now,
-}) {
-  return MetadataService(
-    bangumi: bangumi ?? _FakeProvider('bangumi', fail: true),
-    anilist: anilist ?? _FakeProvider('anilist'),
-    jikan: jikan ?? _FakeProvider('jikan'),
-    cache: cache ?? _FakeCache(),
-    seedLoader: seedLoader ?? () async => const [],
-    now: now,
-    intervals: const {},
-  );
+import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/video/source_rule.dart';
+import 'package:acgnhub/core/video/webview_scraper.dart';
+
+const _rule = SourceRule(
+  name: '七色番',
+  baseUrl: 'https://www.7sefun.top/',
+  searchUrl: 'https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword',
+  searchList: '//div[2]/div[2]/div[2]/div[2]/div',
+  searchName: '//div[2]/text()',
+  searchResult: '//a',
+  chapterRoads: '//div[2]/div[2]/div[2]/div/div[2]/div[1]//div',
+  chapterResult: '//a',
+);
+
+void main() {
+  test('buildSearchScript embeds the search XPaths and returns JSON', () {
+    final js = buildSearchScript(_rule);
+    expect(js, contains('document.evaluate'));
+    expect(js, contains('"//div[2]/div[2]/div[2]/div[2]/div"'));
+    expect(js, contains('"//div[2]/text()"'));
+    expect(js, contains('"//a"'));
+    expect(js, contains('JSON.stringify'));
+  });
+
+  test('buildEpisodesScript embeds the chapter XPaths and returns JSON', () {
+    final js = buildEpisodesScript(_rule);
+    expect(js, contains('"//div[2]/div[2]/div[2]/div/div[2]/div[1]//div"'));
+    expect(js, contains('"//a"'));
+    expect(js, contains('JSON.stringify'));
+  });
 }
 ```
-(The default failing Bangumi makes the existing assertions about `anilist`/`jikan` call counts still hold.)
 
-Add this new test inside `main()`:
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart`
+Expected: FAIL — `webview_scraper.dart` not found.
+
+- [ ] **Step 3: Create `lib/core/video/webview_scraper.dart`**
+
 ```dart
-  test('tries Bangumi first, then falls back', () async {
-    final bangumi = _FakeProvider('bangumi', fail: true);
-    final anilist = _FakeProvider('anilist');
-    final service = _service(bangumi: bangumi, anilist: anilist);
+import 'dart:async';
+import 'dart:convert';
 
-    final works = await service.feed(AnimeFeed.trending);
-    expect(works.single.sourceId, 'anilist');
-    expect(bangumi.calls, 1);
-    expect(anilist.calls, 1);
-  });
-```
+import 'package:flutter/foundation.dart';
+import 'package:webview_windows/webview_windows.dart';
 
-- [ ] **Step 2: Run test to verify it fails**
+import 'source_rule.dart';
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/metadata_service_test.dart`
-Expected: FAIL — `MetadataService` has no `bangumi` parameter (compile error).
+const String kBrowserUserAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-- [ ] **Step 3: Update `MetadataService`**
+const String _helpersJs = r'''
+function __ev(xpath, ctx) {
+  try {
+    var r = document.evaluate(xpath, ctx || document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    var out = [];
+    for (var i = 0; i < r.snapshotLength; i++) out.push(r.snapshotItem(i));
+    return out;
+  } catch (e) { return []; }
+}
+function __txt(xpath, ctx) {
+  var n = __ev(xpath, ctx);
+  if (!n.length) return '';
+  return (n[0].textContent || '').trim();
+}
+function __attr(xpath, ctx, name) {
+  var n = __ev(xpath, ctx);
+  if (!n.length) return '';
+  var e = n[0];
+  return ((e.getAttribute && e.getAttribute(name)) || '').trim();
+}
+''';
 
-In `lib/core/metadata/metadata_service.dart`:
+/// JS that returns a JSON array of `{name, href}` for the rule's search page.
+String buildSearchScript(SourceRule rule) => '''
+(function () {
+  $_helpersJs
+  var rows = [];
+  var list = __ev(${jsonEncode(rule.searchList)}, document);
+  for (var i = 0; i < list.length; i++) {
+    rows.push({
+      name: __txt(${jsonEncode(rule.searchName)}, list[i]),
+      href: __attr(${jsonEncode(rule.searchResult)}, list[i], 'href')
+    });
+  }
+  return JSON.stringify(rows);
+})()
+''';
 
-1. Add the import:
-```dart
-import 'bangumi_provider.dart';
-```
-
-2. Add the `bangumi` field and change the constructor:
-```dart
-  final MetadataProvider bangumi;
-  final MetadataProvider anilist;
-  final MetadataProvider jikan;
-```
-and:
-```dart
-  MetadataService({
-    MetadataProvider? bangumi,
-    MetadataProvider? anilist,
-    MetadataProvider? jikan,
-    DateTime Function()? now,
-    MetadataCache? cache,
-    MetadataSeedLoader? seedLoader,
-    Map<String, Duration>? intervals,
-  })  : bangumi = bangumi ?? BangumiProvider(),
-        anilist = anilist ?? AniListProvider(),
-        jikan = jikan ?? JikanProvider(),
-        _now = now ?? DateTime.now,
-        cache = cache ?? PrefsMetadataCache(),
-        seedLoader = seedLoader ?? _defaultSeedLoader,
-        _intervals = intervals ??
-            const {
-              'bangumi': Duration(milliseconds: 300),
-              'anilist': Duration(milliseconds: 1000),
-              'jikan': Duration(milliseconds: 350),
-            };
-```
-
-3. Replace the `DateTime? _anilistDisabledUntil;` field with:
-```dart
-  final Map<String, DateTime> _disabledUntil = {};
-
-  List<MetadataProvider> get _providers => [bangumi, anilist, jikan];
-```
-
-4. Replace the body of `_run<T>` with:
-```dart
-  Future<T> _run<T>(String key, Future<T> Function(MetadataProvider) op) async {
-    final cached = _cache[key];
-    if (cached != null && _now().difference(cached.at) < _cacheTtl) {
-      return cached.value as T;
+/// JS that returns a JSON array of `{title, href}` for the rule's first road.
+String buildEpisodesScript(SourceRule rule) => '''
+(function () {
+  $_helpersJs
+  var out = [];
+  var roads = __ev(${jsonEncode(rule.chapterRoads)}, document);
+  if (roads.length) {
+    var links = __ev(${jsonEncode(rule.chapterResult)}, roads[0]);
+    for (var i = 0; i < links.length; i++) {
+      var e = links[i];
+      out.push({
+        title: (e.textContent || '').trim(),
+        href: ((e.getAttribute && e.getAttribute('href')) || '').trim()
+      });
     }
+  }
+  return JSON.stringify(out);
+})()
+''';
 
-    var order = _providers.where((p) {
-      final until = _disabledUntil[p.id];
-      return until == null || !_now().isBefore(until);
-    }).toList();
-    if (order.isEmpty) order = List.of(_providers);
+/// Loads a URL in a headless WebView and evaluates an extraction script.
+/// Mirrors [StreamResolver]'s lifecycle: create, run, load, dispose.
+class WebviewScraper {
+  Future<dynamic> fetchJson({
+    required String url,
+    required String script,
+    String? userAgent,
+    Duration timeout = const Duration(seconds: 20),
+    int attempts = 3,
+  }) async {
+    final webview = HeadlessWebview();
+    final subs = <StreamSubscription>[];
+    final loaded = Completer<void>();
 
-    Object? lastError;
-    for (final provider in order) {
+    try {
+      await webview.run();
       try {
-        final result = provider == jikan
-            ? await _serializeJikan(() => _withRetry(() => _call(provider, () => op(provider))))
-            : await _withRetry(() => _call(provider, () => op(provider)));
-        _disabledUntil.remove(provider.id);
-        _cache[key] = _CacheEntry(_now(), result);
-        return result;
-      } catch (e) {
-        lastError = e;
-        if (e is DioException) {
-          _disabledUntil[provider.id] = _now().add(_disableDuration);
+        await webview.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
+      } catch (_) {}
+      await webview.setUserAgent(userAgent ?? kBrowserUserAgent);
+
+      subs.add(webview.loadingState.listen((state) {
+        if (state == LoadingState.navigationCompleted && !loaded.isCompleted) {
+          loaded.complete();
+        }
+      }));
+
+      await webview.loadUrl(url);
+      await loaded.future.timeout(timeout, onTimeout: () {});
+
+      for (var attempt = 0; attempt < attempts; attempt++) {
+        dynamic result;
+        try {
+          result = await webview.executeScript(script);
+        } catch (_) {
+          result = null;
+        }
+        if (result is List && result.isNotEmpty) return result;
+        if (attempt < attempts - 1) {
+          await Future.delayed(const Duration(milliseconds: 600));
         }
       }
+      return const <dynamic>[];
+    } catch (e) {
+      debugPrint('[WebviewScraper] failed for $url: $e');
+      return null;
+    } finally {
+      for (final s in subs) {
+        try {
+          await s.cancel();
+        } catch (_) {}
+      }
+      try {
+        await webview.dispose();
+      } catch (_) {}
     }
-    throw Exception('All metadata providers failed: $lastError');
   }
+}
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run the test to verify it passes**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/metadata_service_test.dart`
-Expected: PASS.
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart`
+Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit (only if user asked)**
+- [ ] **Step 5: Verify it compiles**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+Expected: `No issues found!`
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add lib/core/metadata/metadata_service.dart test/core/metadata/metadata_service_test.dart
-git commit -m "feat(metadata): make Bangumi primary and generalize the provider breaker"
+git add lib/core/video/webview_scraper.dart test/core/video/xpath_js_test.dart
+git commit -m "feat(video): add headless webview scraper and XPath-to-JS builders"
 ```
 
 ---

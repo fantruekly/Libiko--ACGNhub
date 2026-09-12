@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 
+import '../models/anime_extra.dart';
 import '../models/work.dart';
 import 'anilist_provider.dart';
 import 'bangumi_provider.dart';
@@ -108,6 +109,28 @@ class MetadataService {
     }
   }
 
+  Future<List<AnimeCharacter>> characters(Work work) async {
+    final id = work.bangumiId;
+    final provider = bangumi;
+    if (id == null || provider is! BangumiProvider) return const [];
+    try {
+      return await _withRetry(() => provider.characters(id));
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<RelatedWork>> related(Work work) async {
+    final id = work.bangumiId;
+    final provider = bangumi;
+    if (id == null || provider is! BangumiProvider) return const [];
+    try {
+      return await _withRetry(() => provider.related(id));
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<T> _run<T>(String key, Future<T> Function(MetadataProvider) op) async {
     final cached = _cache[key];
     if (cached != null && _now().difference(cached.at) < _cacheTtl) {
@@ -124,7 +147,8 @@ class MetadataService {
     for (final provider in order) {
       try {
         final result = provider == jikan
-            ? await _serializeJikan(() => _withRetry(() => _call(provider, () => op(provider))))
+            ? await _serializeJikan(
+                () => _withRetry(() => _call(provider, () => op(provider))))
             : await _withRetry(() => _call(provider, () => op(provider)));
         _disabledUntil.remove(provider.id);
         _cache[key] = _CacheEntry(_now(), result);
@@ -140,7 +164,7 @@ class MetadataService {
   }
 
   Future<T> _withRetry<T>(Future<T> Function() op) async {
-    for (var attempt = 1; ; attempt++) {
+    for (var attempt = 1;; attempt++) {
       try {
         return await op();
       } catch (e) {

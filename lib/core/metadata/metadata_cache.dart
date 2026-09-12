@@ -11,7 +11,8 @@ class PrefsMetadataCache implements MetadataCache {
   static const _prefix = 'meta_cache:';
 
   Future<SharedPreferences>? _prefs;
-  Future<SharedPreferences> get _instance => _prefs ??= SharedPreferences.getInstance();
+  Future<SharedPreferences> get _instance =>
+      _prefs ??= SharedPreferences.getInstance();
 
   @override
   Future<String?> read(String key) async {

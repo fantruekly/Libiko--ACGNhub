@@ -1,11 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:window_manager/window_manager.dart';
 import 'core/storage/database.dart';
 import 'shell/main_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
+  await windowManager.ensureInitialized();
   await AppDatabase.init();
+
+  const windowOptions = WindowOptions(
+    size: Size(1280, 800),
+    minimumSize: Size(960, 640),
+    center: true,
+    title: 'ACGNhub',
+    titleBarStyle: TitleBarStyle.hidden,
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
   runApp(const ProviderScope(child: ACGNhubApp()));
 }
 
@@ -46,7 +63,8 @@ class ACGNhubApp extends StatelessWidget {
         cardTheme: CardThemeData(
           elevation: 0,
           color: const Color(0xFFFFFFFF),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           clipBehavior: Clip.antiAlias,
         ),
         filledButtonTheme: FilledButtonThemeData(
@@ -54,17 +72,23 @@ class ACGNhubApp extends StatelessWidget {
             backgroundColor: _accent,
             foregroundColor: Colors.white,
             minimumSize: const Size(double.infinity, 48),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            elevation: 2,
+            shadowColor: const Color(0x59007AFF),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            textStyle:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: _accent,
-            side: const BorderSide(color: _accent, width: 1.5),
+            side: const BorderSide(color: Color(0x33007AFF), width: 1.2),
             minimumSize: const Size(double.infinity, 48),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            textStyle:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
@@ -72,15 +96,18 @@ class ACGNhubApp extends StatelessWidget {
         ),
         chipTheme: ChipThemeData(
           backgroundColor: const Color(0xFFE8F0FE),
-          labelStyle: const TextStyle(fontSize: 11, color: _accent, fontWeight: FontWeight.w500),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          labelStyle: const TextStyle(
+              fontSize: 11, color: _accent, fontWeight: FontWeight.w500),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           padding: EdgeInsets.zero,
         ),
         progressIndicatorTheme: const ProgressIndicatorThemeData(
           color: _accent,
           linearTrackColor: Color(0xFFE5E5EA),
         ),
-        dividerTheme: const DividerThemeData(color: Color(0xFFE5E5EA), thickness: 0.5),
+        dividerTheme:
+            const DividerThemeData(color: Color(0xFFE5E5EA), thickness: 0.5),
       ),
       home: const MainShell(),
     );

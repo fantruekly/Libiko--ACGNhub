@@ -5,7 +5,10 @@ void main() {
   final media = {
     'id': 21,
     'title': {'romaji': 'ONE PIECE', 'english': 'One Piece', 'native': 'ワンピース'},
-    'coverImage': {'extraLarge': 'https://img/xl.jpg', 'large': 'https://img/l.jpg'},
+    'coverImage': {
+      'extraLarge': 'https://img/xl.jpg',
+      'large': 'https://img/l.jpg'
+    },
     'bannerImage': 'https://img/banner.jpg',
     'description': 'A pirate <i>adventure</i>.',
     'genres': ['Action', 'Adventure'],
@@ -16,12 +19,18 @@ void main() {
     'seasonYear': 1999,
     'format': 'TV',
     'averageScore': 88,
-    'studios': {'nodes': [{'name': 'Toei Animation'}]},
+    'studios': {
+      'nodes': [
+        {'name': 'Toei Animation'}
+      ]
+    },
   };
 
   test('parsePage maps AniList media to Work items', () {
     final works = AniListProvider.parsePage({
-      'Page': {'media': [media]}
+      'Page': {
+        'media': [media]
+      }
     });
 
     expect(works, hasLength(1));

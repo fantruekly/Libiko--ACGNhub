@@ -22,7 +22,8 @@ class _MockAdapter extends SourceAdapter {
 
   @override
   Future<Work> fetchDetail(String workId) async {
-    return Work(id: workId, sourceId: id, sourceName: name, type: type, title: 'Mock');
+    return Work(
+        id: workId, sourceId: id, sourceName: name, type: type, title: 'Mock');
   }
 
   @override
