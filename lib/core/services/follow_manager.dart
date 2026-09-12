@@ -36,30 +36,42 @@ class FollowManager {
 
   List<FollowRecord> dirty() => _readAll().where((r) => r.dirty).toList();
 
-  Future<void> follow(Work work) async {
-    final record = FollowRecord(work: work, updatedAt: DateTime.now(), dirty: true);
-    await _save(upsert(_readAll(), record));
+  Future<void> _pending = Future.value();
+
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next = _pending.then((_) => action());
+    _pending = next.catchError((_) {});
+    return next;
   }
 
-  Future<void> unfollow(String workId) async {
-    final records = _readAll();
-    final existing = records.where((r) => r.work.id == workId).toList();
-    if (existing.isEmpty) return;
-    final tombstone = existing.first.copyWith(
-        updatedAt: DateTime.now(), deleted: true, dirty: true);
-    await _save(upsert(records, tombstone));
-  }
+  Future<void> follow(Work work) => _enqueue(() async {
+        final record =
+            FollowRecord(work: work, updatedAt: DateTime.now(), dirty: true);
+        await _save(upsert(_readAll(), record));
+      });
 
-  Future<void> markSynced(Set<String> workIds) async {
-    final records = _readAll()
-        .map((r) => workIds.contains(r.work.id) ? r.copyWith(dirty: false) : r)
-        .toList();
-    await _save(records);
-  }
+  Future<void> unfollow(String workId) => _enqueue(() async {
+        final records = _readAll();
+        final existing = records.where((r) => r.work.id == workId).toList();
+        if (existing.isEmpty) return;
+        final tombstone = existing.first.copyWith(
+            updatedAt: DateTime.now(), deleted: true, dirty: true);
+        await _save(upsert(records, tombstone));
+      });
 
-  Future<void> mergeFromServer(List<FollowRecord> server) async {
-    await _save(merge(_readAll(), server));
-  }
+  Future<void> markSynced(Map<String, DateTime> pushedUpdatedAt) =>
+      _enqueue(() async {
+        final records = _readAll().map((r) {
+          final pushed = pushedUpdatedAt[r.work.id];
+          return pushed != null && r.updatedAt == pushed
+              ? r.copyWith(dirty: false)
+              : r;
+        }).toList();
+        await _save(records);
+      });
+
+  Future<void> mergeFromServer(List<FollowRecord> server) =>
+      _enqueue(() => _save(merge(_readAll(), server)));
 
   @visibleForTesting
   static List<FollowRecord> upsert(
@@ -85,7 +97,7 @@ class FollowManager {
     for (final item in server) {
       final existing = byId[item.work.id];
       if (existing != null && existing.updatedAt.isAfter(item.updatedAt)) {
-        byId[item.work.id] = existing.copyWith(dirty: false);
+        byId[item.work.id] = existing.copyWith();
       } else {
         byId[item.work.id] = item.copyWith(dirty: false);
       }

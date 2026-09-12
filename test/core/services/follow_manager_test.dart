@@ -24,12 +24,12 @@ void main() {
 
   test('merge keeps a newer local record and takes a newer server record', () {
     final merged = FollowManager.merge(
-      [_record('a', 300), _record('b', 100, dirty: true)],
+      [_record('a', 300, dirty: true), _record('b', 100, dirty: true)],
       [_record('a', 200), _record('b', 500), _record('c', 400)],
     );
     final byId = {for (final r in merged) r.work.id: r};
     expect(byId['a']!.updatedAt.millisecondsSinceEpoch, 300); // local newer
-    expect(byId['a']!.dirty, isFalse);
+    expect(byId['a']!.dirty, isTrue); // kept local stays dirty
     expect(byId['b']!.updatedAt.millisecondsSinceEpoch, 500); // server newer
     expect(byId['b']!.dirty, isFalse);
     expect(byId['c']!.updatedAt.millisecondsSinceEpoch, 400); // new
@@ -56,7 +56,9 @@ void main() {
     expect(manager.isFollowing('a'), isTrue);
     expect(manager.dirty().map((r) => r.work.id), ['a']);
 
-    await manager.markSynced({'a'});
+    await manager.markSynced({
+      for (final r in manager.dirty()) r.work.id: r.updatedAt,
+    });
     expect(manager.dirty(), isEmpty);
     expect(manager.all().single.dirty, isFalse);
 
@@ -64,6 +66,21 @@ void main() {
     expect(manager.isFollowing('a'), isFalse);
     expect(manager.dirty().single.deleted, isTrue);
     expect(manager.all(), isEmpty);
+  });
+
+  test('markSynced ignores a stale pushed timestamp', () async {
+    await AppDatabase.init();
+    final manager = FollowManager();
+    await manager.follow(_work('a'));
+    final current = manager.dirty().single;
+
+    await manager.markSynced({
+      'a': current.updatedAt.subtract(const Duration(seconds: 1)),
+    });
+    expect(manager.dirty(), isNotEmpty);
+
+    await manager.markSynced({'a': current.updatedAt});
+    expect(manager.dirty(), isEmpty);
   });
 
   test('all() orders by updatedAt descending', () async {

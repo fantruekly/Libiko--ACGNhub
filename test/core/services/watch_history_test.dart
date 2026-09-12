@@ -14,11 +14,13 @@ Work _work(String id) => Work(
       title: 'Title $id',
     );
 
-WatchRecord _record(String id, String ep, int ms) => WatchRecord(
+WatchRecord _record(String id, String ep, int ms, {bool dirty = false}) =>
+    WatchRecord(
       work: _work(id),
       episodeTitle: ep,
       episodeIndex: 0,
       watchedAt: DateTime.fromMillisecondsSinceEpoch(ms),
+      dirty: dirty,
     );
 
 void main() {
@@ -74,13 +76,14 @@ void main() {
 
   test('merge keeps a newer local record and takes a newer server record', () {
     final merged = WatchHistoryManager.merge(
-      [_record('a', '第1集', 300), _record('b', '第1集', 100)],
+      [_record('a', '第1集', 300, dirty: true), _record('b', '第1集', 100)],
       [_record('a', '第0集', 200), _record('b', '第9集', 500)],
     );
     final byId = {for (final r in merged) r.work.id: r};
     expect(byId['a']!.episodeTitle, '第1集');
+    expect(byId['a']!.dirty, isTrue); // kept local stays dirty
     expect(byId['b']!.episodeTitle, '第9集');
-    expect(merged.every((r) => !r.dirty), isTrue);
+    expect(byId['b']!.dirty, isFalse);
   });
 
   test('record marks dirty and clear writes tombstones plus pendingClear', () async {
@@ -95,9 +98,28 @@ void main() {
     await manager.clear();
     expect(manager.all(), isEmpty);
     expect(manager.pendingClear, isTrue);
+    expect(manager.clearAt, isNotNull);
     expect(manager.dirty().single.deleted, isTrue);
 
     await manager.clearPendingClear();
     expect(manager.pendingClear, isFalse);
+    expect(manager.clearAt, isNull);
+  });
+
+  test('markSynced ignores a stale pushed timestamp', () async {
+    SharedPreferences.setMockInitialValues({});
+    await AppDatabase.init();
+    final manager = WatchHistoryManager();
+    const ep = VideoEpisode(id: 'e1', title: '第1集', index: 0, playUrl: 'u');
+    await manager.record(_work('a'), ep);
+    final current = manager.dirty().single;
+
+    await manager.markSynced({
+      'a': current.updatedAt.subtract(const Duration(seconds: 1)),
+    });
+    expect(manager.dirty(), isNotEmpty);
+
+    await manager.markSynced({'a': current.updatedAt});
+    expect(manager.dirty(), isEmpty);
   });
 }

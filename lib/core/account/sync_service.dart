@@ -27,6 +27,7 @@ class SyncService {
   final WatchHistoryManager _history;
 
   bool _running = false;
+  bool _rerun = false;
   Timer? _debounce;
 
   /// Coalesces bursts of local changes into one background sync.
@@ -36,7 +37,10 @@ class SyncService {
   }
 
   Future<void> sync() async {
-    if (_running) return;
+    if (_running) {
+      _rerun = true;
+      return;
+    }
     final db = AppDatabase();
     final token = db.getString('account_token');
     if (token == null) return;
@@ -46,6 +50,10 @@ class SyncService {
       await _run(db, token);
     } finally {
       _running = false;
+      if (_rerun) {
+        _rerun = false;
+        await sync();
+      }
     }
   }
 
@@ -62,6 +70,8 @@ class SyncService {
       } on AccountException {
         return;
       }
+    } catch (_) {
+      return;
     }
   }
 
@@ -70,12 +80,12 @@ class SyncService {
     final pushed = await _push(api, token);
     await _pull(db, api, token);
     if (pushed.follows.isNotEmpty) await _follows.markSynced(pushed.follows);
-    if (pushed.clearedHistory) await _history.clearPendingClear();
     if (pushed.history.isNotEmpty) await _history.markSynced(pushed.history);
+    if (pushed.clearedHistory) await _history.clearPendingClear();
   }
 
   Future<_Pushed> _push(AccountApi api, String token) async {
-    final follows = <String>{};
+    final follows = <String, DateTime>{};
     for (final record in _follows.dirty()) {
       if (record.deleted) {
         await api.deleteFollow(
@@ -84,15 +94,31 @@ class SyncService {
         await api.putFollow(token, record.work.toJson(),
             record.updatedAt.millisecondsSinceEpoch);
       }
-      follows.add(record.work.id);
+      follows[record.work.id] = record.updatedAt;
     }
 
-    final history = <String>{};
+    final history = <String, DateTime>{};
     final clearedHistory = _history.pendingClear;
     if (clearedHistory) {
-      await api.clearHistory(token, DateTime.now().millisecondsSinceEpoch);
+      await api.clearHistory(
+          token,
+          _history.clearAt ?? DateTime.now().millisecondsSinceEpoch);
       for (final record in _history.dirty()) {
-        history.add(record.work.id);
+        if (record.deleted) {
+          // Covered by the clearHistory call above.
+          history[record.work.id] = record.updatedAt;
+        } else {
+          // Recorded after the clear: push it explicitly.
+          await api.putHistory(
+            token,
+            record.work.toJson(),
+            record.episodeTitle,
+            record.episodeIndex,
+            record.watchedAt.millisecondsSinceEpoch,
+            record.updatedAt.millisecondsSinceEpoch,
+          );
+          history[record.work.id] = record.updatedAt;
+        }
       }
     } else {
       for (final record in _history.dirty()) {
@@ -104,7 +130,7 @@ class SyncService {
           record.watchedAt.millisecondsSinceEpoch,
           record.updatedAt.millisecondsSinceEpoch,
         );
-        history.add(record.work.id);
+        history[record.work.id] = record.updatedAt;
       }
     }
     return _Pushed(follows, history, clearedHistory);
@@ -152,8 +178,8 @@ class SyncService {
 }
 
 class _Pushed {
-  final Set<String> follows;
-  final Set<String> history;
+  final Map<String, DateTime> follows;
+  final Map<String, DateTime> history;
   final bool clearedHistory;
 
   const _Pushed(this.follows, this.history, this.clearedHistory);

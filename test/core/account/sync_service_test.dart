@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:acgnhub/core/account/account_api.dart';
@@ -23,6 +25,7 @@ class _FakeApi implements AccountApi {
   final putFollows = <String>[];
   final deleteFollows = <String>[];
   final putHistoryIds = <String>[];
+  final clearHistoryAts = <int>[];
   int clearHistoryCalls = 0;
   int syncCalls = 0;
 
@@ -52,8 +55,10 @@ class _FakeApi implements AccountApi {
       putHistoryIds.add(work['id'] as String);
 
   @override
-  Future<void> clearHistory(String token, int updatedAt) async =>
-      clearHistoryCalls++;
+  Future<void> clearHistory(String token, int updatedAt) async {
+    clearHistoryCalls++;
+    clearHistoryAts.add(updatedAt);
+  }
 
   @override
   Future<AuthSession> register(String username, String password) async =>
@@ -104,6 +109,33 @@ void main() {
     expect(AppDatabase().getString('sync_cursor'), '9');
   });
 
+  test('a local write during a push stays dirty and is pushed next time', () async {
+    await AppDatabase.init();
+    late FollowManager follows;
+    var mutations = 0;
+    final api = _MutatingApi(() async {
+      if (mutations++ == 0) {
+        await Future.delayed(const Duration(milliseconds: 2));
+        await follows.follow(_work('local'));
+      }
+    });
+    follows = FollowManager();
+    await follows.follow(_work('local'));
+    await AppDatabase().setString('account_token', 'tok');
+
+    final service = SyncService(
+        apiFactory: (_) => api,
+        follows: follows,
+        history: WatchHistoryManager());
+    await service.sync();
+
+    expect(follows.dirty().map((r) => r.work.id), ['local']);
+
+    await service.sync();
+    expect(follows.dirty(), isEmpty);
+    expect(api.putFollows, ['local', 'local']);
+  });
+
   test('a history pendingClear pushes a clear instead of per-record puts', () async {
     await AppDatabase.init();
     final api = _FakeApi();
@@ -122,9 +154,47 @@ void main() {
     expect(history.dirty(), isEmpty);
   });
 
+  test('a record after a clear is pushed with the stored clear time', () async {
+    await AppDatabase.init();
+    final api = _FakeApi();
+    final history = WatchHistoryManager();
+    const ep = VideoEpisode(id: 'e', title: '第1集', index: 0, playUrl: 'u');
+    await history.record(_work('h'), ep);
+    await history.clear();
+    final clearAt = history.clearAt;
+    await history.record(_work('h'), ep);
+    await AppDatabase().setString('account_token', 'tok');
+
+    await SyncService(
+            apiFactory: (_) => api,
+            follows: FollowManager(),
+            history: history)
+        .sync();
+
+    expect(api.clearHistoryCalls, 1);
+    expect(clearAt, isNotNull);
+    expect(api.clearHistoryAts.single, clearAt);
+    expect(api.putHistoryIds, ['h']);
+    expect(history.pendingClear, isFalse);
+    expect(history.dirty(), isEmpty);
+  });
+
   test('a network failure leaves dirty flags set', () async {
     await AppDatabase.init();
     final api = _NetworkFailApi();
+    final follows = FollowManager();
+    await follows.follow(_work('local'));
+    await AppDatabase().setString('account_token', 'tok');
+
+    await SyncService(apiFactory: (_) => api, follows: follows, history: WatchHistoryManager())
+        .sync();
+
+    expect(follows.dirty(), isNotEmpty);
+  });
+
+  test('a non-account error during sync is swallowed and leaves dirty flags', () async {
+    await AppDatabase.init();
+    final api = _MalformedApi();
     final follows = FollowManager();
     await follows.follow(_work('local'));
     await AppDatabase().setString('account_token', 'tok');
@@ -159,6 +229,24 @@ void main() {
     expect(follows.dirty(), isEmpty);
   });
 
+  test('a sync requested during a run is rerun once', () async {
+    await AppDatabase.init();
+    final api = _GatedApi();
+    await AppDatabase().setString('account_token', 'tok');
+    final service = SyncService(
+        apiFactory: (_) => api,
+        follows: FollowManager(),
+        history: WatchHistoryManager());
+
+    final first = service.sync();
+    await Future.delayed(const Duration(milliseconds: 5));
+    await service.sync(); // dropped while running, but flags a rerun
+    api.gate.complete();
+    await first;
+
+    expect(api.syncCalls, 2);
+  });
+
   test('no token is a no-op', () async {
     await AppDatabase.init();
     final api = _FakeApi();
@@ -172,5 +260,35 @@ class _NetworkFailApi extends _FakeApi {
   @override
   Future<SyncPage> sync(String token, int sinceSeq) async {
     throw const AccountException(code: 'network', message: '网络错误');
+  }
+}
+
+class _GatedApi extends _FakeApi {
+  final gate = Completer<void>();
+
+  @override
+  Future<SyncPage> sync(String token, int sinceSeq) async {
+    syncCalls++;
+    if (syncCalls == 1) await gate.future;
+    return SyncPage(follows: const [], history: const [], nextSeq: sinceSeq);
+  }
+}
+
+class _MalformedApi extends _FakeApi {
+  @override
+  Future<SyncPage> sync(String token, int sinceSeq) async {
+    throw const FormatException('malformed payload');
+  }
+}
+
+class _MutatingApi extends _FakeApi {
+  _MutatingApi(this.onPutFollow);
+  final Future<void> Function() onPutFollow;
+
+  @override
+  Future<void> putFollow(
+      String token, Map<String, dynamic> work, int updatedAt) async {
+    putFollows.add(work['id'] as String);
+    await onPutFollow();
   }
 }

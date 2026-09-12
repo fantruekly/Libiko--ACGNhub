@@ -11,6 +11,7 @@ import '../video/video_source.dart';
 class WatchHistoryManager {
   static const _key = 'watch_history';
   static const _kPendingClear = 'watch_history_pending_clear';
+  static const _kClearAt = 'watch_history_clear_at';
 
   List<WatchRecord> _readAll() {
     final jsonList = AppDatabase().getStringList(_key);
@@ -33,55 +34,61 @@ class WatchHistoryManager {
 
   bool get pendingClear => AppDatabase().getBool(_kPendingClear) ?? false;
 
+  int? get clearAt => AppDatabase().getInt(_kClearAt);
+
   Future<void> clearPendingClear() async {
     await AppDatabase().remove(_kPendingClear);
+    await AppDatabase().remove(_kClearAt);
   }
 
   Future<void> _pending = Future.value();
 
-  Future<void> record(Work work, VideoEpisode episode) {
-    final next = _pending.then((_) async {
-      final now = DateTime.now();
-      final record = WatchRecord(
-        work: work,
-        episodeTitle: episode.title,
-        episodeIndex: episode.index,
-        watchedAt: now,
-        updatedAt: now,
-        dirty: true,
-      );
-      await _save(upsert(_readAll(), record));
-    });
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next = _pending.then((_) => action());
     _pending = next.catchError((_) {});
     return next;
   }
 
-  Future<void> clear() {
-    final next = _pending.then((_) async {
-      final tombstones = _readAll()
-          .where((r) => !r.deleted)
-          .map((r) => r.copyWith(
-              deleted: true, dirty: true, updatedAt: DateTime.now()))
-          .toList();
-      for (final tombstone in tombstones) {
-        await _save(upsert(_readAll(), tombstone));
-      }
-      await AppDatabase().setBool(_kPendingClear, true);
-    });
-    _pending = next.catchError((_) {});
-    return next;
-  }
+  Future<void> record(Work work, VideoEpisode episode) => _enqueue(() async {
+        final now = DateTime.now();
+        final record = WatchRecord(
+          work: work,
+          episodeTitle: episode.title,
+          episodeIndex: episode.index,
+          watchedAt: now,
+          updatedAt: now,
+          dirty: true,
+        );
+        await _save(upsert(_readAll(), record));
+      });
 
-  Future<void> markSynced(Set<String> workIds) async {
-    final records = _readAll()
-        .map((r) => workIds.contains(r.work.id) ? r.copyWith(dirty: false) : r)
-        .toList();
-    await _save(records);
-  }
+  Future<void> clear() => _enqueue(() async {
+        final now = DateTime.now();
+        final tombstones = _readAll()
+            .where((r) => !r.deleted)
+            .map((r) => r.copyWith(
+                deleted: true, dirty: true, updatedAt: now))
+            .toList();
+        for (final tombstone in tombstones) {
+          await _save(upsert(_readAll(), tombstone));
+        }
+        await AppDatabase().setBool(_kPendingClear, true);
+        await AppDatabase().setInt(_kClearAt, now.millisecondsSinceEpoch);
+      });
 
-  Future<void> mergeFromServer(List<WatchRecord> server) async {
-    await _save(merge(_readAll(), server));
-  }
+  Future<void> markSynced(Map<String, DateTime> pushedUpdatedAt) =>
+      _enqueue(() async {
+        final records = _readAll().map((r) {
+          final pushed = pushedUpdatedAt[r.work.id];
+          return pushed != null && r.updatedAt == pushed
+              ? r.copyWith(dirty: false)
+              : r;
+        }).toList();
+        await _save(records);
+      });
+
+  Future<void> mergeFromServer(List<WatchRecord> server) =>
+      _enqueue(() => _save(merge(_readAll(), server)));
 
   @visibleForTesting
   static List<WatchRecord> merge(
@@ -90,7 +97,7 @@ class WatchHistoryManager {
     for (final item in server) {
       final existing = byId[item.work.id];
       if (existing != null && existing.updatedAt.isAfter(item.updatedAt)) {
-        byId[item.work.id] = existing.copyWith(dirty: false);
+        byId[item.work.id] = existing.copyWith();
       } else {
         byId[item.work.id] = item.copyWith(dirty: false);
       }
