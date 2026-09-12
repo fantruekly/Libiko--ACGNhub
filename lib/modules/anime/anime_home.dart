@@ -15,34 +15,49 @@ class AnimeHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const DefaultTabController(
+    return DefaultTabController(
       length: 4,
-      child: Column(
-        children: [
-          TabBar(
-            labelColor: Color(0xFF007AFF),
-            unselectedLabelColor: Color(0xFF8E8E93),
-            indicatorColor: Color(0xFF007AFF),
-            dividerColor: Color(0xFFE5E5EA),
-            tabs: [
-              Tab(text: '本季新番'),
-              Tab(text: '热门推荐'),
-              Tab(text: '今日放送'),
-              Tab(text: '历史记录'),
+      child: Builder(
+        builder: (context) {
+          final controller = DefaultTabController.of(context);
+          return Column(
+            children: [
+              const TabBar(
+                labelColor: Color(0xFF007AFF),
+                unselectedLabelColor: Color(0xFF8E8E93),
+                indicatorColor: Color(0xFF007AFF),
+                dividerColor: Color(0xFFE5E5EA),
+                tabs: [
+                  Tab(text: '本季新番'),
+                  Tab(text: '热门推荐'),
+                  Tab(text: '今日放送'),
+                  Tab(text: '历史记录'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _heroTab(controller, 0, const _FeedView(feed: AnimeFeed.season)),
+                    _heroTab(controller, 1, const _FeedView(feed: AnimeFeed.trending)),
+                    _heroTab(controller, 2, const _FeedView(feed: AnimeFeed.today)),
+                    _heroTab(controller, 3, const AnimeHistoryView()),
+                  ],
+                ),
+              ),
             ],
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _FeedView(feed: AnimeFeed.season),
-                _FeedView(feed: AnimeFeed.trending),
-                _FeedView(feed: AnimeFeed.today),
-                AnimeHistoryView(),
-              ],
-            ),
-          ),
-        ],
+          );
+        },
       ),
+    );
+  }
+
+  /// Heroes are only registered for the visible tab, so the same work mounted
+  /// in two kept-alive tabs cannot collide on its `Hero` tag.
+  static Widget _heroTab(TabController controller, int index, Widget child) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) =>
+          HeroMode(enabled: controller.index == index, child: child),
     );
   }
 }

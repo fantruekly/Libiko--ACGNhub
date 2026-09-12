@@ -78,7 +78,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
     }
     setState(() => _resolving = false);
     await _player.open(Media(url));
-    if (gen == _gen) history.record(work, episode);
+    if (gen == _gen) await history.record(work, episode);
   }
 
   MaterialDesktopVideoControlsThemeData _controlsTheme(BuildContext context, {bool showEpisodes = true}) {

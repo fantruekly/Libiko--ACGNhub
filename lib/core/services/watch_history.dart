@@ -25,17 +25,29 @@ class WatchHistoryManager {
     return sortDescending(records);
   }
 
-  Future<void> record(Work work, VideoEpisode episode) async {
-    final record = WatchRecord(
-      work: work,
-      episodeTitle: episode.title,
-      episodeIndex: episode.index,
-      watchedAt: DateTime.now(),
-    );
-    await _save(upsert(all(), record));
+  Future<void> _pending = Future.value();
+
+  Future<void> record(Work work, VideoEpisode episode) {
+    final next = _pending.then((_) async {
+      final record = WatchRecord(
+        work: work,
+        episodeTitle: episode.title,
+        episodeIndex: episode.index,
+        watchedAt: DateTime.now(),
+      );
+      await _save(upsert(all(), record));
+    });
+    _pending = next.catchError((_) {});
+    return next;
   }
 
-  Future<void> clear() => AppDatabase().remove(_key);
+  Future<void> clear() {
+    final next = _pending.then((_) async {
+      await AppDatabase().remove(_key);
+    });
+    _pending = next.catchError((_) {});
+    return next;
+  }
 
   Future<void> _save(List<WatchRecord> records) async {
     final jsonList = records.map((r) => json.encode(r.toJson())).toList();

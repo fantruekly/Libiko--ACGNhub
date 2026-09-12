@@ -86,8 +86,7 @@ class AnimeHistoryView extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed == true) {
-      await ref.read(watchHistoryProvider.notifier).clear();
-    }
+    if (confirmed != true || !context.mounted) return;
+    await ref.read(watchHistoryProvider.notifier).clear();
   }
 }
