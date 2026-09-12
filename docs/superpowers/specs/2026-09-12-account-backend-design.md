@@ -107,7 +107,8 @@ All routes are under `/api`. Requests and responses are JSON (`Content-Type: app
 ## 6. Sync / conflict strategy
 
 - **Last-write-wins** on `client_updated_at`: an upsert whose `updatedAt` is **strictly less than** the stored `client_updated_at` is rejected and the stored row is returned unchanged. Otherwise the incoming data is written and `seq` is bumped.
-- **Tombstones**: deletions set `deleted = 1` and bump `seq`, so a delete propagates to other devices via `/api/sync`.
+- **Tombstones**: deletions set `deleted = 1` and bump `seq`, so a delete propagates to other devices via `/api/sync`. A tombstone **preserves the row's payload** (`work_json` and, for history, the episode fields) so a syncing client can identify which work it refers to.
+- **Explicit clears bypass LWW**: `DELETE /api/history` (clear-all) writes its tombstones unconditionally, stamping them with the client's own `updatedAt` rather than a server-invented timestamp. An explicit clear therefore always wins even over a row stored with a future client timestamp (clock skew), while a later legitimate write with a greater timestamp still wins.
 - A client pushes its local changes with `PUT`/`DELETE`, then pulls `GET /api/sync?sinceSeq=<nextSeq>`.
 
 ## 7. Auth details
