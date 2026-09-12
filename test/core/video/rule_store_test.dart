@@ -15,14 +15,28 @@ SourceRule _rule(String name) => SourceRule(
       chapterResult: '//a',
     );
 
+SourceRule _ruleWith(String name, String baseUrl) => SourceRule(
+      name: name,
+      baseUrl: baseUrl,
+      searchUrl: 'https://$name.test/s?wd=@keyword',
+      searchList: '//div',
+      searchName: '//div[2]',
+      searchResult: '//a',
+      chapterRoads: '//div',
+      chapterResult: '//a',
+    );
+
 void main() {
   test('mergeRules dedupes by name and imported wins', () {
     final merged = RuleStore.mergeRules(
       [_rule('a'), _rule('b')],
-      [_rule('b'), _rule('c')],
+      [_ruleWith('b', 'https://b-imported.test/'), _rule('c')],
     );
     expect(merged.map((r) => r.name).toSet(), {'a', 'b', 'c'});
-    expect(merged.firstWhere((r) => r.name == 'b').baseUrl, 'https://b.test/');
+    expect(
+      merged.firstWhere((r) => r.name == 'b').baseUrl,
+      'https://b-imported.test/',
+    );
   });
 
   test('bundled 7sefun rule parses from disk', () async {
