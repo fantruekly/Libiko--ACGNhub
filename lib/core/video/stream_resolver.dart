@@ -7,6 +7,19 @@ import 'package:webview_windows/webview_windows.dart';
 /// (forked) `webview_windows` native m3u8/video detection. The user never sees
 /// the source site — playback happens in the app's own media_kit player.
 class StreamResolver {
+  static final RegExp _mediaRe =
+      RegExp(r'\.(m3u8|mp4)$', caseSensitive: false);
+
+  /// True when the URL's *path* ends with a media extension. The path is used
+  /// (not the whole URL) so a player page like
+  /// `.../player/index.html?url=https://cdn/x/index.m3u8` is not mistaken for
+  /// the stream it embeds.
+  @visibleForTesting
+  static bool looksLikeMediaUrl(String url) {
+    final path = Uri.tryParse(url)?.path ?? url;
+    return _mediaRe.hasMatch(path);
+  }
+
   Future<String?> resolve(
     String playPageUrl, {
     Duration timeout = const Duration(seconds: 30),
@@ -29,6 +42,12 @@ class StreamResolver {
           .listen((data) => finish(data['url'] ?? '')));
       subs.add(webview.onVideoSourceLoaded
           .listen((data) => finish(data['url'] ?? '')));
+      // Fallback for streams the native detector misses: some sites serve the
+      // m3u8 as `text/html`, so neither content-type nor body detection fires.
+      subs.add(webview.onSourceLoaded.listen((data) {
+        final url = data['url'] ?? '';
+        if (looksLikeMediaUrl(url)) finish(url);
+      }));
 
       await webview.loadUrl(playPageUrl);
       final url = await completer.future.timeout(timeout, onTimeout: () {
