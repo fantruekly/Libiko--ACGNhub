@@ -14,20 +14,22 @@ const _rule = SourceRule(
 );
 
 void main() {
-  test('buildSearchScript embeds the search XPaths and returns JSON', () {
+  test('buildSearchScript wraps row sub-selectors with __rel', () {
     final js = buildSearchScript(_rule);
     expect(js, contains('document.evaluate'));
-    expect(js, contains('"//div[2]/div[2]/div[2]/div[2]/div"'));
-    expect(js, contains('"//div[2]/text()"'));
-    expect(js, contains('"//a"'));
+    expect(js, contains('function __rel('));
+    expect(js, contains('__ev("//div[2]/div[2]/div[2]/div[2]/div", document)'));
+    expect(js, contains('__txt(__rel("//div[2]/text()"), list[i])'));
+    expect(js, contains('__attr(__rel("//a"), list[i], \'href\')'));
     expect(js, contains('return rows;'));
     expect(js, isNot(contains('JSON.stringify')));
   });
 
-  test('buildEpisodesScript embeds the chapter XPaths and returns JSON', () {
+  test('buildEpisodesScript wraps the chapter result with __rel', () {
     final js = buildEpisodesScript(_rule);
-    expect(js, contains('"//div[2]/div[2]/div[2]/div/div[2]/div[1]//div"'));
-    expect(js, contains('"//a"'));
+    expect(js, contains(
+        '__ev("//div[2]/div[2]/div[2]/div/div[2]/div[1]//div", document)'));
+    expect(js, contains('__ev(__rel("//a"), roads[0])'));
     expect(js, contains('return out;'));
     expect(js, isNot(contains('JSON.stringify')));
   });
