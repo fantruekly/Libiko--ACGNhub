@@ -72,20 +72,50 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         children: [
           _header(w, cs),
           Expanded(
-            child: CustomScrollView(
-              slivers: [
-                _infoSection(
-                    w, cs, score, episodes, seasonYear, format, status),
-                if (w.tags.isNotEmpty) _tagsRow(w.tags),
-                _summarySection(w.summary, cs),
-                _playSection(w, cs),
-              ],
+            child: DefaultTabController(
+              length: 3,
+              child: Column(
+                children: [
+                  _infoSection(
+                      w, cs, score, episodes, seasonYear, format, status),
+                  const TabBar(
+                    labelColor: Color(0xFF007AFF),
+                    unselectedLabelColor: Color(0xFF8E8E93),
+                    indicatorColor: Color(0xFF007AFF),
+                    dividerColor: Color(0xFFE5E5EA),
+                    tabs: [Tab(text: '概览'), Tab(text: '角色'), Tab(text: '关联')],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _overviewTab(w, cs),
+                        _charactersTab(cs),
+                        _relatedTab(cs),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _overviewTab(Work w, ColorScheme cs) {
+    return CustomScrollView(
+      slivers: [
+        if (w.tags.isNotEmpty) _tagsRow(w.tags),
+        _summarySection(w.summary, cs),
+        _playSection(w, cs),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
+    );
+  }
+
+  Widget _charactersTab(ColorScheme cs) => const Center(child: Text('角色'));
+  Widget _relatedTab(ColorScheme cs) => const Center(child: Text('关联'));
 
   Widget _header(Work w, ColorScheme cs) {
     return Container(
@@ -128,89 +158,87 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     String? format,
     String? status,
   ) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        child: GlassSurface(
-          borderRadius: BorderRadius.circular(16),
-          padding: const EdgeInsets.all(16),
-          border: Border.all(color: const Color(0xFFE5E5EA)),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
-          ],
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Hero(
-                tag: 'work_${w.id}',
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 110,
-                    height: 154,
-                    child: w.coverUrl != null && w.coverUrl!.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: w.coverUrl!,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => _coverPlaceholder(cs),
-                          )
-                        : _coverPlaceholder(cs),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: GlassSurface(
+        borderRadius: BorderRadius.circular(16),
+        padding: const EdgeInsets.all(16),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
+        ],
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Hero(
+              tag: 'work_${w.id}',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 110,
+                  height: 154,
+                  child: w.coverUrl != null && w.coverUrl!.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: w.coverUrl!,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => _coverPlaceholder(cs),
+                        )
+                      : _coverPlaceholder(cs),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    w.title,
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      w.title,
-                      style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          height: 1.35),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    if (_loading)
-                      SizedBox(
-                        width: 100,
-                        child: LinearProgressIndicator(
-                          minHeight: 2,
-                          color: const Color(0xFF007AFF).withValues(alpha: 0.3),
-                        ),
-                      )
-                    else ...[
-                      if (score != null) ...[
-                        RatingStars(score: score),
-                        const SizedBox(height: 10),
-                      ],
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          if (episodes != null)
-                            _metaChip(Icons.live_tv_rounded, '$episodes 话',
-                                const Color(0xFF007AFF)),
-                          if (seasonYear != null)
-                            _metaChip(Icons.calendar_today_rounded,
-                                '$seasonYear', const Color(0xFF5856D6)),
-                          if (status != null)
-                            _metaChip(Icons.info_outline_rounded,
-                                _statusLabel(status), Colors.teal),
-                          if (format != null)
-                            _metaChip(Icons.movie_outlined, format,
-                                Colors.deepPurple),
-                        ],
+                  const SizedBox(height: 8),
+                  if (_loading)
+                    SizedBox(
+                      width: 100,
+                      child: LinearProgressIndicator(
+                        minHeight: 2,
+                        color: const Color(0xFF007AFF).withValues(alpha: 0.3),
                       ),
+                    )
+                  else ...[
+                    if (score != null) ...[
+                      RatingStars(score: score),
+                      const SizedBox(height: 10),
                     ],
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (episodes != null)
+                          _metaChip(Icons.live_tv_rounded, '$episodes 话',
+                              const Color(0xFF007AFF)),
+                        if (seasonYear != null)
+                          _metaChip(Icons.calendar_today_rounded, '$seasonYear',
+                              const Color(0xFF5856D6)),
+                        if (status != null)
+                          _metaChip(Icons.info_outline_rounded,
+                              _statusLabel(status), Colors.teal),
+                        if (format != null)
+                          _metaChip(
+                              Icons.movie_outlined, format, Colors.deepPurple),
+                      ],
+                    ),
                   ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -266,15 +294,21 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 0.5),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              width: 0.5),
                         ),
                         child: Text(
                           t,
-                          style: const TextStyle(fontSize: 12.5, color: Color(0xFF3A3A3C), fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFF3A3A3C),
+                              fontWeight: FontWeight.w500),
                         ),
                       ),
                     ),
