@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
@@ -8,6 +9,7 @@ import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
+import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
 import '../../core/video/video_sources.dart';
@@ -671,6 +673,27 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
+  Future<void> _importRule() async {
+    final messenger = ScaffoldMessenger.of(context);
+    const typeGroup = XTypeGroup(label: 'Kazumi 规则', extensions: ['json']);
+    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    if (file == null) return;
+    try {
+      final rule = await ref.read(ruleStoreProvider).importJson(
+            await file.readAsString(),
+          );
+      ref.invalidate(videoSourcesProvider);
+      if (!mounted) return;
+      messenger.showSnackBar(
+          SnackBar(content: Text('已导入规则：${rule.name}')));
+      _searchAllSources();
+    } on FormatException catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+          SnackBar(content: Text('规则无效：${e.message}')));
+    }
+  }
+
   Widget _playSection(Work w, ColorScheme cs) {
     final results = _flatResults;
     final loading =
@@ -719,6 +742,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2)),
+                  IconButton(
+                    tooltip: '导入规则',
+                    iconSize: 18,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _importRule,
+                    icon: const Icon(Icons.file_download_outlined),
+                  ),
                   IconButton(
                     tooltip: '重新搜索',
                     iconSize: 18,
