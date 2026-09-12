@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/database.dart';
 import 'account_api.dart';
 import 'account_models.dart';
+import 'sync_service.dart';
 
 const kDefaultBaseUrl = 'http://127.0.0.1:8080';
 const _kBaseUrl = 'account_base_url';
@@ -94,6 +95,7 @@ class AccountNotifier extends Notifier<AccountState> {
       await db.setString(_kUser, json.encode(session.user.toJson()));
       state = state.copyWith(
           loading: false, user: session.user, clearError: true);
+      ref.read(syncProvider).schedule();
     } on AccountException catch (e) {
       state = state.copyWith(loading: false, error: e.message);
     } catch (_) {

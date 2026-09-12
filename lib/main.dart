@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/account/account_service.dart';
+import 'core/account/sync_service.dart';
 import 'core/storage/database.dart';
 import 'shell/main_shell.dart';
 
@@ -15,7 +16,10 @@ void main() async {
   await AppDatabase.init();
 
   final container = ProviderContainer();
-  unawaited(container.read(accountProvider.notifier).load());
+  unawaited(container
+      .read(accountProvider.notifier)
+      .load()
+      .then((_) => container.read(syncProvider).sync()));
 
   const windowOptions = WindowOptions(
     size: Size(1280, 800),

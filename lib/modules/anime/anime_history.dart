@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/account/sync_service.dart';
 import '../../core/services/watch_history.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -88,5 +89,6 @@ class AnimeHistoryView extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
     await ref.read(watchHistoryProvider.notifier).clear();
+    ref.read(syncProvider).schedule();
   }
 }

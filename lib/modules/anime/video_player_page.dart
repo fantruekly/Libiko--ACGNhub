@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import '../../core/account/sync_service.dart';
 import '../../core/models/work.dart';
 import '../../core/services/watch_history.dart';
 import '../../core/video/stream_resolver.dart';
@@ -79,6 +80,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
     setState(() => _resolving = false);
     await _player.open(Media(url));
     if (gen == _gen) await history.record(work, episode);
+    ref.read(syncProvider).schedule();
   }
 
   MaterialDesktopVideoControlsThemeData _controlsTheme(BuildContext context, {bool showEpisodes = true}) {
