@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 
+import '../models/anime_extra.dart';
 import '../models/work.dart';
 import 'anilist_provider.dart';
 import 'bangumi_provider.dart';
@@ -105,6 +106,28 @@ class MetadataService {
     } catch (_) {
       final cached = await _readWork(key);
       return cached ?? work;
+    }
+  }
+
+  Future<List<AnimeCharacter>> characters(Work work) async {
+    final id = work.bangumiId;
+    final provider = bangumi;
+    if (id == null || provider is! BangumiProvider) return const [];
+    try {
+      return await provider.characters(id);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<RelatedWork>> related(Work work) async {
+    final id = work.bangumiId;
+    final provider = bangumi;
+    if (id == null || provider is! BangumiProvider) return const [];
+    try {
+      return await provider.related(id);
+    } catch (_) {
+      return const [];
     }
   }
 
