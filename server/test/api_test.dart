@@ -216,4 +216,20 @@ void main() {
     expect(history.first['episodeTitle'], '第3集');
     expect(history.first['deleted'], false);
   });
+
+  test('sync history tombstones stay identifiable after a clear', () async {
+    final token = await registerToken('alice');
+    await call('PUT', '/api/history', token: token, body: {
+      'work': {'id': 'w1', 'title': 'A'}, 'episodeTitle': '第3集',
+      'episodeIndex': 2, 'watchedAt': 100, 'updatedAt': 100,
+    });
+    await call('DELETE', '/api/history?updatedAt=200', token: token);
+
+    final sync = await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
+    final history = sync['history'] as List;
+    expect(history, hasLength(1));
+    expect(history.first['deleted'], true);
+    expect(history.first['work']['id'], 'w1');
+    expect(history.first['episodeTitle'], '第3集');
+  });
 }

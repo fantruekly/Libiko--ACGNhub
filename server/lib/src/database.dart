@@ -190,18 +190,18 @@ class Database {
 
   int clearHistory(int userId, int updatedAt) {
     final rows = _db.select(
-        'SELECT work_id, client_updated_at FROM history '
-        'WHERE user_id = ? AND deleted = 0',
+        'SELECT work_id, work_json, episode_title, episode_index, watched_at, '
+        'client_updated_at FROM history WHERE user_id = ? AND deleted = 0',
         [userId]);
     for (final row in rows) {
       final stored = row['client_updated_at'] as int;
       upsertHistory(
         userId: userId,
         workId: row['work_id'] as String,
-        work: const {},
-        episodeTitle: '',
-        episodeIndex: 0,
-        watchedAt: 0,
+        work: jsonDecode(row['work_json'] as String) as Map<String, dynamic>,
+        episodeTitle: row['episode_title'] as String,
+        episodeIndex: row['episode_index'] as int,
+        watchedAt: row['watched_at'] as int,
         updatedAt: updatedAt > stored ? updatedAt : stored + 1,
         deleted: true,
       );
