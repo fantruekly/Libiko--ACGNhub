@@ -3,10 +3,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:window_manager/window_manager.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/rating_stars.dart';
+import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/window_controls.dart';
 import '../../core/video/agedm_source.dart';
 import '../../core/video/gimy_source.dart';
 import '../../core/video/video_source.dart';
@@ -217,8 +220,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           borderRadius: BorderRadius.circular(10),
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => AnimeDetailPage(
+            smoothRoute(
+              AnimeDetailPage(
                 work: Work(
                   id: 'bangumi_${r.bangumiId}',
                   sourceId: 'bangumi',
@@ -275,33 +278,36 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Widget _header(Work w, ColorScheme cs) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
-        border:
-            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => Navigator.pop(context),
-            splashRadius: 20,
-          ),
-          Expanded(
-            child: Text(
-              w.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface),
+    return DragToMoveArea(
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.only(left: 4),
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFFFFF),
+          border:
+              Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.pop(context),
+              splashRadius: 20,
             ),
-          ),
-        ],
+            Expanded(
+              child: Text(
+                w.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface),
+              ),
+            ),
+            const WindowControls(),
+          ],
+        ),
       ),
     );
   }

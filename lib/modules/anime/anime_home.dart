@@ -6,6 +6,7 @@ import '../../core/metadata/metadata_provider.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/smooth_route.dart';
 import '../../core/models/work.dart';
 
 class AnimeHomePage extends ConsumerStatefulWidget {
@@ -140,11 +141,9 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
                               : WorkCard(
                                   work: items[i],
                                   onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            AnimeDetailPage(work: items[i])),
-                                  ),
+                                      context,
+                                      smoothRoute(
+                                          AnimeDetailPage(work: items[i]))),
                                 ),
                           childCount: items.length,
                         ),

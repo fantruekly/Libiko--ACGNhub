@@ -4,6 +4,7 @@ import '../../core/models/work.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/smooth_route.dart';
 import 'anime_providers.dart';
 import 'anime_detail_page.dart';
 
@@ -176,11 +177,8 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
       itemCount: _results.length,
       itemBuilder: (context, index) => WorkCard(
         work: _results[index],
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => AnimeDetailPage(work: _results[index])),
-        ),
+        onTap: () => Navigator.push(context,
+            smoothRoute(AnimeDetailPage(work: _results[index]))),
       ),
     );
   }

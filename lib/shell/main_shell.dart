@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import '../core/widgets/glass_surface.dart';
+import '../core/widgets/window_controls.dart';
 import '../modules/anime/anime_home.dart';
 import '../modules/anime/anime_search.dart';
 import 'settings_page.dart';
@@ -13,9 +14,8 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> with WindowListener {
+class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
-  bool _isMaximized = false;
   late final SidebarState _sidebarState;
 
   static const _titles = ['动漫', '漫画', '轻小说', '游戏'];
@@ -73,22 +73,8 @@ class _MainShellState extends State<MainShell> with WindowListener {
   @override
   void initState() {
     super.initState();
-    windowManager.addListener(this);
-    windowManager.isMaximized().then((v) {
-      if (mounted) setState(() => _isMaximized = v);
-    });
     _sidebarState = SidebarState();
     _sidebarState.addListener(_onSidebarChanged);
-  }
-
-  @override
-  void onWindowMaximize() {
-    if (mounted) setState(() => _isMaximized = true);
-  }
-
-  @override
-  void onWindowUnmaximize() {
-    if (mounted) setState(() => _isMaximized = false);
   }
 
   void _onSidebarChanged() {
@@ -97,7 +83,6 @@ class _MainShellState extends State<MainShell> with WindowListener {
 
   @override
   void dispose() {
-    windowManager.removeListener(this);
     _sidebarState.removeListener(_onSidebarChanged);
     _sidebarState.dispose();
     super.dispose();
@@ -205,7 +190,7 @@ class _MainShellState extends State<MainShell> with WindowListener {
                   ),
                 ),
               ),
-              _WindowControls(isMaximized: _isMaximized),
+              const WindowControls(),
             ],
           ),
         ),
@@ -246,93 +231,6 @@ class _SidebarToggleButton extends StatelessWidget {
                 color: _fg.withValues(alpha: 0.55),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WindowControls extends StatelessWidget {
-  final bool isMaximized;
-  const _WindowControls({required this.isMaximized});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _WindowButton(
-          icon: Icons.remove_rounded,
-          tooltip: '最小化',
-          onTap: () => windowManager.minimize(),
-        ),
-        _WindowButton(
-          icon: isMaximized
-              ? Icons.filter_none_rounded
-              : Icons.crop_square_rounded,
-          tooltip: isMaximized ? '还原' : '最大化',
-          onTap: () async {
-            if (await windowManager.isMaximized()) {
-              await windowManager.unmaximize();
-            } else {
-              await windowManager.maximize();
-            }
-          },
-        ),
-        _WindowButton(
-          icon: Icons.close_rounded,
-          tooltip: '关闭',
-          danger: true,
-          onTap: () => windowManager.close(),
-        ),
-      ],
-    );
-  }
-}
-
-class _WindowButton extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final bool danger;
-  final VoidCallback onTap;
-
-  const _WindowButton(
-      {required this.icon,
-      required this.tooltip,
-      required this.onTap,
-      this.danger = false});
-
-  @override
-  State<_WindowButton> createState() => _WindowButtonState();
-}
-
-class _WindowButtonState extends State<_WindowButton> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hovered = _hover;
-    final bg = hovered
-        ? (widget.danger ? const Color(0xFFE81123) : const Color(0x0D000000))
-        : Colors.transparent;
-    final fg = (hovered && widget.danger)
-        ? Colors.white
-        : const Color(0xFF1C1C1E).withValues(alpha: 0.55);
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            width: 46,
-            height: 48,
-            color: bg,
-            alignment: Alignment.center,
-            child: Icon(widget.icon, size: 16, color: fg),
           ),
         ),
       ),
