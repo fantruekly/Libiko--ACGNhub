@@ -679,7 +679,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       context,
       MaterialPageRoute(
         builder: (_) => VideoPlayerPage(
-          title: _work.title,
+          work: _work,
           episodes: _episodes ?? const [],
           initialIndex: ep.index,
         ),

@@ -5,8 +5,9 @@ import '../models/work.dart';
 class WorkCard extends StatelessWidget {
   final Work work;
   final VoidCallback? onTap;
+  final String? subtitle;
 
-  const WorkCard({super.key, required this.work, this.onTap});
+  const WorkCard({super.key, required this.work, this.onTap, this.subtitle});
 
   static const _accent = Color(0xFF007AFF);
 
@@ -51,6 +52,15 @@ class WorkCard extends StatelessWidget {
               color: cs.onSurface,
             ),
           ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF8E8E93)),
+            ),
+          ],
         ],
       ),
     );
