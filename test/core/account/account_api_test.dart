@@ -96,6 +96,72 @@ void main() {
       throwsA(isA<AccountException>().having((e) => e.code, 'code', 'network')),
     );
   });
+
+  test('sync parses the page and sends sinceSeq', () async {
+    final adapter = _FakeAdapter(
+      200,
+      jsonEncode({
+        'follows': [
+          {'work': {'id': 'w1'}, 'updatedAt': 5, 'deleted': false}
+        ],
+        'history': [
+          {
+            'work': {'id': 'w1'},
+            'episodeTitle': '第3集',
+            'episodeIndex': 2,
+            'watchedAt': 9,
+            'updatedAt': 9,
+            'deleted': false,
+          }
+        ],
+        'nextSeq': 4,
+      }),
+    );
+    final page = await _api(adapter).sync('tok', 3);
+
+    expect(page.nextSeq, 4);
+    expect(page.follows.single.work['id'], 'w1');
+    expect(page.history.single.episodeTitle, '第3集');
+    expect(adapter.last!.uri.queryParameters['sinceSeq'], '3');
+    expect(adapter.last!.headers['authorization'], 'Bearer tok');
+  });
+
+  test('putFollow posts the work and updatedAt', () async {
+    final adapter = _FakeAdapter(200, jsonEncode({'work': {}, 'updatedAt': 5}));
+    await _api(adapter).putFollow('tok', {'id': 'w1'}, 5);
+    expect(adapter.last!.method, 'PUT');
+    expect(adapter.last!.uri.path, '/api/follows');
+    expect(adapter.last!.data, {'work': {'id': 'w1'}, 'updatedAt': 5});
+  });
+
+  test('deleteFollow sends workId and updatedAt as a query parameter', () async {
+    final adapter = _FakeAdapter(200, jsonEncode({'workId': 'w1'}));
+    await _api(adapter).deleteFollow('tok', 'w1', 7);
+    expect(adapter.last!.method, 'DELETE');
+    expect(adapter.last!.uri.path, '/api/follows/w1');
+    expect(adapter.last!.uri.queryParameters['updatedAt'], '7');
+  });
+
+  test('putHistory posts the episode fields', () async {
+    final adapter = _FakeAdapter(200, jsonEncode({}));
+    await _api(adapter).putHistory('tok', {'id': 'w1'}, '第3集', 2, 9, 9);
+    expect(adapter.last!.uri.path, '/api/history');
+    expect(adapter.last!.data, {
+      'work': {'id': 'w1'},
+      'episodeTitle': '第3集',
+      'episodeIndex': 2,
+      'watchedAt': 9,
+      'updatedAt': 9,
+    });
+  });
+
+  test('clearHistory deletes with updatedAt', () async {
+    final adapter = _FakeAdapter(200, jsonEncode({'deleted': 2}));
+    await _api(adapter).clearHistory('tok', 11);
+    expect(adapter.last!.method, 'DELETE');
+    expect(adapter.last!.uri.path, '/api/history');
+    expect(adapter.last!.uri.queryParameters['updatedAt'], '11');
+  });
 }
 
 class _ThrowingAdapter implements HttpClientAdapter {

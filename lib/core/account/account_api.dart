@@ -66,6 +66,48 @@ class AccountApi {
     return AccountUser.fromJson(json);
   }
 
+  Future<SyncPage> sync(String token, int sinceSeq) async {
+    final json = await _request(() => _dio.get(
+          '$baseUrl/api/sync?sinceSeq=$sinceSeq',
+          options: Options(headers: {'authorization': 'Bearer $token'}),
+        ));
+    return SyncPage.fromJson(json);
+  }
+
+  Future<void> putFollow(
+      String token, Map<String, dynamic> work, int updatedAt) async {
+    await _request(() => _dio.put('$baseUrl/api/follows',
+        data: {'work': work, 'updatedAt': updatedAt},
+        options: Options(headers: {'authorization': 'Bearer $token'})));
+  }
+
+  Future<void> deleteFollow(String token, String workId, int updatedAt) async {
+    await _request(() => _dio.delete(
+          '$baseUrl/api/follows/$workId?updatedAt=$updatedAt',
+          options: Options(headers: {'authorization': 'Bearer $token'}),
+        ));
+  }
+
+  Future<void> putHistory(String token, Map<String, dynamic> work,
+      String episodeTitle, int episodeIndex, int watchedAt, int updatedAt) async {
+    await _request(() => _dio.put('$baseUrl/api/history',
+        data: {
+          'work': work,
+          'episodeTitle': episodeTitle,
+          'episodeIndex': episodeIndex,
+          'watchedAt': watchedAt,
+          'updatedAt': updatedAt,
+        },
+        options: Options(headers: {'authorization': 'Bearer $token'})));
+  }
+
+  Future<void> clearHistory(String token, int updatedAt) async {
+    await _request(() => _dio.delete(
+          '$baseUrl/api/history?updatedAt=$updatedAt',
+          options: Options(headers: {'authorization': 'Bearer $token'}),
+        ));
+  }
+
   Future<Map<String, dynamic>> _request(
       Future<Response> Function() send) async {
     final Response response;

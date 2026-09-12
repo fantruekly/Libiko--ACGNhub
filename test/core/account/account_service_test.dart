@@ -47,6 +47,24 @@ class _FakeApi implements AccountApi {
     }
     return const AccountUser(id: 1, username: 'alice');
   }
+
+  @override
+  Future<SyncPage> sync(String token, int sinceSeq) async =>
+      const SyncPage(follows: [], history: [], nextSeq: 0);
+
+  @override
+  Future<void> putFollow(
+      String token, Map<String, dynamic> work, int updatedAt) async {}
+
+  @override
+  Future<void> deleteFollow(String token, String workId, int updatedAt) async {}
+
+  @override
+  Future<void> putHistory(String token, Map<String, dynamic> work,
+      String episodeTitle, int episodeIndex, int watchedAt, int updatedAt) async {}
+
+  @override
+  Future<void> clearHistory(String token, int updatedAt) async {}
 }
 
 ProviderContainer _container(_FakeApi api) => ProviderContainer(overrides: [
