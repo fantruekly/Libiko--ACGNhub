@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -49,12 +51,19 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   List<AnimeCharacter>? _characters;
   List<RelatedWork>? _related;
   bool _loadingExtras = false;
+  Timer? _searchTimer;
 
   @override
   void initState() {
     super.initState();
     _work = widget.work;
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -75,7 +84,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   void _scheduleSearch() {
-    Future.delayed(const Duration(milliseconds: 300), () {
+    _searchTimer?.cancel();
+    _searchTimer = Timer(const Duration(milliseconds: 300), () {
       if (mounted) _searchAllSources();
     });
   }
