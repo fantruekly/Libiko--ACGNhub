@@ -8,7 +8,6 @@ import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/video/agedm_source.dart';
 import '../../core/video/gimy_source.dart';
-import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
 import 'anime_providers.dart';
 import 'video_player_page.dart';
@@ -557,46 +556,16 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
   }
 
-  Future<void> _playEpisode(VideoEpisode ep) async {
-    final messenger = ScaffoldMessenger.of(context);
-    var cancelled = false;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        content: const Row(
-          children: [
-            SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 16),
-            Text('正在解析播放地址…'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              cancelled = true;
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('取消'),
-          ),
-        ],
-      ),
-    );
-    final url = await StreamResolver().resolve(ep.playUrl);
-    if (!mounted) return;
-    if (cancelled) return;
-    Navigator.of(context).pop();
-    if (url == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
-      return;
-    }
+  void _playEpisode(VideoEpisode ep) {
     Navigator.push(
       context,
       MaterialPageRoute(
-          builder: (_) => VideoPlayerPage(title: _work.title, streamUrl: url)),
+        builder: (_) => VideoPlayerPage(
+          title: _work.title,
+          episodes: _videoEpisodes ?? const [],
+          initialIndex: ep.index,
+        ),
+      ),
     );
   }
 
