@@ -135,6 +135,9 @@ class AccountNotifier extends Notifier<AccountState> {
 
     state = state.copyWith(loading: true, clearError: true);
     final user = await _validateSession(db, storedToken);
+    if (user == null) {
+      await db.remove(_kUser);
+    }
     state = state.copyWith(
         loading: false, user: user, clearUser: user == null);
   }

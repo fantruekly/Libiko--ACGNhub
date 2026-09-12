@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -152,19 +154,23 @@ void main() {
     expect(prefs.getString('account_base_url'), 'http://example.com');
   });
 
-  test('load keeps the stored session but clears the user on a network error',
-      () async {
+  test('load clears the user when the post-refresh validation fails', () async {
     await AppDatabase.init();
-    final container = _container(_NetworkErrorApi());
+    final container = _container(_PostRefreshFailApi());
     addTearDown(container.dispose);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('account_token', 't1');
     await prefs.setString('account_refresh_token', 'r1');
+    await prefs.setString(
+        'account_user', jsonEncode({'id': 1, 'username': 'alice'}));
+
+    // build() seeds the stale user from storage.
+    expect(container.read(accountProvider).isLoggedIn, isTrue);
 
     await container.read(accountProvider.notifier).load();
 
     expect(container.read(accountProvider).isLoggedIn, isFalse);
-    expect(prefs.getString('account_token'), 't1');
+    expect(prefs.getString('account_user'), isNull);
   });
 
   test('refreshSession does not clear the session on a network error', () async {
@@ -199,4 +205,18 @@ class _NetworkErrorApi extends _FakeApi {
   Future<String> refresh(String refreshToken) async {
     throw const AccountException(code: 'network', message: '网络错误');
   }
+}
+
+class _PostRefreshFailApi extends _FakeApi {
+  @override
+  Future<AccountUser> me(String token) async {
+    if (token == 't1') {
+      throw const AccountException(
+          statusCode: 401, code: 'unauthorized', message: 'expired');
+    }
+    throw const AccountException(code: 'network', message: '网络错误');
+  }
+
+  @override
+  Future<String> refresh(String refreshToken) async => 't2';
 }
