@@ -1,204 +1,238 @@
-### Task 2: `WebviewScraper` + XPath→JS script builders
+### Task 2: `FollowManager` + `FollowNotifier`
 
 **Files:**
-- Create: `lib/core/video/webview_scraper.dart`
-- Test: `test/core/video/xpath_js_test.dart`
+- Create: `lib/core/services/follow_manager.dart`
+- Test: `test/core/services/follow_manager_test.dart`
 
 **Interfaces:**
-- Consumes: `SourceRule` (Task 1).
-- Produces: `const String kBrowserUserAgent`; `String buildSearchScript(SourceRule rule)`; `String buildEpisodesScript(SourceRule rule)`; `class WebviewScraper { Future<dynamic> fetchJson({required String url, required String script, String? userAgent, Duration timeout, int attempts}); }`.
+- Consumes: `FollowRecord`, `Work`, `AppDatabase`.
+- Produces: `FollowManager` with `all()`, `isFollowing(String)`, `follow(Work)`, `unfollow(String)`, `dirty()`, `markSynced(Set<String>)`, `mergeFromServer(List<FollowRecord>)`, and `@visibleForTesting static upsert/sortDescending/merge`; `FollowNotifier extends Notifier<List<FollowRecord>>` with `isFollowing(String)`/`toggle(Work)`; `followProvider`.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `test/core/video/xpath_js_test.dart`:
+Create `test/core/services/follow_manager_test.dart`:
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
-import 'package:acgnhub/core/video/webview_scraper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:acgnhub/core/models/follow_record.dart';
+import 'package:acgnhub/core/models/work.dart';
+import 'package:acgnhub/core/services/follow_manager.dart';
+import 'package:acgnhub/core/storage/database.dart';
 
-const _rule = SourceRule(
-  name: '七色番',
-  baseUrl: 'https://www.7sefun.top/',
-  searchUrl: 'https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword',
-  searchList: '//div[2]/div[2]/div[2]/div[2]/div',
-  searchName: '//div[2]/text()',
-  searchResult: '//a',
-  chapterRoads: '//div[2]/div[2]/div[2]/div/div[2]/div[1]//div',
-  chapterResult: '//a',
-);
+Work _work(String id) => Work(
+      id: id,
+      sourceId: 'bangumi',
+      sourceName: 'Bangumi',
+      type: WorkType.anime,
+      title: 'Title $id',
+    );
+
+FollowRecord _record(String id, int ms, {bool dirty = false}) => FollowRecord(
+      work: _work(id),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(ms),
+      dirty: dirty,
+    );
 
 void main() {
-  test('buildSearchScript embeds the search XPaths and returns JSON', () {
-    final js = buildSearchScript(_rule);
-    expect(js, contains('document.evaluate'));
-    expect(js, contains('"//div[2]/div[2]/div[2]/div[2]/div"'));
-    expect(js, contains('"//div[2]/text()"'));
-    expect(js, contains('"//a"'));
-    expect(js, contains('JSON.stringify'));
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('merge keeps a newer local record and takes a newer server record', () {
+    final merged = FollowManager.merge(
+      [_record('a', 300), _record('b', 100, dirty: true)],
+      [_record('a', 200), _record('b', 500), _record('c', 400)],
+    );
+    final byId = {for (final r in merged) r.work.id: r};
+    expect(byId['a']!.updatedAt.millisecondsSinceEpoch, 300); // local newer
+    expect(byId['a']!.dirty, isFalse);
+    expect(byId['b']!.updatedAt.millisecondsSinceEpoch, 500); // server newer
+    expect(byId['b']!.dirty, isFalse);
+    expect(byId['c']!.updatedAt.millisecondsSinceEpoch, 400); // new
   });
 
-  test('buildEpisodesScript embeds the chapter XPaths and returns JSON', () {
-    final js = buildEpisodesScript(_rule);
-    expect(js, contains('"//div[2]/div[2]/div[2]/div/div[2]/div[1]//div"'));
-    expect(js, contains('"//a"'));
-    expect(js, contains('JSON.stringify'));
+  test('merge applies a server tombstone', () {
+    final merged = FollowManager.merge(
+      [_record('a', 100)],
+      [
+        FollowRecord(
+            work: _work('a'),
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(200),
+            deleted: true)
+      ],
+    );
+    expect(merged.single.deleted, isTrue);
+  });
+
+  test('follow/unfollow/dirty/markSynced round-trip through storage', () async {
+    await AppDatabase.init();
+    final manager = FollowManager();
+
+    await manager.follow(_work('a'));
+    expect(manager.isFollowing('a'), isTrue);
+    expect(manager.dirty().map((r) => r.work.id), ['a']);
+
+    await manager.markSynced({'a'});
+    expect(manager.dirty(), isEmpty);
+    expect(manager.all().single.dirty, isFalse);
+
+    await manager.unfollow('a');
+    expect(manager.isFollowing('a'), isFalse);
+    expect(manager.dirty().single.deleted, isTrue);
+    expect(manager.all(), isEmpty);
+  });
+
+  test('all() orders by updatedAt descending', () async {
+    await AppDatabase.init();
+    final manager = FollowManager();
+    await manager.follow(_work('a'));
+    await Future.delayed(const Duration(milliseconds: 2));
+    await manager.follow(_work('b'));
+    expect(manager.all().map((r) => r.work.id), ['b', 'a']);
   });
 }
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart`
-Expected: FAIL — `webview_scraper.dart` not found.
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/follow_manager_test.dart`
+Expected: FAIL — `follow_manager.dart` not found.
 
-- [ ] **Step 3: Create `lib/core/video/webview_scraper.dart`**
+- [ ] **Step 3: Create `lib/core/services/follow_manager.dart`**
 
 ```dart
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:webview_windows/webview_windows.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'source_rule.dart';
+import '../models/follow_record.dart';
+import '../models/work.dart';
+import '../storage/database.dart';
 
-const String kBrowserUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+class FollowManager {
+  static const _key = 'follows';
 
-const String _helpersJs = r'''
-function __ev(xpath, ctx) {
-  try {
-    var r = document.evaluate(xpath, ctx || document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-    var out = [];
-    for (var i = 0; i < r.snapshotLength; i++) out.push(r.snapshotItem(i));
+  List<FollowRecord> _readAll() {
+    final records = <FollowRecord>[];
+    for (final raw in AppDatabase().getStringList(_key)) {
+      try {
+        records.add(
+            FollowRecord.fromJson(json.decode(raw) as Map<String, dynamic>));
+      } catch (_) {
+        // Skip a malformed entry.
+      }
+    }
+    return records;
+  }
+
+  Future<void> _save(List<FollowRecord> records) async {
+    await AppDatabase().setStringList(
+        _key, records.map((r) => json.encode(r.toJson())).toList());
+  }
+
+  List<FollowRecord> all() =>
+      sortDescending(_readAll().where((r) => !r.deleted).toList());
+
+  bool isFollowing(String workId) =>
+      all().any((r) => r.work.id == workId);
+
+  List<FollowRecord> dirty() => _readAll().where((r) => r.dirty).toList();
+
+  Future<void> follow(Work work) async {
+    final record = FollowRecord(work: work, updatedAt: DateTime.now(), dirty: true);
+    await _save(upsert(_readAll(), record));
+  }
+
+  Future<void> unfollow(String workId) async {
+    final records = _readAll();
+    final existing = records.where((r) => r.work.id == workId).toList();
+    if (existing.isEmpty) return;
+    final tombstone = existing.first.copyWith(
+        updatedAt: DateTime.now(), deleted: true, dirty: true);
+    await _save(upsert(records, tombstone));
+  }
+
+  Future<void> markSynced(Set<String> workIds) async {
+    final records = _readAll()
+        .map((r) => workIds.contains(r.work.id) ? r.copyWith(dirty: false) : r)
+        .toList();
+    await _save(records);
+  }
+
+  Future<void> mergeFromServer(List<FollowRecord> server) async {
+    await _save(merge(_readAll(), server));
+  }
+
+  @visibleForTesting
+  static List<FollowRecord> upsert(
+      List<FollowRecord> current, FollowRecord record) {
+    final out = current.where((r) => r.work.id != record.work.id).toList();
+    out.insert(0, record);
     return out;
-  } catch (e) { return []; }
-}
-function __txt(xpath, ctx) {
-  var n = __ev(xpath, ctx);
-  if (!n.length) return '';
-  return (n[0].textContent || '').trim();
-}
-function __attr(xpath, ctx, name) {
-  var n = __ev(xpath, ctx);
-  if (!n.length) return '';
-  var e = n[0];
-  return ((e.getAttribute && e.getAttribute(name)) || '').trim();
-}
-''';
-
-/// JS that returns a JSON array of `{name, href}` for the rule's search page.
-String buildSearchScript(SourceRule rule) => '''
-(function () {
-  $_helpersJs
-  var rows = [];
-  var list = __ev(${jsonEncode(rule.searchList)}, document);
-  for (var i = 0; i < list.length; i++) {
-    rows.push({
-      name: __txt(${jsonEncode(rule.searchName)}, list[i]),
-      href: __attr(${jsonEncode(rule.searchResult)}, list[i], 'href')
-    });
   }
-  return JSON.stringify(rows);
-})()
-''';
 
-/// JS that returns a JSON array of `{title, href}` for the rule's first road.
-String buildEpisodesScript(SourceRule rule) => '''
-(function () {
-  $_helpersJs
-  var out = [];
-  var roads = __ev(${jsonEncode(rule.chapterRoads)}, document);
-  if (roads.length) {
-    var links = __ev(${jsonEncode(rule.chapterResult)}, roads[0]);
-    for (var i = 0; i < links.length; i++) {
-      var e = links[i];
-      out.push({
-        title: (e.textContent || '').trim(),
-        href: ((e.getAttribute && e.getAttribute('href')) || '').trim()
-      });
-    }
+  @visibleForTesting
+  static List<FollowRecord> sortDescending(List<FollowRecord> records) {
+    final out = [...records];
+    out.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return out;
   }
-  return JSON.stringify(out);
-})()
-''';
 
-/// Loads a URL in a headless WebView and evaluates an extraction script.
-/// Mirrors [StreamResolver]'s lifecycle: create, run, load, dispose.
-class WebviewScraper {
-  Future<dynamic> fetchJson({
-    required String url,
-    required String script,
-    String? userAgent,
-    Duration timeout = const Duration(seconds: 20),
-    int attempts = 3,
-  }) async {
-    final webview = HeadlessWebview();
-    final subs = <StreamSubscription>[];
-    final loaded = Completer<void>();
-
-    try {
-      await webview.run();
-      try {
-        await webview.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
-      } catch (_) {}
-      await webview.setUserAgent(userAgent ?? kBrowserUserAgent);
-
-      subs.add(webview.loadingState.listen((state) {
-        if (state == LoadingState.navigationCompleted && !loaded.isCompleted) {
-          loaded.complete();
-        }
-      }));
-
-      await webview.loadUrl(url);
-      await loaded.future.timeout(timeout, onTimeout: () {});
-
-      for (var attempt = 0; attempt < attempts; attempt++) {
-        dynamic result;
-        try {
-          result = await webview.executeScript(script);
-        } catch (_) {
-          result = null;
-        }
-        if (result is List && result.isNotEmpty) return result;
-        if (attempt < attempts - 1) {
-          await Future.delayed(const Duration(milliseconds: 600));
-        }
+  /// LWW: a local record strictly newer than the server's is kept (still
+  /// dirty); otherwise the server record wins with `dirty = false`.
+  @visibleForTesting
+  static List<FollowRecord> merge(
+      List<FollowRecord> local, List<FollowRecord> server) {
+    final byId = {for (final r in local) r.work.id: r};
+    for (final item in server) {
+      final existing = byId[item.work.id];
+      if (existing != null && existing.updatedAt.isAfter(item.updatedAt)) {
+        byId[item.work.id] = existing.copyWith(dirty: false);
+      } else {
+        byId[item.work.id] = item.copyWith(dirty: false);
       }
-      return const <dynamic>[];
-    } catch (e) {
-      debugPrint('[WebviewScraper] failed for $url: $e');
-      return null;
-    } finally {
-      for (final s in subs) {
-        try {
-          await s.cancel();
-        } catch (_) {}
-      }
-      try {
-        await webview.dispose();
-      } catch (_) {}
     }
+    return byId.values.toList();
   }
 }
+
+class FollowNotifier extends Notifier<List<FollowRecord>> {
+  final _manager = FollowManager();
+
+  @override
+  List<FollowRecord> build() => _manager.all();
+
+  bool isFollowing(String workId) =>
+      state.any((r) => r.work.id == workId);
+
+  Future<void> toggle(Work work) async {
+    if (isFollowing(work.id)) {
+      await _manager.unfollow(work.id);
+    } else {
+      await _manager.follow(work);
+    }
+    state = _manager.all();
+  }
+}
+
+final followProvider =
+    NotifierProvider<FollowNotifier, List<FollowRecord>>(FollowNotifier.new);
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart`
-Expected: PASS (2 tests).
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/follow_manager_test.dart`
+Expected: PASS (4 tests).
 
-- [ ] **Step 5: Verify it compiles**
+- [ ] **Step 5: Analyze**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/core/video/webview_scraper.dart test/core/video/xpath_js_test.dart
-git commit -m "feat(video): add headless webview scraper and XPath-to-JS builders"
+git add lib/core/services/follow_manager.dart test/core/services/follow_manager_test.dart
+git commit -m "feat(sync): add FollowManager and followProvider"
 ```
 
 ---

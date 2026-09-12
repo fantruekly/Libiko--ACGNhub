@@ -1,100 +1,113 @@
-# Task 3 Report: `RuleVideoSource`
+# Task 3 Report: `WatchHistoryManager` sync fields
 
 ## What I implemented
 
-- `lib/core/video/rule_source.dart`: `RuleVideoSource implements VideoSource`, backed by a
-  Kazumi-compatible `SourceRule`.
-  - Constructor `RuleVideoSource(SourceRule rule, {WebviewScraper? scraper})` (defaults to a
-    fresh `WebviewScraper`).
-  - Interface members: `id` (`rule.id`), `name`, `baseUrl`, `search`, `episodes`.
-  - `search` builds the keyword URL via `rule.buildSearchUrl`, scrapes with
-    `buildSearchScript(rule)`, and maps via `mapSearch`.
-  - `episodes` scrapes the detail URL with `buildEpisodesScript(rule)` and maps via
-    `mapEpisodes`.
-  - `@visibleForTesting static` pure helpers: `mapSearch`, `mapEpisodes`, `resolveUrl`.
-- `test/core/video/rule_source_test.dart`: the four brief-specified tests.
+Extended `WatchHistoryManager` in `lib/core/services/watch_history.dart` with the sync
+surface Task 5's sync service needs, following the brief exactly:
 
-Implementation and tests are verbatim from the brief.
+- Renamed the private reader to `_readAll()` — returns the raw stored list (unsorted,
+  unfiltered, malformed entries skipped).
+- `all()` now filters out `deleted` records and then sorts descending.
+- `dirty()` returns stored records with `dirty == true`.
+- `pendingClear` getter reads the `watch_history_pending_clear` bool (default `false`).
+- `clearPendingClear()` removes that flag.
+- `record()` sets `watchedAt`/`updatedAt` to `now` and `dirty: true`, saving via
+  `upsert(_readAll(), record)`; still serialised on the `_pending` future.
+- `clear()` writes a tombstone (`deleted: true, dirty: true, updatedAt: now`) for every
+  live record, then sets the `pendingClear` flag; still serialised on `_pending`.
+- `markSynced(Set<String> workIds)` clears `dirty` on matching records.
+- `mergeFromServer(List<WatchRecord>)` persists `merge(_readAll(), server)`.
+- `@visibleForTesting static merge(local, server)` — per work id, keeps the newer of
+  local/server by `updatedAt` and always clears `dirty` on the merged result.
+- Kept `_save` writing the full list and kept the `upsert`/`sortDescending` statics.
 
 ## What I tested and results
 
-- Focused: `flutter test test/core/video/rule_source_test.dart` → 4/4 pass.
-- Static analysis: `flutter analyze lib test` → "No issues found!".
-- Full suite: `flutter test` → 63 tests pass.
+Appended two tests to `test/core/services/watch_history_test.dart` (reusing the file's
+existing `_work`/`_record` helpers):
 
-Covered behavior:
-- `mapSearch` resolves relative/absolute hrefs, filters rows with empty name or href.
-- `mapEpisodes` assigns 0-based indexes and generates fallback titles (`第N集`), resolves
-  protocol-relative URLs.
-- Non-list inputs (`null`, `String`) return empty.
-- `resolveUrl` upgrades `http://` → `https://` and normalizes trailing/leading slashes.
+1. `merge keeps a newer local record and takes a newer server record` — asserts local
+   `a` (updatedAt 300) beats server `a` (200), server `b` (500) beats local `b` (100),
+   and every merged record is `dirty == false`.
+2. `record marks dirty and clear writes tombstones plus pendingClear` — records a work,
+   asserts `dirty().single.work.id == 'a'`; clears, asserts `all()` empty,
+   `pendingClear == true`, `dirty().single.deleted == true`; calls `clearPendingClear()`
+   and asserts `pendingClear == false`.
+
+Results:
+- Focused: `flutter test test/core/services/watch_history_test.dart` → `00:00 +6: All tests passed!`
+- `flutter analyze lib test` → `No issues found! (ran in 2.1s)`
+- Full suite: `flutter test` → `00:08 +98: All tests passed!`
+
+The pre-existing persistence/dedupe/clear/malformed-entry test still passes, and
+`clear()` no longer deletes the storage key, so its final `all()` check remains empty
+because the only record is now a filtered tombstone.
 
 ## TDD evidence
 
 ### RED
 
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_source_test.dart
-```
+Command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/watch_history_test.dart`
 
-Output (abridged):
+Output (excerpt):
+
 ```
-Failed to load ".../rule_source_test.dart":
-Compilation failed for testPath=.../rule_source_test.dart:
-test/core/video/rule_source_test.dart:2:8: Error: Error when reading
-  'lib/core/video/rule_source.dart': 系统找不到指定的文件。
-...
-test/core/video/rule_source_test.dart:18:19: Error: Undefined name 'RuleVideoSource'.
-...
+test/core/services/watch_history_test.dart:76:40: Error: Member not found: 'WatchHistoryManager.merge'.
+test/core/services/watch_history_test.dart:93:20: Error: The method 'dirty' isn't defined for the type 'WatchHistoryManager'.
+test/core/services/watch_history_test.dart:97:20: Error: The getter 'pendingClear' isn't defined for the type 'WatchHistoryManager'.
+test/core/services/watch_history_test.dart:98:20: Error: The method 'dirty' isn't defined for the type 'WatchHistoryManager'.
+test/core/services/watch_history_test.dart:100:19: Error: The method 'clearPendingClear' isn't defined for the type 'WatchHistoryManager'.
 00:00 +0 -1: Some tests failed.
 ```
 
-Why expected: the test imports `lib/core/video/rule_source.dart`, which did not exist yet, so
-compilation failed with "file not found" and undefined `RuleVideoSource`. This is the intended
-first-failure state before implementation.
+Why expected: the tests exercise members that did not yet exist, so the test file failed
+to compile before implementation.
 
 ### GREEN
 
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_source_test.dart
-```
+Command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/watch_history_test.dart`
 
-Output:
+Output (excerpt):
+
 ```
-00:00 +0: mapSearch resolves relative hrefs and drops empty rows
-00:00 +1: mapEpisodes assigns 0-based indexes and fallback titles
-00:00 +2: mapSearch returns empty for non-list input
-00:00 +3: resolveUrl upgrades http and normalizes slashes
-00:00 +4: All tests passed!
+00:00 +0: upsert dedupes by work id and puts the new record first
+00:00 +1: upsert inserts a new work at the front
+00:00 +2: sortDescending orders by watchedAt newest first
+00:00 +3: persists, dedupes, clears, and skips malformed stored entries
+00:00 +4: merge keeps a newer local record and takes a newer server record
+00:00 +5: record marks dirty and clear writes tombstones plus pendingClear
+00:00 +6: All tests passed!
 ```
 
 ## Files changed
 
-- `lib/core/video/rule_source.dart` (new)
-- `test/core/video/rule_source_test.dart` (new)
+- `lib/core/services/watch_history.dart` (modified)
+- `test/core/services/watch_history_test.dart` (modified, two tests appended)
 
-Commit: `50e8cf4 feat(video): add RuleVideoSource with pure search/episode mapping`
+Commit: `7796fcb feat(sync): add dirty/tombstone/merge support to watch history`
+(2 files changed, 83 insertions(+), 5 deletions(-))
 
 ## Self-review findings
 
-- Completeness: all four `VideoSource` members implemented; all three required static helpers
-  present with `@visibleForTesting`; constructor signature matches the Task 4 contract.
-- Quality: matches repo conventions (2-space indent, trailing commas, relative imports), no
-  extra comments beyond the brief, analyzer clean.
-- YAGNI: no speculative fields or methods added.
-- Tests verify real behavior: mapping/filtering/indexing/URL normalization are exercised with
-  concrete assertions; the WebView path is intentionally not unit-tested (per brief, it is
-  integration-tested elsewhere). Static helpers are pure and do not touch the scraper.
-- Script/mapper contract check: `buildSearchScript` emits `{name, href}` and `mapSearch` reads
-  `name`/`href`; `buildEpisodesScript` emits `{title, href}` and `mapEpisodes` reads
-  `title`/`href`. Consistent.
+- Completeness: all interfaces the brief lists are produced; `record()`/`clear()` set the
+  new fields; `all()` filters before sorting; `_readAll()` is the raw reader; `_save`
+  writes the full list; `upsert`/`sortDescending` retained.
+- Quality: code matches the brief verbatim; existing serialisation on `_pending` for
+  `record()`/`clear()` preserved.
+- YAGNI: no members or behavior beyond the brief.
+- Tests verify real behavior (round-trips through `AppDatabase`/`SharedPreferences`), not
+  just the pure `merge` static; they confirm tombstones survive as `dirty` while being
+  hidden from `all()`.
 
 ## Concerns
 
-- `resolveUrl` unconditionally rewrites `http://` to `https://`. This is the brief-specified
-  behavior, but a source that only serves plain HTTP would fail. Out of scope for this task;
-  flagging in case Task 4/5 needs a fallback.
-- `mapSearch`/`mapEpisodes` assume list-of-map rows; non-map rows are skipped safely. No
-  cover parsing is done because the scraper scripts do not emit a cover field (matches brief).
+- `clear()` writes tombstones one at a time, each iteration re-reading and re-writing the
+  whole list (`O(n²)` I/O). This is exactly what the brief specifies, so I left it as-is;
+  a single batched `_save` would be more efficient if history grows large.
+- `markSynced()` and `mergeFromServer()` are `async` but not serialised on the `_pending`
+  future (unlike `record()`/`clear()`), per the brief. If Task 5 calls them concurrently
+  with a `record()`/`clear()`, a last-writer-wins race is possible. Flagging for Task 5.
+- `merge()` clears `dirty` on any server-supplied record, including when the local record
+  is newer; the local record's content is kept but its `dirty` flag is dropped. This
+  matches the brief and its test, but means a newer unsynced local edit whose work id also
+  appears in the server response would not be re-pushed.

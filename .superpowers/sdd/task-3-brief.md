@@ -1,185 +1,145 @@
-### Task 3: `RuleVideoSource`
+### Task 3: `WatchHistoryManager` sync fields
 
 **Files:**
-- Create: `lib/core/video/rule_source.dart`
-- Test: `test/core/video/rule_source_test.dart`
+- Modify: `lib/core/services/watch_history.dart`
+- Test: `test/core/services/watch_history_test.dart`
 
 **Interfaces:**
-- Consumes: `SourceRule` (Task 1); `WebviewScraper`, `buildSearchScript`, `buildEpisodesScript` (Task 2); `VideoSource`, `VideoItem`, `VideoEpisode` (existing).
-- Produces: `class RuleVideoSource implements VideoSource` with `RuleVideoSource(SourceRule rule, {WebviewScraper? scraper})` and `@visibleForTesting static` `mapSearch(SourceRule, dynamic)`, `mapEpisodes(SourceRule, dynamic)`, `resolveUrl(String, String)`.
+- Produces: `WatchHistoryManager.dirty()`, `markSynced(Set<String>)`, `mergeFromServer(List<WatchRecord>)`, `pendingClear`/`clearPendingClear()`, and `@visibleForTesting static merge(...)`; `record()`/`clear()` set the new fields.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Add the failing tests**
 
-Create `test/core/video/rule_source_test.dart`:
-
-```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/rule_source.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
-
-const _rule = SourceRule(
-  name: '七色番',
-  baseUrl: 'https://www.7sefun.top',
-  searchUrl: 'https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword',
-  searchList: '//div',
-  searchName: '//div[2]/text()',
-  searchResult: '//a',
-  chapterRoads: '//div',
-  chapterResult: '//a',
-);
-
-void main() {
-  test('mapSearch resolves relative hrefs and drops empty rows', () {
-    final items = RuleVideoSource.mapSearch(_rule, [
-      {'name': '进击的巨人', 'href': '/vod/1.html'},
-      {'name': '第二季', 'href': 'https://other.test/vod/2.html'},
-      {'name': '', 'href': '/vod/3.html'},
-      {'name': '空链接', 'href': ''},
-    ]);
-    expect(items, hasLength(2));
-    expect(items[0].title, '进击的巨人');
-    expect(items[0].detailUrl, 'https://www.7sefun.top/vod/1.html');
-    expect(items[1].detailUrl, 'https://other.test/vod/2.html');
-  });
-
-  test('mapEpisodes assigns 0-based indexes and fallback titles', () {
-    final eps = RuleVideoSource.mapEpisodes(_rule, [
-      {'title': '第1集', 'href': '/play/1'},
-      {'title': '', 'href': '//cdn.test/play/2'},
-    ]);
-    expect(eps, hasLength(2));
-    expect(eps[0].index, 0);
-    expect(eps[0].playUrl, 'https://www.7sefun.top/play/1');
-    expect(eps[1].title, '第2集');
-    expect(eps[1].playUrl, 'https://cdn.test/play/2');
-  });
-
-  test('mapSearch returns empty for non-list input', () {
-    expect(RuleVideoSource.mapSearch(_rule, null), isEmpty);
-    expect(RuleVideoSource.mapSearch(_rule, 'oops'), isEmpty);
-  });
-
-  test('resolveUrl upgrades http and normalizes slashes', () {
-    expect(RuleVideoSource.resolveUrl('http://a.test/x', 'https://b.test'),
-        'https://a.test/x');
-    expect(RuleVideoSource.resolveUrl('vod/1', 'https://b.test/'),
-        'https://b.test/vod/1');
-  });
-}
-```
-
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_source_test.dart`
-Expected: FAIL — `rule_source.dart` not found.
-
-- [ ] **Step 3: Create `lib/core/video/rule_source.dart`**
+Append to `test/core/services/watch_history_test.dart` (inside `main`; reuse the file's `_work`/`_record` helpers if present, otherwise define locals):
 
 ```dart
-import 'package:flutter/foundation.dart';
-
-import 'source_rule.dart';
-import 'video_source.dart';
-import 'webview_scraper.dart';
-
-/// A [VideoSource] backed by a Kazumi-compatible [SourceRule]. The search and
-/// chapter pages are rendered in a headless WebView, then XPath-extracted.
-class RuleVideoSource implements VideoSource {
-  final SourceRule rule;
-  final WebviewScraper _scraper;
-
-  RuleVideoSource(this.rule, {WebviewScraper? scraper})
-      : _scraper = scraper ?? WebviewScraper();
-
-  @override
-  String get id => rule.id;
-
-  @override
-  String get name => rule.name;
-
-  @override
-  String get baseUrl => rule.baseUrl;
-
-  @override
-  Future<List<VideoItem>> search(String keyword) async {
-    final result = await _scraper.fetchJson(
-      url: rule.buildSearchUrl(keyword),
-      script: buildSearchScript(rule),
-      userAgent: rule.userAgent,
+  test('merge keeps a newer local record and takes a newer server record', () {
+    final merged = WatchHistoryManager.merge(
+      [_record('a', '第1集', 300), _record('b', '第1集', 100)],
+      [_record('a', '第0集', 200), _record('b', '第9集', 500)],
     );
-    return mapSearch(rule, result);
-  }
+    final byId = {for (final r in merged) r.work.id: r};
+    expect(byId['a']!.episodeTitle, '第1集');
+    expect(byId['b']!.episodeTitle, '第9集');
+    expect(merged.every((r) => !r.dirty), isTrue);
+  });
 
-  @override
-  Future<List<VideoEpisode>> episodes(String detailUrl) async {
-    final result = await _scraper.fetchJson(
-      url: detailUrl,
-      script: buildEpisodesScript(rule),
-      userAgent: rule.userAgent,
-    );
-    return mapEpisodes(rule, result);
-  }
+  test('record marks dirty and clear writes tombstones plus pendingClear', () async {
+    SharedPreferences.setMockInitialValues({});
+    await AppDatabase.init();
+    final manager = WatchHistoryManager();
 
-  @visibleForTesting
-  static List<VideoItem> mapSearch(SourceRule rule, dynamic json) {
-    if (json is! List) return const [];
-    final items = <VideoItem>[];
-    for (final row in json) {
-      if (row is! Map) continue;
-      final title = (row['name'] ?? '').toString().trim();
-      final href = (row['href'] ?? '').toString().trim();
-      if (title.isEmpty || href.isEmpty) continue;
-      final url = resolveUrl(href, rule.baseUrl);
-      items.add(VideoItem(id: url, title: title, detailUrl: url));
-    }
-    return items;
-  }
+    const ep = VideoEpisode(id: 'e1', title: '第1集', index: 0, playUrl: 'u');
+    await manager.record(_work('a'), ep);
+    expect(manager.dirty().single.work.id, 'a');
 
-  @visibleForTesting
-  static List<VideoEpisode> mapEpisodes(SourceRule rule, dynamic json) {
-    if (json is! List) return const [];
-    final eps = <VideoEpisode>[];
-    for (final row in json) {
-      if (row is! Map) continue;
-      final href = (row['href'] ?? '').toString().trim();
-      if (href.isEmpty) continue;
-      final rawTitle = (row['title'] ?? '').toString().trim();
-      final url = resolveUrl(href, rule.baseUrl);
-      eps.add(VideoEpisode(
-        id: url,
-        title: rawTitle.isEmpty ? '第${eps.length + 1}集' : rawTitle,
-        index: eps.length,
-        playUrl: url,
-      ));
-    }
-    return eps;
-  }
+    await manager.clear();
+    expect(manager.all(), isEmpty);
+    expect(manager.pendingClear, isTrue);
+    expect(manager.dirty().single.deleted, isTrue);
 
-  @visibleForTesting
-  static String resolveUrl(String url, String base) {
-    if (url.startsWith('http')) {
-      return url.startsWith('http://')
-          ? url.replaceFirst('http://', 'https://')
-          : url;
-    }
-    if (url.startsWith('//')) return 'https:$url';
-    final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-    if (url.startsWith('/')) return '$b$url';
-    return '$b/$url';
-  }
-}
+    await manager.clearPendingClear();
+    expect(manager.pendingClear, isFalse);
+  });
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_source_test.dart`
-Expected: PASS (4 tests).
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/watch_history_test.dart`
+Expected: FAIL — `merge`/`dirty`/`pendingClear` undefined.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Update `lib/core/services/watch_history.dart`**
+
+Add `static const _kPendingClear = 'watch_history_pending_clear';` and change `all()`/`record()`/`clear()`, then add the new members:
+
+```dart
+  List<WatchRecord> all() =>
+      sortDescending(_readAll().where((r) => !r.deleted).toList());
+
+  List<WatchRecord> dirty() => _readAll().where((r) => r.dirty).toList();
+
+  bool get pendingClear => AppDatabase().getBool(_kPendingClear) ?? false;
+
+  Future<void> clearPendingClear() async {
+    await AppDatabase().remove(_kPendingClear);
+  }
+
+  Future<void> record(Work work, VideoEpisode episode) {
+    final next = _pending.then((_) async {
+      final now = DateTime.now();
+      final record = WatchRecord(
+        work: work,
+        episodeTitle: episode.title,
+        episodeIndex: episode.index,
+        watchedAt: now,
+        updatedAt: now,
+        dirty: true,
+      );
+      await _save(upsert(_readAll(), record));
+    });
+    _pending = next.catchError((_) {});
+    return next;
+  }
+
+  Future<void> clear() {
+    final next = _pending.then((_) async {
+      final tombstones = _readAll()
+          .where((r) => !r.deleted)
+          .map((r) => r.copyWith(
+              deleted: true, dirty: true, updatedAt: DateTime.now()))
+          .toList();
+      for (final tombstone in tombstones) {
+        await _save(upsert(_readAll(), tombstone));
+      }
+      await AppDatabase().setBool(_kPendingClear, true);
+    });
+    _pending = next.catchError((_) {});
+    return next;
+  }
+
+  Future<void> markSynced(Set<String> workIds) async {
+    final records = _readAll()
+        .map((r) => workIds.contains(r.work.id) ? r.copyWith(dirty: false) : r)
+        .toList();
+    await _save(records);
+  }
+
+  Future<void> mergeFromServer(List<WatchRecord> server) async {
+    await _save(merge(_readAll(), server));
+  }
+
+  @visibleForTesting
+  static List<WatchRecord> merge(
+      List<WatchRecord> local, List<WatchRecord> server) {
+    final byId = {for (final r in local) r.work.id: r};
+    for (final item in server) {
+      final existing = byId[item.work.id];
+      if (existing != null && existing.updatedAt.isAfter(item.updatedAt)) {
+        byId[item.work.id] = existing.copyWith(dirty: false);
+      } else {
+        byId[item.work.id] = item.copyWith(dirty: false);
+      }
+    }
+    return byId.values.toList();
+  }
+```
+
+Also rename the existing private reader to `_readAll()` (it currently builds and sorts) and make `_save` write the full list — keep the existing `upsert`/`sortDescending` statics. `all()` must filter `deleted` before sorting.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/watch_history_test.dart`
+Expected: PASS (existing + new tests).
+
+- [ ] **Step 5: Analyze and run the full suite**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add lib/core/video/rule_source.dart test/core/video/rule_source_test.dart
-git commit -m "feat(video): add RuleVideoSource with pure search/episode mapping"
+git add lib/core/services/watch_history.dart test/core/services/watch_history_test.dart
+git commit -m "feat(sync): add dirty/tombstone/merge support to watch history"
 ```
 
 ---

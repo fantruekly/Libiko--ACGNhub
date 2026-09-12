@@ -1,155 +1,216 @@
-### Task 1: `SourceRule` model
+### Task 1: Models — `FollowRecord` + `WatchRecord` additions
 
 **Files:**
-- Create: `lib/core/video/source_rule.dart`
-- Test: `test/core/video/source_rule_test.dart`
+- Create: `lib/core/models/follow_record.dart`
+- Modify: `lib/core/models/watch_record.dart`
+- Test: `test/core/models/follow_record_test.dart`, `test/core/models/watch_record_test.dart`
 
 **Interfaces:**
-- Produces: `class SourceRule` with fields `name`, `baseUrl`, `searchUrl`, `searchList`, `searchName`, `searchResult`, `chapterRoads`, `chapterResult`, `userAgent` (`String?`), a getter `String get id`, `factory SourceRule.fromJson(Map<String, dynamic>)`, `factory SourceRule.fromJsonString(String)`, and `String buildSearchUrl(String keyword)`.
+- Produces: `FollowRecord{work, updatedAt, deleted, dirty}` + `fromJson`/`toJson`/`copyWith`; `WatchRecord{work, episodeTitle, episodeIndex, watchedAt, updatedAt, deleted, dirty}` + `copyWith`.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-Create `test/core/video/source_rule_test.dart`:
+Create `test/core/models/follow_record_test.dart`:
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
+import 'package:acgnhub/core/models/follow_record.dart';
+import 'package:acgnhub/core/models/work.dart';
 
 void main() {
-  const validJson = '''
-  {
-    "api": "4",
-    "type": "anime",
-    "name": "七色番",
-    "version": "1.3",
-    "muliSources": true,
-    "useWebview": true,
-    "useNativePlayer": true,
-    "userAgent": "",
-    "baseURL": "https://www.7sefun.top/",
-    "searchURL": "https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword",
-    "searchList": "//div[2]/div[2]/div[2]/div[2]/div",
-    "searchName": "//div[2]/text()",
-    "searchResult": "//a",
-    "chapterRoads": "//div[2]/div[2]/div[2]/div/div[2]/div[1]//div",
-    "chapterResult": "//a"
-  }''';
+  const work = Work(
+    id: 'w1',
+    sourceId: 'bangumi',
+    sourceName: 'Bangumi',
+    type: WorkType.anime,
+    title: '葬送的芙莉莲',
+    extra: {'bangumiId': 1},
+  );
 
-  test('fromJsonString parses a Kazumi plugin and ignores unknown keys', () {
-    final rule = SourceRule.fromJsonString(validJson);
-    expect(rule.name, '七色番');
-    expect(rule.baseUrl, 'https://www.7sefun.top/');
-    expect(rule.searchList, '//div[2]/div[2]/div[2]/div[2]/div');
-    expect(rule.chapterResult, '//a');
-    expect(rule.userAgent, isNull); // empty string -> null
-    expect(rule.id, 'rule:七色番');
-  });
-
-  test('buildSearchUrl substitutes and URL-encodes @keyword', () {
-    final rule = SourceRule.fromJsonString(validJson);
-    expect(
-      rule.buildSearchUrl('进击的巨人'),
-      'https://www.7sefun.top/vodsearch/-------------.html?wd=%E8%BF%9B%E5%87%BB%E7%9A%84%E5%B7%A8%E4%BA%BA',
+  test('round-trips through JSON including dirty/deleted', () {
+    final record = FollowRecord(
+      work: work,
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+      dirty: true,
     );
+    final restored = FollowRecord.fromJson(record.toJson());
+    expect(restored.work.id, 'w1');
+    expect(restored.work.bangumiId, 1);
+    expect(restored.updatedAt.millisecondsSinceEpoch, 1700000000000);
+    expect(restored.deleted, isFalse);
+    expect(restored.dirty, isTrue);
   });
 
-  test('fromJson throws FormatException on a missing required field', () {
-    expect(
-      () => SourceRule.fromJson({'name': 'x', 'baseURL': 'https://a/'}),
-      throwsFormatException,
-    );
-  });
-
-  test('fromJsonString throws FormatException on a non-object', () {
-    expect(() => SourceRule.fromJsonString('[1,2,3]'), throwsFormatException);
+  test('copyWith changes only the named flags', () {
+    final record = FollowRecord(
+        work: work, updatedAt: DateTime.fromMillisecondsSinceEpoch(1));
+    final marked = record.copyWith(deleted: true, dirty: true);
+    expect(marked.deleted, isTrue);
+    expect(marked.dirty, isTrue);
+    expect(marked.work.id, 'w1');
+    expect(marked.updatedAt.millisecondsSinceEpoch, 1);
   });
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/source_rule_test.dart`
-Expected: FAIL — `source_rule.dart` not found.
-
-- [ ] **Step 3: Create `lib/core/video/source_rule.dart`**
+Append to `test/core/models/watch_record_test.dart` (inside `main`):
 
 ```dart
-import 'dart:convert';
+  test('carries updatedAt/deleted/dirty with defaults', () {
+    final record = WatchRecord(
+      work: work,
+      episodeTitle: '第1集',
+      episodeIndex: 0,
+      watchedAt: DateTime.fromMillisecondsSinceEpoch(100),
+    );
+    expect(record.updatedAt, record.watchedAt);
+    expect(record.deleted, isFalse);
+    expect(record.dirty, isFalse);
 
-/// A Kazumi-compatible source rule: XPath selectors plus the URLs needed to
-/// search a site and list its episodes. Unknown JSON keys are ignored so that
-/// Kazumi plugin files import cleanly.
-class SourceRule {
-  final String name;
-  final String baseUrl;
-  final String searchUrl;
-  final String searchList;
-  final String searchName;
-  final String searchResult;
-  final String chapterRoads;
-  final String chapterResult;
-  final String? userAgent;
+    final restored = WatchRecord.fromJson(record.copyWith(dirty: true).toJson());
+    expect(restored.dirty, isTrue);
+    expect(restored.updatedAt.millisecondsSinceEpoch, 100);
+  });
+```
 
-  const SourceRule({
-    required this.name,
-    required this.baseUrl,
-    required this.searchUrl,
-    required this.searchList,
-    required this.searchName,
-    required this.searchResult,
-    required this.chapterRoads,
-    required this.chapterResult,
-    this.userAgent,
+(That test file already declares a `work` constant; reuse it.)
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/models/follow_record_test.dart test/core/models/watch_record_test.dart`
+Expected: FAIL — `follow_record.dart` not found / `copyWith` undefined.
+
+- [ ] **Step 3: Create `lib/core/models/follow_record.dart`**
+
+```dart
+import 'work.dart';
+
+class FollowRecord {
+  final Work work;
+  final DateTime updatedAt;
+  final bool deleted;
+  final bool dirty;
+
+  const FollowRecord({
+    required this.work,
+    required this.updatedAt,
+    this.deleted = false,
+    this.dirty = false,
   });
 
-  String get id => 'rule:$name';
+  factory FollowRecord.fromJson(Map<String, dynamic> json) => FollowRecord(
+        work: Work.fromJson(json['work'] as Map<String, dynamic>),
+        updatedAt:
+            DateTime.fromMillisecondsSinceEpoch(json['updatedAt'] as int? ?? 0),
+        deleted: json['deleted'] as bool? ?? false,
+        dirty: json['dirty'] as bool? ?? false,
+      );
 
-  factory SourceRule.fromJson(Map<String, dynamic> json) {
-    String req(String key) {
-      final v = json[key];
-      if (v is! String || v.trim().isEmpty) {
-        throw FormatException('缺少或非法的字段: $key');
-      }
-      return v.trim();
-    }
+  Map<String, dynamic> toJson() => {
+        'work': work.toJson(),
+        'updatedAt': updatedAt.millisecondsSinceEpoch,
+        'deleted': deleted,
+        'dirty': dirty,
+      };
 
-    final ua = json['userAgent'];
-    return SourceRule(
-      name: req('name'),
-      baseUrl: req('baseURL'),
-      searchUrl: req('searchURL'),
-      searchList: req('searchList'),
-      searchName: req('searchName'),
-      searchResult: req('searchResult'),
-      chapterRoads: req('chapterRoads'),
-      chapterResult: req('chapterResult'),
-      userAgent: (ua is String && ua.trim().isNotEmpty) ? ua.trim() : null,
-    );
-  }
-
-  factory SourceRule.fromJsonString(String source) {
-    final decoded = json.decode(source);
-    if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('规则必须是 JSON 对象');
-    }
-    return SourceRule.fromJson(decoded);
-  }
-
-  String buildSearchUrl(String keyword) =>
-      searchUrl.replaceAll('@keyword', Uri.encodeComponent(keyword));
+  FollowRecord copyWith({DateTime? updatedAt, bool? deleted, bool? dirty}) =>
+      FollowRecord(
+        work: work,
+        updatedAt: updatedAt ?? this.updatedAt,
+        deleted: deleted ?? this.deleted,
+        dirty: dirty ?? this.dirty,
+      );
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 4: Extend `lib/core/models/watch_record.dart`**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/source_rule_test.dart`
-Expected: PASS (4 tests).
+Replace the class with:
 
-- [ ] **Step 5: Commit**
+```dart
+class WatchRecord {
+  final Work work;
+  final String episodeTitle;
+  final int episodeIndex;
+  final DateTime watchedAt;
+  final DateTime updatedAt;
+  final bool deleted;
+  final bool dirty;
+
+  WatchRecord({
+    required this.work,
+    required this.episodeTitle,
+    required this.episodeIndex,
+    required this.watchedAt,
+    DateTime? updatedAt,
+    this.deleted = false,
+    this.dirty = false,
+  }) : updatedAt = updatedAt ?? watchedAt;
+
+  factory WatchRecord.fromJson(Map<String, dynamic> json) {
+    final watchedAt =
+        DateTime.fromMillisecondsSinceEpoch(json['watchedAt'] as int? ?? 0);
+    final updatedMs = json['updatedAt'] as int?;
+    return WatchRecord(
+      work: Work.fromJson(json['work'] as Map<String, dynamic>),
+      episodeTitle: json['episodeTitle'] as String? ?? '',
+      episodeIndex: json['episodeIndex'] as int? ?? 0,
+      watchedAt: watchedAt,
+      updatedAt: updatedMs == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(updatedMs),
+      deleted: json['deleted'] as bool? ?? false,
+      dirty: json['dirty'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'work': work.toJson(),
+        'episodeTitle': episodeTitle,
+        'episodeIndex': episodeIndex,
+        'watchedAt': watchedAt.millisecondsSinceEpoch,
+        'updatedAt': updatedAt.millisecondsSinceEpoch,
+        'deleted': deleted,
+        'dirty': dirty,
+      };
+
+  WatchRecord copyWith({
+    String? episodeTitle,
+    int? episodeIndex,
+    DateTime? watchedAt,
+    DateTime? updatedAt,
+    bool? deleted,
+    bool? dirty,
+  }) =>
+      WatchRecord(
+        work: work,
+        episodeTitle: episodeTitle ?? this.episodeTitle,
+        episodeIndex: episodeIndex ?? this.episodeIndex,
+        watchedAt: watchedAt ?? this.watchedAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        deleted: deleted ?? this.deleted,
+        dirty: dirty ?? this.dirty,
+      );
+}
+```
+
+(Keep the existing `import 'work.dart';`.)
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/models/`
+Expected: PASS.
+
+- [ ] **Step 6: Analyze and run the full suite**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass (the existing history tests still compile because the new fields are optional/defaulted).
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add lib/core/video/source_rule.dart test/core/video/source_rule_test.dart
-git commit -m "feat(video): add Kazumi-compatible SourceRule model"
+git add lib/core/models/follow_record.dart lib/core/models/watch_record.dart test/core/models/
+git commit -m "feat(sync): add FollowRecord and sync fields on WatchRecord"
 ```
 
 ---
