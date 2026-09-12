@@ -28,6 +28,7 @@ class WorkCard extends StatelessWidget {
                     ? CachedNetworkImage(
                         imageUrl: work.coverUrl!,
                         fit: BoxFit.cover,
+                        memCacheWidth: 400,
                         fadeInDuration: const Duration(milliseconds: 200),
                         placeholder: (_, __) => _placeholder(work),
                         errorWidget: (_, __, ___) => _placeholder(work),

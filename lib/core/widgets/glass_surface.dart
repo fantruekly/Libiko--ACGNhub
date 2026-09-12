@@ -23,24 +23,29 @@ class GlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration:
-          BoxDecoration(borderRadius: borderRadius, boxShadow: boxShadow),
-      child: ClipRRect(
+    Widget content = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color ?? const Color(0xF7FFFFFF),
+        borderRadius: borderRadius,
+        border: border,
+      ),
+      child: child,
+    );
+    // A BackdropFilter is expensive; skip it when no blur is requested.
+    if (blur > 0) {
+      content = ClipRRect(
         borderRadius: borderRadius,
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: color ?? const Color(0xF7FFFFFF),
-              borderRadius: borderRadius,
-              border: border,
-            ),
-            child: child,
-          ),
+          child: content,
         ),
-      ),
+      );
+    }
+    return DecoratedBox(
+      decoration:
+          BoxDecoration(borderRadius: borderRadius, boxShadow: boxShadow),
+      child: content,
     );
   }
 }

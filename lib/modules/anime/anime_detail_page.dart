@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -272,6 +270,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     return CachedNetworkImage(
       imageUrl: url,
       fit: BoxFit.cover,
+      memCacheWidth: 160,
       placeholder: (_, __) => Container(color: cs.primary.withValues(alpha: 0.06)),
       errorWidget: (_, __, ___) => Container(color: cs.primary.withValues(alpha: 0.08)),
     );
@@ -324,6 +323,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       child: GlassSurface(
+        blur: 0,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
         border: Border.all(color: const Color(0xFFE5E5EA)),
@@ -345,6 +345,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       ? CachedNetworkImage(
                           imageUrl: w.coverUrl!,
                           fit: BoxFit.cover,
+                          memCacheWidth: 300,
                           errorWidget: (_, __, ___) => _coverPlaceholder(cs),
                         )
                       : _coverPlaceholder(cs),
@@ -452,28 +453,21 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           spacing: 8,
           runSpacing: 8,
           children: tags
-              .map((t) => ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.7),
-                              width: 0.5),
-                        ),
-                        child: Text(
-                          t,
-                          style: const TextStyle(
-                              fontSize: 12.5,
-                              color: Color(0xFF3A3A3C),
-                              fontWeight: FontWeight.w500),
-                        ),
-                      ),
+              .map((t) => Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: const Color(0xFFE5E5EA), width: 0.5),
+                    ),
+                    child: Text(
+                      t,
+                      style: const TextStyle(
+                          fontSize: 12.5,
+                          color: Color(0xFF3A3A3C),
+                          fontWeight: FontWeight.w500),
                     ),
                   ))
               .toList(),
@@ -487,6 +481,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
         child: GlassSurface(
+          blur: 0,
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
           border: Border.all(color: const Color(0xFFE5E5EA)),
@@ -541,6 +536,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
         child: GlassSurface(
+          blur: 0,
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
           border: Border.all(color: const Color(0xFFE5E5EA)),
