@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:acgnhub/core/metadata/metadata_provider.dart';
 import 'package:acgnhub/core/metadata/metadata_service.dart';
 import 'package:acgnhub/core/models/work.dart';
+import 'package:acgnhub/core/storage/database.dart';
 import 'package:acgnhub/core/widgets/rating_stars.dart';
 import 'package:acgnhub/modules/anime/anime_detail_page.dart';
 import 'package:acgnhub/modules/anime/anime_providers.dart';
@@ -30,7 +31,10 @@ MetadataService _offlineService() => MetadataService(
     );
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await AppDatabase.init();
+  });
 
   testWidgets('shows summary and rating when present', (tester) async {
     const work = Work(

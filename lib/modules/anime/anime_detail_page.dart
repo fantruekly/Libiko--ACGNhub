@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../core/account/sync_service.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
+import '../../core/services/follow_manager.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -334,6 +336,20 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     color: cs.onSurface),
               ),
             ),
+            Consumer(builder: (context, ref, _) {
+              final followed = ref.watch(followProvider).any((r) => r.work.id == w.id);
+              return IconButton(
+                tooltip: followed ? '已追番' : '追番',
+                icon: Icon(
+                  followed ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  color: followed ? const Color(0xFF007AFF) : const Color(0xFF8E8E93),
+                ),
+                onPressed: () {
+                  ref.read(followProvider.notifier).toggle(w);
+                  ref.read(syncProvider).schedule();
+                },
+              );
+            }),
             const WindowControls(),
           ],
         ),

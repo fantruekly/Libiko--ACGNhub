@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'anime_providers.dart';
 import 'anime_detail_page.dart';
+import 'anime_follow.dart';
 import 'anime_history.dart';
 import '../../core/metadata/metadata_provider.dart';
 import '../../core/widgets/work_card.dart';
@@ -16,7 +17,7 @@ class AnimeHomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Builder(
         builder: (context) {
           final controller = DefaultTabController.of(context);
@@ -32,6 +33,7 @@ class AnimeHomePage extends ConsumerWidget {
                   Tab(text: '热门推荐'),
                   Tab(text: '今日放送'),
                   Tab(text: '历史记录'),
+                  Tab(text: '追番'),
                 ],
               ),
               Expanded(
@@ -41,6 +43,7 @@ class AnimeHomePage extends ConsumerWidget {
                     _heroTab(controller, 1, const _FeedView(feed: AnimeFeed.trending)),
                     _heroTab(controller, 2, const _FeedView(feed: AnimeFeed.today)),
                     _heroTab(controller, 3, const AnimeHistoryView()),
+                    _heroTab(controller, 4, const AnimeFollowView()),
                   ],
                 ),
               ),
