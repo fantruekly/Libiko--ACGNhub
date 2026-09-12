@@ -62,17 +62,19 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Future<void> _loadExtras() async {
+    if (!mounted) return;
     setState(() => _loadingExtras = true);
     final svc = ref.read(metadataServiceProvider);
-    final chars = await svc.characters(_work);
-    final rel = await svc.related(_work);
-    if (mounted) {
-      setState(() {
-        _characters = chars;
-        _related = rel;
-        _loadingExtras = false;
-      });
-    }
+    final results = await Future.wait<Object>([
+      svc.characters(_work),
+      svc.related(_work),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _characters = results[0] as List<AnimeCharacter>;
+      _related = results[1] as List<RelatedWork>;
+      _loadingExtras = false;
+    });
   }
 
   @override

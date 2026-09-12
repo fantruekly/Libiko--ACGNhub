@@ -114,7 +114,7 @@ class MetadataService {
     final provider = bangumi;
     if (id == null || provider is! BangumiProvider) return const [];
     try {
-      return await provider.characters(id);
+      return await _withRetry(() => provider.characters(id));
     } catch (_) {
       return const [];
     }
@@ -125,7 +125,7 @@ class MetadataService {
     final provider = bangumi;
     if (id == null || provider is! BangumiProvider) return const [];
     try {
-      return await provider.related(id);
+      return await _withRetry(() => provider.related(id));
     } catch (_) {
       return const [];
     }

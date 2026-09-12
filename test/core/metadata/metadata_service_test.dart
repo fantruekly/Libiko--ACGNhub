@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/metadata/bangumi_provider.dart';
 import 'package:acgnhub/core/metadata/metadata_cache.dart';
 import 'package:acgnhub/core/metadata/metadata_provider.dart';
 import 'package:acgnhub/core/metadata/metadata_service.dart';
@@ -129,7 +131,83 @@ MetadataService _service({
   );
 }
 
+class _StubAdapter implements HttpClientAdapter {
+  final String charactersJson;
+  final String relatedJson;
+  _StubAdapter({required this.charactersJson, required this.relatedJson});
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final body =
+        options.path.contains('/characters') ? charactersJson : relatedJson;
+    return ResponseBody.fromString(body, 200, headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    });
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
+  test('characters/related are empty for a work without bangumiId', () async {
+    final service = _service();
+    const work = Work(
+        id: 'x',
+        sourceId: 'jikan',
+        sourceName: 'MAL',
+        type: WorkType.anime,
+        title: 'X');
+    expect(await service.characters(work), isEmpty);
+    expect(await service.related(work), isEmpty);
+  });
+
+  test('characters/related are empty when the provider is not Bangumi',
+      () async {
+    final service = _service();
+    const work = Work(
+      id: 'bangumi_1',
+      sourceId: 'bangumi',
+      sourceName: 'Bangumi',
+      type: WorkType.anime,
+      title: 'X',
+      extra: {'bangumiId': 1},
+    );
+    expect(await service.characters(work), isEmpty);
+  });
+
+  test('characters/related map a Bangumi response', () async {
+    final adapter = _StubAdapter(
+      charactersJson:
+          '[{"id":1,"name":"角色","relation":"主角","images":{"grid":"http://lain.bgm.tv/c.jpg"},"actors":[{"id":2,"name":"声优","images":{"grid":"http://lain.bgm.tv/a.jpg"}}]}]',
+      relatedJson:
+          '[{"id":9,"name":"原名","name_cn":"关联作品","relation":"续集","images":{"grid":"http://lain.bgm.tv/r.jpg"}}]',
+    );
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.bgm.tv'))
+      ..httpClientAdapter = adapter;
+    final service = _service(bangumi: BangumiProvider(dio: dio));
+    const work = Work(
+      id: 'bangumi_1',
+      sourceId: 'bangumi',
+      sourceName: 'Bangumi',
+      type: WorkType.anime,
+      title: 'X',
+      extra: {'bangumiId': 1},
+    );
+
+    final chars = await service.characters(work);
+    expect(chars.single.name, '角色');
+    expect(chars.single.actors.single.name, '声优');
+
+    final rel = await service.related(work);
+    expect(rel.single.title, '关联作品');
+    expect(rel.single.relation, '续集');
+  });
+
   test('tries Bangumi first, then falls back', () async {
     final bangumi = _FakeProvider('bangumi', fail: true);
     final anilist = _FakeProvider('anilist');

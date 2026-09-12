@@ -208,9 +208,7 @@ class BangumiProvider implements MetadataProvider {
 
   static String? _cover(String? url) {
     if (url == null || url.isEmpty) return null;
-    final https = url.startsWith('http://')
-        ? url.replaceFirst('http://', 'https://')
-        : url;
+    final https = _https(url)!;
     if (https.contains('images.weserv.nl')) return https;
     return 'https://images.weserv.nl/?url=${Uri.encodeComponent(https)}&w=300';
   }
