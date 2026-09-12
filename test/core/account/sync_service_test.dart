@@ -229,6 +229,30 @@ void main() {
     expect(follows.dirty(), isEmpty);
   });
 
+  test('a non-account error on the 401 retry is swallowed and leaves dirty flags', () async {
+    await AppDatabase.init();
+    final api = _RefreshRetryMalformedApi();
+    final follows = FollowManager();
+    await follows.follow(_work('local'));
+    await AppDatabase().setString('account_token', 'tok');
+
+    final service = SyncService(
+        apiFactory: (_) => api,
+        follows: follows,
+        history: WatchHistoryManager());
+    var refreshes = 0;
+    service.refreshSession = () async {
+      refreshes++;
+      return true;
+    };
+
+    await service.sync();
+
+    expect(refreshes, 1);
+    expect(api.syncCalls, 2);
+    expect(follows.dirty(), isNotEmpty);
+  });
+
   test('a sync requested during a run is rerun once', () async {
     await AppDatabase.init();
     final api = _GatedApi();
@@ -278,6 +302,18 @@ class _MalformedApi extends _FakeApi {
   @override
   Future<SyncPage> sync(String token, int sinceSeq) async {
     throw const FormatException('malformed payload');
+  }
+}
+
+class _RefreshRetryMalformedApi extends _FakeApi {
+  @override
+  Future<SyncPage> sync(String token, int sinceSeq) async {
+    syncCalls++;
+    if (syncCalls == 1) {
+      throw const AccountException(
+          statusCode: 401, code: 'unauthorized', message: 'expired');
+    }
+    throw const FormatException('bad payload');
   }
 }
 

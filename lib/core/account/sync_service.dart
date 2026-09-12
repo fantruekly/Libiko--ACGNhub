@@ -62,13 +62,13 @@ class SyncService {
       await _roundTrip(db, token);
     } on AccountException catch (e) {
       if (e.statusCode != 401) return; // network/other: retry next time
-      if (!await _refresh()) return;
-      final refreshed = db.getString('account_token');
-      if (refreshed == null) return;
       try {
+        if (!await _refresh()) return;
+        final refreshed = db.getString('account_token');
+        if (refreshed == null) return;
         await _roundTrip(db, refreshed);
-      } on AccountException {
-        return;
+      } catch (_) {
+        return; // leave dirty flags set; retry on the next sync
       }
     } catch (_) {
       return;
