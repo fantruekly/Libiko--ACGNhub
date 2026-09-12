@@ -190,8 +190,11 @@ class Database {
 
   int clearHistory(int userId, int updatedAt) {
     final rows = _db.select(
-        'SELECT work_id FROM history WHERE user_id = ? AND deleted = 0', [userId]);
+        'SELECT work_id, client_updated_at FROM history '
+        'WHERE user_id = ? AND deleted = 0',
+        [userId]);
     for (final row in rows) {
+      final stored = row['client_updated_at'] as int;
       upsertHistory(
         userId: userId,
         workId: row['work_id'] as String,
@@ -199,7 +202,7 @@ class Database {
         episodeTitle: '',
         episodeIndex: 0,
         watchedAt: 0,
-        updatedAt: updatedAt,
+        updatedAt: updatedAt > stored ? updatedAt : stored + 1,
         deleted: true,
       );
     }
