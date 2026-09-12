@@ -1,46 +1,45 @@
-# Task 6 Report: Rewrite anime home to use feeds
+# Task 6 Report: Import-rule button
 
 ## Status: DONE
 
 ## What was implemented
-Replaced the entire contents of `lib/modules/anime/anime_home.dart` with the code specified verbatim in the task brief. The new `AnimeHomePage`:
+Added the ability to import a Kazumi rule JSON from the detail page's 播放资源 header.
 
-- Watches `animeFeedProvider(_feed)` (the family provider added in Task 5) for the three pills 热门推荐 (`AnimeFeed.trending`), 本季新番 (`AnimeFeed.season`), and 今日放送 (`AnimeFeed.today`).
-- Renders a hero banner for the first item, a pill selector, a section title matching the active feed label, and a 5-column `SliverGrid` of `WorkCard`s.
-- Implements infinite scroll via a `ScrollController` listener that calls `MetadataService.feed(feed, page: _page + 1)` when within 400px of the bottom, appending to `_extra` and tracking `_hasMore` with `_perPage = 25`.
-- Shows `ShimmerLoader` while loading, `EmptyState` with a 重试 action on error, and an empty-content `EmptyState` when a feed returns no items.
-- Supports pull-to-refresh via `RefreshIndicator`, clearing `_extra` and invalidating the provider.
-- Still imports `bangumi_detail_page.dart` and navigates to `BangumiDetailPage` as required at this stage (Task 8 renames it).
+1. Added the `file_selector` dependency via `flutter pub add file_selector` (resolved to `file_selector 1.1.0` with `file_selector_windows 0.9.3+5`). No version was hardcoded.
+2. Added imports to `lib/modules/anime/anime_detail_page.dart`:
+   - `package:file_selector/file_selector.dart`
+   - `../../core/video/rule_store.dart`
+3. Added `_importRule()` to `_AnimeDetailPageState` verbatim from the brief: opens an `openFile` picker restricted to `XTypeGroup(label: 'Kazumi 规则', extensions: ['json'])`, returns early on cancel, calls `ref.read(ruleStoreProvider).importJson(await file.readAsString())`, invalidates `videoSourcesProvider`, shows a success snackbar, and re-runs `_searchAllSources()`. `FormatException` is caught and surfaced as a `规则无效：…` snackbar.
+4. Inserted the import `IconButton` (`tooltip: '导入规则'`, `Icons.file_download_outlined`, `iconSize: 18`, `visualDensity: VisualDensity.compact`) immediately before the existing refresh `IconButton` in the `_playSection` header `Row`.
 
-## Analyze command + result
+## What was verified and results
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib/modules/anime/anime_home.dart
-Analyzing anime_home.dart...
-No issues found! (ran in 1.1s)
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib
+Analyzing lib...
+No issues found! (ran in 2.0s)
 ```
-
-## Test command + result
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug
 ...
-00:02 +19: All tests passed!
+√ Built build\windows\x64\runner\Debug\acgnhub.exe
 ```
-All 19 tests passed; no regressions.
+(The build emitted only the pre-existing CMake dev warning for `webview_windows`; unrelated to this change.)
 
 ## Files changed
-- `lib/modules/anime/anime_home.dart` (modified; 144 insertions, 101 deletions)
+- `pubspec.yaml` (added `file_selector`)
+- `pubspec.lock` (new transitive deps)
+- `lib/modules/anime/anime_detail_page.dart` (imports, `_importRule`, header button)
 
 ## Commit
-- `907249f` feat(anime): drive home from AniList/Jikan feeds
+- `c58d72c` feat(anime): import Kazumi rule JSON from the resource section
 
-Only `lib/modules/anime/anime_home.dart` was staged for this commit. Other pre-existing working-tree modifications (`.superpowers/sdd/*`, new `docs/superpowers/*` files) were intentionally left uncommitted.
+Only the three files named in the brief were staged; other pre-existing working-tree changes (`.superpowers/sdd/*`, untracked `docs/superpowers/*`) were left untouched.
 
 ## Self-review findings
-- Verified the written file byte-for-byte against the brief's code block using `Compare-Object`: zero differences, both 302 lines.
-- Confirmed all consumed interfaces exist and match usage: `AnimeFeed` enum (`metadata_provider.dart:3`), `MetadataService.feed` (`metadata_service.dart:27`), `metadataServiceProvider` / `animeFeedProvider` (`anime_providers.dart:29,31`), and the `WorkCard` / `ShimmerLoader` / `EmptyState` constructors.
-- Confirmed `_perPage = 25` as required.
-- Confirmed `BangumiDetailPage` import retained per the task note.
-- `flutter analyze` reports no issues; full test suite green.
+- Code matches the brief verbatim, including the `e.message` use on `FormatException` and the `mounted` guards.
+- Interfaces confirmed present: `ruleStoreProvider` and `RuleStore.importJson` (`lib/core/video/rule_store.dart:64,89`), `videoSourcesProvider` (`lib/core/video/video_sources.dart:17`).
+- Button style matches the surrounding refresh button exactly (`iconSize: 18`, `visualDensity: VisualDensity.compact`).
+- YAGNI: no extra abstraction, no new tests (per brief), no comments added.
 
 ## Concerns
-None. The provider and metadata service were already in place from Task 5, so no cross-task breakage was observed.
+- `openFile`/`file_selector` has no Windows integration test here; the picker itself is manual-tested in Task 7. The import persistence path (`RuleStore.importJson`) was already covered by Task 4.
