@@ -8,11 +8,21 @@ import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
-import '../../core/video/agedm_source.dart';
-import '../../core/video/gimy_source.dart';
+import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
+import '../../core/video/video_sources.dart';
 import 'anime_providers.dart';
 import 'video_player_page.dart';
+
+enum _SourceStatus { loading, done, failed }
+
+class _SourceResult {
+  final VideoSource source;
+  _SourceStatus status = _SourceStatus.loading;
+  List<VideoItem> items = const [];
+  int seq = 0;
+  _SourceResult(this.source);
+}
 
 class AnimeDetailPage extends ConsumerStatefulWidget {
   final Work work;
@@ -26,15 +36,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   late Work _work;
   bool _loading = true;
   bool _expanded = false;
-  final List<VideoSource> _sources = [AgedmSource(), GimySource()];
-  int _sourceIndex = 0;
-  List<VideoItem>? _videoResults;
-  List<VideoEpisode>? _videoEpisodes;
-  bool _videoLoading = false;
-  String? _videoError;
-  int _videoGen = 0;
-  VideoItem? _selectedItem;
-  Future<void> Function()? _retry;
+  List<_SourceResult> _sourceResults = const [];
+  int _searchGen = 0;
+  int _searchSeq = 0;
+  VideoItem? _expandedItem;
+  VideoSource? _expandedSource;
+  List<VideoEpisode>? _episodes;
+  bool _episodesLoading = false;
+  String? _episodesError;
   List<AnimeCharacter>? _characters;
   List<RelatedWork>? _related;
   bool _loadingExtras = false;
@@ -60,6 +69,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       if (mounted) setState(() => _loading = false);
     }
     _loadExtras();
+    _scheduleSearch();
+  }
+
+  void _scheduleSearch() {
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _searchAllSources();
+    });
   }
 
   Future<void> _loadExtras() async {
@@ -533,7 +549,133 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
+  Future<void> _searchAllSources() async {
+    final List<VideoSource> sources;
+    try {
+      sources = await ref.read(videoSourcesProvider.future);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    final gen = ++_searchGen;
+    setState(() {
+      _sourceResults = [for (final s in sources) _SourceResult(s)];
+      _expandedItem = null;
+      _episodes = null;
+      _episodesError = null;
+      _episodesLoading = false;
+    });
+
+    final queue = [..._sourceResults];
+    var next = 0;
+    Future<void> worker() async {
+      while (next < queue.length) {
+        final r = queue[next];
+        next++;
+        await _searchOne(r, gen);
+      }
+    }
+
+    await Future.wait([for (var i = 0; i < 3; i++) worker()]);
+  }
+
+  Future<void> _searchOne(_SourceResult r, int gen) async {
+    try {
+      final items =
+          await r.source.search(_work.title).timeout(const Duration(seconds: 25));
+      if (!mounted || gen != _searchGen) return;
+      setState(() {
+        r.items = items;
+        r.status = _SourceStatus.done;
+        r.seq = ++_searchSeq;
+      });
+    } catch (_) {
+      if (!mounted || gen != _searchGen) return;
+      setState(() => r.status = _SourceStatus.failed);
+    }
+  }
+
+  List<(VideoItem, VideoSource)> get _flatResults {
+    final done = _sourceResults
+        .where((r) => r.status == _SourceStatus.done)
+        .toList()
+      ..sort((a, b) => a.seq.compareTo(b.seq));
+    return [
+      for (final r in done)
+        for (final item in r.items) (item, r.source),
+    ];
+  }
+
+  Future<void> _expandItem(VideoItem item, VideoSource source) async {
+    if (identical(_expandedItem, item)) {
+      setState(() {
+        _expandedItem = null;
+        _episodes = null;
+        _episodesError = null;
+        _episodesLoading = false;
+      });
+      return;
+    }
+    setState(() {
+      _expandedItem = item;
+      _expandedSource = source;
+      _episodes = null;
+      _episodesError = null;
+      _episodesLoading = true;
+    });
+    try {
+      final eps = await source.episodes(item.detailUrl);
+      if (!mounted || !identical(_expandedItem, item)) return;
+      setState(() {
+        _episodes = eps;
+        _episodesLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || !identical(_expandedItem, item)) return;
+      setState(() {
+        _episodesLoading = false;
+        _episodesError = '获取剧集失败，请重试';
+      });
+    }
+  }
+
+  Future<void> _playEpisode(VideoEpisode ep) async {
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    final url = await StreamResolver().resolve(ep.playUrl);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    if (url == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VideoPlayerPage(
+          title: _work.title,
+          episodes: _episodes ?? const [],
+          initialIndex: ep.index,
+        ),
+      ),
+    );
+  }
+
   Widget _playSection(Work w, ColorScheme cs) {
+    final results = _flatResults;
+    final loading =
+        _sourceResults.any((r) => r.status == _SourceStatus.loading);
+    final doneCount =
+        _sourceResults.where((r) => r.status != _SourceStatus.loading).length;
+    final failed = _sourceResults
+        .where((r) => r.status == _SourceStatus.failed ||
+            (r.status == _SourceStatus.done && r.items.isEmpty))
+        .toList();
+
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -549,85 +691,70 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('播放源',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface)),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
+              Row(
                 children: [
-                  for (var i = 0; i < _sources.length; i++)
-                    ChoiceChip(
-                      label: Text(_sources[i].name),
-                      selected: _sourceIndex == i,
-                      showCheckmark: false,
-                      selectedColor: cs.primary.withValues(alpha: 0.14),
-                      backgroundColor: cs.primary.withValues(alpha: 0.05),
-                      side: BorderSide(
-                          color: cs.primary.withValues(
-                              alpha: _sourceIndex == i ? 0.45 : 0.18)),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      onSelected: (_) {
-                        setState(() {
-                          _videoGen++;
-                          _sourceIndex = i;
-                          _videoResults = null;
-                          _videoEpisodes = null;
-                          _videoError = null;
-                          _selectedItem = null;
-                          _videoLoading = false;
-                        });
-                      },
-                    ),
+                  Text('播放资源',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface)),
+                  const SizedBox(width: 10),
+                  if (loading)
+                    Text('搜索中 $doneCount/${_sourceResults.length}',
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF8E8E93)))
+                  else
+                    Text('共 ${results.length} 条',
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF8E8E93))),
+                  const Spacer(),
+                  if (loading)
+                    const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  IconButton(
+                    tooltip: '重新搜索',
+                    iconSize: 18,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: loading ? null : _searchAllSources,
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-              if (_videoLoading)
-                const Center(
-                    child: Padding(
-                        padding: EdgeInsets.all(8),
-                        child: CircularProgressIndicator(strokeWidth: 2)))
-              else if (_videoError != null)
+              const SizedBox(height: 8),
+              if (_sourceResults.isEmpty)
+                Text('正在准备播放源…',
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: cs.onSurface.withValues(alpha: 0.5)))
+              else if (results.isEmpty && !loading)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_videoError!,
-                        style: const TextStyle(
-                            color: Colors.redAccent, fontSize: 13)),
-                    if (_retry != null)
-                      TextButton(onPressed: _retry, child: const Text('重试')),
+                    Text('未找到播放资源',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: cs.onSurface.withValues(alpha: 0.5))),
+                    const SizedBox(height: 8),
+                    TextButton(onPressed: _searchAllSources, child: const Text('重试')),
                   ],
                 )
-              else if (_videoEpisodes != null) ...[
-                if (_selectedItem != null)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () => setState(() => _videoEpisodes = null),
-                      icon: const Icon(Icons.arrow_back, size: 16),
-                      label: const Text('返回结果'),
-                    ),
-                  ),
-                _episodeGrid(cs),
-              ] else if (_videoResults != null)
-                _resultList(cs)
               else
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    backgroundColor: const Color(0x14007AFF),
-                    side: BorderSide.none,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () => _searchVideos(w),
-                  icon: const Icon(Icons.search, size: 18),
-                  label: const Text('搜索播放资源'),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final (item, source) in results)
+                      _resourceCard(item, source),
+                  ],
                 ),
+              if (failed.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${failed.length} 个源无结果或失败（${failed.map((r) => r.source.name).join('、')}）',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF8E8E93)),
+                ),
+              ],
             ],
           ),
         ),
@@ -635,134 +762,142 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _resultList(ColorScheme cs) {
-    final results = _videoResults!;
-    if (results.isEmpty) {
-      return Text('未找到资源',
-          style: TextStyle(
-              fontSize: 13, color: cs.onSurface.withValues(alpha: 0.5)));
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final item in results)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title:
-                Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _loadEpisodes(item),
-          ),
-      ],
-    );
-  }
-
-  Widget _episodeGrid(ColorScheme cs) {
-    final eps = _videoEpisodes!;
-    if (eps.isEmpty) {
-      return Text('暂无剧集',
-          style: TextStyle(
-              fontSize: 13, color: cs.onSurface.withValues(alpha: 0.5)));
-    }
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        for (final ep in eps)
+  Widget _resourceCard(VideoItem item, VideoSource source) {
+    final expanded = identical(_expandedItem, item);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => _playEpisode(ep),
-              borderRadius: BorderRadius.circular(10),
-              hoverColor: cs.primary.withValues(alpha: 0.12),
-              splashColor: cs.primary.withValues(alpha: 0.16),
+              onTap: () => _expandItem(item, source),
+              borderRadius: BorderRadius.circular(12),
+              hoverColor: const Color(0x14007AFF),
               child: Container(
-                width: 104,
-                height: 44,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                height: 52,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.06),
-                  border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
-                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E5EA)),
                 ),
-                child: Text(
-                  ep.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: cs.primary),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 14, color: Color(0xFF1C1C1E)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF007AFF).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        source.name,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF007AFF)),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-      ],
+          if (expanded) _episodeArea(),
+        ],
+      ),
     );
   }
 
-  Future<void> _searchVideos(Work w) async {
-    final gen = ++_videoGen;
-    final source = _sources[_sourceIndex];
-    setState(() {
-      _videoLoading = true;
-      _videoError = null;
-      _videoResults = null;
-      _videoEpisodes = null;
-      _retry = () => _searchVideos(w);
-    });
-    try {
-      final results = await source.search(w.title);
-      if (!mounted || gen != _videoGen) return;
-      setState(() {
-        _videoResults = results;
-        _videoLoading = false;
-        if (results.isEmpty) _videoError = '未找到资源';
-      });
-    } catch (e) {
-      if (!mounted || gen != _videoGen) return;
-      setState(() {
-        _videoLoading = false;
-        _videoError = '搜索失败，请重试';
-      });
+  Widget _episodeArea() {
+    if (_episodesLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+            child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2))),
+      );
     }
-  }
-
-  Future<void> _loadEpisodes(VideoItem item) async {
-    final gen = ++_videoGen;
-    final source = _sources[_sourceIndex];
-    setState(() {
-      _selectedItem = item;
-      _videoLoading = true;
-      _videoError = null;
-      _retry = () => _loadEpisodes(item);
-    });
-    try {
-      final eps = await source.episodes(item.detailUrl);
-      if (!mounted || gen != _videoGen) return;
-      setState(() {
-        _videoEpisodes = eps;
-        _videoLoading = false;
-      });
-    } catch (e) {
-      if (!mounted || gen != _videoGen) return;
-      setState(() {
-        _videoLoading = false;
-        _videoError = '获取剧集失败，请重试';
-      });
-    }
-  }
-
-  void _playEpisode(VideoEpisode ep) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => VideoPlayerPage(
-          title: _work.title,
-          episodes: _videoEpisodes ?? const [],
-          initialIndex: ep.index,
+    if (_episodesError != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Row(
+          children: [
+            Text(_episodesError!,
+                style: const TextStyle(
+                    fontSize: 12, color: Colors.redAccent)),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () {
+                final item = _expandedItem;
+                final source = _expandedSource;
+                if (item == null || source == null) return;
+                _expandItem(item, source);
+              },
+              child: const Text('重试'),
+            ),
+          ],
         ),
+      );
+    }
+    final eps = _episodes ?? const <VideoEpisode>[];
+    if (eps.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 8),
+        child: Text('暂无剧集',
+            style: TextStyle(fontSize: 12, color: Color(0xFF8E8E93))),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          for (final ep in eps)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _playEpisode(ep),
+                borderRadius: BorderRadius.circular(10),
+                hoverColor: const Color(0x1F007AFF),
+                child: Container(
+                  width: 104,
+                  height: 44,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0x0F007AFF),
+                    border: Border.all(color: const Color(0x4D007AFF)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    ep.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF007AFF)),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
