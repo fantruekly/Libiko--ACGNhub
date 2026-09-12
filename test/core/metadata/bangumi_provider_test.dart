@@ -150,4 +150,50 @@ void main() {
     final trending = await provider.feed(AnimeFeed.trending);
     expect(trending.first.id, 'bangumi_2'); // 9.0 before 8.0
   });
+
+  test('parseCharacters maps name, relation, image and actors', () {
+    final data = [
+      {
+        'id': 1,
+        'name': 'ルルーシュ',
+        'relation': '主角',
+        'images': {'grid': 'http://lain.bgm.tv/crt/g/1.jpg'},
+        'actors': [
+          {
+            'id': 2,
+            'name': '福山润',
+            'images': {'grid': 'http://lain.bgm.tv/prsn/g/2.jpg'}
+          },
+        ],
+      },
+    ];
+
+    final chars = BangumiProvider.parseCharacters(data);
+    expect(chars, hasLength(1));
+    expect(chars.first.name, 'ルルーシュ');
+    expect(chars.first.relation, '主角');
+    expect(chars.first.image, 'https://lain.bgm.tv/crt/g/1.jpg');
+    expect(chars.first.actors.single.name, '福山润');
+    expect(
+        chars.first.actors.single.image, 'https://lain.bgm.tv/prsn/g/2.jpg');
+  });
+
+  test('parseRelated prefers name_cn and keeps relation', () {
+    final data = [
+      {
+        'id': 231989,
+        'name': 'スーパーロボット大戦 X',
+        'name_cn': '超级机器人大战X',
+        'relation': '游戏',
+        'images': {'grid': 'http://lain.bgm.tv/cover/g/231989.jpg'},
+      },
+    ];
+
+    final rel = BangumiProvider.parseRelated(data);
+    expect(rel, hasLength(1));
+    expect(rel.first.bangumiId, 231989);
+    expect(rel.first.title, '超级机器人大战X');
+    expect(rel.first.relation, '游戏');
+    expect(rel.first.image, 'https://lain.bgm.tv/cover/g/231989.jpg');
+  });
 }

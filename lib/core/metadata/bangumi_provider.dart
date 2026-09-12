@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import '../models/anime_extra.dart';
 import '../models/work.dart';
 import 'metadata_provider.dart';
 
@@ -63,6 +64,77 @@ class BangumiProvider implements MetadataProvider {
     }
     final res = await _dio.get('/v0/subjects/$id');
     return parseDetail(res.data as Map<String, dynamic>);
+  }
+
+  Future<List<AnimeCharacter>> characters(int id) async {
+    final res = await _dio.get('/v0/subjects/$id/characters');
+    return parseCharacters(res.data);
+  }
+
+  Future<List<RelatedWork>> related(int id) async {
+    final res = await _dio.get('/v0/subjects/$id/subjects');
+    return parseRelated(res.data);
+  }
+
+  @visibleForTesting
+  static List<AnimeCharacter> parseCharacters(dynamic data) {
+    final list = (data as List<dynamic>?) ?? [];
+    final out = <AnimeCharacter>[];
+    for (final e in list) {
+      final m = e as Map<String, dynamic>;
+      final name = (m['name'] as String?)?.trim() ?? '';
+      if (name.isEmpty) continue;
+      final images = m['images'] as Map<String, dynamic>?;
+      final actors = ((m['actors'] as List<dynamic>?) ?? [])
+          .map((a) {
+            final am = a as Map<String, dynamic>;
+            final aimg = am['images'] as Map<String, dynamic>?;
+            return AnimeActor(
+              name: (am['name'] as String?)?.trim() ?? '',
+              image: _https(
+                  aimg?['grid'] as String? ?? aimg?['medium'] as String?),
+            );
+          })
+          .where((a) => a.name.isNotEmpty)
+          .toList();
+      out.add(AnimeCharacter(
+        name: name,
+        relation: m['relation'] as String?,
+        image: _https(images?['grid'] as String? ?? images?['medium'] as String?),
+        actors: actors,
+      ));
+    }
+    return out;
+  }
+
+  @visibleForTesting
+  static List<RelatedWork> parseRelated(dynamic data) {
+    final list = (data as List<dynamic>?) ?? [];
+    final out = <RelatedWork>[];
+    for (final e in list) {
+      final m = e as Map<String, dynamic>;
+      final id = m['id'] as int?;
+      if (id == null) continue;
+      final nameCn = (m['name_cn'] as String?)?.trim() ?? '';
+      final name = (m['name'] as String?)?.trim() ?? '';
+      final title = nameCn.isNotEmpty ? nameCn : name;
+      if (title.isEmpty) continue;
+      final images = m['images'] as Map<String, dynamic>?;
+      out.add(RelatedWork(
+        bangumiId: id,
+        title: title,
+        relation: m['relation'] as String?,
+        image: _https(images?['grid'] as String? ?? images?['medium'] as String?),
+      ));
+    }
+    return out;
+  }
+
+  static String? _https(String? url) {
+    if (url == null || url.isEmpty) return null;
+    return url.startsWith('http://')
+        ? url.replaceFirst('http://', 'https://')
+        : url;
   }
 
   @visibleForTesting
