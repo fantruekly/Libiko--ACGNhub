@@ -51,13 +51,25 @@ class _AccountSectionState extends ConsumerState<_AccountSection> {
   final _baseUrl = TextEditingController();
   final _username = TextEditingController();
   final _password = TextEditingController();
+  final _baseUrlFocus = FocusNode();
   bool _seeded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _baseUrlFocus.addListener(() {
+      if (!_baseUrlFocus.hasFocus) {
+        ref.read(accountProvider.notifier).setBaseUrl(_baseUrl.text);
+      }
+    });
+  }
 
   @override
   void dispose() {
     _baseUrl.dispose();
     _username.dispose();
     _password.dispose();
+    _baseUrlFocus.dispose();
     super.dispose();
   }
 
@@ -76,6 +88,7 @@ class _AccountSectionState extends ConsumerState<_AccountSection> {
         children: [
           TextField(
             controller: _baseUrl,
+            focusNode: _baseUrlFocus,
             decoration: const InputDecoration(
               labelText: '服务器地址',
               hintText: kDefaultBaseUrl,
@@ -176,11 +189,12 @@ class _AccountSectionState extends ConsumerState<_AccountSection> {
     );
   }
 
-  void _submit({required bool login}) {
+  Future<void> _submit({required bool login}) async {
     final username = _username.text.trim();
     final password = _password.text;
     if (username.isEmpty || password.isEmpty) return;
     final notifier = ref.read(accountProvider.notifier);
+    await notifier.setBaseUrl(_baseUrl.text);
     if (login) {
       notifier.login(username, password);
     } else {

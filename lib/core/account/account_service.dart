@@ -120,8 +120,10 @@ class AccountNotifier extends Notifier<AccountState> {
       final newToken = await _apiFactory(state.baseUrl).refresh(refreshToken);
       await db.setString(_kToken, newToken);
       return true;
+    } on AccountException catch (e) {
+      if (e.statusCode == 401) await logout();
+      return false;
     } catch (_) {
-      await logout();
       return false;
     }
   }
@@ -132,33 +134,37 @@ class AccountNotifier extends Notifier<AccountState> {
     if (storedToken == null) return;
 
     state = state.copyWith(loading: true, clearError: true);
+    final user = await _validateSession(db, storedToken);
+    state = state.copyWith(
+        loading: false, user: user, clearUser: user == null);
+  }
+
+  /// Validates [storedToken], refreshing once on a 401. Returns the user, or
+  /// `null` when the session cannot be validated. A transient failure clears
+  /// the in-memory user but leaves the stored session intact so a later
+  /// [load] can retry.
+  Future<AccountUser?> _validateSession(
+      AppDatabase db, String storedToken) async {
     try {
       final user = await _apiFactory(state.baseUrl).me(storedToken);
       await db.setString(_kUser, json.encode(user.toJson()));
-      state = state.copyWith(loading: false, user: user);
-      return;
+      return user;
     } on AccountException catch (e) {
-      if (e.statusCode != 401) {
-        state = state.copyWith(loading: false);
-        return;
-      }
+      if (e.statusCode != 401) return null;
     } catch (_) {
-      state = state.copyWith(loading: false);
-      return;
+      return null;
     }
 
-    if (await refreshSession()) {
-      final refreshed = token;
-      if (refreshed != null) {
-        try {
-          final user = await _apiFactory(state.baseUrl).me(refreshed);
-          await db.setString(_kUser, json.encode(user.toJson()));
-          state = state.copyWith(loading: false, user: user);
-          return;
-        } catch (_) {}
-      }
+    if (!await refreshSession()) return null;
+    final refreshed = token;
+    if (refreshed == null) return null;
+    try {
+      final user = await _apiFactory(state.baseUrl).me(refreshed);
+      await db.setString(_kUser, json.encode(user.toJson()));
+      return user;
+    } catch (_) {
+      return null;
     }
-    state = state.copyWith(loading: false);
   }
 }
 

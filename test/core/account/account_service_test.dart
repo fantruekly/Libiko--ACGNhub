@@ -30,7 +30,10 @@ class _FakeApi implements AccountApi {
   @override
   Future<String> refresh(String refreshToken) async {
     refreshCalls++;
-    if (!refreshOk) throw const AccountException(code: 'unauthorized', message: 'expired');
+    if (!refreshOk) {
+      throw const AccountException(
+          statusCode: 401, code: 'unauthorized', message: 'expired');
+    }
     return 't2';
   }
 
@@ -148,6 +151,34 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('account_base_url'), 'http://example.com');
   });
+
+  test('load keeps the stored session but clears the user on a network error',
+      () async {
+    await AppDatabase.init();
+    final container = _container(_NetworkErrorApi());
+    addTearDown(container.dispose);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('account_token', 't1');
+    await prefs.setString('account_refresh_token', 'r1');
+
+    await container.read(accountProvider.notifier).load();
+
+    expect(container.read(accountProvider).isLoggedIn, isFalse);
+    expect(prefs.getString('account_token'), 't1');
+  });
+
+  test('refreshSession does not clear the session on a network error', () async {
+    await AppDatabase.init();
+    final container = _container(_NetworkErrorApi());
+    addTearDown(container.dispose);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('account_token', 't1');
+    await prefs.setString('account_refresh_token', 'r1');
+
+    expect(
+        await container.read(accountProvider.notifier).refreshSession(), isFalse);
+    expect(prefs.getString('account_refresh_token'), 'r1');
+  });
 }
 
 class _FailingLoginApi extends _FakeApi {
@@ -155,5 +186,17 @@ class _FailingLoginApi extends _FakeApi {
   Future<AuthSession> login(String username, String password) async {
     throw const AccountException(
         statusCode: 401, code: 'unauthorized', message: '用户名或密码错误');
+  }
+}
+
+class _NetworkErrorApi extends _FakeApi {
+  @override
+  Future<AccountUser> me(String token) async {
+    throw const AccountException(code: 'network', message: '网络错误');
+  }
+
+  @override
+  Future<String> refresh(String refreshToken) async {
+    throw const AccountException(code: 'network', message: '网络错误');
   }
 }
