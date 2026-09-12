@@ -34,4 +34,20 @@ void main() {
     expect(restored.episodeIndex, 2);
     expect(restored.watchedAt, DateTime.fromMillisecondsSinceEpoch(1700000000000));
   });
+
+  test('carries updatedAt/deleted/dirty with defaults', () {
+    final record = WatchRecord(
+      work: work,
+      episodeTitle: '第1集',
+      episodeIndex: 0,
+      watchedAt: DateTime.fromMillisecondsSinceEpoch(100),
+    );
+    expect(record.updatedAt, record.watchedAt);
+    expect(record.deleted, isFalse);
+    expect(record.dirty, isFalse);
+
+    final restored = WatchRecord.fromJson(record.copyWith(dirty: true).toJson());
+    expect(restored.dirty, isTrue);
+    expect(restored.updatedAt.millisecondsSinceEpoch, 100);
+  });
 }
