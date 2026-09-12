@@ -10,8 +10,9 @@ import '../video/video_source.dart';
 
 class WatchHistoryManager {
   static const _key = 'watch_history';
+  static const _kPendingClear = 'watch_history_pending_clear';
 
-  List<WatchRecord> all() {
+  List<WatchRecord> _readAll() {
     final jsonList = AppDatabase().getStringList(_key);
     final records = <WatchRecord>[];
     for (final raw in jsonList) {
@@ -22,20 +23,34 @@ class WatchHistoryManager {
         // Skip a malformed entry rather than failing the whole list.
       }
     }
-    return sortDescending(records);
+    return records;
+  }
+
+  List<WatchRecord> all() =>
+      sortDescending(_readAll().where((r) => !r.deleted).toList());
+
+  List<WatchRecord> dirty() => _readAll().where((r) => r.dirty).toList();
+
+  bool get pendingClear => AppDatabase().getBool(_kPendingClear) ?? false;
+
+  Future<void> clearPendingClear() async {
+    await AppDatabase().remove(_kPendingClear);
   }
 
   Future<void> _pending = Future.value();
 
   Future<void> record(Work work, VideoEpisode episode) {
     final next = _pending.then((_) async {
+      final now = DateTime.now();
       final record = WatchRecord(
         work: work,
         episodeTitle: episode.title,
         episodeIndex: episode.index,
-        watchedAt: DateTime.now(),
+        watchedAt: now,
+        updatedAt: now,
+        dirty: true,
       );
-      await _save(upsert(all(), record));
+      await _save(upsert(_readAll(), record));
     });
     _pending = next.catchError((_) {});
     return next;
@@ -43,10 +58,44 @@ class WatchHistoryManager {
 
   Future<void> clear() {
     final next = _pending.then((_) async {
-      await AppDatabase().remove(_key);
+      final tombstones = _readAll()
+          .where((r) => !r.deleted)
+          .map((r) => r.copyWith(
+              deleted: true, dirty: true, updatedAt: DateTime.now()))
+          .toList();
+      for (final tombstone in tombstones) {
+        await _save(upsert(_readAll(), tombstone));
+      }
+      await AppDatabase().setBool(_kPendingClear, true);
     });
     _pending = next.catchError((_) {});
     return next;
+  }
+
+  Future<void> markSynced(Set<String> workIds) async {
+    final records = _readAll()
+        .map((r) => workIds.contains(r.work.id) ? r.copyWith(dirty: false) : r)
+        .toList();
+    await _save(records);
+  }
+
+  Future<void> mergeFromServer(List<WatchRecord> server) async {
+    await _save(merge(_readAll(), server));
+  }
+
+  @visibleForTesting
+  static List<WatchRecord> merge(
+      List<WatchRecord> local, List<WatchRecord> server) {
+    final byId = {for (final r in local) r.work.id: r};
+    for (final item in server) {
+      final existing = byId[item.work.id];
+      if (existing != null && existing.updatedAt.isAfter(item.updatedAt)) {
+        byId[item.work.id] = existing.copyWith(dirty: false);
+      } else {
+        byId[item.work.id] = item.copyWith(dirty: false);
+      }
+    }
+    return byId.values.toList();
   }
 
   Future<void> _save(List<WatchRecord> records) async {
