@@ -128,15 +128,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             ),
           ),
           if (_resolving)
-            const Positioned(
-              top: 72,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: Colors.white),
+                  ),
                 ),
               ),
             ),
