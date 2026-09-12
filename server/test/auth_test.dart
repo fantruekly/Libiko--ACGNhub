@@ -1,4 +1,5 @@
 import 'package:acgnhub_server/src/auth.dart';
+import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -33,5 +34,13 @@ void main() {
 
   test('rejects a malformed token', () {
     expect(auth.verifyToken('not.a.jwt'), isNull);
+  });
+
+  test('rejects an expired token', () {
+    final expired = JWT({'sub': 1, 'typ': 'access'}).sign(
+      SecretKey('test-secret'),
+      expiresIn: const Duration(seconds: -1),
+    );
+    expect(auth.verifyToken(expired), isNull);
   });
 }
