@@ -63,6 +63,16 @@ void main() {
     expect(shortPw.statusCode, 400);
   });
 
+  test('register rejects a password longer than 72 bytes with 400', () async {
+    final res = await call('POST', '/api/auth/register',
+        body: {
+          'username': 'alice',
+          'password': List.filled(73, 'a').join(),
+        });
+    expect(res.statusCode, 400);
+    expect((await jsonOf(res))['error'], 'bad_request');
+  });
+
   test('login succeeds and rejects a wrong password', () async {
     await call('POST', '/api/auth/register',
         body: {'username': 'alice', 'password': 'secret1'});

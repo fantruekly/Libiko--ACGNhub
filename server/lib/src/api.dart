@@ -94,6 +94,9 @@ class Api {
     if (password is! String || password.length < 6) {
       return _error(400, 'bad_request', 'password must be at least 6 characters');
     }
+    if (utf8.encode(password as String).length > 72) {
+      return _error(400, 'bad_request', 'password must be at most 72 bytes');
+    }
     if (db.findUserByName(username) != null) {
       return _error(409, 'conflict', 'Username already taken');
     }

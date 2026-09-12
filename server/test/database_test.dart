@@ -107,6 +107,21 @@ void main() {
     expect(db.historySince(id, 0).single['deleted'], 1);
   });
 
+  test('clearHistory stores the client timestamp so later writes still win', () {
+    final id = db.createUser('alice', 'hash');
+    db.upsertHistory(
+        userId: id, workId: 'w1', work: {'id': 'w1'}, episodeTitle: '第1集',
+        episodeIndex: 0, watchedAt: 100, updatedAt: 9999);
+
+    expect(db.clearHistory(id, 400), 1);
+
+    final row = db.upsertHistory(
+        userId: id, workId: 'w1', work: {'id': 'w1'}, episodeTitle: '第2集',
+        episodeIndex: 1, watchedAt: 500, updatedAt: 500);
+    expect(row['deleted'], 0);
+    expect(row['episode_title'], '第2集');
+  });
+
   test('rows are scoped per user', () {
     final a = db.createUser('alice', 'hash');
     final b = db.createUser('bob', 'hash');

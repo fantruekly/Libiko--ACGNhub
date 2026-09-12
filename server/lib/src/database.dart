@@ -190,22 +190,42 @@ class Database {
 
   int clearHistory(int userId, int updatedAt) {
     final rows = _db.select(
-        'SELECT work_id, work_json, episode_title, episode_index, watched_at, '
-        'client_updated_at FROM history WHERE user_id = ? AND deleted = 0',
+        'SELECT work_id, work_json, episode_title, episode_index, watched_at '
+        'FROM history WHERE user_id = ? AND deleted = 0',
         [userId]);
     for (final row in rows) {
-      final stored = row['client_updated_at'] as int;
-      upsertHistory(
+      _forceHistoryTombstone(
         userId: userId,
         workId: row['work_id'] as String,
-        work: jsonDecode(row['work_json'] as String) as Map<String, dynamic>,
+        workJson: row['work_json'] as String,
         episodeTitle: row['episode_title'] as String,
         episodeIndex: row['episode_index'] as int,
         watchedAt: row['watched_at'] as int,
-        updatedAt: updatedAt > stored ? updatedAt : stored + 1,
-        deleted: true,
+        updatedAt: updatedAt,
       );
     }
     return rows.length;
+  }
+
+  /// Writes a history tombstone without the last-write-wins guard, so an
+  /// explicit clear always wins even against a row stored with a future client
+  /// timestamp. The client's own [updatedAt] is stored, so a later legitimate
+  /// write (with a greater timestamp) still wins.
+  void _forceHistoryTombstone({
+    required int userId,
+    required String workId,
+    required String workJson,
+    required String episodeTitle,
+    required int episodeIndex,
+    required int watchedAt,
+    required int updatedAt,
+  }) {
+    final seq = _bumpSeq(userId);
+    _db.execute(
+      'UPDATE history SET work_json = ?, episode_title = ?, episode_index = ?, '
+      'watched_at = ?, client_updated_at = ?, seq = ?, deleted = 1 '
+      'WHERE user_id = ? AND work_id = ?',
+      [workJson, episodeTitle, episodeIndex, watchedAt, updatedAt, seq, userId, workId],
+    );
   }
 }
