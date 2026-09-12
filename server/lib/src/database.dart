@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 
@@ -91,5 +92,117 @@ class Database {
   int _bumpSeq(int userId) {
     _db.execute('UPDATE users SET next_seq = next_seq + 1 WHERE id = ?', [userId]);
     return currentSeq(userId);
+  }
+
+  Row? getFollow(int userId, String workId) {
+    final rows = _db.select(
+        'SELECT * FROM follows WHERE user_id = ? AND work_id = ? LIMIT 1',
+        [userId, workId]);
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  Row upsertFollow({
+    required int userId,
+    required String workId,
+    required Map<String, dynamic> work,
+    required int updatedAt,
+    bool deleted = false,
+  }) {
+    final existing = getFollow(userId, workId);
+    if (existing != null && (existing['client_updated_at'] as int) > updatedAt) {
+      return existing;
+    }
+    final seq = _bumpSeq(userId);
+    final json = jsonEncode(work);
+    if (existing == null) {
+      _db.execute(
+        'INSERT INTO follows (user_id, work_id, work_json, client_updated_at, seq, deleted) '
+        'VALUES (?, ?, ?, ?, ?, ?)',
+        [userId, workId, json, updatedAt, seq, deleted ? 1 : 0],
+      );
+    } else {
+      _db.execute(
+        'UPDATE follows SET work_json = ?, client_updated_at = ?, seq = ?, deleted = ? '
+        'WHERE user_id = ? AND work_id = ?',
+        [json, updatedAt, seq, deleted ? 1 : 0, userId, workId],
+      );
+    }
+    return getFollow(userId, workId)!;
+  }
+
+  List<Row> listFollows(int userId) => _db.select(
+      'SELECT * FROM follows WHERE user_id = ? AND deleted = 0 '
+      'ORDER BY client_updated_at DESC',
+      [userId]);
+
+  List<Row> followsSince(int userId, int sinceSeq) => _db.select(
+      'SELECT * FROM follows WHERE user_id = ? AND seq > ? ORDER BY seq',
+      [userId, sinceSeq]);
+
+  Row? getHistory(int userId, String workId) {
+    final rows = _db.select(
+        'SELECT * FROM history WHERE user_id = ? AND work_id = ? LIMIT 1',
+        [userId, workId]);
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  Row upsertHistory({
+    required int userId,
+    required String workId,
+    required Map<String, dynamic> work,
+    required String episodeTitle,
+    required int episodeIndex,
+    required int watchedAt,
+    required int updatedAt,
+    bool deleted = false,
+  }) {
+    final existing = getHistory(userId, workId);
+    if (existing != null && (existing['client_updated_at'] as int) > updatedAt) {
+      return existing;
+    }
+    final seq = _bumpSeq(userId);
+    final json = jsonEncode(work);
+    if (existing == null) {
+      _db.execute(
+        'INSERT INTO history (user_id, work_id, work_json, episode_title, episode_index, '
+        'watched_at, client_updated_at, seq, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [userId, workId, json, episodeTitle, episodeIndex, watchedAt, updatedAt, seq,
+         deleted ? 1 : 0],
+      );
+    } else {
+      _db.execute(
+        'UPDATE history SET work_json = ?, episode_title = ?, episode_index = ?, watched_at = ?, '
+        'client_updated_at = ?, seq = ?, deleted = ? WHERE user_id = ? AND work_id = ?',
+        [json, episodeTitle, episodeIndex, watchedAt, updatedAt, seq, deleted ? 1 : 0,
+         userId, workId],
+      );
+    }
+    return getHistory(userId, workId)!;
+  }
+
+  List<Row> listHistory(int userId) => _db.select(
+      'SELECT * FROM history WHERE user_id = ? AND deleted = 0 ORDER BY watched_at DESC',
+      [userId]);
+
+  List<Row> historySince(int userId, int sinceSeq) => _db.select(
+      'SELECT * FROM history WHERE user_id = ? AND seq > ? ORDER BY seq',
+      [userId, sinceSeq]);
+
+  int clearHistory(int userId, int updatedAt) {
+    final rows = _db.select(
+        'SELECT work_id FROM history WHERE user_id = ? AND deleted = 0', [userId]);
+    for (final row in rows) {
+      upsertHistory(
+        userId: userId,
+        workId: row['work_id'] as String,
+        work: const {},
+        episodeTitle: '',
+        episodeIndex: 0,
+        watchedAt: 0,
+        updatedAt: updatedAt,
+        deleted: true,
+      );
+    }
+    return rows.length;
   }
 }
