@@ -2,13 +2,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AppDatabase {
   static AppDatabase? _instance;
-  late final SharedPreferences _prefs;
+  late SharedPreferences _prefs;
 
   AppDatabase._();
 
   static Future<AppDatabase> init() async {
-    if (_instance != null) return _instance!;
-    _instance = AppDatabase._();
+    _instance ??= AppDatabase._();
     _instance!._prefs = await SharedPreferences.getInstance();
     return _instance!;
   }
