@@ -18,207 +18,58 @@ class AnimeHomePage extends ConsumerStatefulWidget {
 
 class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
   static const _accent = Color(0xFF007AFF);
-  static const _perPage = 25;
-  static const _order = [AnimeFeed.season, AnimeFeed.trending, AnimeFeed.today];
+  static const _feeds = [AnimeFeed.season, AnimeFeed.trending, AnimeFeed.today];
+  static const _labels = ['本季新番', '热门推荐', '今日放送'];
 
-  AnimeFeed _feed = AnimeFeed.season;
-  bool _forward = true;
-  final List<Work> _extra = [];
-  int _page = 1;
-  bool _loadingMore = false;
-  bool _hasMore = true;
-  int _generation = 0;
+  final _controller = PageController();
+  int _index = 0;
 
-  bool _onScrollNotification(ScrollNotification n) {
-    if (n.metrics.pixels >= n.metrics.maxScrollExtent - 400 &&
-        _hasMore &&
-        !_loadingMore) {
-      _loadMore();
-    }
-    return false;
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  void _selectFeed(AnimeFeed feed) {
-    if (_feed == feed) return;
-    setState(() {
-      _forward = _order.indexOf(feed) > _order.indexOf(_feed);
-      _feed = feed;
-      _extra.clear();
-      _page = 1;
-      _hasMore = true;
-      _loadingMore = false;
-      _generation++;
-    });
-  }
-
-  Future<void> _loadMore() async {
-    final gen = _generation;
-    final feed = _feed;
-    final nextPage = _page + 1;
-    setState(() => _loadingMore = true);
-    try {
-      final next =
-          await ref.read(metadataServiceProvider).feed(feed, page: nextPage);
-      if (!mounted || gen != _generation) return;
-      setState(() {
-        _page = nextPage;
-        _extra.addAll(next);
-        _hasMore = next.length >= _perPage;
-        _loadingMore = false;
-      });
-    } catch (_) {
-      if (mounted && gen == _generation) {
-        setState(() {
-          _loadingMore = false;
-          _hasMore = false;
-        });
-      }
-    }
+  void _goTo(int i) {
+    if (i == _index) return;
+    setState(() => _index = i);
+    _controller.animateToPage(
+      i,
+      duration: const Duration(milliseconds: 340),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(animeFeedProvider(_feed));
-    final cs = Theme.of(context).colorScheme;
-
     return Column(
       children: [
-        _pills(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              for (var i = 0; i < _feeds.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                _pill(_labels[i], i),
+              ],
+            ],
+          ),
+        ),
         Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) {
-              final offset = Tween<Offset>(
-                begin: Offset(_forward ? 0.08 : -0.08, 0),
-                end: Offset.zero,
-              ).animate(animation);
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(position: offset, child: child),
-              );
-            },
-            child: KeyedSubtree(
-              key: ValueKey(_feed),
-              child: async.when(
-                loading: () => const ShimmerLoader(),
-                error: (_, __) => EmptyState(
-                  icon: Icons.cloud_off_rounded,
-                  message: '加载失败',
-                  actionLabel: '重试',
-                  onAction: () => ref.invalidate(animeFeedProvider(_feed)),
-                ),
-                data: (works) {
-                  final items = [...works, ..._extra];
-                  return NotificationListener<ScrollNotification>(
-                    onNotification: _onScrollNotification,
-                    child: RefreshIndicator(
-                      onRefresh: () async {
-                        ref
-                            .read(metadataServiceProvider)
-                            .invalidate('feed:${_feed.name}:');
-                        setState(() {
-                          _extra.clear();
-                          _page = 1;
-                          _hasMore = true;
-                          _loadingMore = false;
-                          _generation++;
-                        });
-                        ref.invalidate(animeFeedProvider(_feed));
-                      },
-                      child: CustomScrollView(
-                        primary: false,
-                        slivers: [
-                          _sectionTitle(_label, cs),
-                          items.isEmpty
-                              ? SliverToBoxAdapter(
-                                  child: SizedBox(
-                                    height: 300,
-                                    child: EmptyState(
-                                        icon: Icons.live_tv_rounded,
-                                        message: '暂无内容'),
-                                  ),
-                                )
-                              : SliverPadding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                                  sliver: SliverGrid(
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 5,
-                                      mainAxisSpacing: 16,
-                                      crossAxisSpacing: 16,
-                                      childAspectRatio: 0.66,
-                                    ),
-                                    delegate: SliverChildBuilderDelegate(
-                                      (_, i) => i >= items.length
-                                          ? null
-                                          : WorkCard(
-                                              work: items[i],
-                                              onTap: () => Navigator.push(
-                                                  context,
-                                                  smoothRoute(AnimeDetailPage(
-                                                      work: items[i]))),
-                                            ),
-                                      childCount: items.length,
-                                    ),
-                                  ),
-                                ),
-                          if (_hasMore)
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 24),
-                                child: Center(
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: _accent.withValues(alpha: 0.4),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+          child: PageView(
+            controller: _controller,
+            onPageChanged: (i) => setState(() => _index = i),
+            children: [for (final f in _feeds) _FeedView(feed: f)],
           ),
         ),
       ],
     );
   }
 
-  String get _label => switch (_feed) {
-        AnimeFeed.trending => '热门推荐',
-        AnimeFeed.season => '本季新番',
-        AnimeFeed.today => '今日放送',
-      };
-
-  Widget _pills() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          _pill('本季新番', AnimeFeed.season),
-          const SizedBox(width: 8),
-          _pill('热门推荐', AnimeFeed.trending),
-          const SizedBox(width: 8),
-          _pill('今日放送', AnimeFeed.today),
-        ],
-      ),
-    );
-  }
-
-  Widget _pill(String label, AnimeFeed feed) {
-    final sel = _feed == feed;
+  Widget _pill(String label, int i) {
+    final sel = _index == i;
     return GestureDetector(
-      onTap: () => _selectFeed(feed),
+      onTap: () => _goTo(i),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
@@ -236,6 +87,162 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _FeedView extends ConsumerStatefulWidget {
+  const _FeedView({required this.feed});
+
+  final AnimeFeed feed;
+
+  @override
+  ConsumerState<_FeedView> createState() => _FeedViewState();
+}
+
+class _FeedViewState extends ConsumerState<_FeedView>
+    with AutomaticKeepAliveClientMixin {
+  static const _accent = Color(0xFF007AFF);
+  static const _perPage = 25;
+
+  final List<Work> _extra = [];
+  int _page = 1;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _generation = 0;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  bool _onScrollNotification(ScrollNotification n) {
+    if (n.metrics.pixels >= n.metrics.maxScrollExtent - 400 &&
+        _hasMore &&
+        !_loadingMore) {
+      _loadMore();
+    }
+    return false;
+  }
+
+  Future<void> _loadMore() async {
+    final gen = _generation;
+    final nextPage = _page + 1;
+    setState(() => _loadingMore = true);
+    try {
+      final next = await ref
+          .read(metadataServiceProvider)
+          .feed(widget.feed, page: nextPage);
+      if (!mounted || gen != _generation) return;
+      setState(() {
+        _page = nextPage;
+        _extra.addAll(next);
+        _hasMore = next.length >= _perPage;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted && gen == _generation) {
+        setState(() {
+          _loadingMore = false;
+          _hasMore = false;
+        });
+      }
+    }
+  }
+
+  void _refresh() {
+    ref.read(metadataServiceProvider).invalidate('feed:${widget.feed.name}:');
+    setState(() {
+      _extra.clear();
+      _page = 1;
+      _hasMore = true;
+      _loadingMore = false;
+      _generation++;
+    });
+    ref.invalidate(animeFeedProvider(widget.feed));
+  }
+
+  String get _label => switch (widget.feed) {
+        AnimeFeed.trending => '热门推荐',
+        AnimeFeed.season => '本季新番',
+        AnimeFeed.today => '今日放送',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final async = ref.watch(animeFeedProvider(widget.feed));
+    final cs = Theme.of(context).colorScheme;
+
+    return async.when(
+      loading: () => const ShimmerLoader(),
+      error: (_, __) => EmptyState(
+        icon: Icons.cloud_off_rounded,
+        message: '加载失败',
+        actionLabel: '重试',
+        onAction: () => ref.invalidate(animeFeedProvider(widget.feed)),
+      ),
+      data: (works) {
+        final items = [...works, ..._extra];
+        return NotificationListener<ScrollNotification>(
+          onNotification: _onScrollNotification,
+          child: RefreshIndicator(
+            onRefresh: () async => _refresh(),
+            child: CustomScrollView(
+              primary: false,
+              slivers: [
+                _sectionTitle(_label, cs),
+                items.isEmpty
+                    ? SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: 300,
+                          child: EmptyState(
+                              icon: Icons.live_tv_rounded, message: '暂无内容'),
+                        ),
+                      )
+                    : SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        sliver: SliverGrid(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 5,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 0.66,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) => i >= items.length
+                                ? null
+                                : WorkCard(
+                                    work: items[i],
+                                    onTap: () => Navigator.push(
+                                        context,
+                                        smoothRoute(
+                                            AnimeDetailPage(work: items[i]))),
+                                  ),
+                            childCount: items.length,
+                          ),
+                        ),
+                      ),
+                if (_hasMore)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _accent.withValues(alpha: 0.4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
