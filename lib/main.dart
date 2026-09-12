@@ -72,8 +72,10 @@ class ACGNhubApp extends StatelessWidget {
             backgroundColor: _accent,
             foregroundColor: Colors.white,
             minimumSize: const Size(double.infinity, 48),
+            elevation: 2,
+            shadowColor: const Color(0x59007AFF),
             shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             textStyle:
                 const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
@@ -81,10 +83,10 @@ class ACGNhubApp extends StatelessWidget {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: _accent,
-            side: const BorderSide(color: _accent, width: 1.5),
+            side: const BorderSide(color: Color(0x33007AFF), width: 1.2),
             minimumSize: const Size(double.infinity, 48),
             shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             textStyle:
                 const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),

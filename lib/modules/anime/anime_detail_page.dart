@@ -447,7 +447,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Widget _tagsRow(List<String> tags) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -620,9 +620,9 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    backgroundColor: const Color(0x0F007AFF),
-                    side: const BorderSide(color: Color(0x59007AFF)),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    backgroundColor: const Color(0x14007AFF),
+                    side: BorderSide.none,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
