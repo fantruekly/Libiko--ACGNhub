@@ -561,6 +561,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     setState(() {
       _sourceResults = [for (final s in sources) _SourceResult(s)];
       _expandedItem = null;
+      _expandedSource = null;
       _episodes = null;
       _episodesError = null;
       _episodesLoading = false;
@@ -610,14 +611,19 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     if (identical(_expandedItem, item)) {
       setState(() {
         _expandedItem = null;
+        _expandedSource = null;
         _episodes = null;
         _episodesError = null;
         _episodesLoading = false;
       });
       return;
     }
+    setState(() => _expandedItem = item);
+    await _loadEpisodes(item, source);
+  }
+
+  Future<void> _loadEpisodes(VideoItem item, VideoSource source) async {
     setState(() {
-      _expandedItem = item;
       _expandedSource = source;
       _episodes = null;
       _episodesError = null;
@@ -846,7 +852,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 final item = _expandedItem;
                 final source = _expandedSource;
                 if (item == null || source == null) return;
-                _expandItem(item, source);
+                _loadEpisodes(item, source);
               },
               child: const Text('重试'),
             ),
