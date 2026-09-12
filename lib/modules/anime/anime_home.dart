@@ -19,38 +19,29 @@ class AnimeHomePage extends ConsumerStatefulWidget {
 class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
   static const _accent = Color(0xFF007AFF);
   static const _perPage = 25;
+  static const _order = [AnimeFeed.season, AnimeFeed.trending, AnimeFeed.today];
 
-  AnimeFeed _feed = AnimeFeed.trending;
-  final _scroll = ScrollController();
+  AnimeFeed _feed = AnimeFeed.season;
+  bool _forward = true;
   final List<Work> _extra = [];
   int _page = 1;
   bool _loadingMore = false;
   bool _hasMore = true;
   int _generation = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _scroll.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 400 &&
+  bool _onScrollNotification(ScrollNotification n) {
+    if (n.metrics.pixels >= n.metrics.maxScrollExtent - 400 &&
         _hasMore &&
         !_loadingMore) {
       _loadMore();
     }
+    return false;
   }
 
   void _selectFeed(AnimeFeed feed) {
     if (_feed == feed) return;
     setState(() {
+      _forward = _order.indexOf(feed) > _order.indexOf(_feed);
       _feed = feed;
       _extra.clear();
       _page = 1;
@@ -90,85 +81,116 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
     final async = ref.watch(animeFeedProvider(_feed));
     final cs = Theme.of(context).colorScheme;
 
-    return async.when(
-      loading: () => const ShimmerLoader(),
-      error: (_, __) => EmptyState(
-        icon: Icons.cloud_off_rounded,
-        message: '加载失败',
-        actionLabel: '重试',
-        onAction: () => ref.invalidate(animeFeedProvider(_feed)),
-      ),
-      data: (works) {
-        final items = [...works, ..._extra];
-        return RefreshIndicator(
-          onRefresh: () async {
-            ref.read(metadataServiceProvider).invalidate('feed:${_feed.name}:');
-            setState(() {
-              _extra.clear();
-              _page = 1;
-              _hasMore = true;
-              _loadingMore = false;
-              _generation++;
-            });
-            ref.invalidate(animeFeedProvider(_feed));
-          },
-          child: CustomScrollView(
-            controller: _scroll,
-            slivers: [
-              _pills(),
-              _sectionTitle(_label, cs),
-              items.isEmpty
-                  ? SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 300,
-                        child: EmptyState(
-                            icon: Icons.live_tv_rounded, message: '暂无内容'),
-                      ),
-                    )
-                  : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      sliver: SliverGrid(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 5,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
-                          childAspectRatio: 0.66,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (_, i) => i >= items.length
-                              ? null
-                              : WorkCard(
-                                  work: items[i],
-                                  onTap: () => Navigator.push(
-                                      context,
-                                      smoothRoute(
-                                          AnimeDetailPage(work: items[i]))),
-                                ),
-                          childCount: items.length,
-                        ),
-                      ),
-                    ),
-              if (_hasMore)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: _accent.withValues(alpha: 0.4),
-                        ),
-                      ),
-                    ),
-                  ),
+    return Column(
+      children: [
+        _pills(),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              final offset = Tween<Offset>(
+                begin: Offset(_forward ? 0.08 : -0.08, 0),
+                end: Offset.zero,
+              ).animate(animation);
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(position: offset, child: child),
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey(_feed),
+              child: async.when(
+                loading: () => const ShimmerLoader(),
+                error: (_, __) => EmptyState(
+                  icon: Icons.cloud_off_rounded,
+                  message: '加载失败',
+                  actionLabel: '重试',
+                  onAction: () => ref.invalidate(animeFeedProvider(_feed)),
                 ),
-            ],
+                data: (works) {
+                  final items = [...works, ..._extra];
+                  return NotificationListener<ScrollNotification>(
+                    onNotification: _onScrollNotification,
+                    child: RefreshIndicator(
+                      onRefresh: () async {
+                        ref
+                            .read(metadataServiceProvider)
+                            .invalidate('feed:${_feed.name}:');
+                        setState(() {
+                          _extra.clear();
+                          _page = 1;
+                          _hasMore = true;
+                          _loadingMore = false;
+                          _generation++;
+                        });
+                        ref.invalidate(animeFeedProvider(_feed));
+                      },
+                      child: CustomScrollView(
+                        primary: false,
+                        slivers: [
+                          _sectionTitle(_label, cs),
+                          items.isEmpty
+                              ? SliverToBoxAdapter(
+                                  child: SizedBox(
+                                    height: 300,
+                                    child: EmptyState(
+                                        icon: Icons.live_tv_rounded,
+                                        message: '暂无内容'),
+                                  ),
+                                )
+                              : SliverPadding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                                  sliver: SliverGrid(
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 5,
+                                      mainAxisSpacing: 16,
+                                      crossAxisSpacing: 16,
+                                      childAspectRatio: 0.66,
+                                    ),
+                                    delegate: SliverChildBuilderDelegate(
+                                      (_, i) => i >= items.length
+                                          ? null
+                                          : WorkCard(
+                                              work: items[i],
+                                              onTap: () => Navigator.push(
+                                                  context,
+                                                  smoothRoute(AnimeDetailPage(
+                                                      work: items[i]))),
+                                            ),
+                                      childCount: items.length,
+                                    ),
+                                  ),
+                                ),
+                          if (_hasMore)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 24),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: _accent.withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -179,18 +201,16 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
       };
 
   Widget _pills() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-        child: Row(
-          children: [
-            _pill('热门推荐', AnimeFeed.trending),
-            const SizedBox(width: 8),
-            _pill('本季新番', AnimeFeed.season),
-            const SizedBox(width: 8),
-            _pill('今日放送', AnimeFeed.today),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          _pill('本季新番', AnimeFeed.season),
+          const SizedBox(width: 8),
+          _pill('热门推荐', AnimeFeed.trending),
+          const SizedBox(width: 8),
+          _pill('今日放送', AnimeFeed.today),
+        ],
       ),
     );
   }
@@ -222,7 +242,7 @@ class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
   Widget _sectionTitle(String title, ColorScheme cs) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Text(
           title,
           style: TextStyle(
