@@ -101,62 +101,64 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     }
     _scheduleInitialOrLanding(images.length);
     final nav = _nav(details);
-    return NotificationListener<ScrollNotification>(
+    return NotificationListener<ScrollMetricsNotification>(
       onNotification: (notification) {
-        if (notification is ScrollMetricsNotification) {
-          if (_resuming) _applyResumeJump(images.length);
-          return false;
-        }
-        if (_programmaticScroll) return false;
-        if (notification is ScrollStartNotification) {
-          _resuming = false;
-        }
-        if (notification is! ScrollUpdateNotification &&
-            notification is! ScrollEndNotification) {
-          return false;
-        }
-        final metrics = notification.metrics;
-        final page = currentPageFromScroll(
-            metrics.pixels, metrics.maxScrollExtent, images.length);
-        _onPageChanged(page, images.length);
-        if (metrics.maxScrollExtent > 0 &&
-            metrics.pixels >= metrics.maxScrollExtent - 8 &&
-            nav.next != null) {
-          _goToChapter(nav.next!);
-        } else if (metrics.pixels <= 8 &&
-            _page == 0 &&
-            nav.previous != null) {
-          _goToChapter(nav.previous!, atEnd: true);
-        }
+        if (_resuming) _applyResumeJump(images.length);
         return false;
       },
-      child: ListView.builder(
-        controller: _scrollController,
-        itemCount: images.length + (nav.next != null ? 1 : 0),
-        itemBuilder: (context, i) {
-          if (i >= images.length) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: FilledButton(
-                  onPressed: () => _goToChapter(nav.next!),
-                  child: const Text('下一章'),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (_programmaticScroll) return false;
+          if (notification is ScrollStartNotification) {
+            _resuming = false;
+          }
+          if (notification is! ScrollUpdateNotification &&
+              notification is! ScrollEndNotification) {
+            return false;
+          }
+          final metrics = notification.metrics;
+          final page = currentPageFromScroll(
+              metrics.pixels, metrics.maxScrollExtent, images.length);
+          _onPageChanged(page, images.length);
+          if (metrics.maxScrollExtent > 0 &&
+              metrics.pixels >= metrics.maxScrollExtent - 8 &&
+              nav.next != null) {
+            _goToChapter(nav.next!);
+          } else if (metrics.pixels <= 8 &&
+              _page == 0 &&
+              nav.previous != null) {
+            _goToChapter(nav.previous!, atEnd: true);
+          }
+          return false;
+        },
+        child: ListView.builder(
+          controller: _scrollController,
+          itemCount: images.length + (nav.next != null ? 1 : 0),
+          itemBuilder: (context, i) {
+            if (i >= images.length) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: FilledButton(
+                    onPressed: () => _goToChapter(nav.next!),
+                    child: const Text('下一章'),
+                  ),
                 ),
+              );
+            }
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleChrome,
+              child: _ReaderImage(
+                key: ValueKey('$_chapterId-$i'),
+                sourceKey: widget.sourceKey,
+                comicId: widget.comicId,
+                chapterId: _chapterId,
+                url: images[i],
               ),
             );
-          }
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggleChrome,
-            child: _ReaderImage(
-              key: ValueKey('$_chapterId-$i'),
-              sourceKey: widget.sourceKey,
-              comicId: widget.comicId,
-              chapterId: _chapterId,
-              url: images[i],
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -460,6 +462,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   }
 
   void _recordHistory() {
+    _historyTimer?.cancel();
     _lastHistoryWrite = DateTime.now();
     final details =
         ref.read(comicDetailProvider((widget.sourceKey, widget.comicId)))
