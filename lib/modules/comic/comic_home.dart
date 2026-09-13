@@ -195,17 +195,12 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _sourceChip(ComicSource source, bool selected) {
+  Widget _chip(String label, bool selected, VoidCallback onTap) {
     return ChoiceChip(
-      label: Text(source.name),
+      label: Text(label),
       selected: selected,
       showCheckmark: false,
-      onSelected: (_) => setState(() {
-        _selectedKey = source.key;
-        _selectedSection = 0;
-        _selectedPart = 0;
-        _page = 1;
-      }),
+      onSelected: (_) => onTap(),
       selectedColor: _accent,
       backgroundColor: const Color(0xFFF2F2F7),
       labelStyle: TextStyle(
@@ -220,6 +215,17 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
+  Widget _sourceChip(ComicSource source, bool selected) {
+    return _chip(source.name, selected, () {
+      setState(() {
+        _selectedKey = source.key;
+        _selectedSection = 0;
+        _selectedPart = 0;
+        _page = 1;
+      });
+    });
+  }
+
   Widget _sectionChips(ComicSource source, int section) {
     if (source.sections.length <= 1) return const SizedBox.shrink();
     return SizedBox(
@@ -231,30 +237,16 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             for (var i = 0; i < source.sections.length; i++)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(source.sections[i].title.isEmpty
+                child: _chip(
+                  source.sections[i].title.isEmpty
                       ? '分区 ${i + 1}'
-                      : source.sections[i].title),
-                  selected: i == section,
-                  showCheckmark: false,
-                  onSelected: (_) => setState(() {
+                      : source.sections[i].title,
+                  i == section,
+                  () => setState(() {
                     _selectedSection = i;
                     _selectedPart = 0;
                     _page = 1;
                   }),
-                  selectedColor: _accent,
-                  backgroundColor: const Color(0xFFF2F2F7),
-                  labelStyle: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: i == section ? Colors.white : _muted,
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  side: BorderSide.none,
-                  visualDensity: VisualDensity.compact,
                 ),
               ),
           ],
@@ -273,29 +265,13 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             for (var i = 0; i < parts.length; i++)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(parts[i].title.isEmpty
-                      ? '分区 ${i + 1}'
-                      : parts[i].title),
-                  selected: i == selected,
-                  showCheckmark: false,
-                  onSelected: (_) => setState(() {
+                child: _chip(
+                  parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
+                  i == selected,
+                  () => setState(() {
                     _selectedPart = i;
                     _page = 1;
                   }),
-                  selectedColor: _accent,
-                  backgroundColor: const Color(0xFFF2F2F7),
-                  labelStyle: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: i == selected ? Colors.white : _muted,
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  side: BorderSide.none,
-                  visualDensity: VisualDensity.compact,
                 ),
               ),
           ],

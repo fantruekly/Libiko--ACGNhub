@@ -557,7 +557,12 @@ class ComicSourceManager {
           return result !== false;
         })()
       ''');
-      return ok == true;
+      if (ok == true) {
+        await AppDatabase()
+            .setString('source_data.${source.key}.username', username);
+        return true;
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -598,10 +603,14 @@ class ComicSourceManager {
         })()
       ''');
       await AppDatabase().remove('source_data.${source.key}.logged_in');
+      await AppDatabase().remove('source_data.${source.key}.username');
     } catch (_) {
       // Best-effort logout.
     }
   }
+
+  String? savedUsername(ComicSource source) =>
+      AppDatabase().getString('source_data.${source.key}.username');
 
   Future<bool> isLogged(ComicSource source) async {
     await _ensureInitialized();

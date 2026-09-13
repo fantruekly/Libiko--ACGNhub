@@ -185,21 +185,28 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
                 index: reorderIndex,
                 child: const Icon(Icons.drag_handle_rounded, color: _muted),
               )
-            : PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'account') _openAccount(source);
-                  if (value == 'refresh') _refresh(source);
-                  if (value == 'delete') _confirmDelete(source);
-                },
-                itemBuilder: (_) => [
-                  if (source.hasLogin || source.hasCookieLogin)
-                    const PopupMenuItem(value: 'account', child: Text('账号')),
-                  PopupMenuItem(
-                    value: 'refresh',
-                    enabled: source.url.isNotEmpty,
-                    child: const Text('刷新'),
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _loginBadge(source),
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'account') _openAccount(source);
+                      if (value == 'refresh') _refresh(source);
+                      if (value == 'delete') _confirmDelete(source);
+                    },
+                    itemBuilder: (_) => [
+                      if (source.hasLogin || source.hasCookieLogin)
+                        const PopupMenuItem(
+                            value: 'account', child: Text('账号')),
+                      PopupMenuItem(
+                        value: 'refresh',
+                        enabled: source.url.isNotEmpty,
+                        child: const Text('刷新'),
+                      ),
+                      const PopupMenuItem(value: 'delete', child: Text('删除')),
+                    ],
                   ),
-                  const PopupMenuItem(value: 'delete', child: Text('删除')),
                 ],
               ),
       ),
@@ -430,6 +437,41 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     showDialog<void>(
       context: context,
       builder: (_) => _AccountDialog(source: source),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Widget _loginBadge(ComicSource source) {
+    return FutureBuilder<bool>(
+      future: _manager.isLogged(source),
+      builder: (context, snapshot) {
+        if (snapshot.data != true) return const SizedBox.shrink();
+        final username = _manager.savedUsername(source);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (username != null && username.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Text(username,
+                    style: const TextStyle(fontSize: 12, color: _muted)),
+              ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF34C759).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text('已登录',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF34C759))),
+            ),
+          ],
+        );
+      },
     );
   }
 
