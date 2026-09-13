@@ -1,16 +1,169 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
+import 'package:fast_gbk/fast_gbk.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_qjs/flutter_qjs.dart';
 
+import 'html_bridge.dart';
+
+const _defaultUserAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
 class JsEngine {
-  JsEngine() {
-    _engine.dispatch();
-  }
+  JsEngine({Dio? dio, Map<String, String> Function()? settings})
+      : _dio = dio ??
+            Dio(BaseOptions(
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 15),
+              validateStatus: (_) => true,
+            )),
+        _settings = settings ?? (() => <String, String>{});
 
   final FlutterQjs _engine = FlutterQjs(stackSize: 1024 * 1024);
+  final Dio _dio;
+  final Map<String, String> Function() _settings;
+  final HtmlBridge _html = HtmlBridge();
+
+  void installBridge() {
+    _engine.dispatch();
+    final setter = _engine.evaluate(
+        '(fn) => { globalThis.sendMessage = fn; return true; }') as JSInvokable;
+    setter.invoke([_handle]);
+    setter.free();
+  }
 
   Future<dynamic> evaluate(String code) async => _engine.evaluate(code);
 
+  dynamic _handle(Map<dynamic, dynamic> map) {
+    switch (map['method']) {
+      case 'http':
+        return _http(map);
+      case 'convert':
+        return _convert(map);
+      case 'html':
+        return _htmlOp(map);
+      case 'setting':
+        return _setting(map);
+      case 'log':
+        debugPrint('[comic-source] ${map['message']}');
+        return null;
+      default:
+        throw Exception('Unknown bridge method: ${map['method']}');
+    }
+  }
+
+  Future<Map<String, dynamic>> _http(Map<dynamic, dynamic> map) async {
+    final headers = <String, dynamic>{
+      for (final e in (map['headers'] as Map? ?? {}).entries)
+        e.key.toString(): e.value
+    };
+    headers.putIfAbsent('user-agent', () => _defaultUserAgent);
+    final bytes = map['bytes'] == true;
+    try {
+      final response = await _dio.request(
+        map['url'] as String,
+        data: map['data'],
+        options: Options(
+          method: (map['method2'] ?? 'GET').toString(),
+          headers: headers,
+          responseType: bytes ? ResponseType.bytes : ResponseType.plain,
+          extra: (map['extra'] as Map?)?.cast<String, dynamic>(),
+        ),
+      );
+      return {
+        'status': response.statusCode ?? 0,
+        'headers': {
+          for (final e in response.headers.map.entries)
+            e.key: e.value.join(','),
+        },
+        'body': bytes ? response.data as Uint8List : response.data.toString(),
+      };
+    } on DioException catch (e) {
+      return {'status': 0, 'headers': const {}, 'body': '', 'error': '$e'};
+    }
+  }
+
+  dynamic _convert(Map<dynamic, dynamic> map) {
+    final type = map['type'] as String;
+    final data = map['data']?.toString() ?? '';
+    final dataBytes = utf8.encode(data);
+    switch (type) {
+      case 'utf8':
+        return utf8.decode(map['data'] as List<int>, allowMalformed: true);
+      case 'utf8Encode':
+        return utf8.encode(data);
+      case 'gbk':
+        return gbk.decode(map['data'] as List<int>);
+      case 'base64Encode':
+        return base64.encode(dataBytes);
+      case 'base64Decode':
+        return base64.decode(data);
+      case 'hexEncode':
+        return dataBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      case 'hexDecode':
+        return [
+          for (var i = 0; i + 1 < data.length; i += 2)
+            int.parse(data.substring(i, i + 2), radix: 16)
+        ];
+      case 'md5':
+        return md5.convert(dataBytes).toString();
+      case 'sha1':
+        return sha1.convert(dataBytes).toString();
+      case 'sha256':
+        return sha256.convert(dataBytes).toString();
+      case 'hmac':
+        return Hmac(sha256, utf8.encode(map['key']?.toString() ?? ''))
+            .convert(dataBytes)
+            .toString();
+      default:
+        throw Exception('Unknown convert type: $type');
+    }
+  }
+
+  dynamic _htmlOp(Map<dynamic, dynamic> map) {
+    final op = map['op'] as String;
+    final handle = (map['handle'] as num?)?.toInt() ?? 0;
+    switch (op) {
+      case 'parse':
+        return _html.parse(map['html'] as String? ?? '');
+      case 'querySelector':
+        return _html.querySelector(handle, map['selector'] as String);
+      case 'querySelectorAll':
+        return _html.querySelectorAll(handle, map['selector'] as String);
+      case 'getElementById':
+        return _html.getElementById(handle, map['id'] as String);
+      case 'text':
+        return _html.text(handle);
+      case 'innerHtml':
+        return _html.innerHtml(handle);
+      case 'outerHtml':
+        return _html.outerHtml(handle);
+      case 'attributes':
+        return _html.attributes(handle);
+      case 'attr':
+        return _html.attr(handle, map['name'] as String);
+      case 'free':
+        _html.free(handle);
+        return null;
+      default:
+        throw Exception('Unknown html op: $op');
+    }
+  }
+
+  dynamic _setting(Map<dynamic, dynamic> map) {
+    final store = _settings();
+    final key = map['key'] as String;
+    if (map['op'] == 'set') {
+      store[key] = map['value']?.toString() ?? '';
+      return null;
+    }
+    return store[key];
+  }
+
   void dispose() {
+    _html.dispose();
     try {
       _engine.port.close();
       _engine.close();
