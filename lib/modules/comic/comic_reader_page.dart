@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../core/comic/comic_history.dart';
+import '../../core/comic/comic_reader_settings.dart';
 import '../../core/comic/models.dart';
 import '../../core/comic/reader_nav.dart';
 import '../../core/widgets/window_controls.dart';
@@ -40,6 +41,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   Timer? _chromeTimer;
   Timer? _historyTimer;
   final _scrollController = ScrollController();
+  final _pageController = PageController();
 
   @override
   void initState() {
@@ -54,6 +56,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     _chromeTimer?.cancel();
     _historyTimer?.cancel();
     _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -64,6 +67,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final details =
         ref.watch(comicDetailProvider((widget.sourceKey, widget.comicId)))
             .valueOrNull;
+    final settings = ref.watch(comicReaderSettingsProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -74,11 +78,13 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
               loading: () => const Center(
                   child: CircularProgressIndicator(color: Colors.white54)),
               error: (_, __) => _chapterError(),
-              data: (ep) => _continuous(ep, details),
+              data: (ep) => settings.mode == ComicReaderMode.pageHorizontal
+                  ? _horizontal(ep, details)
+                  : _continuous(ep, details),
             ),
           ),
           if (_chromeVisible) _topBar(details),
-          if (_chromeVisible) _bottomBar(epAsync.valueOrNull, details),
+          if (_chromeVisible) _bottomBar(epAsync.valueOrNull, details, settings),
         ],
       ),
     );
@@ -149,9 +155,61 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     );
   }
 
+  Widget _horizontal(ComicEp ep, ComicDetails? details) {
+    final images = ep.images;
+    if (images.isEmpty) {
+      return const Center(
+          child: Text('本章暂无图片', style: TextStyle(color: Colors.white70)));
+    }
+    final nav = _nav(details);
+    final hasNext = nav.next != null;
+    return NotificationListener<OverscrollNotification>(
+      onNotification: (notification) {
+        if (notification.overscroll < 0 &&
+            _page == 0 &&
+            nav.previous != null) {
+          _goToChapter(nav.previous!);
+        }
+        return false;
+      },
+      child: PageView.builder(
+        controller: _pageController,
+        itemCount: images.length + (hasNext ? 1 : 0),
+        onPageChanged: (index) {
+          if (index >= images.length) {
+            if (hasNext) _goToChapter(nav.next!);
+            return;
+          }
+          _onPageChanged(index, images.length);
+        },
+        itemBuilder: (context, index) {
+          if (index >= images.length) {
+            return const Center(
+                child: CircularProgressIndicator(color: Colors.white38));
+          }
+          return _ZoomablePage(
+            onTap: _toggleChrome,
+            child: _ReaderImage(
+              key: ValueKey('$_chapterId-$index'),
+              sourceKey: widget.sourceKey,
+              comicId: widget.comicId,
+              chapterId: _chapterId,
+              url: images[index],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _jumpToInitial(int total) {
-    if (!mounted || !_scrollController.hasClients) return;
-    if (_page <= 0 || total <= 1) return;
+    if (!mounted) return;
+    if (ref.read(comicReaderSettingsProvider).mode ==
+        ComicReaderMode.pageHorizontal) {
+      if (_pageController.hasClients) _pageController.jumpToPage(_page);
+      return;
+    }
+    if (!_scrollController.hasClients || _page <= 0 || total <= 1) return;
     final max = _scrollController.position.maxScrollExtent;
     final target = (_page / (total - 1)) * max;
     _programmaticScroll = true;
@@ -199,7 +257,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     );
   }
 
-  Widget _bottomBar(ComicEp? ep, ComicDetails? details) {
+  Widget _bottomBar(
+      ComicEp? ep, ComicDetails? details, ComicReaderSettings settings) {
     final total = ep?.images.length ?? 0;
     final chapterTitle = details?.chapters[_chapterId] ?? '';
     return Positioned(
@@ -234,6 +293,19 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
             Text(
               '${total == 0 ? 0 : _page + 1} / $total',
               style: const TextStyle(fontSize: 13, color: _muted),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: settings.mode == ComicReaderMode.continuousVertical
+                  ? '翻页模式'
+                  : '连续模式',
+              onPressed: _toggleMode,
+              icon: Icon(
+                settings.mode == ComicReaderMode.continuousVertical
+                    ? Icons.swap_horiz_rounded
+                    : Icons.swap_vert_rounded,
+                size: 20,
+              ),
             ),
           ],
         ),
@@ -293,12 +365,42 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     _recordHistory();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_scrollController.hasClients) {
-        _programmaticScroll = true;
-        _scrollController.jumpTo(0);
-        _programmaticScroll = false;
-      }
+      _programmaticScroll = true;
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      if (_pageController.hasClients) _pageController.jumpToPage(0);
+      _programmaticScroll = false;
       _switchingChapter = false;
+    });
+  }
+
+  void _toggleMode() {
+    final current = ref.read(comicReaderSettingsProvider).mode;
+    final next = current == ComicReaderMode.continuousVertical
+        ? ComicReaderMode.pageHorizontal
+        : ComicReaderMode.continuousVertical;
+    ref.read(comicReaderSettingsProvider.notifier).setMode(next);
+    _initialJumpDone = true;
+    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _programmaticScroll = true;
+      if (next == ComicReaderMode.pageHorizontal) {
+        if (_pageController.hasClients) _pageController.jumpToPage(_page);
+        _programmaticScroll = false;
+        return;
+      }
+      final total = ref
+              .read(comicEpProvider(
+                  (widget.sourceKey, widget.comicId, _chapterId)))
+              .valueOrNull
+              ?.images
+              .length ??
+          0;
+      if (_scrollController.hasClients && total > 1) {
+        final max = _scrollController.position.maxScrollExtent;
+        _scrollController.jumpTo((_page / (total - 1) * max).clamp(0.0, max));
+      }
+      _programmaticScroll = false;
     });
   }
 
@@ -466,6 +568,50 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ZoomablePage extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+
+  const _ZoomablePage({required this.child, required this.onTap});
+
+  @override
+  State<_ZoomablePage> createState() => _ZoomablePageState();
+}
+
+class _ZoomablePageState extends State<_ZoomablePage> {
+  final _controller = TransformationController();
+  bool _zoomed = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggleZoom() {
+    setState(() {
+      _zoomed = !_zoomed;
+      _controller.value = _zoomed
+          ? (Matrix4.identity()..scaleByDouble(2.5, 2.5, 2.5, 1.0))
+          : Matrix4.identity();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      onDoubleTap: _toggleZoom,
+      child: InteractiveViewer(
+        transformationController: _controller,
+        minScale: 1,
+        maxScale: 4,
+        child: widget.child,
       ),
     );
   }
