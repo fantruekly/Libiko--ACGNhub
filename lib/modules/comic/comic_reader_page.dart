@@ -146,15 +146,18 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                 ),
               );
             }
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _toggleChrome,
-              child: _ReaderImage(
-                key: ValueKey('$_chapterId-$i'),
-                sourceKey: widget.sourceKey,
-                comicId: widget.comicId,
-                chapterId: _chapterId,
-                url: images[i],
+            return SizedBox(
+              height: MediaQuery.sizeOf(context).height,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleChrome,
+                child: _ReaderImage(
+                  key: ValueKey('$_chapterId-$i'),
+                  sourceKey: widget.sourceKey,
+                  comicId: widget.comicId,
+                  chapterId: _chapterId,
+                  url: images[i],
+                ),
               ),
             );
           },
