@@ -203,6 +203,7 @@ git push
 
 **Files:**
 - Modify: `lib/core/comic/comic_source.dart`
+- Modify: `lib/modules/comic/comic_providers.dart` (one-line call-site fix to keep the build green)
 - Modify: `assets/comic_source/test_source.js`
 - Modify: `.superpowers/sdd/comic_explore_probe.dart` (verification only)
 
@@ -296,6 +297,8 @@ Replace the `explore` method with:
 
 In `search`, change `return _comicsFrom(result);` to `return parseExploreResult(result).comics;`, and delete the whole `_comicsFrom` method.
 
+Also keep the build green: in `lib/modules/comic/comic_providers.dart`, the existing `comicExploreProvider` (still `FutureProvider.family<List<Comic>, String>`) returns `manager.explore(source, 0)` directly, which no longer type-checks. Change that one line to `return (await manager.explore(source, 0)).comics;`. (Task 3 rewrites this provider fully.)
+
 - [ ] **Step 5: Add explore sections to the test fixture**
 
 Append an `explore` block to `class AcgnhubTestSource` in `assets/comic_source/test_source.js` (before the closing `}`):
@@ -382,7 +385,7 @@ Expected: each source reports its sections; copy_manga / manhuagui report `count
 - [ ] **Step 8: Commit and push**
 
 ```bash
-git add lib/core/comic/comic_source.dart assets/comic_source/test_source.js
+git add lib/core/comic/comic_source.dart lib/modules/comic/comic_providers.dart assets/comic_source/test_source.js
 git commit -m "feat(comic): read explore sections and evaluate a chosen section and page"
 git push
 ```
