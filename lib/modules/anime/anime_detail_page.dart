@@ -336,20 +336,6 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     color: cs.onSurface),
               ),
             ),
-            Consumer(builder: (context, ref, _) {
-              final followed = ref.watch(followProvider).any((r) => r.work.id == w.id);
-              return IconButton(
-                tooltip: followed ? '已追番' : '追番',
-                icon: Icon(
-                  followed ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  color: followed ? const Color(0xFF007AFF) : const Color(0xFF8E8E93),
-                ),
-                onPressed: () {
-                  ref.read(followProvider.notifier).toggle(w);
-                  ref.read(syncProvider).schedule();
-                },
-              );
-            }),
             const WindowControls(),
           ],
         ),
@@ -400,7 +386,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 24),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,8 +412,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   else ...[
                     if (score != null) ...[
                       RatingStars(score: score),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 14),
                     ],
+                    _followButton(w),
+                    const SizedBox(height: 14),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -454,6 +442,32 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         ),
       ),
     );
+  }
+
+  Widget _followButton(Work w) {
+    return Consumer(builder: (context, ref, _) {
+      final followed = ref.watch(followProvider).any((r) => r.work.id == w.id);
+      return FilledButton.icon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          backgroundColor:
+              followed ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
+          foregroundColor: followed ? const Color(0xFF8E8E93) : Colors.white,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        onPressed: () {
+          ref.read(followProvider.notifier).toggle(w);
+          ref.read(syncProvider).schedule();
+        },
+        icon: Icon(followed ? Icons.check_rounded : Icons.add_rounded, size: 16),
+        label: Text(followed ? '已追番' : '追番',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      );
+    });
   }
 
   Widget _metaChip(IconData icon, String label, Color color) {
