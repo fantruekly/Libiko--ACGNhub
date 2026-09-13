@@ -135,7 +135,12 @@ git push
 
 **Files:**
 - Modify: `assets/comic_source/test_source.js`
+- Modify: `lib/modules/comic/comic_providers.dart` (refresh a stale doc comment)
 - Create (scratch, untracked): `.superpowers/sdd/comic_align_probe.dart`
+
+- [ ] **Step 0: Refresh the stale `comicExploreProvider` doc comment**
+
+In `lib/modules/comic/comic_providers.dart`, replace the doc comment above `comicExploreProvider` so it describes the current behavior: server/cursor sections accumulate source pages and are sliced at `_explorePageSize` (48) with `maxPage` null; one-shot sections are loaded once and continue into the source's category listing. Keep it a `///` doc comment.
 
 - [ ] **Step 1: Give the fixture larger server/cursor pages**
 
