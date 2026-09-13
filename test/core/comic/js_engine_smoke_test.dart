@@ -12,6 +12,7 @@ void main() {
     },
     skip: 'The flutter_qjs native library is not loadable under flutter test '
         '(flutter_qjs_plugin.dll, error 126); engine behaviour is verified with '
-        'an app-level probe: flutter run -d windows -t .superpowers/sdd/js_probe.dart',
+        'an app-level probe: flutter run -d windows -t '
+        '.superpowers/sdd/js_bridge_probe.dart',
   );
 }

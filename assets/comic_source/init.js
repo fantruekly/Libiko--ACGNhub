@@ -32,8 +32,20 @@
     static post(url, data, headers) {
       return Network.sendRequest('POST', url, headers, data);
     }
+    static put(url, data, headers) {
+      return Network.sendRequest('PUT', url, headers, data);
+    }
+    static delete(url, data, headers) {
+      return Network.sendRequest('DELETE', url, headers, data);
+    }
     static fetchBytes(method, url, headers, data) {
       return Network.sendRequest(method, url, headers, data, null, true).body;
+    }
+    static setCookies(url, cookies) {
+      return call({ method: 'cookie', op: 'set', url: url, cookies: cookies });
+    }
+    static getCookies(url) {
+      return call({ method: 'cookie', op: 'get', url: url });
     }
   }
 
@@ -62,6 +74,7 @@
     getElementById(id) { return wrap(call({ method: 'html', op: 'getElementById', handle: this._h, id: id })); }
     get text() { return call({ method: 'html', op: 'text', handle: this._h }); }
     get innerHtml() { return call({ method: 'html', op: 'innerHtml', handle: this._h }); }
+    get html() { return this.innerHtml; }
     get outerHtml() { return call({ method: 'html', op: 'outerHtml', handle: this._h }); }
     get attributes() { return call({ method: 'html', op: 'attributes', handle: this._h }); }
     attr(name) { return call({ method: 'html', op: 'attr', handle: this._h, name: name }); }

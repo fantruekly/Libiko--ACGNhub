@@ -3,6 +3,9 @@ import 'package:html/parser.dart' as html_parser;
 
 /// Holds parsed HTML nodes behind integer handles so a JS source can query the
 /// DOM through the `sendMessage` bridge without shipping a JS HTML parser.
+///
+/// Handles are evicted in FIFO order (oldest first, regardless of use), not
+/// true LRU, once more than [_capacity] nodes are live.
 class HtmlBridge {
   static const _capacity = 64;
 
@@ -46,10 +49,16 @@ class HtmlBridge {
   int? getElementById(int handle, String id) {
     final node = _get(handle);
     if (node == null) return null;
-    final found = node is dom.Document
-        ? node.getElementById(id)
-        : (node as dom.Element).querySelector('#$id');
-    return found == null ? null : _store(found);
+    if (node is dom.Document) {
+      final found = node.getElementById(id);
+      return found == null ? null : _store(found);
+    }
+    if (node is dom.Element) {
+      for (final e in node.querySelectorAll('[id]')) {
+        if (e.attributes['id'] == id) return _store(e);
+      }
+    }
+    return null;
   }
 
   String text(int handle) {

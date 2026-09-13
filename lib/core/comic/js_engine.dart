@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -12,20 +13,31 @@ const _defaultUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 class JsEngine {
-  JsEngine({Dio? dio, Map<String, String> Function()? settings})
-      : _dio = dio ??
+  JsEngine({
+    Dio? dio,
+    Map<String, String> Function()? settings,
+    Set<String> Function()? sourceKeys,
+  })  : _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 15),
               validateStatus: (_) => true,
             )),
-        _settings = settings ?? (() => <String, String>{});
+        _settings = settings ?? (() => <String, String>{}),
+        _sourceKeys = sourceKeys;
 
-  final FlutterQjs _engine = FlutterQjs(stackSize: 1024 * 1024);
+  final FlutterQjs _engine = FlutterQjs(
+    stackSize: 1024 * 1024,
+    timeout: 5000,
+    memoryLimit: 64 * 1024 * 1024,
+  );
   final Dio _dio;
   final Map<String, String> Function() _settings;
+  final Set<String> Function()? _sourceKeys;
+  final Map<String, dynamic> _cookieJar = {};
   final HtmlBridge _html = HtmlBridge();
   bool _installed = false;
+  Future<void> _lock = Future<void>.value();
 
   void installBridge() {
     if (_installed) return;
@@ -37,7 +49,17 @@ class JsEngine {
     setter.free();
   }
 
-  Future<dynamic> evaluate(String code) async => _engine.evaluate(code);
+  Future<dynamic> evaluate(String code) {
+    final completer = Completer<dynamic>();
+    _lock = _lock.then((_) async {
+      try {
+        completer.complete(await _engine.evaluate(code));
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
 
   dynamic _handle(Map<dynamic, dynamic> map) {
     switch (map['method']) {
@@ -49,6 +71,8 @@ class JsEngine {
         return _htmlOp(map);
       case 'setting':
         return _setting(map);
+      case 'cookie':
+        return _cookie(map);
       case 'log':
         debugPrint('[comic-source] ${map['message']}');
         return null;
@@ -115,8 +139,11 @@ class JsEngine {
       case 'hexEncode':
         return dataBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
       case 'hexDecode':
+        if (data.length.isOdd) {
+          throw FormatException('hexDecode requires an even number of digits');
+        }
         return Uint8List.fromList([
-          for (var i = 0; i + 1 < data.length; i += 2)
+          for (var i = 0; i < data.length; i += 2)
             int.parse(data.substring(i, i + 2), radix: 16)
         ]);
       case 'md5':
@@ -167,11 +194,33 @@ class JsEngine {
   dynamic _setting(Map<dynamic, dynamic> map) {
     final store = _settings();
     final key = map['key'] as String;
+    final allowed = _sourceKeys?.call();
+    if (allowed != null) {
+      final dot = key.indexOf('.');
+      final prefix = dot < 0 ? key : key.substring(0, dot);
+      if (!allowed.contains(prefix)) {
+        throw Exception('setting key out of scope: $key');
+      }
+    }
     if (map['op'] == 'set') {
       store[key] = map['value']?.toString() ?? '';
       return null;
     }
     return store[key];
+  }
+
+  dynamic _cookie(Map<dynamic, dynamic> map) {
+    final url = map['url']?.toString() ?? '';
+    if (map['op'] == 'set') {
+      final value = map['cookies'];
+      if (value == null || (value is String && value.isEmpty)) {
+        _cookieJar.remove(url);
+      } else {
+        _cookieJar[url] = value;
+      }
+      return null;
+    }
+    return _cookieJar[url];
   }
 
   void dispose() {

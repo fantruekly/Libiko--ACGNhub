@@ -41,7 +41,7 @@ class ComicSource {
   });
 
   static final _classRe =
-      RegExp(r'class\s+(\w+)\s+extends\s+ComicSource');
+      RegExp(r'class\s+(\w+)\s+extends\s+ComicSource\b');
 
   static String _classNameOf(String script) {
     final match = _classRe.firstMatch(script);
@@ -149,15 +149,21 @@ const _registryJs = r'''
 globalThis.__acgnhub_sources = globalThis.__acgnhub_sources || {};
 globalThis.__acgnhub_registerSource = function (cls) {
   const s = new cls();
-  globalThis.__acgnhub_sources[s.key] = cls;
-  return {
-    name: s.name, key: s.key, version: s.version, url: s.url,
-    description: s.description,
-    search: !!s.search, explore: !!s.explore,
-    loadInfo: !!(s.comic && s.comic.loadInfo),
-    loadEp: !!(s.comic && s.comic.loadEp),
-    onImageLoad: !!(s.comic && s.comic.onImageLoad)
+  const finish = function () {
+    globalThis.__acgnhub_sources[s.key] = cls;
+    return {
+      name: s.name, key: s.key, version: s.version, url: s.url,
+      description: s.description,
+      search: !!s.search, explore: !!s.explore,
+      loadInfo: !!(s.comic && s.comic.loadInfo),
+      loadEp: !!(s.comic && s.comic.loadEp),
+      onImageLoad: !!(s.comic && s.comic.onImageLoad)
+    };
   };
+  if (typeof s.init === 'function') {
+    return Promise.resolve(s.init()).then(finish);
+  }
+  return finish();
 };
 globalThis.__acgnhub_instance = function (key) {
   const cls = globalThis.__acgnhub_sources[key];
@@ -168,25 +174,45 @@ globalThis.__acgnhub_instance = function (key) {
 
 class ComicSourceManager {
   ComicSourceManager({JsEngine? engine, Dio? dio})
-      : _engine = engine ?? JsEngine(settings: _appSettings),
-        _dio = dio ?? Dio();
+      : _dio = dio ??
+            Dio(BaseOptions(
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 15),
+              validateStatus: (_) => true,
+            )) {
+    _engine = engine ??
+        JsEngine(settings: _appSettings, sourceKeys: () => _sourceKeys);
+  }
 
-  final JsEngine _engine;
+  late final JsEngine _engine;
   final Dio _dio;
   final List<ComicSource> _sources = [];
-  bool _initialized = false;
+  final Set<String> _sourceKeys = <String>{};
+  Future<void>? _initFuture;
 
   List<ComicSource> get sources => List.unmodifiable(_sources);
 
   static Map<String, String> _appSettings() => _DbSettings();
 
-  Future<void> _ensureInitialized() async {
-    if (_initialized) return;
+  Future<void> _ensureInitialized() => _initFuture ??= _initialize();
+
+  Future<void> _initialize() async {
     _engine.installBridge();
     final lib = await rootBundle.loadString('assets/comic_source/init.js');
     await _engine.evaluate(lib);
     await _engine.evaluate(_registryJs);
-    _initialized = true;
+  }
+
+  static final _fileNameRe = RegExp(r'^[A-Za-z0-9_.-]+\.js$');
+
+  /// Reduces [raw] to a safe file name inside the source directory, rejecting
+  /// anything that could escape it or that is not a `.js` file.
+  String _safeFileName(String raw) {
+    final name = p.basename(raw);
+    if (!_fileNameRe.hasMatch(name)) {
+      throw FormatException('invalid comic source file name: $raw');
+    }
+    return name;
   }
 
   Future<Directory> _dir() async {
@@ -199,6 +225,8 @@ class ComicSourceManager {
   Future<void> load() async {
     await _ensureInitialized();
     _sources.clear();
+    _sourceKeys.clear();
+    await _engine.evaluate('globalThis.__acgnhub_sources = {};');
     final dir = await _dir();
     for (final entity in dir.listSync()) {
       if (entity is! File || !entity.path.endsWith('.js')) continue;
@@ -206,6 +234,7 @@ class ComicSourceManager {
         final source = await _evaluateSource(
             await entity.readAsString(), p.basename(entity.path));
         _sources.add(source);
+        _sourceKeys.add(source.key);
       } catch (e) {
         debugPrint('[ComicSourceManager] skipped ${entity.path}: $e');
       }
@@ -231,26 +260,36 @@ class ComicSourceManager {
     final response = await _dio.get<String>(url,
         options: Options(responseType: ResponseType.plain));
     final script = response.data ?? '';
-    final name = Uri.parse(url).pathSegments.last;
     ComicSource.assertLooksLikeSource(script);
     final dir = await _dir();
+    final name = _safeFileName(Uri.parse(url).path);
     final file = File(p.join(dir.path, name));
+    if (!p.isWithin(dir.path, file.path)) {
+      throw FormatException('source path escapes the source directory: $name');
+    }
     await file.writeAsString(script);
     final source = await _evaluateSource(script, name);
     _sources.removeWhere((s) => s.key == source.key);
     _sources.add(source);
+    _sourceKeys.add(source.key);
     return source;
   }
 
   Future<ComicSource> importFromFile(String path) async {
     await _ensureInitialized();
     final script = await File(path).readAsString();
+    ComicSource.assertLooksLikeSource(script);
     final dir = await _dir();
-    final name = p.basename(path);
-    await File(p.join(dir.path, name)).writeAsString(script);
+    final name = _safeFileName(path);
+    final file = File(p.join(dir.path, name));
+    if (!p.isWithin(dir.path, file.path)) {
+      throw FormatException('source path escapes the source directory: $name');
+    }
+    await file.writeAsString(script);
     final source = await _evaluateSource(script, name);
     _sources.removeWhere((s) => s.key == source.key);
     _sources.add(source);
+    _sourceKeys.add(source.key);
     return source;
   }
 
@@ -258,17 +297,26 @@ class ComicSourceManager {
     await _ensureInitialized();
     final dir = await _dir();
     final file = File(p.join(dir.path, source.fileName));
-    if (!await file.exists()) {
-      throw StateError('source file not found: ${source.fileName}');
+    final String script;
+    if (source.url.isNotEmpty) {
+      final response = await _dio.get<String>(source.url,
+          options: Options(responseType: ResponseType.plain));
+      script = response.data ?? '';
+      await file.writeAsString(script);
+    } else {
+      if (!await file.exists()) {
+        throw StateError('source file not found: ${source.fileName}');
+      }
+      script = await file.readAsString();
     }
-    final refreshed =
-        await _evaluateSource(await file.readAsString(), source.fileName);
+    final refreshed = await _evaluateSource(script, source.fileName);
     final index = _sources.indexWhere((s) => s.key == source.key);
     if (index >= 0) {
       _sources[index] = refreshed;
     } else {
       _sources.add(refreshed);
     }
+    _sourceKeys.add(refreshed.key);
     return refreshed;
   }
 
@@ -280,6 +328,7 @@ class ComicSourceManager {
     await _engine.evaluate(
         'delete globalThis.__acgnhub_sources[${jsonEncode(source.key)}];');
     _sources.removeWhere((s) => s.key == source.key);
+    _sourceKeys.remove(source.key);
   }
 
   Future<List<Comic>> search(ComicSource source, String keyword,

@@ -58,7 +58,7 @@ void main() {
     expect(bridge.text(999999), '');
   });
 
-  test('the LRU evicts the oldest handles beyond capacity', () {
+  test('the FIFO eviction drops the oldest handles beyond capacity', () {
     final handles = <int>[];
     for (var i = 0; i < 70; i++) {
       handles.add(bridge.parse('<p>$i</p>'));
