@@ -8,6 +8,7 @@ import '../../core/comic/comic_source.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import 'comic_detail_page.dart';
 import 'comic_providers.dart';
 import 'comic_source_page.dart';
 
@@ -197,7 +198,15 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             title: comics[i].title,
             cover: comics[i].cover,
             heroTag: 'comic_${sourceKey}_${comics[i].id}',
-            onTap: () => _showDetailPlaceholder(context),
+            onTap: () => Navigator.push(
+              context,
+              smoothRoute(ComicDetailPage(
+                sourceKey: sourceKey,
+                comicId: comics[i].id,
+                title: comics[i].title,
+                cover: comics[i].cover,
+              )),
+            ),
           ),
         );
       },
@@ -221,7 +230,15 @@ class _FavoritesTab extends ConsumerWidget {
         title: favorites[i].title,
         cover: favorites[i].cover,
         heroTag: 'comic_${favorites[i].sourceKey}_${favorites[i].comicId}',
-        onTap: () => _showDetailPlaceholder(context),
+        onTap: () => Navigator.push(
+          context,
+          smoothRoute(ComicDetailPage(
+            sourceKey: favorites[i].sourceKey,
+            comicId: favorites[i].comicId,
+            title: favorites[i].title,
+            cover: favorites[i].cover,
+          )),
+        ),
       ),
     );
   }
@@ -279,7 +296,15 @@ Widget _historyRow(BuildContext context, ComicHistoryEntry entry) {
   final cs = Theme.of(context).colorScheme;
   return InkWell(
     borderRadius: BorderRadius.circular(10),
-    onTap: () => _showDetailPlaceholder(context),
+    onTap: () => Navigator.push(
+      context,
+      smoothRoute(ComicDetailPage(
+        sourceKey: entry.sourceKey,
+        comicId: entry.comicId,
+        title: entry.title,
+        cover: entry.cover,
+      )),
+    ),
     child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -345,11 +370,6 @@ Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
   );
   if (confirmed != true) return;
   await ref.read(comicHistoryProvider.notifier).clear();
-}
-
-void _showDetailPlaceholder(BuildContext context) {
-  ScaffoldMessenger.of(context)
-      .showSnackBar(const SnackBar(content: Text('详情页开发中')));
 }
 
 Widget _comicGrid({

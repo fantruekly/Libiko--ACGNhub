@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/smooth_route.dart';
+import 'comic_detail_page.dart';
 import 'comic_home.dart';
 import 'comic_providers.dart';
 
@@ -170,14 +172,17 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
           title: result.comic.title,
           cover: result.comic.cover,
           heroTag: 'comic_${result.sourceKey}_${result.comic.id}',
-          onTap: () => _showDetailPlaceholder(context),
+          onTap: () => Navigator.push(
+            context,
+            smoothRoute(ComicDetailPage(
+              sourceKey: result.sourceKey,
+              comicId: result.comic.id,
+              title: result.comic.title,
+              cover: result.comic.cover,
+            )),
+          ),
         );
       },
     );
   }
-}
-
-void _showDetailPlaceholder(BuildContext context) {
-  ScaffoldMessenger.of(context)
-      .showSnackBar(const SnackBar(content: Text('详情页开发中')));
 }
