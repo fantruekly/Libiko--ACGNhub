@@ -37,6 +37,42 @@ class ComicExplorePage {
 
 const _explorePageSize = 48;
 
+Future<ComicExplorePage> buildAlignedExplorePage({
+  required int page,
+  required int pageSize,
+  required bool cursorPaged,
+  required Future<ExplorePage> Function(int sourceIndex) fetch,
+}) async {
+  final accumulated = <Comic>[];
+  var sourceIndex = 1;
+  var hasMoreSource = true;
+  while (accumulated.length <= page * pageSize && hasMoreSource) {
+    final sourcePage = await fetch(sourceIndex);
+    accumulated.addAll(sourcePage.comics);
+    if (cursorPaged) {
+      hasMoreSource = sourcePage.next != null;
+    } else {
+      hasMoreSource = sourcePage.maxPage != null
+          ? sourceIndex < sourcePage.maxPage!
+          : sourcePage.comics.isNotEmpty;
+    }
+    if (sourcePage.comics.isEmpty) break;
+    sourceIndex++;
+  }
+  final start = (page - 1) * pageSize;
+  final end = (start + pageSize).clamp(0, accumulated.length);
+  final comics = start >= accumulated.length
+      ? const <Comic>[]
+      : accumulated.sublist(start, end);
+  return ComicExplorePage(
+    comics: comics,
+    page: page,
+    maxPage: null,
+    hasNext: accumulated.length > page * pageSize,
+    serverPaged: true,
+  );
+}
+
 (String?, String?) _continuationTarget(String? viewMore) {
   if (viewMore == null || !viewMore.startsWith('category:')) {
     return (null, null);
@@ -51,8 +87,8 @@ const _explorePageSize = 48;
 
 /// The full one-shot result for a non-server-paged section (cached per
 /// section), including its `viewMore` target.
-final comicExploreAllProvider =
-    FutureProvider.family<ExplorePage, (String, int)>((ref, key) async {
+final comicExploreAllProvider = FutureProvider.autoDispose
+    .family<ExplorePage, (String, int)>((ref, key) async {
   final (sourceKey, section) = key;
   final manager = ref.watch(comicSourceManagerProvider);
   final source = ref
@@ -66,8 +102,8 @@ final comicExploreAllProvider =
 
 /// One source page for a server- or cursor-paged section. Cursor sections
 /// chain: source page N reads page N-1's `next`.
-final FutureProviderFamily<ExplorePage, (String, int, int)>
-    comicSourcePageProvider = FutureProvider.family<ExplorePage,
+final AutoDisposeFutureProviderFamily<ExplorePage, (String, int, int)>
+    comicSourcePageProvider = FutureProvider.autoDispose.family<ExplorePage,
         (String, int, int)>((ref, key) async {
   final (sourceKey, section, sourceIndex) = key;
   final manager = ref.watch(comicSourceManagerProvider);
@@ -98,8 +134,8 @@ final FutureProviderFamily<ExplorePage, (String, int, int)>
 /// pages remain. Every other (one-shot) section is loaded once and paginated
 /// here, then continues into the source's category listing after its explore
 /// content.
-final FutureProviderFamily<ComicExplorePage, (String, int, int)>
-    comicExploreProvider = FutureProvider.family<ComicExplorePage,
+final AutoDisposeFutureProviderFamily<ComicExplorePage, (String, int, int)>
+    comicExploreProvider = FutureProvider.autoDispose.family<ComicExplorePage,
         (String, int, int)>((ref, key) async {
   final (sourceKey, section, page) = key;
   final manager = ref.watch(comicSourceManagerProvider);
@@ -114,34 +150,12 @@ final FutureProviderFamily<ComicExplorePage, (String, int, int)>
       : null;
   final type = sectionMeta?.type ?? '';
   if (sectionMeta?.usesLoadNext == true || type == 'multiPageComicList') {
-    final accumulated = <Comic>[];
-    var sourceIndex = 1;
-    var hasMoreSource = true;
-    while (accumulated.length <= page * _explorePageSize && hasMoreSource) {
-      final sourcePage = await ref.watch(
-          comicSourcePageProvider((sourceKey, section, sourceIndex)).future);
-      accumulated.addAll(sourcePage.comics);
-      if (sectionMeta?.usesLoadNext == true) {
-        hasMoreSource = sourcePage.next != null;
-      } else {
-        hasMoreSource = sourcePage.maxPage != null
-            ? sourceIndex < sourcePage.maxPage!
-            : sourcePage.comics.isNotEmpty;
-      }
-      if (sourcePage.comics.isEmpty) break;
-      sourceIndex++;
-    }
-    final start = (page - 1) * _explorePageSize;
-    final end = (start + _explorePageSize).clamp(0, accumulated.length);
-    final comics = start >= accumulated.length
-        ? const <Comic>[]
-        : accumulated.sublist(start, end);
-    return ComicExplorePage(
-      comics: comics,
+    return buildAlignedExplorePage(
       page: page,
-      maxPage: null,
-      hasNext: accumulated.length > page * _explorePageSize,
-      serverPaged: true,
+      pageSize: _explorePageSize,
+      cursorPaged: sectionMeta?.usesLoadNext == true,
+      fetch: (sourceIndex) => ref.watch(
+          comicSourcePageProvider((sourceKey, section, sourceIndex)).future),
     );
   }
   final explore =
