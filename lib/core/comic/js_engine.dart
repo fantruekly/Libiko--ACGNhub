@@ -25,8 +25,11 @@ class JsEngine {
   final Dio _dio;
   final Map<String, String> Function() _settings;
   final HtmlBridge _html = HtmlBridge();
+  bool _installed = false;
 
   void installBridge() {
+    if (_installed) return;
+    _installed = true;
     _engine.dispatch();
     final setter = _engine.evaluate(
         '(fn) => { globalThis.sendMessage = fn; return true; }') as JSInvokable;
@@ -78,11 +81,20 @@ class JsEngine {
           for (final e in response.headers.map.entries)
             e.key: e.value.join(','),
         },
-        'body': bytes ? response.data as Uint8List : response.data.toString(),
+        'body': bytes
+            ? response.data as Uint8List
+            : (response.data ?? '').toString(),
       };
     } on DioException catch (e) {
       return {'status': 0, 'headers': const {}, 'body': '', 'error': '$e'};
     }
+  }
+
+  List<int> _bytes(dynamic data) {
+    if (data is List<int>) return data;
+    if (data is List) return data.map((e) => (e as num).toInt()).toList();
+    if (data is Uint8List) return data;
+    throw ArgumentError('expected a byte array, got ${data.runtimeType}');
   }
 
   dynamic _convert(Map<dynamic, dynamic> map) {
@@ -91,11 +103,11 @@ class JsEngine {
     final dataBytes = utf8.encode(data);
     switch (type) {
       case 'utf8':
-        return utf8.decode(map['data'] as List<int>, allowMalformed: true);
+        return utf8.decode(_bytes(map['data']), allowMalformed: true);
       case 'utf8Encode':
         return utf8.encode(data);
       case 'gbk':
-        return gbk.decode(map['data'] as List<int>);
+        return gbk.decode(_bytes(map['data']));
       case 'base64Encode':
         return base64.encode(dataBytes);
       case 'base64Decode':
@@ -103,10 +115,10 @@ class JsEngine {
       case 'hexEncode':
         return dataBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
       case 'hexDecode':
-        return [
+        return Uint8List.fromList([
           for (var i = 0; i + 1 < data.length; i += 2)
             int.parse(data.substring(i, i + 2), radix: 16)
-        ];
+        ]);
       case 'md5':
         return md5.convert(dataBytes).toString();
       case 'sha1':
