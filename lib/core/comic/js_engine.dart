@@ -37,9 +37,35 @@ class JsEngine {
   bool _installed = false;
   Future<void> _lock = Future<void>.value();
 
+  static const _cookieKey = 'comic_cookies';
+
+  void _loadCookies() {
+    final raw = _settings()[_cookieKey];
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        _cookieJar
+          ..clear()
+          ..addAll(decoded.cast<String, dynamic>());
+      }
+    } catch (_) {
+      // A malformed store is ignored.
+    }
+  }
+
+  void _saveCookies() {
+    try {
+      _settings()[_cookieKey] = jsonEncode(_cookieJar);
+    } catch (_) {
+      // A write failure must not break a request.
+    }
+  }
+
   void installBridge() {
     if (_installed) return;
     _installed = true;
+    _loadCookies();
     _engine.dispatch();
     final setter = _engine.evaluate(
         '(fn) => { globalThis.sendMessage = fn; return true; }') as JSInvokable;
@@ -83,22 +109,41 @@ class JsEngine {
   String? _cookieHeaderFor(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.host.isEmpty) return null;
+    final host = uri.host;
+    bool matches(String? domain, String? keyHost) {
+      final target = (domain != null && domain.isNotEmpty) ? domain : keyHost;
+      if (target == null || target.isEmpty) return false;
+      final d = target.startsWith('.') ? target.substring(1) : target;
+      return host == d || host.endsWith('.$d');
+    }
+
     final values = <String>[];
     for (final entry in _cookieJar.entries) {
-      final key = Uri.tryParse(entry.key.toString());
-      if (key == null || key.host != uri.host) continue;
+      final keyHost = Uri.tryParse(entry.key.toString())?.host;
       final value = entry.value;
       if (value is List) {
         for (final cookie in value) {
           if (cookie is Map) {
             final name = cookie['name']?.toString() ?? '';
             final cookieValue = cookie['value']?.toString() ?? '';
-            if (name.isNotEmpty) values.add('$name=$cookieValue');
+            final domain = cookie['domain']?.toString();
+            if (matches(domain, keyHost) && name.isNotEmpty) {
+              values.add('$name=$cookieValue');
+            }
           }
+        }
+      } else if (value is Map) {
+        final name = value['name']?.toString() ?? '';
+        final cookieValue = value['value']?.toString() ?? '';
+        final domain = value['domain']?.toString();
+        if (matches(domain, keyHost) && name.isNotEmpty) {
+          values.add('$name=$cookieValue');
         }
       } else {
         final text = value?.toString();
-        if (text != null && text.isNotEmpty) values.add(text);
+        if (text != null && text.isNotEmpty && matches(null, keyHost)) {
+          values.add(text);
+        }
       }
     }
     return values.isEmpty ? null : values.join('; ');
@@ -254,6 +299,7 @@ class JsEngine {
       } else {
         _cookieJar[url] = value;
       }
+      _saveCookies();
       return null;
     }
     return _cookieJar[url];

@@ -34,4 +34,28 @@ void main() {
             'class S extends ComicSource { name = "x"; }'),
         throwsA(isA<FormatException>()));
   });
+
+  test('fromMetadata reads the account metadata', () {
+    final source = ComicSource.fromMetadata({
+      'name': 'X',
+      'key': 'x',
+      'version': '1.0.0',
+      'account': {
+        'hasLogin': true,
+        'hasCookieLogin': true,
+        'cookieFields': ['a', 'b'],
+      },
+    });
+    expect(source.hasLogin, isTrue);
+    expect(source.hasCookieLogin, isTrue);
+    expect(source.cookieFields, ['a', 'b']);
+  });
+
+  test('fromMetadata defaults the account metadata', () {
+    final source = ComicSource.fromMetadata(
+        {'name': 'X', 'key': 'x', 'version': '1.0.0'});
+    expect(source.hasLogin, isFalse);
+    expect(source.hasCookieLogin, isFalse);
+    expect(source.cookieFields, isEmpty);
+  });
 }

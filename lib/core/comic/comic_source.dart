@@ -581,20 +581,20 @@ class ComicSourceManager {
           return true;
         })()
       ''');
+      await AppDatabase().remove('source_data.${source.key}.logged_in');
     } catch (_) {
       // Best-effort logout.
     }
-    await AppDatabase().remove('source_data.${source.key}.logged_in');
   }
 
   Future<bool> isLogged(ComicSource source) async {
     await _ensureInitialized();
-    if (!source.hasLogin && source.hasCookieLogin) {
-      return AppDatabase()
-              .getString('source_data.${source.key}.logged_in') ==
-          '1';
-    }
     try {
+      if (!source.hasLogin && source.hasCookieLogin) {
+        return AppDatabase()
+                .getString('source_data.${source.key}.logged_in') ==
+            '1';
+      }
       final result = await _engine.evaluate('''
         (async () => {
           const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
