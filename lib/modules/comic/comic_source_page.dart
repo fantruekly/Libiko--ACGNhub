@@ -131,10 +131,13 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
         ),
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
+            if (value == 'account') _openAccount(source);
             if (value == 'refresh') _refresh(source);
             if (value == 'delete') _confirmDelete(source);
           },
           itemBuilder: (_) => [
+            if (source.hasLogin || source.hasCookieLogin)
+              const PopupMenuItem(value: 'account', child: Text('账号')),
             PopupMenuItem(
               value: 'refresh',
               enabled: source.url.isNotEmpty,
@@ -367,6 +370,13 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     }
   }
 
+  void _openAccount(ComicSource source) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _AccountDialog(source: source),
+    );
+  }
+
   Future<void> _refresh(ComicSource source) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -430,6 +440,141 @@ class _SectionTitle extends StatelessWidget {
             fontWeight: FontWeight.w600,
             color: Theme.of(context).colorScheme.onSurface),
       ),
+    );
+  }
+}
+
+class _AccountDialog extends ConsumerStatefulWidget {
+  final ComicSource source;
+
+  const _AccountDialog({required this.source});
+
+  @override
+  ConsumerState<_AccountDialog> createState() => _AccountDialogState();
+}
+
+class _AccountDialogState extends ConsumerState<_AccountDialog> {
+  late final List<TextEditingController> _controllers;
+  bool _logged = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final count = widget.source.hasCookieLogin
+        ? widget.source.cookieFields.length
+        : 2;
+    _controllers =
+        List.generate(count, (_) => TextEditingController());
+    _refreshStatus();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _refreshStatus() async {
+    final logged =
+        await ref.read(comicSourceManagerProvider).isLogged(widget.source);
+    if (mounted) setState(() => _logged = logged);
+  }
+
+  String _label(int index) {
+    if (widget.source.hasCookieLogin) {
+      return widget.source.cookieFields[index];
+    }
+    return index == 0 ? '账号 / 邮箱' : '密码';
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final manager = ref.read(comicSourceManagerProvider);
+    final bool ok;
+    if (widget.source.hasCookieLogin) {
+      ok = await manager.loginWithCookies(
+          widget.source, _controllers.map((c) => c.text.trim()).toList());
+    } else {
+      ok = await manager.login(widget.source, _controllers[0].text.trim(),
+          _controllers[1].text);
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _logged = ok;
+      _error = ok ? null : '登录失败';
+    });
+  }
+
+  Future<void> _logout() async {
+    setState(() => _busy = true);
+    await ref.read(comicSourceManagerProvider).logout(widget.source);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _logged = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.source.name),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_logged ? '已登录' : '未登录',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: _logged
+                      ? const Color(0xFF34C759)
+                      : const Color(0xFF8E8E93))),
+          if (!_logged) ...[
+            const SizedBox(height: 12),
+            for (var i = 0; i < _controllers.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TextField(
+                  controller: _controllers[i],
+                  obscureText: widget.source.hasLogin && i == 1,
+                  decoration: InputDecoration(
+                    labelText: _label(i),
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+          ],
+          if (_error != null)
+            Text(_error!,
+                style: const TextStyle(
+                    fontSize: 13, color: Color(0xFFE81123))),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
+        if (_logged)
+          TextButton(
+            onPressed: _busy ? null : _logout,
+            child: const Text('退出登录'),
+          )
+        else
+          FilledButton(
+            onPressed: _busy ? null : _submit,
+            child: const Text('登录'),
+          ),
+      ],
     );
   }
 }
