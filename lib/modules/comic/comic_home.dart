@@ -302,6 +302,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
         border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
             tooltip: '上一页',
@@ -309,9 +310,9 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             onPressed:
                 data.page > 1 ? () => setState(() => _page = data.page - 1) : null,
           ),
-          const Spacer(),
+          const SizedBox(width: 16),
           Text(label, style: const TextStyle(fontSize: 13, color: _muted)),
-          const Spacer(),
+          const SizedBox(width: 16),
           IconButton(
             tooltip: '下一页',
             icon: const Icon(Icons.chevron_right_rounded),

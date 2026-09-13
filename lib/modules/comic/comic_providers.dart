@@ -34,7 +34,7 @@ class ComicExplorePage {
   });
 }
 
-const _explorePageSize = 30;
+const _explorePageSize = 48;
 
 /// The full one-shot list for a non-server-paged section (cached per section).
 final comicExploreAllProvider =
