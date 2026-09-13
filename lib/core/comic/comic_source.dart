@@ -227,7 +227,7 @@ globalThis.__acgnhub_registerSource = function (key) {
   if (!cls) throw new Error('comic source not declared: ' + key);
   const s = new cls();
   const finish = function () {
-    globalThis.__acgnhub_sources[s.key] = cls;
+    globalThis.__acgnhub_sources[s.key] = s;
     delete globalThis.__acgnhub_pending[s.key];
     return {
       name: s.name, key: s.key, version: s.version, url: s.url,
@@ -279,12 +279,8 @@ globalThis.__acgnhub_registerSource = function (key) {
   return finish();
 };
 globalThis.__acgnhub_instance = function (key) {
-  const cls = globalThis.__acgnhub_sources[key];
-  if (!cls) throw new Error('comic source not registered: ' + key);
-  const s = new cls();
-  if (typeof s.init === 'function') {
-    return Promise.resolve(s.init()).then(function () { return s; });
-  }
+  const s = globalThis.__acgnhub_sources[key];
+  if (!s) throw new Error('comic source not registered: ' + key);
   return Promise.resolve(s);
 };
 ''';
