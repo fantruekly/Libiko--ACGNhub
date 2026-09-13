@@ -64,6 +64,34 @@ final comicExploreAllProvider =
   return manager.explore(source, section, page: 1);
 });
 
+/// One source page for a server- or cursor-paged section. Cursor sections
+/// chain: source page N reads page N-1's `next`.
+final FutureProviderFamily<ExplorePage, (String, int, int)>
+    comicSourcePageProvider = FutureProvider.family<ExplorePage,
+        (String, int, int)>((ref, key) async {
+  final (sourceKey, section, sourceIndex) = key;
+  final manager = ref.watch(comicSourceManagerProvider);
+  final source = ref
+      .watch(comicSourcesProvider)
+      .valueOrNull
+      ?.where((s) => s.key == sourceKey)
+      .firstOrNull;
+  if (source == null) throw StateError('source $sourceKey not loaded');
+  final meta = section >= 0 && section < source.sections.length
+      ? source.sections[section]
+      : null;
+  if (meta?.usesLoadNext == true) {
+    final cursor = sourceIndex <= 1
+        ? null
+        : (await ref.watch(
+                comicSourcePageProvider((sourceKey, section, sourceIndex - 1))
+                    .future))
+            .next;
+    return manager.explore(source, section, page: sourceIndex, cursor: cursor);
+  }
+  return manager.explore(source, section, page: sourceIndex);
+});
+
 /// `multiPageComicList` sections page on the source; every other section is
 /// loaded once and paginated here at [_explorePageSize] comics per page. A
 /// source that pages by offset without a total (Komiic, zaimanhua) reports no
@@ -85,32 +113,34 @@ final FutureProviderFamily<ComicExplorePage, (String, int, int)>
       ? source.sections[section]
       : null;
   final type = sectionMeta?.type ?? '';
-  if (sectionMeta?.usesLoadNext == true) {
-    final cursor = page <= 1
-        ? null
-        : (await ref.watch(
-                comicExploreProvider((sourceKey, section, page - 1)).future))
-            .next;
-    final result =
-        await manager.explore(source, section, page: page, cursor: cursor);
+  if (sectionMeta?.usesLoadNext == true || type == 'multiPageComicList') {
+    final accumulated = <Comic>[];
+    var sourceIndex = 1;
+    var hasMoreSource = true;
+    while (accumulated.length <= page * _explorePageSize && hasMoreSource) {
+      final sourcePage = await ref.watch(
+          comicSourcePageProvider((sourceKey, section, sourceIndex)).future);
+      accumulated.addAll(sourcePage.comics);
+      if (sectionMeta?.usesLoadNext == true) {
+        hasMoreSource = sourcePage.next != null;
+      } else {
+        hasMoreSource = sourcePage.maxPage != null
+            ? sourceIndex < sourcePage.maxPage!
+            : sourcePage.comics.isNotEmpty;
+      }
+      if (sourcePage.comics.isEmpty) break;
+      sourceIndex++;
+    }
+    final start = (page - 1) * _explorePageSize;
+    final end = (start + _explorePageSize).clamp(0, accumulated.length);
+    final comics = start >= accumulated.length
+        ? const <Comic>[]
+        : accumulated.sublist(start, end);
     return ComicExplorePage(
-      comics: result.comics,
+      comics: comics,
       page: page,
       maxPage: null,
-      hasNext: result.next != null,
-      serverPaged: true,
-      next: result.next,
-    );
-  }
-  if (type == 'multiPageComicList') {
-    final result = await manager.explore(source, section, page: page);
-    final rawMax = result.maxPage;
-    final maxPage = (rawMax == null || rawMax < 1) ? null : rawMax;
-    return ComicExplorePage(
-      comics: result.comics,
-      page: page,
-      maxPage: maxPage,
-      hasNext: maxPage != null ? page < maxPage : result.comics.isNotEmpty,
+      hasNext: accumulated.length > page * _explorePageSize,
       serverPaged: true,
     );
   }
