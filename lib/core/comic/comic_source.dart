@@ -215,11 +215,13 @@ class ComicSourceManager {
   Future<ComicSource> _evaluateSource(String script, String fileName) async {
     ComicSource.assertLooksLikeSource(script);
     final className = ComicSource._classNameOf(script);
-    // Capture the class in the same evaluation: a top-level `class` declaration
-    // creates a lexical binding, not a `globalThis` property, so it is not
-    // reliably visible to a later `evaluate` call.
-    final meta = await _engine.evaluate(
-        '$script\n;globalThis.__acgnhub_registerSource($className);');
+    // Evaluate inside an IIFE so the top-level `class` binding is
+    // function-local. QuickJS keeps top-level lexical bindings in a persistent
+    // global environment, so re-evaluating the same class would otherwise
+    // throw `SyntaxError: redeclaration of '<Class>'`.
+    final wrapped = '(function(){\n$script\n;'
+        'return globalThis.__acgnhub_registerSource($className);\n})()';
+    final meta = await _engine.evaluate(wrapped);
     if (meta is! Map) throw const FormatException('source metadata missing');
     return ComicSource.fromMetadata(meta, fileName: fileName);
   }
@@ -271,14 +273,18 @@ class ComicSourceManager {
   }
 
   Future<void> remove(ComicSource source) async {
+    await _ensureInitialized();
     final dir = await _dir();
     final file = File(p.join(dir.path, source.fileName));
     if (await file.exists()) await file.delete();
+    await _engine.evaluate(
+        'delete globalThis.__acgnhub_sources[${jsonEncode(source.key)}];');
     _sources.removeWhere((s) => s.key == source.key);
   }
 
   Future<List<Comic>> search(ComicSource source, String keyword,
       {int page = 1}) async {
+    await _ensureInitialized();
     if (!source.canSearch) return const [];
     final result = await _engine.evaluate('''
       (() => {
@@ -291,6 +297,7 @@ class ComicSourceManager {
 
   Future<List<Comic>> explore(ComicSource source, int index,
       {int page = 1}) async {
+    await _ensureInitialized();
     if (!source.canExplore) return const [];
     final result = await _engine.evaluate('''
       (() => {
@@ -302,6 +309,7 @@ class ComicSourceManager {
   }
 
   Future<ComicDetails> loadInfo(ComicSource source, String id) async {
+    await _ensureInitialized();
     final result = await _engine.evaluate('''
       (() => {
         const s = globalThis.__acgnhub_instance(${jsonEncode(source.key)});
@@ -316,6 +324,7 @@ class ComicSourceManager {
 
   Future<ComicEp> loadEp(
       ComicSource source, String comicId, String epId) async {
+    await _ensureInitialized();
     final result = await _engine.evaluate('''
       (() => {
         const s = globalThis.__acgnhub_instance(${jsonEncode(source.key)});
@@ -330,6 +339,7 @@ class ComicSourceManager {
 
   Future<ImageLoadingConfig> onImageLoad(
       ComicSource source, String url, String comicId, String epId) async {
+    await _ensureInitialized();
     if (!source.canOnImageLoad) return ImageLoadingConfig(url: url);
     final result = await _engine.evaluate('''
       (() => {
