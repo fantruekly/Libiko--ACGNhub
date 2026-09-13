@@ -123,6 +123,8 @@ Rule:
 - Otherwise → one-shot: for `page == 1`, call `manager.explore(source, section, page: 1)`; for `page > 1`, `ref.watch(comicExploreProvider((sourceKey, section, 1)).future)` to reuse the cached full list. Slice with `pageSize = 30`: `maxPage = max(1, ceil(total/30))`, `hasNext = page < maxPage`, `comics = all.sublist(start, end)`.
 - A missing/empty section list returns an empty page with `maxPage = 1`, `hasNext = false`.
 
+The one-shot (non-server-paged) full list is cached in a separate `comicExploreAllProvider` family keyed by `(sourceKey, section)` so every client page slices the same full list, and the UI retry invalidates it too.
+
 ## 6. UI changes (`_DiscoverTab`)
 
 Layout, top to bottom:

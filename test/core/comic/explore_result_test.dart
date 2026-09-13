@@ -62,4 +62,64 @@ void main() {
     expect(parseExploreResult('nope').comics, isEmpty);
     expect(parseExploreResult(<dynamic, dynamic>{}).comics, isEmpty);
   });
+
+  test('parses a {parts: [...]} result', () {
+    final page = parseExploreResult({
+      'parts': [
+        {
+          'title': 'p1',
+          'comics': [
+            {'id': '1', 'title': 'A'},
+          ],
+        },
+        {
+          'title': 'p2',
+          'comics': [
+            {'id': '2', 'title': 'B'},
+          ],
+        },
+      ],
+    });
+    expect(page.comics.map((c) => c.id), ['1', '2']);
+  });
+
+  test('parses a mixed {data: [...]} result', () {
+    final page = parseExploreResult({
+      'data': [
+        [
+          {'id': '1', 'title': 'A'},
+        ],
+        {
+          'title': 'p2',
+          'comics': [
+            {'id': '2', 'title': 'B'},
+          ],
+        },
+      ],
+    });
+    expect(page.comics.map((c) => c.id), ['1', '2']);
+  });
+
+  test('does not double-count when comics is present with other list values',
+      () {
+    final page = parseExploreResult({
+      'comics': [
+        {'id': '1', 'title': 'A'},
+      ],
+      'extra': [
+        {'id': '2', 'title': 'B'},
+      ],
+    });
+    expect(page.comics.map((c) => c.id), ['1']);
+  });
+
+  test('reads an integer-valued double maxPage', () {
+    final page = parseExploreResult({
+      'comics': [
+        {'id': '1', 'title': 'A'},
+      ],
+      'maxPage': 3.0,
+    });
+    expect(page.maxPage, 3);
+  });
 }

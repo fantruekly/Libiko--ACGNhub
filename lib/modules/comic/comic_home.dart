@@ -109,12 +109,15 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
           (s) => s.key == _selectedKey,
           orElse: () => sources.first,
         );
+        final section = selected.sections.isEmpty
+            ? 0
+            : _selectedSection.clamp(0, selected.sections.length - 1);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _sourceHeader(sources, selected),
-            _sectionChips(selected),
-            Expanded(child: _explore(selected)),
+            _sectionChips(selected, section),
+            Expanded(child: _explore(selected, section)),
           ],
         );
       },
@@ -181,7 +184,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _sectionChips(ComicSource source) {
+  Widget _sectionChips(ComicSource source, int section) {
     if (source.sections.length <= 1) return const SizedBox.shrink();
     return SizedBox(
       height: 44,
@@ -197,7 +200,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                   label: Text(source.sections[i].title.isEmpty
                       ? '分区 ${i + 1}'
                       : source.sections[i].title),
-                  selected: i == _selectedSection,
+                  selected: i == section,
                   showCheckmark: false,
                   onSelected: (_) => setState(() {
                     _selectedSection = i;
@@ -208,7 +211,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                   labelStyle: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: i == _selectedSection ? Colors.white : _muted,
+                    color: i == section ? Colors.white : _muted,
                   ),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -224,13 +227,18 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _explore(ComicSource source) {
-    final sections = source.sections;
-    final section =
-        sections.isEmpty ? 0 : _selectedSection.clamp(0, sections.length - 1);
+  Widget _explore(ComicSource source, int section) {
     final async =
         ref.watch(comicExploreProvider((source.key, section, _page)));
     final pageData = async.valueOrNull;
+
+    if (pageData != null &&
+        pageData.maxPage != null &&
+        _page > pageData.maxPage!) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _page = pageData.maxPage!);
+      });
+    }
 
     return Column(
       children: [
@@ -245,8 +253,12 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
               icon: Icons.cloud_off_rounded,
               message: '加载失败',
               actionLabel: '重试',
-              onAction: () => ref.invalidate(
-                  comicExploreProvider((source.key, section, _page))),
+              onAction: () {
+                ref.invalidate(
+                    comicExploreAllProvider((source.key, section)));
+                ref.invalidate(
+                    comicExploreProvider((source.key, section, _page)));
+              },
             ),
             data: (data) {
               if (data.comics.isEmpty) {

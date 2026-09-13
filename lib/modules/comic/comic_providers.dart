@@ -35,7 +35,7 @@ class ComicExplorePage {
 const _explorePageSize = 30;
 
 /// The full one-shot list for a non-server-paged section (cached per section).
-final _comicExploreAllProvider =
+final comicExploreAllProvider =
     FutureProvider.family<List<Comic>, (String, int)>((ref, key) async {
   final (sourceKey, section) = key;
   final manager = ref.watch(comicSourceManagerProvider);
@@ -79,7 +79,7 @@ final FutureProviderFamily<ComicExplorePage, (String, int, int)>
     );
   }
   final all =
-      await ref.watch(_comicExploreAllProvider((sourceKey, section)).future);
+      await ref.watch(comicExploreAllProvider((sourceKey, section)).future);
   final maxPage =
       all.isEmpty ? 1 : (all.length + _explorePageSize - 1) ~/ _explorePageSize;
   final start = (page - 1) * _explorePageSize;

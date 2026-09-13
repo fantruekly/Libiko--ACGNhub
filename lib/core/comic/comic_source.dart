@@ -195,7 +195,7 @@ globalThis.__acgnhub_registerSource = function (key) {
       loadInfo: !!(s.comic && s.comic.loadInfo),
       loadEp: !!(s.comic && s.comic.loadEp),
       onImageLoad: !!(s.comic && s.comic.onImageLoad),
-      sections: (s.explore || []).map(function (e) {
+      sections: (Array.isArray(s.explore) ? s.explore : []).map(function (e) {
         return { title: e.title || '', type: e.type || '' };
       })
     };
