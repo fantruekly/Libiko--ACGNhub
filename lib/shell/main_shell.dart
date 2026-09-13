@@ -4,6 +4,8 @@ import '../core/widgets/glass_surface.dart';
 import '../core/widgets/window_controls.dart';
 import '../modules/anime/anime_home.dart';
 import '../modules/anime/anime_search.dart';
+import '../modules/comic/comic_home.dart';
+import '../modules/comic/comic_search.dart';
 import 'settings_page.dart';
 import 'app_sidebar.dart';
 
@@ -26,8 +28,7 @@ class _MainShellState extends State<MainShell> {
 
   final _pages = <Widget>[
     const AnimeHomePage(),
-    _buildModulePlaceholder('漫画', Icons.menu_book_rounded, '漫画模块',
-        '聚合多种漫画平台资源，支持登录对应平台账号', const Color(0xFFFF9500)),
+    const ComicHomePage(),
     _buildModulePlaceholder('轻小说', Icons.auto_stories_rounded, '轻小说模块',
         '阅读 Wenku8 文库的轻小说资源', const Color(0xFF34C759)),
     _buildModulePlaceholder('游戏', Icons.games_rounded, '游戏模块',
@@ -164,7 +165,7 @@ class _MainShellState extends State<MainShell> {
                     height: 1.4),
               ),
               const Spacer(),
-              if (_currentIndex == 0)
+              if (_currentIndex == 0 || _currentIndex == 1)
                 IconButton(
                   icon: const Icon(Icons.search_rounded, size: 20),
                   color: _muted,
@@ -172,7 +173,9 @@ class _MainShellState extends State<MainShell> {
                   onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => const AnimeSearchPage())),
+                          builder: (_) => _currentIndex == 0
+                              ? const AnimeSearchPage()
+                              : const ComicSearchPage())),
                 ),
               const SizedBox(width: 4),
               Padding(
