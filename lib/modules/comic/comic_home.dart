@@ -381,9 +381,9 @@ Widget _comicGrid({
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
       crossAxisCount: 6,
-      mainAxisSpacing: 16,
+      mainAxisSpacing: 20,
       crossAxisSpacing: 16,
-      childAspectRatio: 0.66,
+      childAspectRatio: 0.60,
     ),
     itemCount: count,
     itemBuilder: (_, i) => itemBuilder(i),
@@ -457,15 +457,18 @@ class ComicCard extends StatelessWidget {
         children: [
           Expanded(child: image),
           const SizedBox(height: 6),
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              height: 1.45,
-              color: cs.onSurface,
+          SizedBox(
+            height: 38,
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                height: 1.45,
+                color: cs.onSurface,
+              ),
             ),
           ),
         ],

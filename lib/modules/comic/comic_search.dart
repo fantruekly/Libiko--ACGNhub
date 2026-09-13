@@ -161,9 +161,9 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 6,
-        mainAxisSpacing: 16,
+        mainAxisSpacing: 20,
         crossAxisSpacing: 16,
-        childAspectRatio: 0.66,
+        childAspectRatio: 0.60,
       ),
       itemCount: results.length,
       itemBuilder: (context, index) {

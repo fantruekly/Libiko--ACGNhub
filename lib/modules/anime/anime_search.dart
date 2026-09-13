@@ -170,9 +170,9 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 5,
-        mainAxisSpacing: 16,
+        mainAxisSpacing: 20,
         crossAxisSpacing: 16,
-        childAspectRatio: 0.66,
+        childAspectRatio: 0.60,
       ),
       itemCount: _results.length,
       itemBuilder: (context, index) => WorkCard(

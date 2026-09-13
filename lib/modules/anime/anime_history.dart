@@ -49,9 +49,9 @@ class AnimeHistoryView extends ConsumerWidget {
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 6,
-                    mainAxisSpacing: 16,
+                    mainAxisSpacing: 20,
                     crossAxisSpacing: 16,
-                    childAspectRatio: 0.66,
+                    childAspectRatio: 0.60,
                   ),
                   itemCount: records.length,
                   itemBuilder: (_, i) {

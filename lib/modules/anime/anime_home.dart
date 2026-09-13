@@ -178,9 +178,9 @@ class _FeedViewState extends ConsumerState<_FeedView>
                                     gridDelegate:
                                         const SliverGridDelegateWithFixedCrossAxisCount(
                                       crossAxisCount: 6,
-                            mainAxisSpacing: 16,
+                            mainAxisSpacing: 20,
                             crossAxisSpacing: 16,
-                            childAspectRatio: 0.66,
+                            childAspectRatio: 0.60,
                           ),
                           delegate: SliverChildBuilderDelegate(
                             (_, i) => i >= items.length

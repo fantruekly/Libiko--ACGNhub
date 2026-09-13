@@ -41,15 +41,18 @@ class WorkCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            work.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              height: 1.45,
-              color: cs.onSurface,
+          SizedBox(
+            height: 38,
+            child: Text(
+              work.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                height: 1.45,
+                color: cs.onSurface,
+              ),
             ),
           ),
           if (subtitle != null) ...[
