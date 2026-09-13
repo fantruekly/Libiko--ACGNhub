@@ -161,6 +161,11 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       return const Center(
           child: Text('本章暂无图片', style: TextStyle(color: Colors.white70)));
     }
+    if (!_initialJumpDone) {
+      _initialJumpDone = true;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _jumpToInitial(images.length));
+    }
     final nav = _nav(details);
     final hasNext = nav.next != null;
     return NotificationListener<OverscrollNotification>(
