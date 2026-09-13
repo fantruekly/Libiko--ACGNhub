@@ -479,8 +479,11 @@ class _AccountDialogState extends ConsumerState<_AccountDialog> {
   }
 
   Future<void> _refreshStatus() async {
-    final logged =
-        await ref.read(comicSourceManagerProvider).isLogged(widget.source);
+    bool logged = false;
+    try {
+      logged =
+          await ref.read(comicSourceManagerProvider).isLogged(widget.source);
+    } catch (_) {}
     if (mounted) setState(() => _logged = logged);
   }
 
@@ -496,14 +499,18 @@ class _AccountDialogState extends ConsumerState<_AccountDialog> {
       _busy = true;
       _error = null;
     });
-    final manager = ref.read(comicSourceManagerProvider);
-    final bool ok;
-    if (widget.source.hasCookieLogin) {
-      ok = await manager.loginWithCookies(
-          widget.source, _controllers.map((c) => c.text.trim()).toList());
-    } else {
-      ok = await manager.login(widget.source, _controllers[0].text.trim(),
-          _controllers[1].text);
+    var ok = false;
+    try {
+      final manager = ref.read(comicSourceManagerProvider);
+      if (widget.source.hasCookieLogin) {
+        ok = await manager.loginWithCookies(
+            widget.source, _controllers.map((c) => c.text.trim()).toList());
+      } else {
+        ok = await manager.login(widget.source, _controllers[0].text.trim(),
+            _controllers[1].text);
+      }
+    } catch (_) {
+      ok = false;
     }
     if (!mounted) return;
     setState(() {
@@ -515,7 +522,9 @@ class _AccountDialogState extends ConsumerState<_AccountDialog> {
 
   Future<void> _logout() async {
     setState(() => _busy = true);
-    await ref.read(comicSourceManagerProvider).logout(widget.source);
+    try {
+      await ref.read(comicSourceManagerProvider).logout(widget.source);
+    } catch (_) {}
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -527,37 +536,39 @@ class _AccountDialogState extends ConsumerState<_AccountDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.source.name),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(_logged ? '已登录' : '未登录',
-              style: TextStyle(
-                  fontSize: 13,
-                  color: _logged
-                      ? const Color(0xFF34C759)
-                      : const Color(0xFF8E8E93))),
-          if (!_logged) ...[
-            const SizedBox(height: 12),
-            for (var i = 0; i < _controllers.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TextField(
-                  controller: _controllers[i],
-                  obscureText: widget.source.hasLogin && i == 1,
-                  decoration: InputDecoration(
-                    labelText: _label(i),
-                    border: const OutlineInputBorder(),
-                    isDense: true,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_logged ? '已登录' : '未登录',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: _logged
+                        ? const Color(0xFF34C759)
+                        : const Color(0xFF8E8E93))),
+            if (!_logged) ...[
+              const SizedBox(height: 12),
+              for (var i = 0; i < _controllers.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: TextField(
+                    controller: _controllers[i],
+                    obscureText: !widget.source.hasCookieLogin && i == 1,
+                    decoration: InputDecoration(
+                      labelText: _label(i),
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
                   ),
                 ),
-              ),
+            ],
+            if (_error != null)
+              Text(_error!,
+                  style: const TextStyle(
+                      fontSize: 13, color: Color(0xFFE81123))),
           ],
-          if (_error != null)
-            Text(_error!,
-                style: const TextStyle(
-                    fontSize: 13, color: Color(0xFFE81123))),
-        ],
+        ),
       ),
       actions: [
         TextButton(
