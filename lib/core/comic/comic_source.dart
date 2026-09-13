@@ -195,14 +195,12 @@ class ComicSourceManager {
               receiveTimeout: const Duration(seconds: 15),
               validateStatus: (_) => true,
             )) {
-    _engine = engine ??
-        JsEngine(settings: _appSettings, sourceKeys: () => _sourceKeys);
+    _engine = engine ?? JsEngine(settings: _appSettings);
   }
 
   late final JsEngine _engine;
   final Dio _dio;
   final List<ComicSource> _sources = [];
-  final Set<String> _sourceKeys = <String>{};
   Future<void>? _initFuture;
 
   List<ComicSource> get sources => List.unmodifiable(_sources);
@@ -219,15 +217,36 @@ class ComicSourceManager {
   }
 
   static final _fileNameRe = RegExp(r'^[A-Za-z0-9_.-]+\.js$');
+  static final _reservedNames = <String>{
+    'CON', 'PRN', 'AUX', 'NUL',
+    for (var i = 1; i <= 9; i++) 'COM$i',
+    for (var i = 1; i <= 9; i++) 'LPT$i',
+  };
 
   /// Reduces [raw] to a safe file name inside the source directory, rejecting
-  /// anything that could escape it or that is not a `.js` file.
+  /// anything that could escape it, that is not a `.js` file, or that is a
+  /// Windows reserved device name (with or without an extension).
   String _safeFileName(String raw) {
     final name = p.basename(raw);
     if (!_fileNameRe.hasMatch(name)) {
       throw FormatException('invalid comic source file name: $raw');
     }
+    final stem = name.split('.').first.toUpperCase();
+    if (_reservedNames.contains(stem)) {
+      throw FormatException('reserved comic source file name: $raw');
+    }
     return name;
+  }
+
+  /// Resolves [raw] to a file inside the source directory, rejecting names that
+  /// fail [_safeFileName] or that would escape the directory.
+  File _sourceFile(Directory dir, String raw) {
+    final name = _safeFileName(raw);
+    final file = File(p.join(dir.path, name));
+    if (!p.isWithin(dir.path, file.path)) {
+      throw FormatException('source path escapes the source directory: $name');
+    }
+    return file;
   }
 
   Future<Directory> _dir() async {
@@ -240,7 +259,6 @@ class ComicSourceManager {
   Future<void> load() async {
     await _ensureInitialized();
     _sources.clear();
-    _sourceKeys.clear();
     await _engine.evaluate(
         'globalThis.__acgnhub_sources = {}; globalThis.__acgnhub_pending = {};');
     final dir = await _dir();
@@ -250,7 +268,6 @@ class ComicSourceManager {
         final source = await _evaluateSource(
             await entity.readAsString(), p.basename(entity.path));
         _sources.add(source);
-        _sourceKeys.add(source.key);
       } catch (e) {
         debugPrint('[ComicSourceManager] skipped ${entity.path}: $e');
       }
@@ -266,16 +283,15 @@ class ComicSourceManager {
     // throw `SyntaxError: redeclaration of '<Class>'`.
     //
     // Pass 1 declares the source (reading its metadata, not running `init()`)
-    // so its key can be allow-listed before pass 2 instantiates and `init()`s
-    // it. A source whose `init()` calls `loadSetting`/`saveSetting` therefore
-    // sees its own key already in scope.
+    // and stashes its class under `__acgnhub_pending[key]`; pass 2 instantiates
+    // it, runs `init()`, and registers it. Source settings are namespaced by a
+    // fixed prefix (`source_setting.`), so no per-source allow-listing is
+    // needed before `init()` runs.
     final declared = await _engine.evaluate('(function(){\n$script\n;'
         'return globalThis.__acgnhub_declareSource($className);\n})()');
     if (declared is! Map) throw const FormatException('source metadata missing');
     final key = declared['key']?.toString().trim() ?? '';
     if (key.isEmpty) throw const FormatException('comic source is missing "key"');
-    final alreadyAllowed = _sourceKeys.contains(key);
-    _sourceKeys.add(key);
     try {
       final meta = await _engine.evaluate(
           'globalThis.__acgnhub_registerSource(${jsonEncode(key)})');
@@ -284,7 +300,12 @@ class ComicSourceManager {
       }
       return ComicSource.fromMetadata(meta, fileName: fileName);
     } catch (_) {
-      if (!alreadyAllowed) _sourceKeys.remove(key);
+      try {
+        await _engine.evaluate(
+            'delete globalThis.__acgnhub_pending[${jsonEncode(key)}];');
+      } catch (_) {
+        // Best-effort cleanup; keep the original registration failure.
+      }
       rethrow;
     }
   }
@@ -296,16 +317,11 @@ class ComicSourceManager {
     final script = response.data ?? '';
     ComicSource.assertLooksLikeSource(script);
     final dir = await _dir();
-    final name = _safeFileName(Uri.parse(url).path);
-    final file = File(p.join(dir.path, name));
-    if (!p.isWithin(dir.path, file.path)) {
-      throw FormatException('source path escapes the source directory: $name');
-    }
+    final file = _sourceFile(dir, Uri.parse(url).path);
     await file.writeAsString(script);
-    final source = await _evaluateSource(script, name);
+    final source = await _evaluateSource(script, p.basename(file.path));
     _sources.removeWhere((s) => s.key == source.key);
     _sources.add(source);
-    _sourceKeys.add(source.key);
     return source;
   }
 
@@ -314,28 +330,24 @@ class ComicSourceManager {
     final script = await File(path).readAsString();
     ComicSource.assertLooksLikeSource(script);
     final dir = await _dir();
-    final name = _safeFileName(path);
-    final file = File(p.join(dir.path, name));
-    if (!p.isWithin(dir.path, file.path)) {
-      throw FormatException('source path escapes the source directory: $name');
-    }
+    final file = _sourceFile(dir, path);
     await file.writeAsString(script);
-    final source = await _evaluateSource(script, name);
+    final source = await _evaluateSource(script, p.basename(file.path));
     _sources.removeWhere((s) => s.key == source.key);
     _sources.add(source);
-    _sourceKeys.add(source.key);
     return source;
   }
 
   Future<ComicSource> refresh(ComicSource source) async {
     await _ensureInitialized();
     final dir = await _dir();
-    final file = File(p.join(dir.path, source.fileName));
+    final file = _sourceFile(dir, source.fileName);
     final String script;
     if (source.url.isNotEmpty) {
       final response = await _dio.get<String>(source.url,
           options: Options(responseType: ResponseType.plain));
       script = response.data ?? '';
+      ComicSource.assertLooksLikeSource(script);
       await file.writeAsString(script);
     } else {
       if (!await file.exists()) {
@@ -343,26 +355,24 @@ class ComicSourceManager {
       }
       script = await file.readAsString();
     }
-    final refreshed = await _evaluateSource(script, source.fileName);
+    final refreshed = await _evaluateSource(script, p.basename(file.path));
     final index = _sources.indexWhere((s) => s.key == source.key);
     if (index >= 0) {
       _sources[index] = refreshed;
     } else {
       _sources.add(refreshed);
     }
-    _sourceKeys.add(refreshed.key);
     return refreshed;
   }
 
   Future<void> remove(ComicSource source) async {
     await _ensureInitialized();
     final dir = await _dir();
-    final file = File(p.join(dir.path, source.fileName));
+    final file = _sourceFile(dir, source.fileName);
     if (await file.exists()) await file.delete();
     await _engine.evaluate(
         'delete globalThis.__acgnhub_sources[${jsonEncode(source.key)}];');
     _sources.removeWhere((s) => s.key == source.key);
-    _sourceKeys.remove(source.key);
   }
 
   Future<List<Comic>> search(ComicSource source, String keyword,

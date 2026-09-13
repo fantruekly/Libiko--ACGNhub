@@ -16,15 +16,13 @@ class JsEngine {
   JsEngine({
     Dio? dio,
     Map<String, String> Function()? settings,
-    Set<String> Function()? sourceKeys,
   })  : _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 15),
               validateStatus: (_) => true,
             )),
-        _settings = settings ?? (() => <String, String>{}),
-        _sourceKeys = sourceKeys;
+        _settings = settings ?? (() => <String, String>{});
 
   final FlutterQjs _engine = FlutterQjs(
     stackSize: 1024 * 1024,
@@ -33,7 +31,6 @@ class JsEngine {
   );
   final Dio _dio;
   final Map<String, String> Function() _settings;
-  final Set<String> Function()? _sourceKeys;
   final Map<String, dynamic> _cookieJar = {};
   final HtmlBridge _html = HtmlBridge();
   bool _installed = false;
@@ -81,12 +78,31 @@ class JsEngine {
     }
   }
 
+  /// Cookies stored for [url]'s host, joined into a single `Cookie` header.
+  String? _cookieHeaderFor(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return null;
+    final values = <String>[];
+    for (final entry in _cookieJar.entries) {
+      final key = Uri.tryParse(entry.key.toString());
+      if (key == null || key.host != uri.host) continue;
+      final value = entry.value?.toString();
+      if (value == null || value.isEmpty) continue;
+      values.add(value);
+    }
+    return values.isEmpty ? null : values.join('; ');
+  }
+
   Future<Map<String, dynamic>> _http(Map<dynamic, dynamic> map) async {
     final headers = <String, dynamic>{
       for (final e in (map['headers'] as Map? ?? {}).entries)
         e.key.toString(): e.value
     };
     headers.putIfAbsent('user-agent', () => _defaultUserAgent);
+    final cookie = _cookieHeaderFor(map['url'] as String);
+    final hasCookie =
+        headers.keys.any((k) => k.toLowerCase() == 'cookie');
+    if (!hasCookie && cookie != null) headers['cookie'] = cookie;
     final bytes = map['bytes'] == true;
     try {
       final response = await _dio.request(
@@ -191,16 +207,13 @@ class JsEngine {
     }
   }
 
+  static const _settingPrefix = 'source_setting.';
+
   dynamic _setting(Map<dynamic, dynamic> map) {
     final store = _settings();
     final key = map['key'] as String;
-    final allowed = _sourceKeys?.call();
-    if (allowed != null) {
-      final dot = key.indexOf('.');
-      final prefix = dot < 0 ? key : key.substring(0, dot);
-      if (!allowed.contains(prefix)) {
-        throw Exception('setting key out of scope: $key');
-      }
+    if (!key.startsWith(_settingPrefix)) {
+      throw Exception('setting key out of scope: $key');
     }
     if (map['op'] == 'set') {
       store[key] = map['value']?.toString() ?? '';
