@@ -29,13 +29,13 @@
       return r;
     }
     static get(url, headers) { return Network.sendRequest('GET', url, headers); }
-    static post(url, data, headers) {
+    static post(url, headers, data) {
       return Network.sendRequest('POST', url, headers, data);
     }
-    static put(url, data, headers) {
+    static put(url, headers, data) {
       return Network.sendRequest('PUT', url, headers, data);
     }
-    static delete(url, data, headers) {
+    static delete(url, headers, data) {
       return Network.sendRequest('DELETE', url, headers, data);
     }
     static fetchBytes(method, url, headers, data) {
@@ -110,11 +110,14 @@
     saveSetting(key, value) { return call({ method: 'setting', op: 'set', key: 'source_setting.' + this.key + '.' + key, value: value }); }
     loadData(name) {
       const v = call({ method: 'setting', op: 'get', key: 'source_data.' + this.key + '.' + name });
-      return v === null || v === undefined || v === '' ? null : v;
+      if (v === null || v === undefined || v === '') return null;
+      try { return JSON.parse(v); } catch (_) { return v; }
     }
     saveData(name, value) {
-      const v = typeof value === 'string' ? value : JSON.stringify(value);
-      return call({ method: 'setting', op: 'set', key: 'source_data.' + this.key + '.' + name, value: v });
+      return call({ method: 'setting', op: 'set', key: 'source_data.' + this.key + '.' + name, value: JSON.stringify(value) });
+    }
+    deleteData(name) {
+      return call({ method: 'setting', op: 'set', key: 'source_data.' + this.key + '.' + name, value: '' });
     }
   }
 
