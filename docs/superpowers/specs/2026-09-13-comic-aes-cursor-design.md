@@ -68,7 +68,7 @@ with `import 'crypto_util.dart';` (or the fully-qualified call).
 
 ## 5. Cursor paging
 
-`ComicSourceSection` gains `final bool usesLoadNext;` (default `false`). The registry pass-2 `sections` map adds `usesLoadNext: typeof e.loadNext === 'function'`; `fromMetadata` parses it.
+`ComicSourceSection` gains `final bool usesLoadNext;` (default `false`). The registry pass-2 `sections` map sets `usesLoadNext: typeof e.loadNext === 'function' && typeof e.load !== 'function'` (true only when the section has a `loadNext` and no `load`, since `loadNext` is ignored when `load` is implemented); `fromMetadata` parses it.
 
 `comicExploreProvider`'s server branch becomes three-way:
 - `usesLoadNext` → cursor-paged: for page `N`, obtain the cursor from page `N-1`'s result (`page == 1 ? null : (await ref.watch(comicExploreProvider((sourceKey, section, N-1)).future)).next`), call `manager.explore(source, section, page: N, cursor: cursor)`, return `maxPage: null`, `hasNext: result.next != null`.

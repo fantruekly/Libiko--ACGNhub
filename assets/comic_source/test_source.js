@@ -46,5 +46,16 @@ class AcgnhubTestSource extends ComicSource {
         '日常': [new Comic({ id: 'd1', title: 'Daily 1' })],
       }),
     },
+    {
+      title: '游标',
+      type: 'multiPageComicList',
+      loadNext: (next) => {
+        const p = next ? Number(next) : 1;
+        return {
+          comics: [new Comic({ id: 'c' + p, title: 'Cursor ' + p })],
+          next: p < 3 ? String(p + 1) : null,
+        };
+      },
+    },
   ];
 }

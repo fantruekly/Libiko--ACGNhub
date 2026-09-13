@@ -202,7 +202,7 @@ globalThis.__acgnhub_registerSource = function (key) {
         return {
           title: e.title || '',
           type: e.type || '',
-          usesLoadNext: typeof e.loadNext === 'function'
+          usesLoadNext: typeof e.loadNext === 'function' && typeof e.load !== 'function'
         };
       })
     };
