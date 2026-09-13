@@ -387,15 +387,11 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   void _toggleChrome() {
     _chromeTimer?.cancel();
     setState(() => _chromeVisible = !_chromeVisible);
-    if (_chromeVisible) _showChrome();
   }
 
   void _showChrome() {
     _chromeTimer?.cancel();
     if (!_chromeVisible) setState(() => _chromeVisible = true);
-    _chromeTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) setState(() => _chromeVisible = false);
-    });
   }
 
   ChapterNav _nav(ComicDetails? details) {

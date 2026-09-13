@@ -3,6 +3,16 @@
 (function () {
   const call = (obj) => sendMessage(obj);
 
+  const _log = (args) =>
+    call({ method: 'log', message: Array.prototype.map.call(args, String).join(' ') });
+  globalThis.console = {
+    log: function () { _log(arguments); },
+    info: function () { _log(arguments); },
+    debug: function () { _log(arguments); },
+    warn: function () { _log(arguments); },
+    error: function () { _log(arguments); },
+  };
+
   class Comic {
     constructor(o = {}) {
       this.id = ''; this.title = '';
