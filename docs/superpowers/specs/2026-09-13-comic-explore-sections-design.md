@@ -106,11 +106,12 @@ and returns `parseExploreResult(result)`. The existing `_comicsFrom` is replaced
 ```dart
 class ComicExplorePage {
   final List<Comic> comics;
-  final int page;        // 1-based
-  final int maxPage;     // >= 1
+  final int page;         // 1-based
+  final int? maxPage;     // null when the source does not report a total
+  final bool hasNext;     // whether a further page is available
   final bool serverPaged;
   const ComicExplorePage({required this.comics, required this.page,
-      required this.maxPage, required this.serverPaged});
+      this.maxPage, required this.hasNext, required this.serverPaged});
 }
 
 final comicExploreProvider = FutureProvider.family<ComicExplorePage,
@@ -118,9 +119,9 @@ final comicExploreProvider = FutureProvider.family<ComicExplorePage,
 ```
 
 Rule:
-- If the section's `type == 'multiPageComicList'` → server-paginated: call `manager.explore(source, section, page: page)`, `maxPage = result.maxPage ?? page`, `serverPaged = true`.
-- Otherwise → one-shot: for `page == 1`, call `manager.explore(source, section, page: 1)`; for `page > 1`, `ref.watch(comicExploreProvider((sourceKey, section, 1)).future)` to reuse the cached full list. Slice with `pageSize = 30`: `maxPage = max(1, ceil(total/30))`, `comics = all.sublist(start, end)`.
-- A missing/empty section list returns an empty page with `maxPage = 1`.
+- If the section's `type == 'multiPageComicList'` → server-paginated: call `manager.explore(source, section, page: page)`. If `result.maxPage != null`, `maxPage = result.maxPage` and `hasNext = page < maxPage`; otherwise (Komiic/zaimanhua-style offset paging with no total) `maxPage = null` and `hasNext = result.comics.isNotEmpty`.
+- Otherwise → one-shot: for `page == 1`, call `manager.explore(source, section, page: 1)`; for `page > 1`, `ref.watch(comicExploreProvider((sourceKey, section, 1)).future)` to reuse the cached full list. Slice with `pageSize = 30`: `maxPage = max(1, ceil(total/30))`, `hasNext = page < maxPage`, `comics = all.sublist(start, end)`.
+- A missing/empty section list returns an empty page with `maxPage = 1`, `hasNext = false`.
 
 ## 6. UI changes (`_DiscoverTab`)
 
@@ -128,7 +129,7 @@ Layout, top to bottom:
 1. Source chips row (existing) + 源管理 button.
 2. Section chips row — only rendered when the selected source has **more than one** section. Horizontally scrollable `ChoiceChip`s styled like the source chips (accent `#007AFF` when selected). Empty titles fall back to `分区 <n>`. Selecting a chip resets `_page = 1`.
 3. The grid (`Expanded`) for the current page's comics, using the existing `_comicGrid` constants (6 columns, aspect 0.60, `fromLTRB(16, 8, 16, 24)`).
-4. A pagination bar at the bottom, rendered only when `maxPage > 1`: a `上一页` `IconButton` (disabled on page 1), a `第 X / Y 页` label, and a `下一页` `IconButton` (disabled on the last page). Page changes call `setState`.
+4. A pagination bar at the bottom, rendered only when `hasNext || page > 1`: a `上一页` `IconButton` (disabled on page 1), a page label (`第 X / Y 页` when `maxPage != null`, else `第 X 页`), and a `下一页` `IconButton` (disabled when `!hasNext`). Page changes call `setState`.
 
 State held by `_DiscoverTabState`: `_selectedKey` (existing), `_selectedSection` (int, default 0), `_page` (int, default 1). Changing the source resets `_selectedSection = 0` and `_page = 1`.
 

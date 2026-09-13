@@ -402,7 +402,7 @@ The provider and its only consumer (`_DiscoverTab`) are coupled: changing the pr
 
 **Interfaces:**
 - Consumes: `ComicSourceManager.explore` (Task 2), `ComicSource.sections` (Task 2).
-- Produces: `class ComicExplorePage { final List<Comic> comics; final int page; final int maxPage; final bool serverPaged; }`; `final comicExploreProvider = FutureProvider.family<ComicExplorePage, (String, int, int)>(...)`.
+- Produces: `class ComicExplorePage { final List<Comic> comics; final int page; final int? maxPage; final bool hasNext; final bool serverPaged; }`; `final comicExploreProvider = FutureProvider.family<ComicExplorePage, (String, int, int)>(...)`.
 
 - [ ] **Step 1: Replace the existing explore provider**
 
@@ -413,13 +413,15 @@ In `lib/modules/comic/comic_providers.dart`, replace the current `comicExplorePr
 class ComicExplorePage {
   final List<Comic> comics;
   final int page;
-  final int maxPage;
+  final int? maxPage;
+  final bool hasNext;
   final bool serverPaged;
 
   const ComicExplorePage({
     required this.comics,
     required this.page,
-    required this.maxPage,
+    this.maxPage,
+    required this.hasNext,
     required this.serverPaged,
   });
 }
@@ -427,7 +429,9 @@ class ComicExplorePage {
 const _explorePageSize = 30;
 
 /// `multiPageComicList` sections page on the source; every other section is
-/// loaded once and paginated here at [_explorePageSize] comics per page.
+/// loaded once and paginated here at [_explorePageSize] comics per page. A
+/// source that pages by offset without a total (Komiic, zaimanhua) reports no
+/// `maxPage`, so `hasNext` is true while the page still has comics.
 final comicExploreProvider = FutureProvider.family<ComicExplorePage,
     (String, int, int)>((ref, key) async {
   final (sourceKey, section, page) = key;
@@ -443,11 +447,12 @@ final comicExploreProvider = FutureProvider.family<ComicExplorePage,
       : '';
   if (type == 'multiPageComicList') {
     final result = await manager.explore(source, section, page: page);
-    final maxPage = result.maxPage ?? page;
+    final maxPage = result.maxPage;
     return ComicExplorePage(
       comics: result.comics,
       page: page,
-      maxPage: maxPage < 1 ? 1 : maxPage,
+      maxPage: maxPage == null || maxPage < 1 ? null : maxPage,
+      hasNext: maxPage != null ? page < maxPage : result.comics.isNotEmpty,
       serverPaged: true,
     );
   }
@@ -465,6 +470,7 @@ final comicExploreProvider = FutureProvider.family<ComicExplorePage,
     comics: comics,
     page: page,
     maxPage: maxPage,
+    hasNext: page < maxPage,
     serverPaged: false,
   );
 });
@@ -598,13 +604,16 @@ Replace `_explore(String sourceKey)` with a version that takes the `ComicSource`
             },
           ),
         ),
-        if (pageData != null && pageData.maxPage > 1)
-          _paginationBar(pageData.page, pageData.maxPage),
+        if (pageData != null && (pageData.hasNext || pageData.page > 1))
+          _paginationBar(pageData),
       ],
     );
   }
 
-  Widget _paginationBar(int page, int maxPage) {
+  Widget _paginationBar(ComicExplorePage data) {
+    final label = data.maxPage == null
+        ? '第 ${data.page} 页'
+        : '第 ${data.page} / ${data.maxPage} 页';
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -616,17 +625,18 @@ Replace `_explore(String sourceKey)` with a version that takes the `ComicSource`
           IconButton(
             tooltip: '上一页',
             icon: const Icon(Icons.chevron_left_rounded),
-            onPressed: page > 1 ? () => setState(() => _page = page - 1) : null,
+            onPressed:
+                data.page > 1 ? () => setState(() => _page = data.page - 1) : null,
           ),
           const Spacer(),
-          Text('第 $page / $maxPage 页',
-              style: const TextStyle(fontSize: 13, color: _muted)),
+          Text(label, style: const TextStyle(fontSize: 13, color: _muted)),
           const Spacer(),
           IconButton(
             tooltip: '下一页',
             icon: const Icon(Icons.chevron_right_rounded),
-            onPressed:
-                page < maxPage ? () => setState(() => _page = page + 1) : null,
+            onPressed: data.hasNext
+                ? () => setState(() => _page = data.page + 1)
+                : null,
           ),
         ],
       ),
