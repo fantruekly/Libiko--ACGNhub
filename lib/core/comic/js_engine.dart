@@ -131,6 +131,7 @@ class JsEngine {
   }
 
   List<int> _bytes(dynamic data) {
+    if (data is String) return utf8.encode(data);
     if (data is List<int>) return data;
     if (data is List) return data.map((e) => (e as num).toInt()).toList();
     if (data is Uint8List) return data;
@@ -169,8 +170,14 @@ class JsEngine {
       case 'sha256':
         return sha256.convert(dataBytes).toString();
       case 'hmac':
-        return Hmac(sha256, utf8.encode(map['key']?.toString() ?? ''))
-            .convert(dataBytes)
+        final algo = (map['algo']?.toString() ?? 'sha256').toLowerCase();
+        final hash = algo == 'sha1'
+            ? sha1
+            : algo == 'md5'
+                ? md5
+                : sha256;
+        return Hmac(hash, _bytes(map['key']))
+            .convert(_bytes(map['data']))
             .toString();
       default:
         throw Exception('Unknown convert type: $type');
@@ -208,11 +215,12 @@ class JsEngine {
   }
 
   static const _settingPrefix = 'source_setting.';
+  static const _dataPrefix = 'source_data.';
 
   dynamic _setting(Map<dynamic, dynamic> map) {
     final store = _settings();
     final key = map['key'] as String;
-    if (!key.startsWith(_settingPrefix)) {
+    if (!key.startsWith(_settingPrefix) && !key.startsWith(_dataPrefix)) {
       throw Exception('setting key out of scope: $key');
     }
     if (map['op'] == 'set') {

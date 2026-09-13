@@ -47,6 +47,9 @@
     static getCookies(url) {
       return call({ method: 'cookie', op: 'get', url: url });
     }
+    static deleteCookies(url) {
+      return call({ method: 'cookie', op: 'set', url: url, cookies: null });
+    }
   }
 
   class Convert {
@@ -61,6 +64,13 @@
     static sha1(s) { return call({ method: 'convert', type: 'sha1', data: s }); }
     static sha256(s) { return call({ method: 'convert', type: 'sha256', data: s }); }
     static hmac(data, key) { return call({ method: 'convert', type: 'hmac', data: data, key: key }); }
+    static decodeBase64(s) { return call({ method: 'convert', type: 'base64Decode', data: s }); }
+    static encodeBase64(s) { return call({ method: 'convert', type: 'base64Encode', data: s }); }
+    static decodeUtf8(bytes) { return call({ method: 'convert', type: 'utf8', data: bytes }); }
+    static encodeUtf8(s) { return call({ method: 'convert', type: 'utf8Encode', data: s }); }
+    static hmacString(key, data, algorithm) {
+      return call({ method: 'convert', type: 'hmac', key: key, data: data, algo: algorithm });
+    }
   }
 
   function wrap(handle) {
@@ -98,7 +108,35 @@
       return null;
     }
     saveSetting(key, value) { return call({ method: 'setting', op: 'set', key: 'source_setting.' + this.key + '.' + key, value: value }); }
+    loadData(name) {
+      const v = call({ method: 'setting', op: 'get', key: 'source_data.' + this.key + '.' + name });
+      return v === null || v === undefined || v === '' ? null : v;
+    }
+    saveData(name, value) {
+      const v = typeof value === 'string' ? value : JSON.stringify(value);
+      return call({ method: 'setting', op: 'set', key: 'source_data.' + this.key + '.' + name, value: v });
+    }
   }
+
+  globalThis.randomInt = function (min, max) {
+    if (max === undefined) { max = min; min = 0; }
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  };
+
+  globalThis.fetch = async function (url, options) {
+    options = options || {};
+    const method = (options.method || 'GET').toUpperCase();
+    const r = Network.sendRequest(method, url, options.headers || {}, options.body, null, false);
+    return {
+      status: r.status,
+      ok: r.status >= 200 && r.status < 300,
+      headers: r.headers || {},
+      url: url,
+      text: async () => r.body,
+      json: async () => JSON.parse(r.body),
+      arrayBuffer: async () => Convert.encodeUtf8(r.body),
+    };
+  };
 
   globalThis.ComicSource = ComicSource;
   globalThis.Comic = Comic;

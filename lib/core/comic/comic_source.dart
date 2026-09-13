@@ -183,7 +183,11 @@ globalThis.__acgnhub_registerSource = function (key) {
 globalThis.__acgnhub_instance = function (key) {
   const cls = globalThis.__acgnhub_sources[key];
   if (!cls) throw new Error('comic source not registered: ' + key);
-  return new cls();
+  const s = new cls();
+  if (typeof s.init === 'function') {
+    return Promise.resolve(s.init()).then(function () { return s; });
+  }
+  return Promise.resolve(s);
 };
 ''';
 
@@ -380,8 +384,8 @@ class ComicSourceManager {
     await _ensureInitialized();
     if (!source.canSearch) return const [];
     final result = await _engine.evaluate('''
-      (() => {
-        const s = globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+      (async () => {
+        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
         return s.search.load(${jsonEncode(keyword)}, {}, $page);
       })()
     ''');
@@ -393,8 +397,8 @@ class ComicSourceManager {
     await _ensureInitialized();
     if (!source.canExplore) return const [];
     final result = await _engine.evaluate('''
-      (() => {
-        const s = globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+      (async () => {
+        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
         return s.explore[$index].load($page);
       })()
     ''');
@@ -404,8 +408,8 @@ class ComicSourceManager {
   Future<ComicDetails> loadInfo(ComicSource source, String id) async {
     await _ensureInitialized();
     final result = await _engine.evaluate('''
-      (() => {
-        const s = globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+      (async () => {
+        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
         return s.comic.loadInfo(${jsonEncode(id)});
       })()
     ''');
@@ -419,8 +423,8 @@ class ComicSourceManager {
       ComicSource source, String comicId, String epId) async {
     await _ensureInitialized();
     final result = await _engine.evaluate('''
-      (() => {
-        const s = globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+      (async () => {
+        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
         return s.comic.loadEp(${jsonEncode(comicId)}, ${jsonEncode(epId)});
       })()
     ''');
@@ -435,8 +439,8 @@ class ComicSourceManager {
     await _ensureInitialized();
     if (!source.canOnImageLoad) return ImageLoadingConfig(url: url);
     final result = await _engine.evaluate('''
-      (() => {
-        const s = globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+      (async () => {
+        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
         return s.comic.onImageLoad(${jsonEncode(url)}, ${jsonEncode(comicId)}, ${jsonEncode(epId)});
       })()
     ''');
