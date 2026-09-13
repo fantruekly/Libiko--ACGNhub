@@ -40,6 +40,9 @@ class ComicSource {
   final String categoryDefault;
   final String categoryParam;
   final List<String> categoryOptions;
+  final bool hasLogin;
+  final bool hasCookieLogin;
+  final List<String> cookieFields;
 
   const ComicSource({
     required this.name,
@@ -58,6 +61,9 @@ class ComicSource {
     this.categoryDefault = '',
     this.categoryParam = '',
     this.categoryOptions = const [],
+    this.hasLogin = false,
+    this.hasCookieLogin = false,
+    this.cookieFields = const [],
   });
 
   static final _classRe =
@@ -87,6 +93,7 @@ class ComicSource {
     }
 
     final category = meta['category'];
+    final account = meta['account'];
 
     return ComicSource(
       name: req('name'),
@@ -105,6 +112,11 @@ class ComicSource {
       categoryDefault: _categoryStr(category, 'category'),
       categoryParam: _categoryStr(category, 'param'),
       categoryOptions: _categoryList(category, 'options'),
+      hasLogin: account is Map && account['hasLogin'] == true,
+      hasCookieLogin: account is Map && account['hasCookieLogin'] == true,
+      cookieFields: account is Map && account['cookieFields'] is List
+          ? (account['cookieFields'] as List).map((e) => e.toString()).toList()
+          : const [],
     );
   }
 
@@ -248,6 +260,15 @@ globalThis.__acgnhub_registerSource = function (key) {
           category: cats.length ? String(cats[0]) : '',
           param: params.length ? String(params[0]) : '',
           options: options
+        };
+      })(),
+      account: (function () {
+        const a = s.account;
+        const cw = a && a.loginWithCookies;
+        return {
+          hasLogin: !!(a && typeof a.login === 'function'),
+          hasCookieLogin: !!(cw && typeof cw.validate === 'function'),
+          cookieFields: cw && Array.isArray(cw.fields) ? cw.fields.map(String) : []
         };
       })()
     };
@@ -506,6 +527,84 @@ class ComicSourceManager {
       })()
     ''');
     return parseExploreResult(result);
+  }
+
+  Future<bool> login(
+      ComicSource source, String username, String password) async {
+    await _ensureInitialized();
+    if (!source.hasLogin) return false;
+    try {
+      await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          await s.account.login(${jsonEncode(username)}, ${jsonEncode(password)});
+          return true;
+        })()
+      ''');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> loginWithCookies(
+      ComicSource source, List<String> values) async {
+    await _ensureInitialized();
+    if (!source.hasCookieLogin) return false;
+    try {
+      final ok = await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          return await s.account.loginWithCookies.validate(${jsonEncode(values)});
+        })()
+      ''');
+      if (ok == true) {
+        await AppDatabase()
+            .setString('source_data.${source.key}.logged_in', '1');
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> logout(ComicSource source) async {
+    await _ensureInitialized();
+    try {
+      await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          if (s.account && typeof s.account.logout === 'function') {
+            await s.account.logout();
+          }
+          return true;
+        })()
+      ''');
+    } catch (_) {
+      // Best-effort logout.
+    }
+    await AppDatabase().remove('source_data.${source.key}.logged_in');
+  }
+
+  Future<bool> isLogged(ComicSource source) async {
+    await _ensureInitialized();
+    if (!source.hasLogin && source.hasCookieLogin) {
+      return AppDatabase()
+              .getString('source_data.${source.key}.logged_in') ==
+          '1';
+    }
+    try {
+      final result = await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          return !!s.isLogged;
+        })()
+      ''');
+      return result == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<ComicDetails> loadInfo(ComicSource source, String id) async {

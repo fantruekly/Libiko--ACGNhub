@@ -76,6 +76,15 @@
     }
   }
 
+  class Cookie {
+    constructor({ name, value, domain, path } = {}) {
+      this.name = name || '';
+      this.value = value || '';
+      this.domain = domain || '';
+      this.path = path || '/';
+    }
+  }
+
   function wrap(handle) {
     return handle === null || handle === undefined ? null : new HtmlNode(handle);
   }
@@ -114,6 +123,12 @@
       return null;
     }
     saveSetting(key, value) { return call({ method: 'setting', op: 'set', key: 'source_setting.' + this.key + '.' + key, value: value }); }
+    get isLogged() {
+      const token = this.loadData('token');
+      const account = this.loadData('account');
+      return (token !== null && token !== undefined && token !== '') ||
+             (account !== null && account !== undefined);
+    }
     loadData(name) {
       const v = call({ method: 'setting', op: 'get', key: 'source_data.' + this.key + '.' + name });
       if (v === null || v === undefined || v === '') return null;
@@ -152,6 +167,7 @@
     locale: 'zh_CN',
   };
 
+  globalThis.Cookie = Cookie;
   globalThis.ComicSource = ComicSource;
   globalThis.Comic = Comic;
   globalThis.ComicDetails = ComicDetails;

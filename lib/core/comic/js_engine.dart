@@ -87,9 +87,19 @@ class JsEngine {
     for (final entry in _cookieJar.entries) {
       final key = Uri.tryParse(entry.key.toString());
       if (key == null || key.host != uri.host) continue;
-      final value = entry.value?.toString();
-      if (value == null || value.isEmpty) continue;
-      values.add(value);
+      final value = entry.value;
+      if (value is List) {
+        for (final cookie in value) {
+          if (cookie is Map) {
+            final name = cookie['name']?.toString() ?? '';
+            final cookieValue = cookie['value']?.toString() ?? '';
+            if (name.isNotEmpty) values.add('$name=$cookieValue');
+          }
+        }
+      } else {
+        final text = value?.toString();
+        if (text != null && text.isNotEmpty) values.add(text);
+      }
     }
     return values.isEmpty ? null : values.join('; ');
   }
