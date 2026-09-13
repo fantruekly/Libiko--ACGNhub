@@ -149,4 +149,37 @@ void main() {
     expect(page.comics.map((c) => c.id), ['1', '2', '3']);
     expect(page.viewMore, 'category:全部@');
   });
+
+  test('captures viewMore from a parts map', () {
+    final page = parseExploreResult({
+      'parts': [
+        {
+          'title': 'p1',
+          'comics': [
+            {'id': '1', 'title': 'A'},
+          ],
+          'viewMore': 'category:x@y',
+        },
+      ],
+    });
+    expect(page.viewMore, 'category:x@y');
+  });
+
+  test('captures viewMore from a mixed data entry', () {
+    final page = parseExploreResult({
+      'data': [
+        [
+          {'id': '1', 'title': 'A'},
+        ],
+        {
+          'title': 'p2',
+          'comics': [
+            {'id': '2', 'title': 'B'},
+          ],
+          'viewMore': 'category:z@w',
+        },
+      ],
+    });
+    expect(page.viewMore, 'category:z@w');
+  });
 }

@@ -43,8 +43,10 @@ const _explorePageSize = 48;
   }
   final rest = viewMore.substring('category:'.length);
   final at = rest.indexOf('@');
-  if (at < 0) return (rest, null);
-  return (rest.substring(0, at), rest.substring(at + 1));
+  final name = at < 0 ? rest : rest.substring(0, at);
+  final param = at < 0 ? null : rest.substring(at + 1);
+  if (name.isEmpty) return (null, null);
+  return (name, param);
 }
 
 /// The full one-shot result for a non-server-paged section (cached per
@@ -65,7 +67,9 @@ final comicExploreAllProvider =
 /// `multiPageComicList` sections page on the source; every other section is
 /// loaded once and paginated here at [_explorePageSize] comics per page. A
 /// source that pages by offset without a total (Komiic, zaimanhua) reports no
-/// `maxPage`, so `hasNext` is true while the page still has comics.
+/// `maxPage`, so `hasNext` is true while the page still has comics. One-shot
+/// sections continue into the source's category listing after their explore
+/// content.
 final FutureProviderFamily<ComicExplorePage, (String, int, int)>
     comicExploreProvider = FutureProvider.family<ComicExplorePage,
         (String, int, int)>((ref, key) async {
@@ -141,13 +145,13 @@ final FutureProviderFamily<ComicExplorePage, (String, int, int)>
   final (cat, param) = _continuationTarget(explore.viewMore);
   final result =
       await manager.category(source, catPage, category: cat, param: param);
+  final rawMax = result.maxPage;
+  final maxPage = (rawMax == null || rawMax < 1) ? null : rawMax;
   return ComicExplorePage(
     comics: result.comics,
     page: page,
     maxPage: null,
-    hasNext: result.maxPage != null
-        ? catPage < result.maxPage!
-        : result.comics.isNotEmpty,
+    hasNext: maxPage != null ? catPage < maxPage : result.comics.isNotEmpty,
     serverPaged: true,
   );
 });

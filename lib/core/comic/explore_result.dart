@@ -19,6 +19,8 @@ class ExplorePage {
 /// - `[{ title, comics }]` (multiPartPage)
 /// - `{ <title>: Comic[], ... }` (singlePageWithMultiPart)
 /// - `{ data: [Comic[] | { title, comics }] }` (mixed)
+/// It also returns the first non-empty `viewMore` (a `category:<name>@<param>`
+/// target) found on parts/data entries.
 ExplorePage parseExploreResult(dynamic raw) {
   final out = <Comic>[];
   void addComics(dynamic list) {
