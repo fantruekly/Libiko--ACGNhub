@@ -73,13 +73,13 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final settings = ref.watch(comicReaderSettingsProvider);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
           Positioned.fill(
             child: epAsync.when(
               loading: () => const Center(
-                  child: CircularProgressIndicator(color: Colors.white54)),
+                  child: CircularProgressIndicator(color: _muted)),
               error: (_, __) => _chapterError(),
               data: (ep) => settings.mode == ComicReaderMode.pageHorizontal
                   ? _horizontal(ep, details)
@@ -97,7 +97,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final images = ep.images;
     if (images.isEmpty) {
       return const Center(
-          child: Text('本章暂无图片', style: TextStyle(color: Colors.white70)));
+          child: Text('本章暂无图片', style: TextStyle(color: _muted)));
     }
     _scheduleInitialOrLanding(images.length);
     final nav = _nav(details);
@@ -170,7 +170,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final images = ep.images;
     if (images.isEmpty) {
       return const Center(
-          child: Text('本章暂无图片', style: TextStyle(color: Colors.white70)));
+          child: Text('本章暂无图片', style: TextStyle(color: _muted)));
     }
     _scheduleInitialOrLanding(images.length);
     final nav = _nav(details);
@@ -197,7 +197,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         itemBuilder: (context, index) {
           if (index >= images.length) {
             return const Center(
-                child: CircularProgressIndicator(color: Colors.white38));
+                child: CircularProgressIndicator(color: _muted));
           }
           return _ZoomablePage(
             onTap: _toggleChrome,
@@ -536,10 +536,10 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: Colors.white54, size: 40),
+          const Icon(Icons.error_outline_rounded, color: _muted, size: 40),
           const SizedBox(height: 12),
-          const Text('章节加载失败', style: TextStyle(color: Colors.white70)),
+          const Text('章节加载失败',
+              style: TextStyle(color: Color(0xFF1C1C1E))),
           const SizedBox(height: 12),
           FilledButton(
             onPressed: () => ref.invalidate(comicEpProvider(
@@ -615,7 +615,7 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
   Widget _loading() {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 48),
-      child: Center(child: CircularProgressIndicator(color: Colors.white38)),
+      child: Center(child: CircularProgressIndicator(color: _muted)),
     );
   }
 
@@ -626,12 +626,11 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.broken_image_outlined,
-                color: Colors.white54, size: 36),
+            const Icon(Icons.broken_image_outlined, color: _muted, size: 36),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => setState(_resolve),
-              child: const Text('重试', style: TextStyle(color: Colors.white)),
+              child: const Text('重试'),
             ),
           ],
         ),
