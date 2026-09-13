@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_source.dart';
+import '../../core/comic/explore_result.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -79,6 +80,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     with AutomaticKeepAliveClientMixin {
   String? _selectedKey;
   int _selectedSection = 0;
+  int _selectedPart = 0;
   int _page = 1;
 
   @override
@@ -113,12 +115,26 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
         final section = selected.sections.isEmpty
             ? 0
             : _selectedSection.clamp(0, selected.sections.length - 1);
+        final meta = section < selected.sections.length
+            ? selected.sections[section]
+            : null;
+        final clientPaged =
+            meta?.usesLoadNext != true && meta?.type != 'multiPageComicList';
+        final parts = clientPaged
+            ? (ref
+                    .watch(comicExploreAllProvider((selected.key, section)))
+                    .valueOrNull
+                    ?.parts ??
+                const <ComicPart>[])
+            : const <ComicPart>[];
+        final part = parts.isEmpty ? 0 : _selectedPart.clamp(0, parts.length - 1);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _sourceHeader(sources, selected),
             _sectionChips(selected, section),
-            Expanded(child: _explore(selected, section)),
+            if (parts.length > 1) _partChips(parts, part),
+            Expanded(child: _explore(selected, section, part)),
           ],
         );
       },
@@ -187,6 +203,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
       onSelected: (_) => setState(() {
         _selectedKey = source.key;
         _selectedSection = 0;
+        _selectedPart = 0;
         _page = 1;
       }),
       selectedColor: _accent,
@@ -222,6 +239,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                   showCheckmark: false,
                   onSelected: (_) => setState(() {
                     _selectedSection = i;
+                    _selectedPart = 0;
                     _page = 1;
                   }),
                   selectedColor: _accent,
@@ -245,9 +263,50 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _explore(ComicSource source, int section) {
-    final async =
-        ref.watch(comicExploreProvider((source.key, section, _page)));
+  Widget _partChips(List<ComicPart> parts, int selected) {
+    return SizedBox(
+      height: 44,
+      child: _horizontalScroll(
+        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+        child: Row(
+          children: [
+            for (var i = 0; i < parts.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(parts[i].title.isEmpty
+                      ? '分区 ${i + 1}'
+                      : parts[i].title),
+                  selected: i == selected,
+                  showCheckmark: false,
+                  onSelected: (_) => setState(() {
+                    _selectedPart = i;
+                    _page = 1;
+                  }),
+                  selectedColor: _accent,
+                  backgroundColor: const Color(0xFFF2F2F7),
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: i == selected ? Colors.white : _muted,
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  side: BorderSide.none,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _explore(ComicSource source, int section, int part) {
+    final async = ref
+        .watch(comicExploreProvider((source.key, section, part, _page)));
     final pageData = async.valueOrNull;
 
     if (pageData != null &&
@@ -275,8 +334,8 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                 ref.invalidate(comicSourcePageProvider);
                 ref.invalidate(
                     comicExploreAllProvider((source.key, section)));
-                ref.invalidate(
-                    comicExploreProvider((source.key, section, _page)));
+                ref.invalidate(comicExploreProvider(
+                    (source.key, section, part, _page)));
               },
             ),
             data: (data) {

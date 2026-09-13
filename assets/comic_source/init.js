@@ -139,10 +139,13 @@
       const v = call({ method: 'setting', op: 'get', key: 'source_setting.' + this.key + '.' + key });
       if (v !== null && v !== undefined && v !== '') return v;
       const decl = this.settings ? this.settings[key] : null;
-      if (decl && Object.prototype.hasOwnProperty.call(decl, 'default')) {
-        return decl.default;
+      if (decl === null || decl === undefined) return null;
+      if (typeof decl === 'object') {
+        return Object.prototype.hasOwnProperty.call(decl, 'default')
+          ? decl.default
+          : null;
       }
-      return null;
+      return decl;
     }
     saveSetting(key, value) { return call({ method: 'setting', op: 'set', key: 'source_setting.' + this.key + '.' + key, value: value }); }
     get isLogged() {

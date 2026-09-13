@@ -87,8 +87,8 @@ Future<ComicExplorePage> buildAlignedExplorePage({
 
 /// The full one-shot result for a non-server-paged section (cached per
 /// section), including its `viewMore` target.
-final comicExploreAllProvider = FutureProvider.autoDispose
-    .family<ExplorePage, (String, int)>((ref, key) async {
+final comicExploreAllProvider =
+    FutureProvider.family<ExplorePage, (String, int)>((ref, key) async {
   final (sourceKey, section) = key;
   final manager = ref.watch(comicSourceManagerProvider);
   final source = ref
@@ -102,8 +102,8 @@ final comicExploreAllProvider = FutureProvider.autoDispose
 
 /// One source page for a server- or cursor-paged section. Cursor sections
 /// chain: source page N reads page N-1's `next`.
-final AutoDisposeFutureProviderFamily<ExplorePage, (String, int, int)>
-    comicSourcePageProvider = FutureProvider.autoDispose.family<ExplorePage,
+final FutureProviderFamily<ExplorePage, (String, int, int)>
+    comicSourcePageProvider = FutureProvider.family<ExplorePage,
         (String, int, int)>((ref, key) async {
   final (sourceKey, section, sourceIndex) = key;
   final manager = ref.watch(comicSourceManagerProvider);
@@ -134,10 +134,10 @@ final AutoDisposeFutureProviderFamily<ExplorePage, (String, int, int)>
 /// pages remain. Every other (one-shot) section is loaded once and paginated
 /// here, then continues into the source's category listing after its explore
 /// content.
-final AutoDisposeFutureProviderFamily<ComicExplorePage, (String, int, int)>
-    comicExploreProvider = FutureProvider.autoDispose.family<ComicExplorePage,
-        (String, int, int)>((ref, key) async {
-  final (sourceKey, section, page) = key;
+final FutureProviderFamily<ComicExplorePage, (String, int, int, int)>
+    comicExploreProvider = FutureProvider.family<ComicExplorePage,
+        (String, int, int, int)>((ref, key) async {
+  final (sourceKey, section, part, page) = key;
   final manager = ref.watch(comicSourceManagerProvider);
   final source = ref
       .watch(comicSourcesProvider)
@@ -160,7 +160,10 @@ final AutoDisposeFutureProviderFamily<ComicExplorePage, (String, int, int)>
   }
   final explore =
       await ref.watch(comicExploreAllProvider((sourceKey, section)).future);
-  final all = explore.comics;
+  final selectedPart = explore.parts.isNotEmpty
+      ? explore.parts[part.clamp(0, explore.parts.length - 1)]
+      : null;
+  final all = selectedPart?.comics ?? explore.comics;
   final explorePages =
       all.isEmpty ? 1 : (all.length + _explorePageSize - 1) ~/ _explorePageSize;
   if (page <= explorePages) {
@@ -186,7 +189,8 @@ final AutoDisposeFutureProviderFamily<ComicExplorePage, (String, int, int)>
     );
   }
   final catPage = page - explorePages;
-  final (cat, param) = _continuationTarget(explore.viewMore);
+  final (cat, param) =
+      _continuationTarget(selectedPart?.viewMore ?? explore.viewMore);
   final result =
       await manager.category(source, catPage, category: cat, param: param);
   final rawMax = result.maxPage;
