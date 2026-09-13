@@ -16,7 +16,7 @@ import 'comic_providers.dart';
 import 'comic_reader_page.dart';
 
 const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF8E8E93);
+const _muted = Color(0xFF5A5A5F);
 
 class ComicDetailPage extends ConsumerStatefulWidget {
   final String sourceKey;
@@ -205,7 +205,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         padding: const EdgeInsets.symmetric(horizontal: 18),
         backgroundColor:
             isFavorite ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
-        foregroundColor: isFavorite ? const Color(0xFF8E8E93) : Colors.white,
+        foregroundColor: isFavorite ? const Color(0xFF5A5A5F) : Colors.white,
         elevation: 0,
         shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

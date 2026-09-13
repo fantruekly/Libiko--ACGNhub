@@ -22,7 +22,7 @@ class _MainShellState extends State<MainShell> {
 
   static const _titles = ['动漫', '漫画', '轻小说', '游戏'];
   static const _fg = Color(0xFF1C1C1E);
-  static const _muted = Color(0xFF8E8E93);
+  static const _muted = Color(0xFF5A5A5F);
   static const _border = Color(0xFFE5E5EA);
   static const _accent = Color(0xFF007AFF);
 

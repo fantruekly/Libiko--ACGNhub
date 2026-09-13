@@ -9,7 +9,7 @@ import '../../core/comic/comic_source.dart';
 import 'comic_providers.dart';
 
 const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF8E8E93);
+const _muted = Color(0xFF5A5A5F);
 
 class ComicSourcePage extends ConsumerStatefulWidget {
   const ComicSourcePage({super.key});
@@ -644,7 +644,7 @@ class _AccountDialogState extends ConsumerState<_AccountDialog> {
                     fontSize: 13,
                     color: _logged
                         ? const Color(0xFF34C759)
-                        : const Color(0xFF8E8E93))),
+                        : const Color(0xFF5A5A5F))),
             if (!_logged) ...[
               const SizedBox(height: 12),
               for (var i = 0; i < _controllers.length; i++)

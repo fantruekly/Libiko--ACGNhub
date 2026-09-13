@@ -52,7 +52,6 @@ class ACGNhubApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'NotoSansSC',
         fontFamilyFallback: const [
-          'Noto Sans SC',
           'Microsoft YaHei',
           'Segoe UI',
         ],

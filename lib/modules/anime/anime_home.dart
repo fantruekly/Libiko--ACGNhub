@@ -25,9 +25,13 @@ class AnimeHomePage extends ConsumerWidget {
             children: [
               const TabBar(
                 labelColor: Color(0xFF007AFF),
-                unselectedLabelColor: Color(0xFF8E8E93),
+                unselectedLabelColor: Color(0xFF5A5A5F),
                 indicatorColor: Color(0xFF007AFF),
                 dividerColor: Color(0xFFE5E5EA),
+                labelStyle:
+                    TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                unselectedLabelStyle:
+                    TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
                 tabs: [
                   Tab(text: '本季新番'),
                   Tab(text: '热门推荐'),
@@ -228,7 +232,7 @@ class _FeedViewState extends ConsumerState<_FeedView>
           title,
           style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: cs.onSurface,
               height: 1.4),
         ),

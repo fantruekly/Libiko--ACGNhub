@@ -118,7 +118,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
                         border: InputBorder.none,
                         hintText: '搜索动漫...',
                         hintStyle:
-                            TextStyle(color: Color(0xFF8E8E93), fontSize: 15),
+                            TextStyle(color: Color(0xFF5A5A5F), fontSize: 15),
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),

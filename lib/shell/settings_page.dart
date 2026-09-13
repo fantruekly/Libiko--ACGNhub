@@ -118,7 +118,7 @@ class _AccountSectionState extends ConsumerState<_AccountSection> {
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w600)),
               const Text('已登录',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF8E8E93))),
+                  style: TextStyle(fontSize: 12, color: Color(0xFF5A5A5F))),
             ],
           ),
         ),

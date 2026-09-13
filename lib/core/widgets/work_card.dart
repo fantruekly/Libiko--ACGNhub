@@ -61,7 +61,7 @@ class WorkCard extends StatelessWidget {
               subtitle!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF8E8E93)),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF5A5A5F)),
             ),
           ],
         ],

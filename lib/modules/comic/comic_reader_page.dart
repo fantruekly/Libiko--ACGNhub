@@ -11,7 +11,7 @@ import '../../core/comic/reader_nav.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_providers.dart';
 
-const _muted = Color(0xFF8E8E93);
+const _muted = Color(0xFF5A5A5F);
 
 class ComicReaderPage extends ConsumerStatefulWidget {
   final String sourceKey;

@@ -16,7 +16,7 @@ import 'comic_reader_page.dart';
 import 'comic_source_page.dart';
 
 const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF8E8E93);
+const _muted = Color(0xFF5A5A5F);
 
 class ComicHomePage extends ConsumerStatefulWidget {
   const ComicHomePage({super.key});

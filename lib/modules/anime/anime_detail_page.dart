@@ -135,7 +135,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       w, cs, score, episodes, seasonYear, format, status),
                   const TabBar(
                     labelColor: Color(0xFF007AFF),
-                    unselectedLabelColor: Color(0xFF8E8E93),
+                    unselectedLabelColor: Color(0xFF5A5A5F),
                     indicatorColor: Color(0xFF007AFF),
                     dividerColor: Color(0xFFE5E5EA),
                     tabs: [Tab(text: '概览'), Tab(text: '角色'), Tab(text: '关联')],
@@ -454,7 +454,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           padding: const EdgeInsets.symmetric(horizontal: 18),
           backgroundColor:
               followed ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
-          foregroundColor: followed ? const Color(0xFF8E8E93) : Colors.white,
+          foregroundColor: followed ? const Color(0xFF5A5A5F) : Colors.white,
           elevation: 0,
           shadowColor: Colors.transparent,
           shape:
@@ -780,11 +780,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   if (loading)
                     Text('搜索中 $doneCount/${_sourceResults.length}',
                         style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF8E8E93)))
+                            fontSize: 12, color: Color(0xFF5A5A5F)))
                   else
                     Text('共 ${results.length} 条',
                         style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF8E8E93))),
+                            fontSize: 12, color: Color(0xFF5A5A5F))),
                   const Spacer(),
                   if (loading)
                     const SizedBox(
@@ -837,7 +837,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 const SizedBox(height: 8),
                 Text(
                   '${failed.length} 个源无结果或失败（${failed.map((r) => r.source.name).join('、')}）',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF8E8E93)),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF5A5A5F)),
                 ),
               ],
             ],
@@ -944,7 +944,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       return const Padding(
         padding: EdgeInsets.only(top: 8),
         child: Text('暂无剧集',
-            style: TextStyle(fontSize: 12, color: Color(0xFF8E8E93))),
+            style: TextStyle(fontSize: 12, color: Color(0xFF5A5A5F))),
       );
     }
     return Padding(
