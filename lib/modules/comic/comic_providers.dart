@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/comic/comic_image.dart';
 import '../../core/comic/comic_source.dart';
 import '../../core/comic/models.dart';
+import '../../core/storage/database.dart';
 
 final comicSourceManagerProvider =
     Provider<ComicSourceManager>((ref) => ComicSourceManager());
@@ -83,3 +84,20 @@ final comicEpProvider =
 
 final comicImageProvider = Provider<ComicImageProvider>(
     (ref) => ComicImageProvider(ref.watch(comicSourceManagerProvider)));
+
+/// The persisted URL of the remote source list shown on the 源管理 page.
+class ComicSourceListUrlNotifier extends Notifier<String> {
+  static const _key = 'comic_source_list_url';
+
+  @override
+  String build() => AppDatabase().getString(_key) ?? '';
+
+  Future<void> set(String value) async {
+    await AppDatabase().setString(_key, value);
+    state = value;
+  }
+}
+
+final comicSourceListUrlProvider =
+    NotifierProvider<ComicSourceListUrlNotifier, String>(
+        ComicSourceListUrlNotifier.new);
