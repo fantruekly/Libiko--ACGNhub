@@ -87,8 +87,10 @@
     getElementById(id) { return wrap(call({ method: 'html', op: 'getElementById', handle: this._h, id: id })); }
     get text() { return call({ method: 'html', op: 'text', handle: this._h }); }
     get innerHtml() { return call({ method: 'html', op: 'innerHtml', handle: this._h }); }
+    get innerHTML() { return this.innerHtml; }
     get html() { return this.innerHtml; }
     get outerHtml() { return call({ method: 'html', op: 'outerHtml', handle: this._h }); }
+    get outerHTML() { return this.outerHtml; }
     get attributes() { return call({ method: 'html', op: 'attributes', handle: this._h }); }
     get children() { return (call({ method: 'html', op: 'children', handle: this._h }) || []).map(wrap); }
     attr(name) { return call({ method: 'html', op: 'attr', handle: this._h, name: name }); }
