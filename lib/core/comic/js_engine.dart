@@ -7,6 +7,7 @@ import 'package:fast_gbk/fast_gbk.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_qjs/flutter_qjs.dart';
 
+import 'crypto_util.dart';
 import 'html_bridge.dart';
 
 const _defaultUserAgent =
@@ -169,6 +170,8 @@ class JsEngine {
         return sha1.convert(dataBytes).toString();
       case 'sha256':
         return sha256.convert(dataBytes).toString();
+      case 'aesEcbDecrypt':
+        return aesEcbDecrypt(_bytes(map['data']), _bytes(map['key']));
       case 'hmac':
         final algo = (map['algo']?.toString() ?? 'sha256').toLowerCase();
         final hash = algo == 'sha1'

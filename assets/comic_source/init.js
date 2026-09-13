@@ -71,6 +71,9 @@
     static hmacString(key, data, algorithm) {
       return call({ method: 'convert', type: 'hmac', key: key, data: data, algo: algorithm });
     }
+    static decryptAesEcb(data, key) {
+      return call({ method: 'convert', type: 'aesEcbDecrypt', data: data, key: key });
+    }
   }
 
   function wrap(handle) {
