@@ -12,7 +12,7 @@ Load, manage and execute **Venera-style `.js` comic sources** and expose them to
 
 - `WorkType { anime, comic, novel, game }` already exists; the comic module is otherwise a sidebar placeholder with no code.
 - Venera (`venera-app/venera`, Flutter, now archived) defines comic sources as a JS class `class X extends ComicSource` in a `.js` file, executed with `flutter_qjs` (QuickJS); the JS side talks to Dart through a global `sendMessage({method, ...})` that Dart dispatches to HTTP / HTML / crypto / cookies handlers. Sources live in a user directory and are imported from a URL, a local file, or a remote list (`venera-configs/index.json`).
-- **Risk:** upstream `flutter_qjs` is 0.3.7, ~4 years old and unmaintained (Venera uses its own fork). Its README claims support for all non-web platforms. **The first task is a spike** to prove it builds and runs on Windows; if it does not, STOP and report so the fallback (Venera's fork as a git dependency, or `quickjs_dart`) can be chosen by the human.
+- **Risk resolved:** upstream `flutter_qjs` 0.3.7 cannot be used — it depends on `ffi ^1.0.0` while this project's `path_provider` requires `ffi ^2.0.0`, so dependency resolution fails. The engine is therefore **Venera's fork** (`venera-app/flutter_qjs`, `master`), which uses `ffi ^2.0.0` and declares Windows support; it is added as a git dependency. **Task 1 is still a spike** to prove it builds and evaluates JS on Windows; if it fails, STOP and report.
 - The app already depends on `dio` and `html`. `crypto` and `pointycastle` will be added for `Convert`.
 - The anime module's layering (`lib/core/...` for data/engine, `lib/modules/anime/` for UI) is the pattern to mirror; comic code goes in `lib/core/comic/` (engine) and later `lib/modules/comic/` (UI).
 

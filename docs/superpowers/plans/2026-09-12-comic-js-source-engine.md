@@ -33,8 +33,25 @@
 
 - [ ] **Step 1: Add the dependencies**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter pub add flutter_qjs crypto fast_gbk`
-Expected: `Got dependencies!` (if `flutter_qjs` or `fast_gbk` cannot resolve, STOP and report — this is the spike's answer).
+Upstream `flutter_qjs` cannot be used: it depends on `ffi ^1.0.0` while this project's `path_provider` requires `ffi ^2.0.0`, so resolution fails. Use **Venera's fork** instead, which is `ffi ^2.0.0` and declares Windows support.
+
+In `pubspec.yaml`, add under `dependencies:` (keep the existing entries):
+
+```yaml
+  flutter_qjs:
+    git:
+      url: https://github.com/venera-app/flutter_qjs.git
+      ref: master
+```
+
+Then run:
+
+```
+flutter pub get
+flutter pub add crypto fast_gbk
+```
+
+Expected: `Got dependencies!` (if the fork fails to resolve or build, STOP and report — this is the spike's answer).
 
 - [ ] **Step 2: Write the smoke test**
 
