@@ -147,10 +147,25 @@ class _DbSettings extends MapBase<String, String> {
 
 const _registryJs = r'''
 globalThis.__acgnhub_sources = globalThis.__acgnhub_sources || {};
-globalThis.__acgnhub_registerSource = function (cls) {
+globalThis.__acgnhub_pending = globalThis.__acgnhub_pending || {};
+// Pass 1: instantiate just enough to read the declared metadata, without
+// calling init(). The manager allow-lists the key this returns before pass 2.
+globalThis.__acgnhub_declareSource = function (cls) {
+  const s = new cls();
+  globalThis.__acgnhub_pending[s.key] = cls;
+  return {
+    name: s.name, key: s.key, version: s.version, url: s.url,
+    description: s.description
+  };
+};
+// Pass 2: instantiate, run init(), and register. The key is already allowed.
+globalThis.__acgnhub_registerSource = function (key) {
+  const cls = globalThis.__acgnhub_pending[key];
+  if (!cls) throw new Error('comic source not declared: ' + key);
   const s = new cls();
   const finish = function () {
     globalThis.__acgnhub_sources[s.key] = cls;
+    delete globalThis.__acgnhub_pending[s.key];
     return {
       name: s.name, key: s.key, version: s.version, url: s.url,
       description: s.description,
@@ -226,7 +241,8 @@ class ComicSourceManager {
     await _ensureInitialized();
     _sources.clear();
     _sourceKeys.clear();
-    await _engine.evaluate('globalThis.__acgnhub_sources = {};');
+    await _engine.evaluate(
+        'globalThis.__acgnhub_sources = {}; globalThis.__acgnhub_pending = {};');
     final dir = await _dir();
     for (final entity in dir.listSync()) {
       if (entity is! File || !entity.path.endsWith('.js')) continue;
@@ -248,11 +264,29 @@ class ComicSourceManager {
     // function-local. QuickJS keeps top-level lexical bindings in a persistent
     // global environment, so re-evaluating the same class would otherwise
     // throw `SyntaxError: redeclaration of '<Class>'`.
-    final wrapped = '(function(){\n$script\n;'
-        'return globalThis.__acgnhub_registerSource($className);\n})()';
-    final meta = await _engine.evaluate(wrapped);
-    if (meta is! Map) throw const FormatException('source metadata missing');
-    return ComicSource.fromMetadata(meta, fileName: fileName);
+    //
+    // Pass 1 declares the source (reading its metadata, not running `init()`)
+    // so its key can be allow-listed before pass 2 instantiates and `init()`s
+    // it. A source whose `init()` calls `loadSetting`/`saveSetting` therefore
+    // sees its own key already in scope.
+    final declared = await _engine.evaluate('(function(){\n$script\n;'
+        'return globalThis.__acgnhub_declareSource($className);\n})()');
+    if (declared is! Map) throw const FormatException('source metadata missing');
+    final key = declared['key']?.toString().trim() ?? '';
+    if (key.isEmpty) throw const FormatException('comic source is missing "key"');
+    final alreadyAllowed = _sourceKeys.contains(key);
+    _sourceKeys.add(key);
+    try {
+      final meta = await _engine.evaluate(
+          'globalThis.__acgnhub_registerSource(${jsonEncode(key)})');
+      if (meta is! Map) {
+        throw const FormatException('source metadata missing');
+      }
+      return ComicSource.fromMetadata(meta, fileName: fileName);
+    } catch (_) {
+      if (!alreadyAllowed) _sourceKeys.remove(key);
+      rethrow;
+    }
   }
 
   Future<ComicSource> importFromUrl(String url) async {
