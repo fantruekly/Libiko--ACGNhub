@@ -1,78 +1,100 @@
-# Task 2 Report: `FollowManager` + `FollowNotifier`
+# Task 2 Report: Account dialog in 源管理 (C2e)
+
+**Status:** DONE
 
 ## What I implemented
 
-Created `lib/core/services/follow_manager.dart`, an `AppDatabase`-backed follow store following the `WatchHistoryManager` pattern (JSON list under one `SharedPreferences` key `follows`):
+Modified `lib/modules/comic/comic_source_page.dart` only.
 
-- `FollowManager`
-  - `all()` — live (non-deleted) records, newest `updatedAt` first.
-  - `isFollowing(String workId)`.
-  - `follow(Work)` — writes a new `dirty: true` record at `DateTime.now()`.
-  - `unfollow(String)` — converts the existing record into a `dirty: true` tombstone (no-op if absent).
-  - `dirty()` — all records flagged for sync (including tombstones).
-  - `markSynced(Set<String>)` — clears `dirty` for the given ids.
-  - `mergeFromServer(List<FollowRecord>)` — LWW merge persisted to storage.
-  - `@visibleForTesting static upsert`, `sortDescending`, `merge`.
-- `FollowNotifier extends Notifier<List<FollowRecord>>` with `isFollowing(String)` / `toggle(Work)`, plus `followProvider`.
+1. **账号 menu item** (`_sourceTile`): added `if (value == 'account') _openAccount(source);`
+   to `onSelected`, and `if (source.hasLogin || source.hasCookieLogin) const
+   PopupMenuItem(value: 'account', child: Text('账号'))` before the 刷新 entry in
+   `itemBuilder`. Sources with no account show no 账号 action.
+2. **`_openAccount(ComicSource source)`** handler added next to `_refresh` /
+   `_confirmDelete`; opens the dialog via `showDialog<void>`.
+3. **`_AccountDialog`** (`ConsumerStatefulWidget` + `ConsumerState`) appended at
+   the end of the file. It:
+   - builds controllers per the account mode (2 for form login, `cookieFields.length`
+     for cookie login),
+   - reads current status via `comicSourceManagerProvider.isLogged`,
+   - submits via `login(source, user, pass)` or `loginWithCookies(source, values)`,
+   - logs out via `logout(source)`,
+   - shows 已登录/未登录 status, the appropriate fields (password obscured for form
+     login), and a 登录失败 error on failure.
 
-LWW semantics: a local record strictly newer than the server's is kept (dirty cleared); otherwise the server record wins with `dirty = false`. Server tombstones propagate. Malformed stored entries are skipped.
+The `PopupMenuButton`'s menu now contains 账号 (when applicable), 刷新, 删除.
 
-## What I tested and results
+### Deviation from the brief (self-review fix)
 
-`test/core/services/follow_manager_test.dart` (verbatim from the brief), 4 tests:
+The brief's `_submit` chose the **form** path with `if (widget.source.hasLogin)`,
+while `initState` and `_label` both use **cookie** priority (`hasCookieLogin`). For a
+source declaring both `login` and `loginWithCookies` where `cookieFields.length < 2`,
+the brief's code would size the controller list by cookie fields but then index
+`_controllers[1]` in the form path — a `RangeError`. I inverted the `_submit`
+condition to `if (widget.source.hasCookieLogin)` so `initState`, `_label`,
+`obscureText`, and `_submit` all agree. Behavior for the real cases is unchanged:
+哔咔 (form-only) → form path; ehentai (cookie-only) → cookie path. Everything else in
+the brief was applied verbatim.
 
-1. `merge keeps a newer local record and takes a newer server record`
-2. `merge applies a server tombstone`
-3. `follow/unfollow/dirty/markSynced round-trip through storage`
-4. `all() orders by updatedAt descending`
+## Verification
 
-Results:
-- Focused test: `+4: All tests passed!`
-- `flutter analyze lib test`: `No issues found!`
-- Full suite: `+96: All tests passed!`
+| Command | Result |
+| --- | --- |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` | `No issues found! (ran in 1.8s)` |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` | `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (only the pre-existing CMake `DEPENDS` policy warning) |
 
-## TDD evidence
+## Files changed + commit
 
-### RED
-Command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/follow_manager_test.dart`
-
-Output (excerpt):
-```
-Error when reading 'lib/core/services/follow_manager.dart': 系统找不到指定的文件。
-import 'package:acgnhub/core/services/follow_manager.dart';
-test/core/services/follow_manager_test.dart:26:20: Error: Undefined name 'FollowManager'.
-...
-00:00 +0 -1: Some tests failed.
-```
-Expected: the test file references `FollowManager`, which did not exist yet, so compilation fails. This is the correct RED — failure is due to the missing production feature, not a typo in the test.
-
-### GREEN
-After creating `follow_manager.dart`:
-Command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/follow_manager_test.dart`
-
-Output:
-```
-00:00 +0: merge keeps a newer local record and takes a newer server record
-00:00 +1: merge applies a server tombstone
-00:00 +2: follow/unfollow/dirty/markSynced round-trip through storage
-00:00 +3: all() orders by updatedAt descending
-00:00 +4: All tests passed!
-```
-
-## Files changed
-
-- `lib/core/services/follow_manager.dart` (new)
-- `test/core/services/follow_manager_test.dart` (new)
-
-Commit: `b0ddce8 feat(sync): add FollowManager and followProvider`
+- `lib/modules/comic/comic_source_page.dart` (+145)
+- Commit: `e49bae8` — `feat(comic): add the source account dialog`
+- Pushed: `5f4f5f9..e49bae8  dev -> dev` (origin `https://github.com/fantruekly/ACGNhub`)
 
 ## Self-review findings
 
-- **Completeness:** Every interface from the brief is present and matches signatures (`all`, `isFollowing`, `follow`, `unfollow`, `dirty`, `markSynced`, `mergeFromServer`, static `upsert`/`sortDescending`/`merge`, `FollowNotifier.isFollowing`/`toggle`, `followProvider`). Consumes `FollowRecord`/`Work`/`AppDatabase`; no other task's code was touched.
-- **Quality:** Mirrors `watch_history.dart` (read/save helpers, `@visibleForTesting` statics). `unfollow` correctly removes any duplicate id before inserting the tombstone via `upsert`. `all()` filters tombstones while `dirty()` includes them so they sync.
-- **YAGNI:** Implemented exactly the brief's code; no extra APIs, config, or abstractions.
-- **Tests verify real behavior:** Storage round-trip test exercises the actual `SharedPreferences`-backed `AppDatabase` (mock values, real serialization), not a mock. `merge` tests cover the LWW branches and tombstone. Ordering test uses real timestamps.
+- Fixed the `hasLogin`/`hasCookieLogin` priority inconsistency described above.
+- Controller list and labels are index-safe because the count, `_label`, and `_submit`
+  now derive from the same `hasCookieLogin` predicate.
+- `initState` calls `_refreshStatus()` without awaiting; it guards with `mounted`
+  before `setState`, so no `setState after dispose` risk.
+- `_logout` and `_submit` guard `mounted` after every await.
+- No comments added; matches the surrounding file style.
 
 ## Concerns
 
-- None blocking. `FollowNotifier.toggle` reads storage synchronously after the async write and reassigns `state`; consistent with `WatchHistoryNotifier`. `mergeFromServer` only persists — refreshing notifier state is deferred to Task 5's sync service, as intended.
+- A source declaring **both** `login` and `loginWithCookies` is treated as cookie-login
+  everywhere in the dialog (consistent with the brief's `initState`/`_label`). Task 1's
+  `isLogged` takes the engine path when `hasLogin` is true for such a source, so the
+  dialog's status read could diverge from the cookie-login DB flag in that rare hybrid
+  case. No real source in scope (哔咔/ehentai) has both.
+- The dialog was not covered by an automated widget test; verification is analyze +
+  debug build + code inspection.
+
+## Task 2 review fix
+
+Addressed three review findings in `lib/modules/comic/comic_source_page.dart` only.
+
+1. **(Important) Dialog could get stuck busy.** `_AccountDialogState._refreshStatus`,
+   `_submit`, and `_logout` now wrap the manager calls in `try/catch` and always reset
+   `_busy` (and set a result) even when the manager throws (e.g. engine init failure
+   inside `isLogged`/`login`/`loginWithCookies`/`logout`). `_refreshStatus` swallows the
+   error and leaves `_logged` false; `_submit` sets `_busy = false`, `_logged = ok`, and
+   `_error = '登录失败'` on failure; `_logout` sets `_busy = false`, `_logged = false`.
+   The submit branch keys on `hasCookieLogin`, matching `initState`/`_label`.
+2. **(Minor) Obscure only a real password field.** The password `TextField` now uses
+   `obscureText: !widget.source.hasCookieLogin && i == 1`, so cookie sources' fields
+   (which are not passwords) are not obscured.
+3. **(Minor) Scrollable content.** The `AlertDialog` `content` `Column` is wrapped in a
+   `SingleChildScrollView` so a source with many cookie fields cannot overflow.
+
+### Verification
+
+| Command | Result |
+| --- | --- |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` | `No issues found! (ran in 1.8s)` |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` | `+166 ~1: All tests passed!` (1 pre-existing skip: flutter_qjs native lib unavailable under `flutter test`) |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` | `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (only the pre-existing CMake `DEPENDS` policy warning) |
+
+### Commit
+
+- `lib/modules/comic/comic_source_page.dart` — commit `cacbc39` `fix(comic): make the account dialog robust to login failures`
+- Pushed: `e49bae8..cacbc39  dev -> dev`

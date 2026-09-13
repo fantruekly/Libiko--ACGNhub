@@ -1,110 +1,86 @@
-# Task 7 Report: Entrypoint, Docker, and manual smoke
+# Task 7 Report: Shell wiring + final verification
+
+## Status: DONE_WITH_CONCERNS
+
+The only concern is that the brief's Step 3 manual in-app smoke test was not run (cannot drive a GUI); it is left to the human. All automated verification passed.
 
 ## What I implemented
 
-- `server/bin/server.dart` — runnable entrypoint, created verbatim from the brief. It reads
-  `ACGHUB_JWT_SECRET` (required; writes `ACGHUB_JWT_SECRET is required` to stderr and exits 1
-  if unset/empty), `PORT` (default 8080) and `ACGHUB_DB_PATH` (default `data/acgnhub.db`),
-  creates the DB parent directory if missing, opens the database via `Database.open`, builds
-  `Api(db, Auth(secret)).handler`, and serves it with `shelf_io.serve` on `InternetAddress.anyIPv4`.
-- `server/Dockerfile` — multi-stage build, created verbatim from the brief.
+Modified only `lib/shell/main_shell.dart`:
 
-## Smoke test output (verbatim)
+1. Added imports:
+   - `import '../modules/comic/comic_home.dart';`
+   - `import '../modules/comic/comic_search.dart';`
+2. Replaced the 漫画 `_buildModulePlaceholder(...)` entry at `_pages[1]` with `const ComicHomePage()`.
+3. Made the title-bar search `IconButton` render for `_currentIndex == 0 || _currentIndex == 1`, and the `MaterialPageRoute` builder now picks `const AnimeSearchPage()` for index 0 and `const ComicSearchPage()` for index 1. The existing push style and icon/colour/splashRadius were preserved.
+4. Left `_buildModulePlaceholder` in place because the 轻小说 and 游戏 entries still use it.
 
-Command adapted only for how the process is launched and how the JSON body reaches `curl.exe`
-on this Windows/PowerShell 5.1 host (see concerns):
+No comments were added. Style matches the surrounding code.
 
-- Server started with the real SDK binary
-  `C:\flutter\bin\cache\dart-sdk\bin\dart.exe run bin/server.dart` (the `dart.bat` wrapper
-  spawns a child process and exits, so `Start-Process` lost the handle).
-- Request bodies passed via `curl.exe -d "@<tempfile>"` because PowerShell 5.1 mangles inline
-  JSON containing double quotes when forwarding to native executables.
+## Exact verification commands and observed results
 
-Server stdout:
+1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+   - Observed: `Analyzing 2 items...` then `No issues found! (ran in 1.6s)`
+2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+   - Observed: `00:06 +136 ~1: All tests passed!`
+   - (`~1` is the pre-existing intentional skip in `test/core/comic/js_engine_smoke_test.dart`, documented in that test: flutter_qjs native lib is not loadable under `flutter test`.)
+3. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
+   - Observed: `√ Built build\windows\x64\runner\Debug\acgnhub.exe`
+   - One unrelated CMake dev warning from the `webview_windows` plugin (`CMP0175` / DEPENDS); non-fatal and pre-existing.
 
-```
-acgnhub-server listening on http://0.0.0.0:8080
-```
+## Files changed and commit
 
-HTTP output:
-
-```
-REGISTER={"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc4OTIxMzA4OCwiZXhwIjoxNzg5MjEzOTg4fQ.-9yhWAW8TpRq30SW6ieNbPfCP092IBXaoRAt176K3Rw","refreshToken":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInR5cCI6InJlZnJlc2giLCJpYXQiOjE3ODkyMTMwODgsImV4cCI6MTc5MTgwNTA4OH0.ngyw1kGGWrG_x0n4kyrsS5ICrEAhXW9p-yOhpBpstQw","user":{"id":1,"username":"smoke"}}
-ME={"id":1,"username":"smoke"}
-PUT={"work":{"id":"w1","title":"A"},"updatedAt":100}
-SYNC={"follows":[{"work":{"id":"w1","title":"A"},"updatedAt":100,"deleted":false}],"history":[],"nextSeq":1}
-```
-
-Result: matches all expectations — `REGISTER` has a `token` and `"id":1`; `ME` returns the user;
-`PUT` returns the follow; `SYNC` contains it with `"nextSeq":1`. Server was stopped and
-`data/smoke.db` plus the redirect logs were deleted.
-
-`dart analyze` (workdir `server/`): `No issues found!`
-
-## Files changed
-
-- `server/bin/server.dart` (new)
-- `server/Dockerfile` (new)
+- `lib/shell/main_shell.dart` (1 file changed, 7 insertions(+), 4 deletions(-))
+- Commit: `763add6` — `feat(comic): wire the comic module into the shell`
+- Command used: `git add lib/shell/main_shell.dart` then `git commit -m "feat(comic): wire the comic module into the shell"`.
+- Only the shell file was staged. The working tree also contains pre-existing unrelated modifications (`.superpowers/sdd/*`, generated plugin registrants, etc.) which were intentionally not staged.
 
 ## Self-review findings
 
-- **Completeness:** Both required files exist and match the brief byte-for-byte; analyze passes;
-  smoke test passes; commit made with the brief's message. No smoke artifacts remain
-  (`server/data/` is empty, `git check-ignore` confirms `/server/data/` is ignored).
-- **Quality:** Entrypoint fails fast on a missing secret; directory creation handles the default
-  relative path. Dockerfile is the specified multi-stage build.
-- **YAGNI:** No extra flags, config files, or code beyond the brief.
+- Confirmed `ComicHomePage` and `ComicSearchPage` both have `const` constructors (`comic_home.dart:19`, `comic_search.dart:15`), so `const ComicHomePage()` / `const ComicSearchPage()` are valid.
+- The `_pages` list remains a `final` instance field; `const ComicHomePage()` fits the existing `const AnimeHomePage()` pattern.
+- `IndexedStack` still indexes `_pages` by `_currentIndex`; index 1 now correctly shows the comic home.
+- `_buildModulePlaceholder` is still referenced twice (轻小说, 游戏), so no unused-element analyzer warning.
+- Title `_titles[1]` is already `'漫画'`, matching the new page.
+- The diff contains no comments and no unrelated changes.
+- `git show HEAD` verified the commit contains exactly the three intended edits.
 
 ## Concerns
 
-1. **Brief's smoke snippet did not run as written on this host.** `Start-Process -FilePath "dart"`
-   yielded a process that exited immediately (the `.bat` shim spawns a child), and inline
-   `-d '{"..."}'` produced `{"error":"bad_request","message":"Expected a JSON object"}` because
-   PowerShell 5.1 stripped the inner double quotes. Both were worked around without changing the
-   server code; the API behaved correctly.
-2. **No `.dockerignore`.** The brief's `COPY . .` will copy `server/data/`, `.dart_tool/`, and
-   `test/` into the build context/image. Left as specified by the brief.
-3. **`ACGHUB_JWT_SECRET` is not set in the Dockerfile** (by design — it is a runtime secret), so
-   the container requires `-e ACGHUB_JWT_SECRET=...` or it exits 1.
+- **Manual smoke test not run.** Brief Step 3 (launch GUI, import `assets/comic_source/test_source.js`, verify capability chips, search two fixture results, open detail, toggle 收藏, check 收藏/历史 tabs) requires driving a GUI, which this environment cannot do. Left to the human.
+- The `flutter analyze`/`flutter test`/`flutter build` runs re-resolved dependencies and may have touched generated files, but none of those were staged; the commit is limited to `lib/shell/main_shell.dart`.
 
-## Commit
-
-- `78c32d9` feat(server): add the server entrypoint and Dockerfile
-
-## Fix report
-
-Two Important review findings were fixed in the Docker packaging.
+## Final-review fix
 
 ### What changed
 
-- **`server/Dockerfile` (replaced).** The runtime stage was a fresh `dart:stable` that only
-  copied `/app`, so `dart pub get` results from the build stage (`/root/.pub-cache`) were absent
-  and `dart run bin/server.dart` could not resolve `package:shelf` at runtime. The runtime stage
-  now copies `/root/.pub-cache` from the build stage. It also installs `libsqlite3-0` via
-  `apt-get` before copying the app, because on Linux `package:sqlite3` loads `libsqlite3.so.0`,
-  which the `dart:stable` image may not provide (the server only overrides the Windows library).
-- **`server/.dockerignore` (new).** Ignores `.dart_tool/`, `data/`, and `test/` so the host's
-  Windows-path `.dart_tool/`, the runtime DB, and the tests stay out of the build context.
+Fix 1 — serialized the comic local-store writes to close the double-toggle race:
 
-### Commands run and output
+- `lib/core/comic/comic_favorite.dart`: added the `_pending`/`_enqueue` serialization pattern from `FollowManager`. `toggle`, `remove`, and `clear` now route through `_enqueue`. `toggle`'s "exists" branch inlines the removal logic instead of calling `remove` (avoids nesting enqueues and deadlocking on `_pending`). Public signatures, `all()`/`isFavorite()`/`upsert()`, dedupe, newest-first ordering, and malformed-entry skipping are unchanged.
+- `lib/core/comic/comic_history.dart`: same `_pending`/`_enqueue` pattern; `record` and `clear` route through it. `all()`/`forComic()`/`upsert()` unchanged.
 
-`$env:Path = "C:\flutter\bin;$env:Path"; & C:\flutter\bin\dart.bat analyze` (workdir `server/`):
+Fix 2 — surfaced total search failure instead of a false empty result:
 
-```
-Analyzing server...
-No issues found!
-```
+- `lib/modules/comic/comic_providers.dart`: `comicSearchProvider` now collects the searchable (`canSearch`) sources, isolates per-source failures, and returns partial results when at least one source succeeded. If there is at least one searchable source and every searchable source threw, it throws `StateError('所有漫画源搜索失败：$lastError')`, which the search page's existing `.when(error:)` branch renders with the 重试 button. With no searchable sources it returns `const []`. Other providers were not touched.
 
-`$env:Path = "C:\flutter\bin;$env:Path"; & C:\flutter\bin\dart.bat test` (workdir `server/`):
+No code comments were added.
 
-```
-00:01 +33: All tests passed!
-```
+### Exact verification commands and observed results
 
-### Docker verification limitation (explicit)
+1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+   - Observed: `Analyzing 2 items...` then `No issues found! (ran in 2.0s)`
+2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/comic/comic_favorite_test.dart test/core/comic/comic_history_test.dart`
+   - Observed: `00:00 +7: All tests passed!`
+3. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+   - Observed: `00:08 +136 ~1: All tests passed!`
+   - (`~1` is the pre-existing intentional skip in `test/core/comic/js_engine_smoke_test.dart`.)
+4. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
+   - Observed: `√ Built build\windows\x64\runner\Debug\acgnhub.exe`
+   - One unrelated CMake dev warning from the `webview_windows` plugin (`CMP0175` / `DEPENDS`); non-fatal and pre-existing.
 
-**Docker could not be built or run on this machine — there is no Docker daemon available.** The
-fix is therefore a correctness fix verified by inspection, not a verified container build.
-Reading the final `server/Dockerfile` confirms the runtime stage now contains both required
-pieces: `COPY --from=build /root/.pub-cache /root/.pub-cache` (pub cache) and the
-`apt-get install -y --no-install-recommends libsqlite3-0` step (`libsqlite3.so.0`).
+### Commit
+
+- `git add lib/core/comic/comic_favorite.dart lib/core/comic/comic_history.dart lib/modules/comic/comic_providers.dart`
+- `git commit -m "fix(comic): serialize store writes and surface search failures"`
+- Commit: `51791fd` — `fix(comic): serialize store writes and surface search failures` (3 files changed, 51 insertions(+), 22 deletions(-)).
+- Only the three intended files were staged; the pre-existing unrelated working-tree modifications (`.superpowers/sdd/*`, generated plugin registrants) were left unstaged.

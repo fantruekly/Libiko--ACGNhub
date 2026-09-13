@@ -1,216 +1,224 @@
-### Task 1: Models — `FollowRecord` + `WatchRecord` additions
+### Task 1: Engine account support
 
 **Files:**
-- Create: `lib/core/models/follow_record.dart`
-- Modify: `lib/core/models/watch_record.dart`
-- Test: `test/core/models/follow_record_test.dart`, `test/core/models/watch_record_test.dart`
+- Modify: `assets/comic_source/init.js`
+- Modify: `lib/core/comic/js_engine.dart`
+- Modify: `lib/core/comic/comic_source.dart`
 
 **Interfaces:**
-- Produces: `FollowRecord{work, updatedAt, deleted, dirty}` + `fromJson`/`toJson`/`copyWith`; `WatchRecord{work, episodeTitle, episodeIndex, watchedAt, updatedAt, deleted, dirty}` + `copyWith`.
+- Produces: JS `Cookie` global and `ComicSource.isLogged`; `ComicSource` gains `bool hasLogin`, `bool hasCookieLogin`, `List<String> cookieFields`; `ComicSourceManager.login(source, username, password) → Future<bool>`, `loginWithCookies(source, values) → Future<bool>`, `logout(source) → Future<void>`, `isLogged(source) → Future<bool>`.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Add the `Cookie` global and `isLogged` to `init.js`**
 
-Create `test/core/models/follow_record_test.dart`:
+In `assets/comic_source/init.js`, add a `Cookie` class near the other globals (e.g. after `class Convert { ... }`):
 
-```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/models/follow_record.dart';
-import 'package:acgnhub/core/models/work.dart';
-
-void main() {
-  const work = Work(
-    id: 'w1',
-    sourceId: 'bangumi',
-    sourceName: 'Bangumi',
-    type: WorkType.anime,
-    title: '葬送的芙莉莲',
-    extra: {'bangumiId': 1},
-  );
-
-  test('round-trips through JSON including dirty/deleted', () {
-    final record = FollowRecord(
-      work: work,
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
-      dirty: true,
-    );
-    final restored = FollowRecord.fromJson(record.toJson());
-    expect(restored.work.id, 'w1');
-    expect(restored.work.bangumiId, 1);
-    expect(restored.updatedAt.millisecondsSinceEpoch, 1700000000000);
-    expect(restored.deleted, isFalse);
-    expect(restored.dirty, isTrue);
-  });
-
-  test('copyWith changes only the named flags', () {
-    final record = FollowRecord(
-        work: work, updatedAt: DateTime.fromMillisecondsSinceEpoch(1));
-    final marked = record.copyWith(deleted: true, dirty: true);
-    expect(marked.deleted, isTrue);
-    expect(marked.dirty, isTrue);
-    expect(marked.work.id, 'w1');
-    expect(marked.updatedAt.millisecondsSinceEpoch, 1);
-  });
-}
+```js
+  class Cookie {
+    constructor({ name, value, domain, path } = {}) {
+      this.name = name || '';
+      this.value = value || '';
+      this.domain = domain || '';
+      this.path = path || '/';
+    }
+  }
 ```
 
-Append to `test/core/models/watch_record_test.dart` (inside `main`):
+and register it before `globalThis.ComicSource = ComicSource;`:
 
-```dart
-  test('carries updatedAt/deleted/dirty with defaults', () {
-    final record = WatchRecord(
-      work: work,
-      episodeTitle: '第1集',
-      episodeIndex: 0,
-      watchedAt: DateTime.fromMillisecondsSinceEpoch(100),
-    );
-    expect(record.updatedAt, record.watchedAt);
-    expect(record.deleted, isFalse);
-    expect(record.dirty, isFalse);
-
-    final restored = WatchRecord.fromJson(record.copyWith(dirty: true).toJson());
-    expect(restored.dirty, isTrue);
-    expect(restored.updatedAt.millisecondsSinceEpoch, 100);
-  });
+```js
+  globalThis.Cookie = Cookie;
 ```
 
-(That test file already declares a `work` constant; reuse it.)
+Inside `class ComicSource`, add after `saveSetting(key, value)`:
 
-- [ ] **Step 2: Run the tests to verify they fail**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/models/follow_record_test.dart test/core/models/watch_record_test.dart`
-Expected: FAIL — `follow_record.dart` not found / `copyWith` undefined.
-
-- [ ] **Step 3: Create `lib/core/models/follow_record.dart`**
-
-```dart
-import 'work.dart';
-
-class FollowRecord {
-  final Work work;
-  final DateTime updatedAt;
-  final bool deleted;
-  final bool dirty;
-
-  const FollowRecord({
-    required this.work,
-    required this.updatedAt,
-    this.deleted = false,
-    this.dirty = false,
-  });
-
-  factory FollowRecord.fromJson(Map<String, dynamic> json) => FollowRecord(
-        work: Work.fromJson(json['work'] as Map<String, dynamic>),
-        updatedAt:
-            DateTime.fromMillisecondsSinceEpoch(json['updatedAt'] as int? ?? 0),
-        deleted: json['deleted'] as bool? ?? false,
-        dirty: json['dirty'] as bool? ?? false,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'work': work.toJson(),
-        'updatedAt': updatedAt.millisecondsSinceEpoch,
-        'deleted': deleted,
-        'dirty': dirty,
-      };
-
-  FollowRecord copyWith({DateTime? updatedAt, bool? deleted, bool? dirty}) =>
-      FollowRecord(
-        work: work,
-        updatedAt: updatedAt ?? this.updatedAt,
-        deleted: deleted ?? this.deleted,
-        dirty: dirty ?? this.dirty,
-      );
-}
+```js
+    get isLogged() {
+      const token = this.loadData('token');
+      const account = this.loadData('account');
+      return (token !== null && token !== undefined && token !== '') ||
+             (account !== null && account !== undefined);
+    }
 ```
 
-- [ ] **Step 4: Extend `lib/core/models/watch_record.dart`**
+- [ ] **Step 2: Serialize cookie objects in `js_engine.dart`**
 
-Replace the class with:
+In `lib/core/comic/js_engine.dart`, replace the loop body of `_cookieHeaderFor` so a list of cookie objects becomes `name=value` pairs:
 
 ```dart
-class WatchRecord {
-  final Work work;
-  final String episodeTitle;
-  final int episodeIndex;
-  final DateTime watchedAt;
-  final DateTime updatedAt;
-  final bool deleted;
-  final bool dirty;
+  String? _cookieHeaderFor(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return null;
+    final values = <String>[];
+    for (final entry in _cookieJar.entries) {
+      final key = Uri.tryParse(entry.key.toString());
+      if (key == null || key.host != uri.host) continue;
+      final value = entry.value;
+      if (value is List) {
+        for (final cookie in value) {
+          if (cookie is Map) {
+            final name = cookie['name']?.toString() ?? '';
+            final cookieValue = cookie['value']?.toString() ?? '';
+            if (name.isNotEmpty) values.add('$name=$cookieValue');
+          }
+        }
+      } else {
+        final text = value?.toString();
+        if (text != null && text.isNotEmpty) values.add(text);
+      }
+    }
+    return values.isEmpty ? null : values.join('; ');
+  }
+```
 
-  WatchRecord({
-    required this.work,
-    required this.episodeTitle,
-    required this.episodeIndex,
-    required this.watchedAt,
-    DateTime? updatedAt,
-    this.deleted = false,
-    this.dirty = false,
-  }) : updatedAt = updatedAt ?? watchedAt;
+- [ ] **Step 3: Add the account fields to `ComicSource`**
 
-  factory WatchRecord.fromJson(Map<String, dynamic> json) {
-    final watchedAt =
-        DateTime.fromMillisecondsSinceEpoch(json['watchedAt'] as int? ?? 0);
-    final updatedMs = json['updatedAt'] as int?;
-    return WatchRecord(
-      work: Work.fromJson(json['work'] as Map<String, dynamic>),
-      episodeTitle: json['episodeTitle'] as String? ?? '',
-      episodeIndex: json['episodeIndex'] as int? ?? 0,
-      watchedAt: watchedAt,
-      updatedAt: updatedMs == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(updatedMs),
-      deleted: json['deleted'] as bool? ?? false,
-      dirty: json['dirty'] as bool? ?? false,
-    );
+In `lib/core/comic/comic_source.dart`, add to `ComicSource` after `categoryOptions`:
+
+```dart
+  final bool hasLogin;
+  final bool hasCookieLogin;
+  final List<String> cookieFields;
+```
+
+and to the constructor:
+
+```dart
+    this.hasLogin = false,
+    this.hasCookieLogin = false,
+    this.cookieFields = const [],
+```
+
+- [ ] **Step 4: Parse the account metadata in `fromMetadata`**
+
+In `fromMetadata`, before `return ComicSource(...)`:
+
+```dart
+    final account = meta['account'];
+```
+
+and in the constructor call add:
+
+```dart
+      hasLogin: account is Map && account['hasLogin'] == true,
+      hasCookieLogin: account is Map && account['hasCookieLogin'] == true,
+      cookieFields: account is Map && account['cookieFields'] is List
+          ? (account['cookieFields'] as List).map((e) => e.toString()).toList()
+          : const [],
+```
+
+- [ ] **Step 5: Return the account metadata from the registry**
+
+In `_registryJs`, inside `__acgnhub_registerSource`'s `finish` return object, add after `category: ...`:
+
+```js
+      account: (function () {
+        const a = s.account;
+        const cw = a && a.loginWithCookies;
+        return {
+          hasLogin: !!(a && typeof a.login === 'function'),
+          hasCookieLogin: !!(cw && typeof cw.validate === 'function'),
+          cookieFields: cw && Array.isArray(cw.fields) ? cw.fields.map(String) : []
+        };
+      })()
+```
+
+- [ ] **Step 6: Add the manager methods**
+
+In `ComicSourceManager`, add after `category`:
+
+```dart
+  Future<bool> login(
+      ComicSource source, String username, String password) async {
+    await _ensureInitialized();
+    if (!source.hasLogin) return false;
+    try {
+      await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          await s.account.login(${jsonEncode(username)}, ${jsonEncode(password)});
+          return true;
+        })()
+      ''');
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
-  Map<String, dynamic> toJson() => {
-        'work': work.toJson(),
-        'episodeTitle': episodeTitle,
-        'episodeIndex': episodeIndex,
-        'watchedAt': watchedAt.millisecondsSinceEpoch,
-        'updatedAt': updatedAt.millisecondsSinceEpoch,
-        'deleted': deleted,
-        'dirty': dirty,
-      };
+  Future<bool> loginWithCookies(
+      ComicSource source, List<String> values) async {
+    await _ensureInitialized();
+    if (!source.hasCookieLogin) return false;
+    try {
+      final ok = await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          return await s.account.loginWithCookies.validate(${jsonEncode(values)});
+        })()
+      ''');
+      if (ok == true) {
+        await AppDatabase()
+            .setString('source_data.${source.key}.logged_in', '1');
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
-  WatchRecord copyWith({
-    String? episodeTitle,
-    int? episodeIndex,
-    DateTime? watchedAt,
-    DateTime? updatedAt,
-    bool? deleted,
-    bool? dirty,
-  }) =>
-      WatchRecord(
-        work: work,
-        episodeTitle: episodeTitle ?? this.episodeTitle,
-        episodeIndex: episodeIndex ?? this.episodeIndex,
-        watchedAt: watchedAt ?? this.watchedAt,
-        updatedAt: updatedAt ?? this.updatedAt,
-        deleted: deleted ?? this.deleted,
-        dirty: dirty ?? this.dirty,
-      );
-}
+  Future<void> logout(ComicSource source) async {
+    await _ensureInitialized();
+    try {
+      await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          if (s.account && typeof s.account.logout === 'function') {
+            await s.account.logout();
+          }
+          return true;
+        })()
+      ''');
+    } catch (_) {
+      // Best-effort logout.
+    }
+    await AppDatabase().remove('source_data.${source.key}.logged_in');
+  }
+
+  Future<bool> isLogged(ComicSource source) async {
+    await _ensureInitialized();
+    if (!source.hasLogin && source.hasCookieLogin) {
+      return AppDatabase()
+              .getString('source_data.${source.key}.logged_in') ==
+          '1';
+    }
+    try {
+      final result = await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          return !!s.isLogged;
+        })()
+      ''');
+      return result == true;
+    } catch (_) {
+      return false;
+    }
+  }
 ```
 
-(Keep the existing `import 'work.dart';`.)
+(`AppDatabase` is already imported in `comic_source.dart`.)
 
-- [ ] **Step 5: Run the tests to verify they pass**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/models/`
-Expected: PASS.
-
-- [ ] **Step 6: Analyze and run the full suite**
+- [ ] **Step 7: Analyze and build**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass (the existing history tests still compile because the new fields are optional/defaulted).
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit and push**
 
 ```bash
-git add lib/core/models/follow_record.dart lib/core/models/watch_record.dart test/core/models/
-git commit -m "feat(sync): add FollowRecord and sync fields on WatchRecord"
+git add assets/comic_source/init.js lib/core/comic/js_engine.dart lib/core/comic/comic_source.dart
+git commit -m "feat(comic): add account login support to the comic engine"
+git push
 ```
 
 ---

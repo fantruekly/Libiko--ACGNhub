@@ -1,213 +1,159 @@
-### Task 4: `AccountApi` + models — sync/follow/history endpoints
+### Task 4: Fixture + continuous-paging verification
 
 **Files:**
-- Modify: `lib/core/account/account_models.dart`
-- Modify: `lib/core/account/account_api.dart`
-- Test: `test/core/account/account_api_test.dart`
+- Modify: `assets/comic_source/test_source.js`
+- Create (scratch, untracked): `.superpowers/sdd/comic_continuous_probe.dart`
 
-**Interfaces:**
-- Produces: `SyncPage{follows, history, nextSeq}`, `FollowItem{work, updatedAt, deleted}`, `HistoryItem{work, episodeTitle, episodeIndex, watchedAt, updatedAt, deleted}`; `AccountApi.sync(String token, int sinceSeq)`, `putFollow(String token, Map<String,dynamic> work, int updatedAt)`, `deleteFollow(String token, String workId, int updatedAt)`, `putHistory(String token, Map<String,dynamic> work, String episodeTitle, int episodeIndex, int watchedAt, int updatedAt)`, `clearHistory(String token, int updatedAt)`.
+- [ ] **Step 1: Give the fixture a category browser and a viewMore part**
 
-- [ ] **Step 1: Add the failing tests**
+In `assets/comic_source/test_source.js`, change the `分类` explore section to return a list of parts with a `viewMore`, and add a `category` + `categoryComics`:
 
-Append to `test/core/account/account_api_test.dart` (inside `main`):
-
-```dart
-  test('sync parses the page and sends sinceSeq', () async {
-    final adapter = _FakeAdapter(
-      200,
-      jsonEncode({
-        'follows': [
-          {'work': {'id': 'w1'}, 'updatedAt': 5, 'deleted': false}
-        ],
-        'history': [
-          {
-            'work': {'id': 'w1'},
-            'episodeTitle': '第3集',
-            'episodeIndex': 2,
-            'watchedAt': 9,
-            'updatedAt': 9,
-            'deleted': false,
-          }
-        ],
-        'nextSeq': 4,
-      }),
-    );
-    final page = await _api(adapter).sync('tok', 3);
-
-    expect(page.nextSeq, 4);
-    expect(page.follows.single.work['id'], 'w1');
-    expect(page.history.single.episodeTitle, '第3集');
-    expect(adapter.last!.uri.queryParameters['sinceSeq'], '3');
-    expect(adapter.last!.headers['authorization'], 'Bearer tok');
-  });
-
-  test('putFollow posts the work and updatedAt', () async {
-    final adapter = _FakeAdapter(200, jsonEncode({'work': {}, 'updatedAt': 5}));
-    await _api(adapter).putFollow('tok', {'id': 'w1'}, 5);
-    expect(adapter.last!.method, 'PUT');
-    expect(adapter.last!.uri.path, '/api/follows');
-    expect(adapter.last!.data, {'work': {'id': 'w1'}, 'updatedAt': 5});
-  });
-
-  test('deleteFollow sends workId and updatedAt as a query parameter', () async {
-    final adapter = _FakeAdapter(200, jsonEncode({'workId': 'w1'}));
-    await _api(adapter).deleteFollow('tok', 'w1', 7);
-    expect(adapter.last!.method, 'DELETE');
-    expect(adapter.last!.uri.path, '/api/follows/w1');
-    expect(adapter.last!.uri.queryParameters['updatedAt'], '7');
-  });
-
-  test('putHistory posts the episode fields', () async {
-    final adapter = _FakeAdapter(200, jsonEncode({}));
-    await _api(adapter).putHistory('tok', {'id': 'w1'}, '第3集', 2, 9, 9);
-    expect(adapter.last!.uri.path, '/api/history');
-    expect(adapter.last!.data, {
-      'work': {'id': 'w1'},
-      'episodeTitle': '第3集',
-      'episodeIndex': 2,
-      'watchedAt': 9,
-      'updatedAt': 9,
-    });
-  });
-
-  test('clearHistory deletes with updatedAt', () async {
-    final adapter = _FakeAdapter(200, jsonEncode({'deleted': 2}));
-    await _api(adapter).clearHistory('tok', 11);
-    expect(adapter.last!.method, 'DELETE');
-    expect(adapter.last!.uri.path, '/api/history');
-    expect(adapter.last!.uri.queryParameters['updatedAt'], '11');
-  });
-```
-
-- [ ] **Step 2: Run the tests to verify they fail**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/account/account_api_test.dart`
-Expected: FAIL — `sync`/`putFollow`/... undefined.
-
-- [ ] **Step 3: Add the models to `lib/core/account/account_models.dart`**
-
-```dart
-class FollowItem {
-  final Map<String, dynamic> work;
-  final int updatedAt;
-  final bool deleted;
-  const FollowItem(
-      {required this.work, required this.updatedAt, required this.deleted});
-
-  factory FollowItem.fromJson(Map<String, dynamic> json) => FollowItem(
-        work: json['work'] as Map<String, dynamic>? ?? const {},
-        updatedAt: json['updatedAt'] as int? ?? 0,
-        deleted: json['deleted'] as bool? ?? false,
-      );
-}
-
-class HistoryItem {
-  final Map<String, dynamic> work;
-  final String episodeTitle;
-  final int episodeIndex;
-  final int watchedAt;
-  final int updatedAt;
-  final bool deleted;
-  const HistoryItem({
-    required this.work,
-    required this.episodeTitle,
-    required this.episodeIndex,
-    required this.watchedAt,
-    required this.updatedAt,
-    required this.deleted,
-  });
-
-  factory HistoryItem.fromJson(Map<String, dynamic> json) => HistoryItem(
-        work: json['work'] as Map<String, dynamic>? ?? const {},
-        episodeTitle: json['episodeTitle'] as String? ?? '',
-        episodeIndex: json['episodeIndex'] as int? ?? 0,
-        watchedAt: json['watchedAt'] as int? ?? 0,
-        updatedAt: json['updatedAt'] as int? ?? 0,
-        deleted: json['deleted'] as bool? ?? false,
-      );
-}
-
-class SyncPage {
-  final List<FollowItem> follows;
-  final List<HistoryItem> history;
-  final int nextSeq;
-  const SyncPage(
-      {required this.follows, required this.history, required this.nextSeq});
-
-  factory SyncPage.fromJson(Map<String, dynamic> json) => SyncPage(
-        follows: (json['follows'] as List<dynamic>? ?? const [])
-            .map((e) => FollowItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        history: (json['history'] as List<dynamic>? ?? const [])
-            .map((e) => HistoryItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        nextSeq: json['nextSeq'] as int? ?? 0,
-      );
-}
-```
-
-- [ ] **Step 4: Add the endpoints to `lib/core/account/account_api.dart`**
-
-```dart
-  Future<SyncPage> sync(String token, int sinceSeq) async {
-    final json = await _request(() => _dio.get(
-          '$baseUrl/api/sync?sinceSeq=$sinceSeq',
-          options: Options(headers: {'authorization': 'Bearer $token'}),
-        ));
-    return SyncPage.fromJson(json);
-  }
-
-  Future<void> putFollow(
-      String token, Map<String, dynamic> work, int updatedAt) async {
-    await _request(() => _dio.put('$baseUrl/api/follows',
-        data: {'work': work, 'updatedAt': updatedAt},
-        options: Options(headers: {'authorization': 'Bearer $token'})));
-  }
-
-  Future<void> deleteFollow(String token, String workId, int updatedAt) async {
-    await _request(() => _dio.delete(
-          '$baseUrl/api/follows/$workId?updatedAt=$updatedAt',
-          options: Options(headers: {'authorization': 'Bearer $token'}),
-        ));
-  }
-
-  Future<void> putHistory(String token, Map<String, dynamic> work,
-      String episodeTitle, int episodeIndex, int watchedAt, int updatedAt) async {
-    await _request(() => _dio.put('$baseUrl/api/history',
-        data: {
-          'work': work,
-          'episodeTitle': episodeTitle,
-          'episodeIndex': episodeIndex,
-          'watchedAt': watchedAt,
-          'updatedAt': updatedAt,
+```js
+    {
+      title: '分类',
+      type: 'singlePageWithMultiPart',
+      load: () => ([
+        {
+          title: '冒险',
+          comics: [new Comic({ id: 'a1', title: 'Adventure 1' })],
+          viewMore: 'category:全部@',
         },
-        options: Options(headers: {'authorization': 'Bearer $token'})));
-  }
-
-  Future<void> clearHistory(String token, int updatedAt) async {
-    await _request(() => _dio.delete(
-          '$baseUrl/api/history?updatedAt=$updatedAt',
-          options: Options(headers: {'authorization': 'Bearer $token'}),
-        ));
-  }
+      ]),
+    },
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+and inside the class, after `comic = { ... }`:
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/account/account_api_test.dart`
-Expected: PASS.
+```js
+  category = {
+    title: '测试分类',
+    parts: [
+      {
+        name: '类型',
+        type: 'fixed',
+        categories: ['全部'],
+        categoryParams: [''],
+        itemType: 'category',
+      },
+    ],
+  };
 
-- [ ] **Step 6: Analyze and run the full suite**
+  categoryComics = {
+    load: (category, param, options, page) => ({
+      comics: [
+        new Comic({ id: 'cat' + page + '-1', title: 'Cat ' + page + ' A' }),
+        new Comic({ id: 'cat' + page + '-2', title: 'Cat ' + page + ' B' }),
+        new Comic({ id: 'cat' + page + '-3', title: 'Cat ' + page + ' C' }),
+      ],
+      maxPage: 2,
+    }),
+    optionList: [],
+  };
+```
+
+- [ ] **Step 2: Write the continuous probe**
+
+Create `.superpowers/sdd/comic_continuous_probe.dart`:
+
+```dart
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:acgnhub/core/storage/database.dart';
+import 'package:acgnhub/modules/comic/comic_providers.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const ProbeApp());
+}
+
+class ProbeApp extends StatefulWidget {
+  const ProbeApp({super.key});
+
+  @override
+  State<ProbeApp> createState() => _ProbeAppState();
+}
+
+class _ProbeAppState extends State<ProbeApp> {
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    await AppDatabase.init();
+    final container = ProviderContainer();
+    try {
+      final manager = container.read(comicSourceManagerProvider);
+      await manager.importFromFile(
+          r'D:\ACGNhub\assets\comic_source\test_source.js');
+      final sources = await container.read(comicSourcesProvider.future);
+      final fixture = sources.firstWhere((s) => s.key == 'acgnhub_test');
+      final section = fixture.sections.indexWhere((s) => s.title == '分类');
+      if (section < 0) {
+        print('PROBE CONTINUOUS section not found');
+      } else {
+        for (final page in [1, 2, 3]) {
+          final data = await container.read(
+              comicExploreProvider(('acgnhub_test', section, page)).future);
+          print('PROBE CONTINUOUS page=$page '
+              'ids=${data.comics.map((c) => c.id).toList()} '
+              'maxPage=${data.maxPage} hasNext=${data.hasNext}');
+        }
+      }
+    } catch (e, st) {
+      print('PROBE ERROR $e\n$st');
+    } finally {
+      container.dispose();
+    }
+    print('PROBE DONE');
+    exit(0);
+  }
+
+  @override
+  Widget build(BuildContext context) => const MaterialApp(
+        home: Scaffold(body: Center(child: Text('continuous probe'))),
+      );
+}
+```
+
+- [ ] **Step 3: Run the probe**
+
+```powershell
+$env:Path = "C:\flutter\bin;$env:Path"; flutter run -d windows -t .superpowers/sdd/comic_continuous_probe.dart 2>&1 | Tee-Object -FilePath ".superpowers\sdd\continuous_probe.log"
+```
+
+Expected: page 1 → `ids=[a1]`, `maxPage=null`, `hasNext=true`; page 2 → `ids=[cat1-1, cat1-2, cat1-3]`, `hasNext=true`; page 3 → `ids=[cat2-1, cat2-2, cat2-3]`, `hasNext=false`. If page 2 does not switch to `cat*`, the continuation is broken — report it.
+
+- [ ] **Step 4: Run the explore probe against manhuagui / baozi**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter run -d windows -t .superpowers/sdd/comic_explore_probe.dart 2>&1 | Tee-Object -FilePath ".superpowers\sdd\explore_probe9.log"`
+
+Confirm manhuagui / baozi still return their explore content (the provider continuation is exercised in-app, not by this manager-level probe). Record their counts.
+
+- [ ] **Step 5: Analyze, test, build**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass.
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit and push**
 
 ```bash
-git add lib/core/account/account_models.dart lib/core/account/account_api.dart test/core/account/account_api_test.dart
-git commit -m "feat(sync): add sync/follow/history endpoints to AccountApi"
+git add assets/comic_source/test_source.js
+git commit -m "test(comic): fixture for continuous category paging"
+git push
 ```
 
+(The probe is untracked scratch; do not commit it.)
+
 ---
+
+## Self-Review
+
+- **Spec coverage:** §4.1 `viewMore` → Task 1; §4.2 category metadata + `category()` → Task 2; §5 provider continuation → Task 3; §9 fixture/probe → Task 4. §6 UI unchanged (no task). §11 out-of-scope items appear in no task.
+- **Placeholders:** none; every step shows the code.
+- **Type consistency:** `ExplorePage{comics,maxPage,next,viewMore}` (Task 1) is returned by `explore`/`category` (Task 2) and consumed by the provider (Task 3); `ComicSource.hasCategoryComics/categoryDefault/categoryParam/categoryOptions` (Task 2) are read by the provider (Task 3); the family keys `(String sourceKey, int section)` and `(String sourceKey, int section, int page)` are unchanged.
+- **Coupling:** Task 3 changes `comicExploreAllProvider`'s return type, so Task 2 and Task 3 are committed together only if Task 2 leaves the tree compiling (it does — `comicExploreAllProvider` still returns `List<Comic>` until Task 3; Task 2 only adds fields/methods).

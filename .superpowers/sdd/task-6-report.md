@@ -1,48 +1,113 @@
-# Task 6 Report: 追番 button + 追番 tab
+# Task 6 Report: Comic detail page
 
 ## What I implemented
 
-- **`lib/modules/anime/anime_detail_page.dart`**
-  - Added imports `../../core/account/sync_service.dart` and `../../core/services/follow_manager.dart`.
-  - In `_header`, inserted the brief's `Consumer` follow button immediately before `const WindowControls(),` (inside the `DragToMoveArea`/`Row`, so it stays clickable). It watches `followProvider` for `r.work.id == w.id`, shows `favorite_rounded`/`favorite_border_rounded` (blue/grey), and on press calls `followProvider.notifier.toggle(w)` then `syncProvider.schedule()`.
-- **`lib/modules/anime/anime_follow.dart` (new)** — `class AnimeFollowView extends ConsumerWidget`, created verbatim from the brief. Watches `followProvider`; renders `EmptyState(icon: Icons.favorite_border_rounded, message: '还没有追番')` when empty, else a `GridView.builder` (`crossAxisCount: 5`, spacing 16, `childAspectRatio: 0.66`) of `WorkCard`s (no subtitle, no clear button) that push `AnimeDetailPage` via `smoothRoute`.
-- **`lib/modules/anime/anime_home.dart`** — added `import 'anime_follow.dart';`, changed `DefaultTabController(length: 4)` to `length: 5`, appended `Tab(text: '追番')` after 历史记录, and appended `_heroTab(controller, 4, const AnimeFollowView()),` to the `TabBarView` children.
-- **`test/modules/anime/anime_detail_page_test.dart`** — necessary test adaptation (see Deviations): imported `AppDatabase` and changed `setUp` to `await AppDatabase.init()`.
+### Part A — `lib/modules/comic/comic_detail_page.dart` (new)
 
-## What I verified and results
+`class ComicDetailPage extends ConsumerStatefulWidget` with the four required
+constructor params (`sourceKey`, `comicId`, `title`, `cover`). Layout mirrors
+`anime_detail_page.dart`:
 
-- `flutter analyze lib test` → **`No issues found!`** (ran in 1.7s)
-- `flutter test` → **`All tests passed!`** (108 tests)
-- `flutter build windows --debug` → **`√ Built build\windows\x64\runner\Debug\acgnhub.exe`** (13.7s; only the pre-existing `webview_windows` CMake CMP0175 dev warning)
+- **`_header`**: `DragToMoveArea` → 48 px white `Container` (bottom border
+  `#E5E5EA` 0.5) with a back `IconButton`, the `title` (`Expanded`, 16 px w600,
+  ellipsis) and `const WindowControls()`.
+- **Body**: `Scaffold(backgroundColor: Color(0xFFF2F2F7))` → `Column([_header,
+  Expanded(child: _body())])`.
+- **`_body`**: `ref.watch(comicDetailProvider((sourceKey, comicId)))`:
+  - loading → `ShimmerLoader(crossAxisCount: 6, itemCount: 12)`.
+  - error → `EmptyState(icon: Icons.error_outline_rounded, message: '加载失败',
+    actionLabel: '重试', onAction: ref.invalidate(...))`.
+  - data → `CustomScrollView` with the info card, chapter section, and (when
+    history exists) the 继续阅读 button, plus a 24 px bottom spacer.
+- **Info card**: `GlassSurface(blur: 0, borderRadius: 16, padding: 16, border
+  #E5E5EA, boxShadow [0x0F000000/16/(0,6)])` around a `Row(crossAxisAlignment:
+  start)`:
+  - `Hero(tag: 'comic_${sourceKey}_$comicId')` → `RepaintBoundary` →
+    `ClipRRect(10)` → 110×154 `CachedNetworkImage` (plain, `fit: cover`,
+    `memCacheWidth: 300`, `errorWidget: _coverPlaceholder`) or
+    `_coverPlaceholder` when the cover is null/empty. `ComicImageProvider` is
+    intentionally not used (it belongs to the C2b reader).
+  - 24 px gap → `Expanded` `Column`: title (20 px w600, max 2 lines), 14 px
+    gap, 收藏 button, 14 px gap, tags `Wrap`, 10 px gap, description.
+  - 收藏 button: `FilledButton.icon`, 36 px min height, radius 10; not
+    favorite → `#007AFF` bg / white fg / `Icons.bookmark_add_outlined` / `收藏`;
+    favorite → `#E5E5EA` bg / `#8E8E93` fg / `Icons.bookmark_added_rounded` /
+    `已收藏`. State comes from `ref.watch(comicFavoritesProvider)` membership on
+    `(sourceKey, comicId)`; press builds a `ComicFavorite` from the loaded
+    details (`title`, `cover`, `DateTime.now()`) and calls
+    `ref.read(comicFavoritesProvider.notifier).toggle(...)`.
+  - tags: `_tagChip` mirrors the anime `_metaChip` visual (accent 10 % bg,
+    radius 6, 12 px w600 accent text) without an icon.
+  - description: 13 px, `cs.onSurface.withValues(alpha: 0.7)`, `maxLines:
+    _expanded ? null : 3` with a 展开/收起 `GestureDetector` (state field
+    `_expanded`, shown when the text is long enough to truncate); empty/null →
+    `暂无简介`.
+- **章节 section**: `GlassSurface` card with a header `Row` (`章节` 16 px w600 +
+  `共 N 话` 12 px `#8E8E93`) and a `Wrap(spacing/runSpacing: 10)` of chapter
+  buttons from `details.chapters.entries` — each 104×44, radius 10,
+  `Color(0x0F007AFF)` fill, `Border.all(Color(0x4D007AFF))`, centered single-line
+  ellipsised label = the map **value** (chapter title), 13 px w500 `#007AFF`;
+  tap shows `SnackBar('阅读器开发中')`. Empty → `暂无章节`.
+- **继续阅读**: a full-width `FilledButton.icon` shown when
+  `ref.watch(comicHistoryProvider)` contains an entry matching
+  `(sourceKey, comicId)`; tap shows the same C2a `SnackBar` placeholder.
 
-## Files changed
+No reader was built; no comments added.
 
-- `lib/modules/anime/anime_detail_page.dart` (+16/−0)
-- `lib/modules/anime/anime_follow.dart` (new, 39 lines)
-- `lib/modules/anime/anime_home.dart` (+3/−1)
-- `test/modules/anime/anime_detail_page_test.dart` (+5/−1)
+### Part B — call-site wiring
 
-Commit: `4e0e5bf feat(follow): add the detail-page follow button and the 追番 tab` (4 files changed, 64 insertions(+), 2 deletions(-)).
+- `comic_home.dart`: imported `comic_detail_page.dart`; `_DiscoverTab._explore`,
+  `_FavoritesTab`, and `_historyRow` now push `ComicDetailPage` via
+  `smoothRoute`; removed the now-unused `_showDetailPlaceholder`.
+- `comic_search.dart`: imported `comic_detail_page.dart` + `smooth_route.dart`;
+  result tap now pushes `ComicDetailPage` via `smoothRoute`; removed the unused
+  private placeholder.
+- Existing `heroTag`s on the cards are unchanged, so the Hero flies into the
+  detail cover.
 
-Only these four files were staged; the many unrelated pre-existing working-tree modifications under `.superpowers/sdd/*` were left untouched.
+## Verification (exact commands + observed results)
 
-## Deviations from the brief (both required)
+1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+   → `No issues found! (ran in 1.7s)`
+2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+   → `00:06 +136 ~1: All tests passed!` (136 passed / 1 skipped; the skip is the
+   pre-existing `js_engine_smoke_test`, which cannot load the QuickJS native
+   library under `flutter test`).
+3. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
+   → `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (only a pre-existing
+   webview_windows CMake dev warning).
 
-1. **`syncProvider.notifier` does not exist.** The brief (and the plan's Task 6 code) writes `ref.read(syncProvider.notifier).schedule();`, but `syncProvider` is a plain `Provider<SyncService>`, not a `NotifierProvider`, so `.notifier` is a compile error. The existing trigger in `anime_history.dart:92` already uses the correct form, so I used `ref.read(syncProvider).schedule();`. Behavior is identical; without this fix the code does not compile.
-2. **Existing detail-page widget tests needed DB init.** Once the header watches `followProvider` (which builds `FollowNotifier` → `FollowManager` → `AppDatabase`), the three tests in `test/modules/anime/anime_detail_page_test.dart` threw `Bad state: AppDatabase not initialized`. The huge `RenderFlex overflowed by 99390 pixels` in the first failure was a *symptom*: the thrown `StateError` replaced the `Consumer` with a wide `ErrorWidget` inside the header `Row`. Every other DB-touching test in the repo already calls `await AppDatabase.init()` in `setUp` (e.g. `watch_history_test.dart`, `follow_manager_test.dart`, `sync_service_test.dart`), so I applied that same established pattern. No assertions or test intent changed. The brief's commit list omitted this file, but committing the lib changes without it would leave `flutter test` red.
+## Files changed + commit
+
+Commit `6a9b0c9` — `feat(comic): add the comic detail page` (3 files changed,
+456 insertions, 14 deletions):
+- `lib/modules/comic/comic_detail_page.dart` (new)
+- `lib/modules/comic/comic_home.dart`
+- `lib/modules/comic/comic_search.dart`
+
+Only the three intended files were staged. Unrelated working-tree changes
+(generated plugin registrants, `.superpowers/sdd/*`) were left untouched.
 
 ## Self-review findings
 
-- **Completeness:** all three brief steps done; the button is inside the `DragToMoveArea`; the tab is index 4 and wrapped by `_heroTab(controller, 4, ...)` exactly like the other four.
-- **Quality:** 2-space indentation; no comments added; imports grouped with the existing relative imports. `AnimeFollowView` mirrors `AnimeHistoryView`'s grid constants exactly.
-- **YAGNI:** no extra widgets, providers, or abstraction; `AnimeFollowView` is stateless (`ConsumerWidget`) and needs no keep-alive.
-- **Hero wiring:** `_heroTab` enables `HeroMode` only when `controller.index == index`, so the follow tab's `WorkCard` heroes cannot collide with the same work shown in another tab. Correct.
-- **Button correctness:** the `Consumer`'s `ref` shadows the state's `ref` only within the builder closure; `followProvider` and `syncProvider` resolve via the enclosing `ProviderScope`. Fine.
+- `flutter analyze` is clean, confirming no unused imports/helpers remain after
+  removing both placeholders.
+- The 收藏 state is derived by watching the favorites list (not a one-shot
+  read), so toggling rebuilds the button.
+- `comicImageProvider` is deliberately not consumed, per the brief.
+- Chapter labels use the map value (title), not the key (id), matching the
+  `chapters: chapterId → title` contract.
+- `_historyEntry()` and `_continueReading()` both watch `comicHistoryProvider`,
+  so the continue button appears/disappears reactively.
 
 ## Concerns
 
-- The brief's code contains the `syncProvider.notifier` compile error and does not mention the test adaptation. Both are documented above and were the minimum changes needed to satisfy the brief's own verification requirement (`flutter analyze lib test`, `flutter test`, build).
-- `AnimeFollowView` is rebuilt from `followProvider` on every follow/unfollow, so an offscreen follow tab stays consistent automatically. No concern.
-- No new tests were added (per the brief); the new UI is covered only by the existing detail-page tests that now exercise the header's follow button during build.
-
-Status: DONE_WITH_CONCERNS
+- The 展开/收起 toggle is shown only when the description exceeds 60 chars (a
+  heuristic for "long enough to truncate at 3 lines"). Very wide/narrow layouts
+  could show a toggle when the text actually fits, or omit it when a wide-glyph
+  string wraps sooner; the brief did not specify the threshold.
+- With no tags, the info card still reserves the 10 px gap before the
+  description (minor cosmetic spacing), matching the anime card's unconditional
+  spacing style.
+- The chapter/continue taps are intentionally `SnackBar('阅读器开发中')`
+  placeholders until the C2b reader lands.

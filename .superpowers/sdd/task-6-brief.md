@@ -1,97 +1,34 @@
-### Task 6: UI — 追番 button + 追番 tab
+### Task 6: Comic detail page
 
 **Files:**
-- Modify: `lib/modules/anime/anime_detail_page.dart`
-- Create: `lib/modules/anime/anime_follow.dart`
-- Modify: `lib/modules/anime/anime_home.dart`
+- Create: `lib/modules/comic/comic_detail_page.dart`
 
 **Interfaces:**
-- Consumes: `followProvider` (Task 2), `syncProvider` (Task 5), `WorkCard`, `AnimeDetailPage`, `smoothRoute`, `EmptyState`.
-- Produces: the header button; `class AnimeFollowView extends ConsumerWidget`; a 5th home tab.
+- Consumes: `comicDetailProvider` (Task 3), `comicFavoritesProvider` (Task 1), `comicHistoryProvider` (Task 2), `ComicImageProvider` (Task 3), `WindowControls`/`smooth_route`.
+- Produces: `class ComicDetailPage extends ConsumerStatefulWidget { final String sourceKey; final String comicId; final String title; final String? cover; }`.
 
-- [ ] **Step 1: Add the follow button to `_header`**
+- [ ] **Step 1: Create `lib/modules/comic/comic_detail_page.dart`**
 
-In `lib/modules/anime/anime_detail_page.dart`, add `import 'package:flutter_riverpod/flutter_riverpod.dart';` (already present) and
-`import '../../core/services/follow_manager.dart';` plus `import '../../core/account/sync_service.dart';`.
+Structure (mirror `lib/modules/anime/anime_detail_page.dart`'s layout):
+- `_header`: `DragToMoveArea` + a 48 px `Container` with a back button, the title (`Expanded`), and `const WindowControls()`.
+- Body: `CustomScrollView` with:
+  - an info card (a `GlassSurface(blur: 0)` like the anime info card): a `Row` of the cover (`Hero(tag: 'comic_${sourceKey}_$comicId')`, 110×154, `ClipRRect(10)`, `memCacheWidth: 300`) and, 24 px to its right, a `Column` of: the title (20 px w600, max 2 lines), a 14 px gap, the 收藏 button (a `FilledButton.icon`, `收藏` accent-filled + `Icons.bookmark_add_outlined` → `已收藏` dimmed `#E5E5EA`/`#8E8E93` + `Icons.bookmark_added_rounded`, 36 px high, radius 10), a 14 px gap, then the tags `Wrap` (the anime `_metaChip` styling) and the description (13 px, muted, max 3 lines + a 展开/收起 toggle);
+  - a 章节 section: a header `Row` (章节 + a count) and a `Wrap` of chapter buttons — each 104×44, radius 10, accent 6 % fill + 30 % border, label = the chapter title (single line ellipsis) — built from `details.chapters`; tapping shows `SnackBar('阅读器开发中')` for C2a (C2b replaces this with `ComicReaderPage`);
+  - a 继续阅读 button when `comicHistoryProvider` has an entry for this comic (also a C2a placeholder `SnackBar`).
+- Loading: `ShimmerLoader`; error: an `EmptyState` with a 重试 action calling `ref.invalidate(comicDetailProvider((sourceKey, comicId)))`.
+- The 收藏 button builds a `ComicFavorite` from the loaded details (`sourceKey`, `comicId`, title, cover, `DateTime.now()`) and calls `ref.read(comicFavoritesProvider.notifier).toggle(...)`.
 
-In `_header`, insert immediately before `const WindowControls(),`:
-
-```dart
-            Consumer(builder: (context, ref, _) {
-              final followed = ref.watch(followProvider).any((r) => r.work.id == w.id);
-              return IconButton(
-                tooltip: followed ? '已追番' : '追番',
-                icon: Icon(
-                  followed ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  color: followed ? const Color(0xFF007AFF) : const Color(0xFF8E8E93),
-                ),
-                onPressed: () {
-                  ref.read(followProvider.notifier).toggle(w);
-                  ref.read(syncProvider.notifier).schedule();
-                },
-              );
-            }),
-```
-
-- [ ] **Step 2: Create `lib/modules/anime/anime_follow.dart`**
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../core/services/follow_manager.dart';
-import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/smooth_route.dart';
-import '../../core/widgets/work_card.dart';
-import 'anime_detail_page.dart';
-
-class AnimeFollowView extends ConsumerWidget {
-  const AnimeFollowView({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final records = ref.watch(followProvider);
-
-    if (records.isEmpty) {
-      return const EmptyState(icon: Icons.favorite_border_rounded, message: '还没有追番');
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.66,
-      ),
-      itemCount: records.length,
-      itemBuilder: (_, i) {
-        final work = records[i].work;
-        return WorkCard(
-          work: work,
-          onTap: () =>
-              Navigator.push(context, smoothRoute(AnimeDetailPage(work: work))),
-        );
-      },
-    );
-  }
-}
-```
-
-- [ ] **Step 3: Add the 5th tab in `lib/modules/anime/anime_home.dart`**
-
-Add `import 'anime_follow.dart';`, change `length: 4` to `length: 5`, add `Tab(text: '追番')` after 历史记录, and add `_heroTab(controller, 4, const AnimeFollowView()),` to the `TabBarView` children.
-
-- [ ] **Step 4: Analyze, test, build**
+- [ ] **Step 2: Analyze, test, build**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass.
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add lib/modules/anime/anime_detail_page.dart lib/modules/anime/anime_follow.dart lib/modules/anime/anime_home.dart
-git commit -m "feat(follow): add the detail-page follow button and the 追番 tab"
+git add lib/modules/comic/comic_detail_page.dart
+git commit -m "feat(comic): add the comic detail page"
 ```
 
 ---

@@ -1,145 +1,103 @@
-### Task 3: `WatchHistoryManager` sync fields
+### Task 3: Provider continuation
 
 **Files:**
-- Modify: `lib/core/services/watch_history.dart`
-- Test: `test/core/services/watch_history_test.dart`
+- Modify: `lib/modules/comic/comic_providers.dart`
 
 **Interfaces:**
-- Produces: `WatchHistoryManager.dirty()`, `markSynced(Set<String>)`, `mergeFromServer(List<WatchRecord>)`, `pendingClear`/`clearPendingClear()`, and `@visibleForTesting static merge(...)`; `record()`/`clear()` set the new fields.
+- Consumes: `ExplorePage.viewMore` (Task 1), `ComicSource.hasCategoryComics`/`ComicSourceManager.category` (Task 2).
 
-- [ ] **Step 1: Add the failing tests**
+- [ ] **Step 1: Make `comicExploreAllProvider` return `ExplorePage`**
 
-Append to `test/core/services/watch_history_test.dart` (inside `main`; reuse the file's `_work`/`_record` helpers if present, otherwise define locals):
+Replace its body with:
 
 ```dart
-  test('merge keeps a newer local record and takes a newer server record', () {
-    final merged = WatchHistoryManager.merge(
-      [_record('a', '第1集', 300), _record('b', '第1集', 100)],
-      [_record('a', '第0集', 200), _record('b', '第9集', 500)],
+/// The full one-shot result for a non-server-paged section (cached per
+/// section), including its `viewMore` target.
+final comicExploreAllProvider =
+    FutureProvider.family<ExplorePage, (String, int)>((ref, key) async {
+  final (sourceKey, section) = key;
+  final manager = ref.watch(comicSourceManagerProvider);
+  final source = ref
+      .watch(comicSourcesProvider)
+      .valueOrNull
+      ?.where((s) => s.key == sourceKey)
+      .firstOrNull;
+  if (source == null) throw StateError('source $sourceKey not loaded');
+  return manager.explore(source, section, page: 1);
+});
+```
+
+- [ ] **Step 2: Replace the client-paged branch**
+
+In `comicExploreProvider`, replace the current client-paged block (the `final all = ...` block through its `return`) with:
+
+```dart
+  final explore =
+      await ref.watch(comicExploreAllProvider((sourceKey, section)).future);
+  final all = explore.comics;
+  final explorePages =
+      all.isEmpty ? 1 : (all.length + _explorePageSize - 1) ~/ _explorePageSize;
+  if (page <= explorePages) {
+    final start = (page - 1) * _explorePageSize;
+    final end = (start + _explorePageSize).clamp(0, all.length);
+    final comics = start >= all.length ? const <Comic>[] : all.sublist(start, end);
+    return ComicExplorePage(
+      comics: comics,
+      page: page,
+      maxPage: source.hasCategoryComics ? null : explorePages,
+      hasNext: source.hasCategoryComics || page < explorePages,
+      serverPaged: false,
     );
-    final byId = {for (final r in merged) r.work.id: r};
-    expect(byId['a']!.episodeTitle, '第1集');
-    expect(byId['b']!.episodeTitle, '第9集');
-    expect(merged.every((r) => !r.dirty), isTrue);
-  });
-
-  test('record marks dirty and clear writes tombstones plus pendingClear', () async {
-    SharedPreferences.setMockInitialValues({});
-    await AppDatabase.init();
-    final manager = WatchHistoryManager();
-
-    const ep = VideoEpisode(id: 'e1', title: '第1集', index: 0, playUrl: 'u');
-    await manager.record(_work('a'), ep);
-    expect(manager.dirty().single.work.id, 'a');
-
-    await manager.clear();
-    expect(manager.all(), isEmpty);
-    expect(manager.pendingClear, isTrue);
-    expect(manager.dirty().single.deleted, isTrue);
-
-    await manager.clearPendingClear();
-    expect(manager.pendingClear, isFalse);
-  });
+  }
+  if (!source.hasCategoryComics) {
+    return ComicExplorePage(
+      comics: const [],
+      page: page,
+      maxPage: explorePages,
+      hasNext: false,
+      serverPaged: false,
+    );
+  }
+  final catPage = page - explorePages;
+  final (cat, param) = _continuationTarget(explore.viewMore);
+  final result =
+      await manager.category(source, catPage, category: cat, param: param);
+  return ComicExplorePage(
+    comics: result.comics,
+    page: page,
+    maxPage: null,
+    hasNext: result.maxPage != null
+        ? catPage < result.maxPage!
+        : result.comics.isNotEmpty,
+    serverPaged: true,
+  );
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/watch_history_test.dart`
-Expected: FAIL — `merge`/`dirty`/`pendingClear` undefined.
-
-- [ ] **Step 3: Update `lib/core/services/watch_history.dart`**
-
-Add `static const _kPendingClear = 'watch_history_pending_clear';` and change `all()`/`record()`/`clear()`, then add the new members:
+Add the helper at file scope (near `_explorePageSize`):
 
 ```dart
-  List<WatchRecord> all() =>
-      sortDescending(_readAll().where((r) => !r.deleted).toList());
-
-  List<WatchRecord> dirty() => _readAll().where((r) => r.dirty).toList();
-
-  bool get pendingClear => AppDatabase().getBool(_kPendingClear) ?? false;
-
-  Future<void> clearPendingClear() async {
-    await AppDatabase().remove(_kPendingClear);
+(String?, String?) _continuationTarget(String? viewMore) {
+  if (viewMore == null || !viewMore.startsWith('category:')) {
+    return (null, null);
   }
-
-  Future<void> record(Work work, VideoEpisode episode) {
-    final next = _pending.then((_) async {
-      final now = DateTime.now();
-      final record = WatchRecord(
-        work: work,
-        episodeTitle: episode.title,
-        episodeIndex: episode.index,
-        watchedAt: now,
-        updatedAt: now,
-        dirty: true,
-      );
-      await _save(upsert(_readAll(), record));
-    });
-    _pending = next.catchError((_) {});
-    return next;
-  }
-
-  Future<void> clear() {
-    final next = _pending.then((_) async {
-      final tombstones = _readAll()
-          .where((r) => !r.deleted)
-          .map((r) => r.copyWith(
-              deleted: true, dirty: true, updatedAt: DateTime.now()))
-          .toList();
-      for (final tombstone in tombstones) {
-        await _save(upsert(_readAll(), tombstone));
-      }
-      await AppDatabase().setBool(_kPendingClear, true);
-    });
-    _pending = next.catchError((_) {});
-    return next;
-  }
-
-  Future<void> markSynced(Set<String> workIds) async {
-    final records = _readAll()
-        .map((r) => workIds.contains(r.work.id) ? r.copyWith(dirty: false) : r)
-        .toList();
-    await _save(records);
-  }
-
-  Future<void> mergeFromServer(List<WatchRecord> server) async {
-    await _save(merge(_readAll(), server));
-  }
-
-  @visibleForTesting
-  static List<WatchRecord> merge(
-      List<WatchRecord> local, List<WatchRecord> server) {
-    final byId = {for (final r in local) r.work.id: r};
-    for (final item in server) {
-      final existing = byId[item.work.id];
-      if (existing != null && existing.updatedAt.isAfter(item.updatedAt)) {
-        byId[item.work.id] = existing.copyWith(dirty: false);
-      } else {
-        byId[item.work.id] = item.copyWith(dirty: false);
-      }
-    }
-    return byId.values.toList();
-  }
+  final rest = viewMore.substring('category:'.length);
+  final at = rest.indexOf('@');
+  if (at < 0) return (rest, null);
+  return (rest.substring(0, at), rest.substring(at + 1));
+}
 ```
 
-Also rename the existing private reader to `_readAll()` (it currently builds and sorts) and make `_save` write the full list — keep the existing `upsert`/`sortDescending` statics. `all()` must filter `deleted` before sorting.
-
-- [ ] **Step 4: Run the tests to verify they pass**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/watch_history_test.dart`
-Expected: PASS (existing + new tests).
-
-- [ ] **Step 5: Analyze and run the full suite**
+- [ ] **Step 3: Analyze and build**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass.
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit and push**
 
 ```bash
-git add lib/core/services/watch_history.dart test/core/services/watch_history_test.dart
-git commit -m "feat(sync): add dirty/tombstone/merge support to watch history"
+git add lib/modules/comic/comic_providers.dart
+git commit -m "feat(comic): continue one-shot explore sections into the category listing"
+git push
 ```
 
 ---

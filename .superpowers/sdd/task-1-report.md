@@ -1,83 +1,120 @@
-# Task 1 Report: Sync data models — `FollowRecord` + `WatchRecord` additions
-
-## Status
-DONE
+# Task 1 Report: engine account support (C2e)
 
 ## What I implemented
-Implemented the task brief verbatim (sub-project B3, Task 1):
 
-- `lib/core/models/follow_record.dart` (new): `FollowRecord` with `work`, `updatedAt`,
-  `deleted`, `dirty`, a `const` constructor, `fromJson`, `toJson`, and `copyWith`
-  (`updatedAt`/`deleted`/`dirty`).
-- `lib/core/models/watch_record.dart` (modified): added `updatedAt`, `deleted`, `dirty` fields;
-  dropped `const` from the constructor so `updatedAt` can default to `watchedAt`; added
-  `copyWith`; extended `fromJson`/`toJson` for the new fields. `fromJson` leaves `updatedAt`
-  null when absent so the constructor default (`= watchedAt`) applies.
-- `test/core/models/follow_record_test.dart` (new): the two brief tests, verbatim.
-- `test/core/models/watch_record_test.dart` (modified): appended the
-  `carries updatedAt/deleted/dirty with defaults` test, reusing the existing `work` constant.
+Sub-project C2e Task 1, for the ACGNhub Flutter comic module. Added the
+JS-side `Cookie` global and `ComicSource.isLogged`, made the Dart cookie bridge
+serialize cookie objects, and added account metadata plus manager login methods.
 
-No comments beyond the brief's code. 2-space indentation. `Work` untouched.
+### `assets/comic_source/init.js`
 
-## What I tested and the results
-- Focused: `flutter test test/core/models/` → **PASS (7 tests)**.
-- Analyzer: `flutter analyze lib test` → **No issues found! (ran in 2.6s)**.
-- Full suite: `flutter test` → **PASS (92 tests)**, including the pre-existing
-  `watch_record_test.dart` round-trip and `watch_history_test.dart`.
+- Added a `Cookie` class (`name`/`value`/`domain`/`path`, defaults `''`/`''`/`''`/`'/'`)
+  after `class Convert`.
+- Added a `get isLogged()` getter to `class ComicSource` after `saveSetting`:
+  true when `loadData('token')` is non-null/non-empty or `loadData('account')`
+  is non-null.
+- Registered `globalThis.Cookie = Cookie;` before `globalThis.ComicSource`.
 
-## TDD evidence
+### `lib/core/comic/js_engine.dart`
 
-### RED
-Command (workdir `D:\ACGNhub`):
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/models/follow_record_test.dart test/core/models/watch_record_test.dart
-```
-Output (excerpt):
-```
-test/core/models/follow_record_test.dart:2:8: Error: Error when reading 'lib/core/models/follow_record.dart': 系统找不到指定的文件。
-test/core/models/follow_record_test.dart:16:20: Error: Method not found: 'FollowRecord'.
-test/core/models/watch_record_test.dart:45:19: Error: The getter 'updatedAt' isn't defined for the type 'WatchRecord'.
-test/core/models/watch_record_test.dart:49:50: Error: The method 'copyWith' isn't defined for the type 'WatchRecord'.
-00:00 +0 -2: Some tests failed.
-```
-Why expected: the tests were written before the implementation. `follow_record.dart` did not
-exist, and `WatchRecord` had none of the new getters or `copyWith` — the intended RED state.
+- Rewrote the body of `_cookieHeaderFor`: a jar entry whose value is a `List` is
+  expanded into `name=value` pairs (skipping non-`Map` items and empty names);
+  any other value falls back to `value?.toString()`. Malformed entries are
+  skipped rather than throwing. Values are joined with `'; '`.
 
-### GREEN
-Command (workdir `D:\ACGNhub`):
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/models/
-```
-Output:
-```
-00:00 +0: follow_record_test.dart: round-trips through JSON including dirty/deleted
-00:00 +1: follow_record_test.dart: copyWith changes only the named flags
-00:00 +2: watch_record_test.dart: toJson/fromJson round-trips the record and its Work
-00:00 +3: watch_record_test.dart: carries updatedAt/deleted/dirty with defaults
-00:00 +7: All tests passed!
-```
+### `lib/core/comic/comic_source.dart`
 
-## Files changed
-- `lib/core/models/follow_record.dart` (new)
-- `lib/core/models/watch_record.dart` (modified)
-- `test/core/models/follow_record_test.dart` (new)
-- `test/core/models/watch_record_test.dart` (modified)
+- `ComicSource`: added `hasLogin`, `hasCookieLogin`, `cookieFields` fields and
+  constructor defaults (`false`, `false`, `const []`).
+- `fromMetadata`: reads `meta['account']` and maps it to the three fields
+  (`cookieFields` coerced with `.map((e) => e.toString())`).
+- `_registryJs`: the `__acgnhub_registerSource` return object now includes an
+  `account` block derived from `s.account` / `s.account.loginWithCookies`
+  (`hasLogin`, `hasCookieLogin`, `cookieFields`).
+- `ComicSourceManager`: added `login`, `loginWithCookies`, `logout`, `isLogged`
+  after `category`. Form login evaluates `s.account.login`; cookie login
+  evaluates `s.account.loginWithCookies.validate(values)` and persists a
+  `source_data.<key>.logged_in` flag via `AppDatabase`; logout best-effort calls
+  `s.account.logout()` and removes the flag; `isLogged` reads the flag for
+  cookie-only sources and otherwise evaluates `!!s.isLogged`.
 
-Commit: `39861b0 feat(sync): add FollowRecord and sync fields on WatchRecord`
+## Verification commands and results
+
+- `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+  - `No issues found! (ran in 2.2s)`
+- `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
+  - `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (11.2s). Only the
+    unrelated CMake `CMP0175` dev warning from `webview_windows`.
+- `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/comic/comic_source_test.dart test/core/comic/js_engine_smoke_test.dart`
+  - `+3 ~1: All tests passed!` (the smoke test is skipped because the
+    `flutter_qjs` native library is not loadable under `flutter test`, as
+    expected).
+
+The engine cannot run under `flutter test`; behavioral verification of the
+account metadata is deferred to the Task 3 probe per the task context.
+
+## Files changed + commit
+
+- `assets/comic_source/init.js`
+- `lib/core/comic/js_engine.dart`
+- `lib/core/comic/comic_source.dart`
+
+Commit `1347214` — `feat(comic): add account login support to the comic engine`
+Pushed to `origin/dev` (`caf51ef..1347214`).
 
 ## Self-review findings
-- Completeness: both interfaces match the contract — `FollowRecord{work, updatedAt, deleted,
-  dirty}` and `WatchRecord{work, episodeTitle, episodeIndex, watchedAt, updatedAt, deleted,
-  dirty}`, each with `fromJson`/`toJson`/`copyWith`.
-- Quality: analyzer clean; implementation is the brief's code verbatim; no drift in indentation
-  or comments.
-- YAGNI: no equality, helpers, or extra fields beyond the brief.
-- Tests verify real behavior: actual JSON round-trips assert `work.id`/`bangumiId`,
-  `updatedAt` epoch millis, `deleted`/`dirty`; the default test proves `updatedAt == watchedAt`
-  when unset, that `deleted`/`dirty` default false, and that `copyWith(dirty: true)` survives
-  serialization while retaining `updatedAt`.
-- Backward compatibility: the existing round-trip test and history tests still compile/pass
-  because the new fields are optional/defaulted.
+
+- `isLogged` getter uses the existing `loadData`, which already returns `null`
+  for missing/empty values and JSON-parses otherwise; the explicit
+  `null`/`undefined`/`''` checks are redundant but harmless and match the brief.
+- `_cookieHeaderFor` never throws on malformed entries: non-`Map` list items are
+  skipped, and a non-list `Map` value degrades to its `toString()` (no throw),
+  satisfying the global constraint.
+- `fromMetadata` `account is Map && account['cookieFields'] is List` parses as
+  `(account is Map) && (...)` because `is` binds tighter than `&&`; correct.
+- `AppDatabase` is already imported and used elsewhere in the file, so the new
+  manager methods need no extra import.
+- `jsonEncode(values)` for `List<String>` and the source key produce valid JS
+  literals inside the `evaluate` templates.
+- No new analyzer warnings; no comments added beyond the brief's `// Best-effort
+  logout.` (the file already contains comments).
 
 ## Concerns
-None. The brief's code compiled and passed as written, with no deviation required.
+
+- `loginWithCookies` and `logout` call `AppDatabase()` directly, which throws if
+  `AppDatabase.init()` has not run. This matches the brief and the app's
+  lifecycle, but is a latent ordering dependency.
+- Behavioral correctness of the `account` registry metadata and login/logout
+  round-trips is not covered by `flutter test`; relies on the Task 3 probe.
+- A non-list `Map` cookie-jar value serializes as a Dart map `toString()` rather
+  than a `Cookie` header. Sources are expected to pass an array, so this is an
+  unreachable edge case handled without throwing.
+
+## Task 1 review fix
+
+### What changed
+
+`ComicSourceManager.login` in `lib/core/comic/comic_source.dart` discarded the
+JS result and returned `true` whenever the evaluate did not throw, so a source
+that signals failure by returning `false` was reported as a successful login.
+
+- The evaluated snippet now captures the login result and returns
+  `result !== false`.
+- `login` now stores that value in `ok` and returns `ok == true`, so an explicit
+  `false` is treated as failure.
+- The surrounding `try`/`catch` still returns `false` on a thrown error.
+
+No other changes; no comments added.
+
+### Verification
+
+- `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+  - `No issues found! (ran in 1.7s)`
+- `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
+  - `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (11.2s). Only the
+    unrelated CMake `CMP0175` dev warning from `webview_windows`.
+
+### Commit
+
+Commit `5f4f5f9` — `fix(comic): treat an explicit false login result as a failure`
+Pushed to `origin/dev` (`1347214..5f4f5f9`).

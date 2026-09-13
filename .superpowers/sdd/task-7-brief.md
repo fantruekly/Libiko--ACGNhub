@@ -1,95 +1,36 @@
-### Task 7: Entrypoint, Docker, and manual smoke
+### Task 7: Shell wiring + final verification
 
 **Files:**
-- Create: `server/bin/server.dart`
-- Create: `server/Dockerfile`
+- Modify: `lib/shell/main_shell.dart`
 
-**Interfaces:**
-- Consumes: `Database.open`, `Auth`, `Api.handler`.
-- Produces: a runnable server reading `ACGHUB_JWT_SECRET`, `PORT`, `ACGHUB_DB_PATH`.
+- [ ] **Step 1: Wire the module into the shell**
 
-- [ ] **Step 1: Create `server/bin/server.dart`**
+In `lib/shell/main_shell.dart`:
+- import `'../modules/comic/comic_home.dart'` and `'../modules/comic/comic_search.dart'`;
+- replace `_pages[1]` (the 漫画 placeholder) with `const ComicHomePage()`;
+- make the title-bar search `IconButton` open `ComicSearchPage` when `_currentIndex == 1` (it currently opens the anime search for `_currentIndex == 0`).
 
-```dart
-import 'dart:io';
+- [ ] **Step 2: Analyze, test, build**
 
-import 'package:shelf/shelf_io.dart' as shelf_io;
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass.
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
 
-import 'package:acgnhub_server/src/api.dart';
-import 'package:acgnhub_server/src/auth.dart';
-import 'package:acgnhub_server/src/database.dart';
+- [ ] **Step 3: In-app smoke test (manual)**
 
-Future<void> main() async {
-  final secret = Platform.environment['ACGHUB_JWT_SECRET'];
-  if (secret == null || secret.isEmpty) {
-    stderr.writeln('ACGHUB_JWT_SECRET is required');
-    exit(1);
-  }
-  final port = int.tryParse(Platform.environment['PORT'] ?? '') ?? 8080;
-  final dbPath = Platform.environment['ACGHUB_DB_PATH'] ?? 'data/acgnhub.db';
+Launch the app, open 漫画, and: add a source (import `assets/comic_source/test_source.js` from the repo via 从文件导入), confirm it appears with its capability chips; search a keyword and confirm the fixture's two results; open a detail page and confirm the chapters render and 收藏 toggles; check the 收藏 tab shows it and the 历史 tab is empty. Record the outcome.
 
-  final dir = Directory(File(dbPath).parent.path);
-  if (!dir.existsSync()) dir.createSync(recursive: true);
-
-  final db = Database.open(dbPath);
-  final handler = Api(db, Auth(secret)).handler;
-
-  final server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
-  stdout.writeln('acgnhub-server listening on http://${server.address.host}:${server.port}');
-}
-```
-
-- [ ] **Step 2: Create `server/Dockerfile`**
-
-```dockerfile
-FROM dart:stable AS build
-WORKDIR /app
-COPY pubspec.* ./
-RUN dart pub get
-COPY . .
-RUN dart pub get --offline
-
-FROM dart:stable
-WORKDIR /app
-COPY --from=build /app /app
-ENV PORT=8080
-ENV ACGHUB_DB_PATH=/data/acgnhub.db
-VOLUME /data
-EXPOSE 8080
-CMD ["dart", "run", "bin/server.dart"]
-```
-
-- [ ] **Step 3: Analyze**
-
-Run (workdir `server/`): `dart analyze`
-Expected: `No issues found!`
-
-- [ ] **Step 4: Manual smoke test (report the exact output)**
-
-Start the server in the background and exercise it with `curl` (workdir `server/`):
-
-```powershell
-$env:ACGHUB_JWT_SECRET = "dev-secret"
-$env:ACGHUB_DB_PATH = "data/smoke.db"
-$p = Start-Process -FilePath "dart" -ArgumentList "run","bin/server.dart" -PassThru -NoNewWindow
-Start-Sleep -Seconds 6
-$reg = curl.exe -s -X POST http://127.0.0.1:8080/api/auth/register -H "content-type: application/json" -d '{"username":"smoke","password":"secret1"}'
-Write-Output "REGISTER=$reg"
-$token = ($reg | ConvertFrom-Json).token
-Write-Output "ME=$(curl.exe -s http://127.0.0.1:8080/api/me -H "authorization: Bearer $token")"
-Write-Output "PUT=$(curl.exe -s -X PUT http://127.0.0.1:8080/api/follows -H "content-type: application/json" -H "authorization: Bearer $token" -d '{"work":{"id":"w1","title":"A"},"updatedAt":100}')"
-Write-Output "SYNC=$(curl.exe -s "http://127.0.0.1:8080/api/sync?sinceSeq=0" -H "authorization: Bearer $token")"
-Stop-Process -Id $p.Id -Force
-Remove-Item -LiteralPath "data/smoke.db" -Force -ErrorAction SilentlyContinue
-```
-
-Expected: `REGISTER` contains a `token` and `"id":1`; `ME` returns the user; `PUT` returns the follow; `SYNC` contains it with `"nextSeq":1`.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add server/bin/server.dart server/Dockerfile
-git commit -m "feat(server): add the server entrypoint and Dockerfile"
+git add lib/shell/main_shell.dart
+git commit -m "feat(comic): wire the comic module into the shell"
 ```
 
 ---
+
+## Self-Review
+
+- **Spec coverage:** §3 stores → Tasks 1–2; §3 image + providers → Task 3; §4 home → Task 4; §5 source management → Task 4; §6 detail → Task 6; search (§4's search entry) → Task 5; shell wiring → Task 7; §10 tests → Tasks 1–2, 7. The reader (§7) is C2b.
+- **Placeholders:** the only intentional placeholders are the C2a chapter/继续阅读 `SnackBar`s, which C2b replaces — called out explicitly in Task 6.
+- **Type consistency:** `ComicFavorite{sourceKey, comicId, title, cover, addedAt}`, `ComicHistoryEntry{sourceKey, comicId, title, cover, chapterId, chapterTitle, page, readAt}`, `comicFavoritesProvider`/`comicHistoryProvider`, `comicSourcesProvider`/`comicExploreProvider`/`comicSearchProvider`/`comicDetailProvider`/`comicEpProvider`, `ComicImageProvider.resolve`, `ComicHomePage`/`ComicSourcePage`/`ComicSearchPage`/`ComicDetailPage` — used consistently across tasks.

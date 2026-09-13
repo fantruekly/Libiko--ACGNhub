@@ -1,52 +1,141 @@
 ﻿# SDD Progress Ledger
 
-Plan: docs/superpowers/plans/2026-09-12-follow-button-and-sync.md
-Base commit: 552757f (before Task 1)
+Plan: docs/superpowers/plans/2026-09-12-comic-ui-home-detail.md (C2a)
+Base commit: 89c0a42 (before Task 1)
 
-Task 1: complete (commits 552757f..39861b0, review clean)
-Task 2: complete (commits 39861b0..b0ddce8, review clean)
-Task 3: complete (commits b0ddce8..7796fcb, review clean after adjudication)
-Task 4: complete (commits 7796fcb..4839dfe, review clean)
-Task 5: complete (commits 4839dfe..ebf9ef7, review clean)
-Task 6: complete (commits ebf9ef7..4e0e5bf, review clean)
-Task 7: verification complete (analyze clean, 115/115 tests, build OK, e2e probe passed)
-Final whole-branch review: complete; 1 Critical + 4 Important fixed in 6a58b2c, one follow-up fixed in 5f2defa
+Task 1: complete (commit 89c0a42..5050360, review clean)
+Task 2: complete (commit 5050360..ea2f1b3, review clean)
+Task 3: complete (commit ea2f1b3..26b4696, review clean)
+Task 4: complete (commit 26b4696..62f05bd + fix c2e2371, review clean after 1 fix)
+Task 5: complete (commit c2e2371..31c4876, review clean)
+Task 6: complete (commit 31c4876..6a9b0c9, review clean)
+Task 7: complete (commit 6a9b0c9..763add6, review clean; manual GUI smoke test deferred to human)
+Final whole-branch review: 89c0a42..763add6 → "merge with fixes"; fix commit 51791fd
+  (serialized store writes; search surfaces total failure), re-review clean.
+C2a: COMPLETE (89c0a42..51791fd) pending the manual GUI smoke test.
+C2b: plan written (docs/superpowers/plans/2026-09-13-comic-reader.md), execution starting.
 
-## Task 7 evidence
+## C2b ledger — Comic Reader
 
-- `flutter analyze lib test` clean; `flutter test` 115/115; `flutter build windows --debug` built.
-- End-to-end sync probe (`.superpowers/sdd/sync_probe.dart`, `flutter run -d windows -t`, against a
-  locally started `server/`): after following a work and recording history the dirty sets were 1/1;
-  `SyncService.sync()` cleared both, advanced `sync_cursor` to 2, and a second `sync()` was a no-op
-  (`SERVER follows=0 history=0 nextSeq=2`).
+Plan: docs/superpowers/plans/2026-09-13-comic-reader.md (C2b)
+Base commit: 51791fd (before C2b Task 1)
 
-## Final-review fixes (`6a58b2c`, `5f2defa`)
+Task 1: complete (commit 51791fd..36bac90, review clean)
+Task 2: complete (commit 36bac90..a280520, review clean)
+Task 3: complete (commit a280520..6c404a6 + fix ab4aca3, review clean after 1 fix)
+Task 4: complete (commit ab4aca3..0ce11d0 + fixes a02d5ce, 65e78cd, d020df5, review clean after fixes)
+Final whole-branch review: 51791fd..a02d5ce → "merge with fixes"; fix wave 65e78cd + d020df5
+  (mode-switch page loss, history throttle, backward landing, prev-chapter preload, reliable resume),
+  re-review clean.
+C2b: COMPLETE (51791fd..d020df5), pushed to origin/dev, awaiting the user's PR.
 
-- `merge` preserves `dirty` in the kept-local branch (the design spec says it stays dirty); `markSynced`
-  is version-guarded (`Map<String, DateTime> pushedUpdatedAt`), so a local write during a sync is not
-  silently marked clean.
-- A history clear stores its timestamp (`watch_history_clear_at`); `_push` sends `clearHistory` with it
-  and still pushes records made after the clear.
-- `FollowManager` gained a `_pending` chain; the history sync mutations join the existing one.
-- `schedule()` during a running sync sets `_rerun` and re-runs once.
-- `_run` catches broadly, including on the 401 refresh/retry path.
+## Venera source compatibility (ad hoc, plan 2026-09-13-comic-venera-compat.md)
+
+- Task 1: complete (commit bbe2ed2..0dedd94 + fix 2db365b, review clean after fixes).
+  Added `loadData`/`saveData`/`deleteData`, `Convert` aliases + `hmacString`, `Network.deleteCookies`,
+  global `randomInt`/`fetch`, per-instance `init()`, and corrected `Network.post/put/delete` arg order.
+- Imported 11 general Venera sources into the app source dir + `copy_manga.data`.
+  Probe: 11/11 load; clean search for copy_manga(21), ManHuaGui(10), zaimanhua(16), Komiic(2),
+  ikmmh(0), shonen_jump_plus(0). The other 5 (baozi/comick/manga_dex/manwaba/ykmh) load but
+  search errored at the site/network layer (404/403/status 0/HTML change), not the engine.
+- Out of scope (per user): AES, account/WebView login, `Cache`/`IO`, `minAppVersion` gating.
+
+## C2c ledger — Comic explore sections + pagination
+
+Plan: docs/superpowers/plans/2026-09-13-comic-explore-sections.md
+Spec: docs/superpowers/specs/2026-09-13-comic-explore-sections-design.md
+Base commit: 5638e3e (before C2c Task 1)
+
+Task 1: complete (commit 5638e3e..1fa6552, review clean)
+Task 2: complete (commit 39c1e4c..a430620, review clean; maxPage may be null for offset paging)
+Task 3: complete (commit f1a5b55..f5d04bd + fix ec3fb68, review clean after 1 fix)
+Final whole-branch review: 5638e3e..ec3fb68 → "merge with fixes"; fix abeaea4
+  (client-paged retry, parser tests, section/page clamps, registry guard), re-review clean.
+C2c: COMPLETE (5638e3e..abeaea4), pushed to origin/dev; manual in-app smoke test deferred to the human.
+
+## C2d ledger — Comic AES + cursor paging
+
+Plan: docs/superpowers/plans/2026-09-13-comic-aes-cursor.md
+Spec: docs/superpowers/specs/2026-09-13-comic-aes-cursor-design.md
+Base commit: c05d7d0 (before C2d Task 1)
+
+Task 1: complete (commit c05d7d0..a889320, review clean)
+Task 2: complete (commit a889320..3713de9, review clean)
+Task 3: complete — imported jm/ehentai. ehentai explore works (12/11 galleries across its 2 sections)
+  after an ad-hoc engine fix c5dc4ad (HtmlNode.children + capacity 64→1024). jm loads and AES works but its
+  configured domains (`www.cdntwice.org/promote`) return 404 — external/source-domain issue, not the engine.
+Final whole-branch review: c05d7d0..c5dc4ad → "merge with fixes"; fix 37eeea8
+  (usesLoadNext requires no `load`; added a cursor probe proving c1→c2→c3), re-review clean.
+C2d: COMPLETE (c05d7d0..37eeea8), pushed to origin/dev. ehentai explore works (2 sections);
+  jm loads but its domains 404 (external). ehentai search needs search-options support (not built).
+Ad-hoc UI fixes (53a4954, fbc56e5): HTML handle capacity 16384 (fixes ehentai pagination),
+  48 comics/page, centered pager.
+
+## C2f ledger — Continuous paging into category content
+
+Plan: docs/superpowers/plans/2026-09-13-comic-continuous-paging.md
+Spec: docs/superpowers/specs/2026-09-13-comic-continuous-paging-design.md
+Base commit: 2964152 (before C2f Task 1)
+
+Task 1: complete (commit 2964152..60c0da8, review clean)
+Task 2: complete (commit 60c0da8..2068f91, review clean)
+Task 3: complete (commit 2068f91..501fd54, review clean)
+Task 4: complete (commit 501fd54..d25b510; continuous probe: page1 [a1] → page2 cat1-* → page3 cat2-* → stop)
+Final whole-branch review: 2964152..d25b510 → "merge with fixes"; fix cba3013
+  (empty-name continuation guard, maxPage normalize, viewMore parser tests, docs; real-source probe
+  verified manhuagui/baozi category continuation), re-review clean.
+C2f: COMPLETE (2964152..cba3013), pushed to origin/dev. One-shot explore sections now continue into
+  the source's category listing; verified against manhuagui (78→42/page) and baozi (108→36/page).
+
+## C2g ledger — Row-aligned source/cursor paging
+
+Plan: docs/superpowers/plans/2026-09-13-comic-row-aligned-paging.md
+Spec: docs/superpowers/specs/2026-09-13-comic-row-aligned-paging-design.md
+Base commit: 2040a01 (before C2g Task 1)
+
+Task 1: complete (commit 2040a01..e3c6566, review clean)
+Task 2: complete (commit 7fe9064..392f65e; alignment probe 48/27; real sources aligned)
+Final whole-branch review: 2040a01..392f65e → "merge with fixes"; fix a4174ef
+  (extracted `buildAlignedExplorePage` + 4 unit tests; autoDispose on the explore families), re-review clean.
+C2g: COMPLETE (2040a01..a4174ef), pushed to origin/dev. Server/cursor sections now show 48/page
+  (multiple of 6) except the true last page; ehentai 48/48 + tail.
+Ad-hoc fixes: reader default = page flip + tap-to-flip (096ec0d); white reader background (b773321);
+  reader chrome on error (4a9046b); continuous pages fit window height (5c6e383);
+  APP global + tags/chapters flattening (a030cb4); innerHTML alias (c357809).
+
+## C2e ledger — Comic account login
+
+Plan: docs/superpowers/plans/2026-09-13-comic-account-login.md
+Spec: docs/superpowers/specs/2026-09-13-comic-account-login-design.md
+Base commit: caf51ef (before C2e Task 1)
+
+Task 1: complete (commit caf51ef..1347214 + fix 5f4f5f9, review clean after 1 fix)
+Task 2: complete (commit 5f4f5f9..e49bae8 + fix cacbc39, review clean after 1 fix)
+Task 3: complete (imported picacg 1.0.5; account probe: picacg hasLogin, ehentai hasCookieLogin fields=[ipb_member_id, ipb_pass_hash, igneous, star])
+Final whole-branch review: caf51ef..cacbc39 → "merge with fixes"; fix bb9ca63
+  (cookie domain matching + jar persistence + account tests), re-review clean.
+C2e: COMPLETE (caf51ef..bb9ca63), pushed to origin/dev. Real sign-in left to the human.
+
+### C2b minor findings (for the final whole-branch review to triage)
+
+- `comic_reader_page.dart` — previous-chapter overscroll lands at the previous chapter's top (not its end); history page-change write is a 1 s debounce rather than a throttle; `_preload` has no de-dup/cancellation and reads `_chapterId` mid-flight (overlapping preloads on rapid scrolling); the bottom bar shows `0 / 0` while a newly selected chapter loads; `_continuous` mutates `_initialJumpDone` and schedules a frame callback during `build`.
 
 ## Notes
 
-- Briefs are extracted with an inline fence-aware script (`.superpowers/sdd/make-brief.ps1` is flaky on
-  the longer plans); always check the brief's first line names the right task.
-- **Task 3 adjudication:** `all()` ordering by `watchedAt` (not `updatedAt`) is intended — the plan says
-  to keep the existing `sortDescending`, and sub-project A's spec pins the history tab to `watchedAt` desc.
+- C2 is split: **C2a** (this plan) and **C2b** (the reader). C2a's chapter buttons / 继续阅读 and the
+  home's card taps are intentional placeholders — Task 4 chose `SnackBar('详情页开发中')` for card
+  taps; Task 6 adds `ComicDetailPage` and must replace them.
+- Task 4 fix (`c2e2371`): the kept-alive 发现/收藏 tabs duplicated `Hero` tags; each `TabBarView`
+  child is now wrapped in `HeroMode(enabled: controller.index == i)` like `anime_home.dart`.
+- Task 4 added `comicSourceListUrlProvider` (the plan was amended to say so).
+- Briefs are extracted with an inline fence-aware script (`.superpowers/sdd/make-brief.ps1` is flaky
+  on the longer plans); always check the brief's first line names the right task.
 
-## Deferred Minor findings (not required before merge)
+## Minor findings (triaged by the final whole-branch review — acceptable polish, not fixed)
 
-- `lib/core/services/follow_manager.dart` / `watch_history.dart` — the version guard compares millisecond-truncated `DateTime`s (a same-millisecond write during a push compares equal); `_pending` is per-instance, not process-wide (production wires separate manager instances for the UI and the sync service).
-- `lib/core/services/watch_history.dart` — `clear()` sets `pendingClear` when nothing is live and is O(n²) I/O; tombstones are never pruned; a legacy `pendingClear` without `clearAt` falls back to push time.
-- `lib/core/models/follow_record.dart:18-19` — a missing `updatedAt` defaults to epoch 0; a stale doc comment on `merge`.
-- `lib/core/account/account_api.dart` — `deleteFollow` interpolates an unencoded `workId`; `sync` builds its query by string interpolation.
-- `lib/core/account/sync_service.dart` — duplicated storage-key literals; `_debounce` never cancelled; `catch (_)` hides programming errors.
-- `lib/modules/anime/video_player_page.dart:82-83` — `schedule()` is called outside the `gen == _gen` guard.
-- `lib/core/account/account_service.dart:8` ↔ `lib/core/account/sync_service.dart:12` — a legal, benign import cycle.
-- Test gaps: no widget tests for the follow button / 追番 tab; no `schedule()` debounce/concurrency test.
+- ~~`lib/core/comic/comic_favorite.dart:78` — `toggle` has no write serialization~~ FIXED in 51791fd (both stores now serialize via `_enqueue`).
+- `lib/modules/comic/comic_source_page.dart` — `ref.invalidate(comicSourcesProvider)` runs before the `mounted` guard in async handlers; `_confirmClear` lacks a `context.mounted` guard; the remote-list URL persists on every keystroke; the remote 添加 button is not disabled while importing.
+- `lib/modules/comic/comic_search.dart` — duplicates the private `_comicGrid` constants from `comic_home.dart`; the empty state can show a false-negative `没有找到漫画` while `comicSourcesProvider` is still loading (Task 3 provider behavior); clearing the field does not clear the last results. (The `.when(error:)` branch is now reachable after 51791fd.)
+- `lib/modules/comic/comic_detail_page.dart` — the description 展开/收起 uses a `length > 60` heuristic instead of measuring 3 lines; a tagless comic leaves a stray 10px gap before the description; the favorite stores `details.cover`/`title` (may differ from the list entry's).
 
 (previous plans are complete; their history is in git)

@@ -1,113 +1,85 @@
-# Task 3 Report: `WatchHistoryManager` sync fields
+# Task 3 Report: Provider continuation
+
+**Status:** DONE
+**Commit:** `501fd54` — feat(comic): continue one-shot explore sections into the category listing
+**Pushed:** `origin/dev` (`2068f91..501fd54`)
 
 ## What I implemented
 
-Extended `WatchHistoryManager` in `lib/core/services/watch_history.dart` with the sync
-surface Task 5's sync service needs, following the brief exactly:
+Modified `lib/modules/comic/comic_providers.dart`:
 
-- Renamed the private reader to `_readAll()` — returns the raw stored list (unsorted,
-  unfiltered, malformed entries skipped).
-- `all()` now filters out `deleted` records and then sorts descending.
-- `dirty()` returns stored records with `dirty == true`.
-- `pendingClear` getter reads the `watch_history_pending_clear` bool (default `false`).
-- `clearPendingClear()` removes that flag.
-- `record()` sets `watchedAt`/`updatedAt` to `now` and `dirty: true`, saving via
-  `upsert(_readAll(), record)`; still serialised on the `_pending` future.
-- `clear()` writes a tombstone (`deleted: true, dirty: true, updatedAt: now`) for every
-  live record, then sets the `pendingClear` flag; still serialised on `_pending`.
-- `markSynced(Set<String> workIds)` clears `dirty` on matching records.
-- `mergeFromServer(List<WatchRecord>)` persists `merge(_readAll(), server)`.
-- `@visibleForTesting static merge(local, server)` — per work id, keeps the newer of
-  local/server by `updatedAt` and always clears `dirty` on the merged result.
-- Kept `_save` writing the full list and kept the `upsert`/`sortDescending` statics.
+1. **`comicExploreAllProvider` now returns `ExplorePage`** instead of
+   `List<Comic>`, so `viewMore` is available to the continuation logic. The
+   body returns `manager.explore(source, section, page: 1)` directly.
+2. **Replaced the client-paged fallback** in `comicExploreProvider`:
+   - Pages `1..explorePages` serve the one-shot explore content, sliced at
+     `_explorePageSize` (48).
+   - When `source.hasCategoryComics` is true, those pages report
+     `maxPage: null` (UI keeps rendering `第 X 页`) and `hasNext: true`, so the
+     user can keep paging past the explore content.
+   - Pages beyond `explorePages` map to `catPage = page - explorePages` and are
+     served by `manager.category(source, catPage, category:, param:)`, with
+     `serverPaged: true` and `maxPage: null`.
+   - A source without `categoryComics` keeps the previous finite behavior
+     (`maxPage: explorePages`, `hasNext: page < explorePages`).
+3. **Added file-scope helper `_continuationTarget`** near `_explorePageSize`,
+   which parses a `category:<name>@<param>` `viewMore` string into
+   `(category, param)` (or `(null, null)` when absent/non-category).
 
-## What I tested and results
+### Deviation from the brief (necessary)
 
-Appended two tests to `test/core/services/watch_history_test.dart` (reusing the file's
-existing `_work`/`_record` helpers):
+The brief's snippets assume `ExplorePage` is in scope in
+`comic_providers.dart`. It is not: `ExplorePage` lives in
+`lib/core/comic/explore_result.dart`, and `comic_source.dart` merely imports it
+without re-exporting. I added
+`import '../../core/comic/explore_result.dart';` so the file compiles. No
+semantic change to the brief's code.
 
-1. `merge keeps a newer local record and takes a newer server record` — asserts local
-   `a` (updatedAt 300) beats server `a` (200), server `b` (500) beats local `b` (100),
-   and every merged record is `dirty == false`.
-2. `record marks dirty and clear writes tombstones plus pendingClear` — records a work,
-   asserts `dirty().single.work.id == 'a'`; clears, asserts `all()` empty,
-   `pendingClear == true`, `dirty().single.deleted == true`; calls `clearPendingClear()`
-   and asserts `pendingClear == false`.
+## Verification
 
-Results:
-- Focused: `flutter test test/core/services/watch_history_test.dart` → `00:00 +6: All tests passed!`
-- `flutter analyze lib test` → `No issues found! (ran in 2.1s)`
-- Full suite: `flutter test` → `00:08 +98: All tests passed!`
+Commands run from `D:\ACGNhub` with `$env:Path = "C:\flutter\bin;$env:Path";`:
 
-The pre-existing persistence/dedupe/clear/malformed-entry test still passes, and
-`clear()` no longer deletes the storage key, so its final `all()` check remains empty
-because the only record is now a filtered tombstone.
-
-## TDD evidence
-
-### RED
-
-Command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/watch_history_test.dart`
-
-Output (excerpt):
-
-```
-test/core/services/watch_history_test.dart:76:40: Error: Member not found: 'WatchHistoryManager.merge'.
-test/core/services/watch_history_test.dart:93:20: Error: The method 'dirty' isn't defined for the type 'WatchHistoryManager'.
-test/core/services/watch_history_test.dart:97:20: Error: The getter 'pendingClear' isn't defined for the type 'WatchHistoryManager'.
-test/core/services/watch_history_test.dart:98:20: Error: The method 'dirty' isn't defined for the type 'WatchHistoryManager'.
-test/core/services/watch_history_test.dart:100:19: Error: The method 'clearPendingClear' isn't defined for the type 'WatchHistoryManager'.
-00:00 +0 -1: Some tests failed.
-```
-
-Why expected: the tests exercise members that did not yet exist, so the test file failed
-to compile before implementation.
-
-### GREEN
-
-Command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/services/watch_history_test.dart`
-
-Output (excerpt):
-
-```
-00:00 +0: upsert dedupes by work id and puts the new record first
-00:00 +1: upsert inserts a new work at the front
-00:00 +2: sortDescending orders by watchedAt newest first
-00:00 +3: persists, dedupes, clears, and skips malformed stored entries
-00:00 +4: merge keeps a newer local record and takes a newer server record
-00:00 +5: record marks dirty and clear writes tombstones plus pendingClear
-00:00 +6: All tests passed!
-```
+| Command | Result |
+| --- | --- |
+| `flutter analyze lib test` | `No issues found! (ran in 1.9s)` |
+| `flutter build windows --debug` | `√ Built build\windows\x64\runner\Debug\acgnhub.exe` |
+| `flutter test` (extra) | `All tests passed!` — 158 passed, 1 skipped (flutter_qjs native lib unavailable under `flutter test`) |
 
 ## Files changed
 
-- `lib/core/services/watch_history.dart` (modified)
-- `test/core/services/watch_history_test.dart` (modified, two tests appended)
-
-Commit: `7796fcb feat(sync): add dirty/tombstone/merge support to watch history`
-(2 files changed, 83 insertions(+), 5 deletions(-))
+- `lib/modules/comic/comic_providers.dart` (1 file, +50 / -12)
 
 ## Self-review findings
 
-- Completeness: all interfaces the brief lists are produced; `record()`/`clear()` set the
-  new fields; `all()` filters before sorting; `_readAll()` is the raw reader; `_save`
-  writes the full list; `upsert`/`sortDescending` retained.
-- Quality: code matches the brief verbatim; existing serialisation on `_pending` for
-  `record()`/`clear()` preserved.
-- YAGNI: no members or behavior beyond the brief.
-- Tests verify real behavior (round-trips through `AppDatabase`/`SharedPreferences`), not
-  just the pure `merge` static; they confirm tombstones survive as `dirty` while being
-  hidden from `all()`.
+- **Import addition:** required (see above); verified `ExplorePage` is not
+  exported from `comic_source.dart`.
+- **No unrelated churn:** running `dart format` with the installed (new
+  tall-style) Dart formatter reformatted the declarations of
+  `comicExploreProvider`, `comicDetailProvider`, and `comicEpProvider`, which
+  were written in the older formatter style. I reverted those three unrelated
+  hunks so the commit contains only the intended change; the final `git diff`
+  was reviewed and is clean.
+- **Consumer check:** the only other reference to `comicExploreAllProvider` is
+  `ref.invalidate(...)` in `comic_home.dart:258`, which is type-agnostic, so the
+  return-type change is safe.
+- **`viewMore` format** confirmed against the C2f design and Task 1 test:
+  `category:<name>@<param>`, e.g. `category:全部@`.
+- **No categoryComics path:** behavior is byte-for-byte equivalent to the prior
+  finite paging (same `maxPage`/`hasNext` formulas).
 
 ## Concerns
 
-- `clear()` writes tombstones one at a time, each iteration re-reading and re-writing the
-  whole list (`O(n²)` I/O). This is exactly what the brief specifies, so I left it as-is;
-  a single batched `_save` would be more efficient if history grows large.
-- `markSynced()` and `mergeFromServer()` are `async` but not serialised on the `_pending`
-  future (unlike `record()`/`clear()`), per the brief. If Task 5 calls them concurrently
-  with a `record()`/`clear()`, a last-writer-wins race is possible. Flagging for Task 5.
-- `merge()` clears `dirty` on any server-supplied record, including when the local record
-  is newer; the local record's content is kept but its `dirty` flag is dropped. This
-  matches the brief and its test, but means a newer unsynced local edit whose work id also
-  appears in the server response would not be re-pushed.
+1. **Empty param after `@`:** for `viewMore: 'category:全部@'`,
+   `_continuationTarget` returns `('全部', '')` — an empty string, not null.
+   `manager.category` uses `param ?? source.categoryParam`, so `''` is passed
+   and the source's default `categoryParam` is *not* applied. This matches the
+   brief exactly, but if the default param is meaningful for such a source,
+   Task 4's fixture/probe should confirm which behavior is intended.
+2. **`viewMore` missing/non-category but `hasCategoryComics == true`:** the
+   continuation falls back to the source's default category
+   (`manager.category` with null `category`/`param`), not necessarily the
+   section's category. This is the documented design intent (§ "Continuation
+   target resolution"), noted for awareness.
+3. Runtime behavior could not be exercised under `flutter test` because the
+   flutter_qjs native library is unavailable there; end-to-end continuation is
+   deferred to the Task 4 app-level probe.
