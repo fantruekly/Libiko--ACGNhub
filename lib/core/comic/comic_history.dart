@@ -93,11 +93,19 @@ class ComicHistoryManager {
     return null;
   }
 
-  Future<void> record(ComicHistoryEntry entry) async {
-    await _save(upsert(all(), entry));
+  Future<void> _pending = Future.value();
+
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next = _pending.then((_) => action());
+    _pending = next.catchError((_) {});
+    return next;
   }
 
-  Future<void> clear() => AppDatabase().remove(_key);
+  Future<void> record(ComicHistoryEntry entry) => _enqueue(() async {
+        await _save(upsert(all(), entry));
+      });
+
+  Future<void> clear() => _enqueue(() => AppDatabase().remove(_key));
 
   Future<void> _save(List<ComicHistoryEntry> entries) async {
     await AppDatabase().setStringList(

@@ -41,15 +41,23 @@ final comicSearchProvider =
         (ref, keyword) async {
   final manager = ref.watch(comicSourceManagerProvider);
   final sources = ref.watch(comicSourcesProvider).valueOrNull ?? const [];
+  final searchable = sources.where((s) => s.canSearch).toList();
+  if (searchable.isEmpty) return const [];
   final results = <ComicSearchResult>[];
-  for (final source in sources.where((s) => s.canSearch)) {
+  Object? lastError;
+  var succeeded = 0;
+  for (final source in searchable) {
     try {
       for (final comic in await manager.search(source, keyword)) {
         results.add(ComicSearchResult(comic: comic, sourceKey: source.key));
       }
-    } catch (_) {
-      // A source that fails is skipped; the others still contribute.
+      succeeded++;
+    } catch (e) {
+      lastError = e;
     }
+  }
+  if (succeeded == 0) {
+    throw StateError('所有漫画源搜索失败：$lastError');
   }
   return results;
 });

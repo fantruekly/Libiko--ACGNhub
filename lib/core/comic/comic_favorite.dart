@@ -58,25 +58,38 @@ class ComicFavoriteManager {
   bool isFavorite(String sourceKey, String comicId) =>
       all().any((f) => f.sourceKey == sourceKey && f.comicId == comicId);
 
-  Future<void> toggle(ComicFavorite favorite) async {
-    final favorites = all();
-    final exists = favorites.any((f) =>
-        f.sourceKey == favorite.sourceKey && f.comicId == favorite.comicId);
-    if (exists) {
-      await remove(favorite.sourceKey, favorite.comicId);
-    } else {
-      await _save(upsert(favorites, favorite));
-    }
+  Future<void> _pending = Future.value();
+
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next = _pending.then((_) => action());
+    _pending = next.catchError((_) {});
+    return next;
   }
 
-  Future<void> remove(String sourceKey, String comicId) async {
-    final favorites = all()
-        .where((f) => !(f.sourceKey == sourceKey && f.comicId == comicId))
-        .toList();
-    await _save(favorites);
-  }
+  Future<void> toggle(ComicFavorite favorite) => _enqueue(() async {
+        final favorites = all();
+        final exists = favorites.any((f) =>
+            f.sourceKey == favorite.sourceKey && f.comicId == favorite.comicId);
+        if (exists) {
+          final remaining = favorites
+              .where((f) =>
+                  !(f.sourceKey == favorite.sourceKey &&
+                      f.comicId == favorite.comicId))
+              .toList();
+          await _save(remaining);
+        } else {
+          await _save(upsert(favorites, favorite));
+        }
+      });
 
-  Future<void> clear() => AppDatabase().remove(_key);
+  Future<void> remove(String sourceKey, String comicId) => _enqueue(() async {
+        final favorites = all()
+            .where((f) => !(f.sourceKey == sourceKey && f.comicId == comicId))
+            .toList();
+        await _save(favorites);
+      });
+
+  Future<void> clear() => _enqueue(() => AppDatabase().remove(_key));
 
   Future<void> _save(List<ComicFavorite> favorites) async {
     await AppDatabase().setStringList(
