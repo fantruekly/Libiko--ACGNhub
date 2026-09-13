@@ -44,4 +44,5 @@ flutter:
   assets:
     - assets/rules/
     - assets/source_rules/
+    - assets/comic_source/
     - assets/anime_seed.json
