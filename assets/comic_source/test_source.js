@@ -56,10 +56,11 @@ class AcgnhubTestSource extends ComicSource {
       title: '最近更新',
       type: 'multiPageComicList',
       load: (page) => ({
-        comics: [
-          new Comic({ id: 'p' + page + '-1', title: 'Page ' + page + ' A' }),
-          new Comic({ id: 'p' + page + '-2', title: 'Page ' + page + ' B' }),
-        ],
+        comics: Array.from(
+          { length: 25 },
+          (_, i) =>
+            new Comic({ id: 'p' + page + '-' + i, title: 'Page ' + page + ' #' + i }),
+        ),
         maxPage: 3,
       }),
     },
@@ -80,7 +81,11 @@ class AcgnhubTestSource extends ComicSource {
       loadNext: (next) => {
         const p = next ? Number(next) : 1;
         return {
-          comics: [new Comic({ id: 'c' + p, title: 'Cursor ' + p })],
+          comics: Array.from(
+            { length: 25 },
+            (_, i) =>
+              new Comic({ id: 'c' + p + '-' + i, title: 'Cursor ' + p + ' #' + i }),
+          ),
           next: p < 3 ? String(p + 1) : null,
         };
       },

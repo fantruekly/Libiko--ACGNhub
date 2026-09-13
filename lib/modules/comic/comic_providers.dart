@@ -92,11 +92,11 @@ final FutureProviderFamily<ExplorePage, (String, int, int)>
   return manager.explore(source, section, page: sourceIndex);
 });
 
-/// `multiPageComicList` sections page on the source; every other section is
-/// loaded once and paginated here at [_explorePageSize] comics per page. A
-/// source that pages by offset without a total (Komiic, zaimanhua) reports no
-/// `maxPage`, so `hasNext` is true while the page still has comics. One-shot
-/// sections continue into the source's category listing after their explore
+/// Server- and cursor-paged sections accumulate source pages (fetched through
+/// [comicSourcePageProvider]) and are sliced here at [_explorePageSize] (48)
+/// comics per page with `maxPage` null, so `hasNext` is true while more source
+/// pages remain. Every other (one-shot) section is loaded once and paginated
+/// here, then continues into the source's category listing after its explore
 /// content.
 final FutureProviderFamily<ComicExplorePage, (String, int, int)>
     comicExploreProvider = FutureProvider.family<ComicExplorePage,
