@@ -6,7 +6,7 @@
 
 **Architecture:** A `JsEngine` (QuickJS via `flutter_qjs`) injects a global `sendMessage` and dispatches `http` / `convert` / `html` / `setting` / `log`. A bundled `assets/comic_source/init.js` re-implements Venera's JS API shape on top of it. `ComicSourceManager` scans/imports/updates sources and maps their JS results into Dart models.
 
-**Tech Stack:** Flutter 3.35, Dart 3, `flutter_qjs` (QuickJS), `dio`, `html`, `crypto`, `pointycastle`, `fast_gbk`.
+**Tech Stack:** Flutter 3.35, Dart 3, `flutter_qjs` (QuickJS), `dio`, `html`, `crypto`, `fast_gbk`.
 
 ## Global Constraints
 
@@ -33,7 +33,7 @@
 
 - [ ] **Step 1: Add the dependencies**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter pub add flutter_qjs crypto pointycastle fast_gbk`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter pub add flutter_qjs crypto fast_gbk`
 Expected: `Got dependencies!` (if `flutter_qjs` or `fast_gbk` cannot resolve, STOP and report — this is the spike's answer).
 
 - [ ] **Step 2: Write the smoke test**
@@ -453,11 +453,9 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_qjs/flutter_qjs.dart';
 import 'package:fast_gbk/fast_gbk.dart';
-import 'package:pointycastle/export.dart' as pc;
 
 import 'html_bridge.dart';
 
@@ -637,18 +635,17 @@ class JsEngine {
 
 Notes for the implementer:
 - `JSInvokable` / `JSRef` come from `flutter_qjs`; the exact way to install a global Dart function is documented in that package's README ("Use Dart Function" / "pass a function to JSInvokable arguments"). If the API differs in the resolved version, adapt `installBridge` and the `_sendMessage` handling to the package's actual API and say so in the report — the requirement is only that JS can call `sendMessage({...})` and get the dispatched result back.
-- The `encrypt` and `pointycastle` imports are for the AES cases; if `encrypt` is not added, implement AES with `pointycastle` directly. `pubspec` must then include `encrypt`. Simplify by adding `encrypt` in Step 4.
+- **AES (`aesEcb`/`aesCbc`) is deferred out of C1.** The spec's `Convert` list includes it but this plan does not implement it, so do NOT add `encrypt`/`pointycastle`; if a source needs AES it will fail loudly and that is the documented scope limit.
 
-- [ ] **Step 4: Add `encrypt` and verify**
+- [ ] **Step 4: Verify**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter pub add encrypt`
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/comic/js_engine_bridge_test.dart` → PASS (5 tests)
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add pubspec.yaml pubspec.lock lib/core/comic/js_engine.dart test/core/comic/js_engine_bridge_test.dart
+git add lib/core/comic/js_engine.dart test/core/comic/js_engine_bridge_test.dart
 git commit -m "feat(comic): add the JS engine bridge (http/convert/html/setting/log)"
 ```
 

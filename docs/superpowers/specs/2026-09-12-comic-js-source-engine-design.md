@@ -47,7 +47,7 @@ Re-implemented to match Venera's **API shape** (function names, arguments, retur
 
 **`Network`**: `sendRequest(method, url, headers, data, extra) → {status, headers, body}`; sugar `get/post/put/delete`; `fetchBytes(...) → ArrayBuffer`; `setCookies/getCookies` (best-effort; C1 only forwards them to Dart's cookie jar, no WebView login).
 
-**`Convert`**: `utf8`, `utf8Encode`, `gbk` (decode), `base64Encode/Decode`, `hexEncode/Decode`, `md5`, `sha1`, `sha256`, `hmac`, `aesEcb`, `aesCbc`.
+**`Convert`**: `utf8`, `utf8Encode`, `gbk` (decode), `base64Encode/Decode`, `hexEncode/Decode`, `md5`, `sha1`, `sha256`, `hmac`. (`aesEcb`/`aesCbc` are **deferred out of C1** — a source needing AES will fail loudly; add them later if a real source requires it.)
 
 **`HtmlDocument` / `HtmlNode`**: `new HtmlDocument(html)`; `querySelector(selector)`, `querySelectorAll(selector)`, `getElementById(id)`, and the accessors `text`, `innerHtml`, `outerHtml`, `attributes`, `attr(name)`, `html`. Every node holds an integer `handle`; all operations call `sendMessage({method: 'html', ...})`.
 
