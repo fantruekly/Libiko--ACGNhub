@@ -38,6 +38,9 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   bool _switchingChapter = false;
   bool _programmaticScroll = false;
   bool _initialJumpDone = false;
+  bool _pendingLandAtEnd = false;
+  bool _resuming = false;
+  DateTime? _lastHistoryWrite;
   Timer? _chromeTimer;
   Timer? _historyTimer;
   final _scrollController = ScrollController();
@@ -96,15 +99,18 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       return const Center(
           child: Text('本章暂无图片', style: TextStyle(color: Colors.white70)));
     }
-    if (!_initialJumpDone) {
-      _initialJumpDone = true;
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _jumpToInitial(images.length));
-    }
+    _scheduleInitialOrLanding(images.length);
     final nav = _nav(details);
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
+        if (notification is ScrollMetricsNotification) {
+          if (_resuming) _applyResumeJump(images.length);
+          return false;
+        }
         if (_programmaticScroll) return false;
+        if (notification is ScrollStartNotification) {
+          _resuming = false;
+        }
         if (notification is! ScrollUpdateNotification &&
             notification is! ScrollEndNotification) {
           return false;
@@ -120,7 +126,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         } else if (metrics.pixels <= 8 &&
             _page == 0 &&
             nav.previous != null) {
-          _goToChapter(nav.previous!);
+          _goToChapter(nav.previous!, atEnd: true);
         }
         return false;
       },
@@ -161,11 +167,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       return const Center(
           child: Text('本章暂无图片', style: TextStyle(color: Colors.white70)));
     }
-    if (!_initialJumpDone) {
-      _initialJumpDone = true;
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _jumpToInitial(images.length));
-    }
+    _scheduleInitialOrLanding(images.length);
     final nav = _nav(details);
     final hasNext = nav.next != null;
     return NotificationListener<OverscrollNotification>(
@@ -173,7 +175,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         if (notification.overscroll < 0 &&
             _page == 0 &&
             nav.previous != null) {
-          _goToChapter(nav.previous!);
+          _goToChapter(nav.previous!, atEnd: true);
         }
         return false;
       },
@@ -207,6 +209,26 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     );
   }
 
+  void _scheduleInitialOrLanding(int total) {
+    if (_pendingLandAtEnd) {
+      _pendingLandAtEnd = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _page = total - 1);
+        _jumpToInitial(total);
+        _preload(_page, total);
+      });
+      return;
+    }
+    if (_initialJumpDone) return;
+    _initialJumpDone = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _jumpToInitial(total);
+      _preload(_page, total);
+    });
+  }
+
   void _jumpToInitial(int total) {
     if (!mounted) return;
     if (ref.read(comicReaderSettingsProvider).mode ==
@@ -214,9 +236,18 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       if (_pageController.hasClients) _pageController.jumpToPage(_page);
       return;
     }
-    if (!_scrollController.hasClients || _page <= 0 || total <= 1) return;
+    if (_page <= 0 || total <= 1) return;
+    _resuming = true;
+    _applyResumeJump(total);
+  }
+
+  void _applyResumeJump(int total) {
+    if (!_resuming || !_scrollController.hasClients || total <= 1) return;
     final max = _scrollController.position.maxScrollExtent;
+    if (max <= 0) return;
     final target = (_page / (total - 1)) * max;
+    final current = _scrollController.position.pixels;
+    if ((current - target).abs() < 1) return;
     _programmaticScroll = true;
     _scrollController.jumpTo(target.clamp(0.0, max));
     _programmaticScroll = false;
@@ -360,9 +391,11 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     return chapterNav(ids, _chapterId);
   }
 
-  void _goToChapter(String chapterId) {
+  void _goToChapter(String chapterId, {bool atEnd = false}) {
     if (_switchingChapter || chapterId == _chapterId) return;
     _switchingChapter = true;
+    _pendingLandAtEnd = atEnd;
+    _resuming = false;
     setState(() {
       _chapterId = chapterId;
       _page = 0;
@@ -378,20 +411,19 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     });
   }
 
-  void _toggleMode() {
+  Future<void> _toggleMode() async {
     final current = ref.read(comicReaderSettingsProvider).mode;
     final next = current == ComicReaderMode.continuousVertical
         ? ComicReaderMode.pageHorizontal
         : ComicReaderMode.continuousVertical;
-    ref.read(comicReaderSettingsProvider.notifier).setMode(next);
+    await ref.read(comicReaderSettingsProvider.notifier).setMode(next);
+    if (!mounted) return;
     _initialJumpDone = true;
     setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _programmaticScroll = true;
       if (next == ComicReaderMode.pageHorizontal) {
         if (_pageController.hasClients) _pageController.jumpToPage(_page);
-        _programmaticScroll = false;
         return;
       }
       final total = ref
@@ -401,23 +433,34 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
               ?.images
               .length ??
           0;
-      if (_scrollController.hasClients && total > 1) {
-        final max = _scrollController.position.maxScrollExtent;
-        _scrollController.jumpTo((_page / (total - 1) * max).clamp(0.0, max));
+      if (total > 1) {
+        _resuming = true;
+        _applyResumeJump(total);
       }
-      _programmaticScroll = false;
     });
   }
 
   void _onPageChanged(int page, int total) {
     if (page == _page) return;
     setState(() => _page = page);
-    _historyTimer?.cancel();
-    _historyTimer = Timer(const Duration(seconds: 1), _recordHistory);
+    _scheduleHistory();
     _preload(page, total);
   }
 
+  void _scheduleHistory() {
+    final now = DateTime.now();
+    final last = _lastHistoryWrite;
+    if (last == null || now.difference(last) >= const Duration(seconds: 1)) {
+      _recordHistory();
+    } else {
+      _historyTimer?.cancel();
+      _historyTimer = Timer(
+          const Duration(seconds: 1) - now.difference(last), _recordHistory);
+    }
+  }
+
   void _recordHistory() {
+    _lastHistoryWrite = DateTime.now();
     final details =
         ref.read(comicDetailProvider((widget.sourceKey, widget.comicId)))
             .valueOrNull;
@@ -456,13 +499,26 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         ref.read(comicDetailProvider((widget.sourceKey, widget.comicId)))
             .valueOrNull;
     final nav = _nav(details);
-    if (nav.next == null) return;
+    if (nav.next != null) {
+      await _preloadChapterImage(nav.next!, last: false);
+    }
+    if (page <= 1 && nav.previous != null) {
+      await _preloadChapterImage(nav.previous!, last: true);
+    }
+  }
+
+  Future<void> _preloadChapterImage(String chapterId,
+      {required bool last}) async {
     try {
-      final nextEp = await ref.read(comicEpProvider(
-          (widget.sourceKey, widget.comicId, nav.next!)).future);
-      if (nextEp.images.isEmpty || !mounted) return;
-      final provider = await imageProvider.resolve(
-          widget.sourceKey, widget.comicId, nav.next!, nextEp.images.first);
+      final ep = await ref
+          .read(comicEpProvider(
+              (widget.sourceKey, widget.comicId, chapterId))
+              .future);
+      if (ep.images.isEmpty || !mounted) return;
+      final url = last ? ep.images.last : ep.images.first;
+      final provider = await ref
+          .read(comicImageProvider)
+          .resolve(widget.sourceKey, widget.comicId, chapterId, url);
       if (mounted) await precacheImage(provider, context);
     } catch (_) {
       // A preload failure must not disturb reading.
