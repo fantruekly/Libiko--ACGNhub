@@ -10,6 +10,7 @@ import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
 import '../../core/services/follow_manager.dart';
 import '../../core/widgets/glass_surface.dart';
+import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
@@ -953,34 +954,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         runSpacing: 10,
         children: [
           for (final ep in eps)
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _playEpisode(ep),
-                borderRadius: BorderRadius.circular(10),
-                hoverColor: const Color(0x1F007AFF),
-                child: Container(
-                  width: 104,
-                  height: 44,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0x0F007AFF),
-                    border: Border.all(color: const Color(0x4D007AFF)),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    ep.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF007AFF)),
-                  ),
-                ),
-              ),
-            ),
+            PillButton(label: ep.title, onTap: () => _playEpisode(ep)),
         ],
       ),
     );

@@ -8,6 +8,7 @@ import '../../core/comic/comic_history.dart';
 import '../../core/comic/models.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
+import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
@@ -349,32 +350,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   }
 
   Widget _chapterButton(String id, String title) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _openReader(id),
-        borderRadius: BorderRadius.circular(10),
-        hoverColor: const Color(0x1F007AFF),
-        child: Container(
-          width: 104,
-          height: 44,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: const Color(0x0F007AFF),
-            border: Border.all(color: const Color(0x4D007AFF)),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w500, color: _accent),
-          ),
-        ),
-      ),
-    );
+    return PillButton(label: title, onTap: () => _openReader(id));
   }
 
   Widget _continueReading(ComicHistoryEntry entry) {
