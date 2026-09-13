@@ -77,6 +77,8 @@ class _DiscoverTab extends ConsumerStatefulWidget {
 class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     with AutomaticKeepAliveClientMixin {
   String? _selectedKey;
+  int _selectedSection = 0;
+  int _page = 1;
 
   @override
   bool get wantKeepAlive => true;
@@ -111,7 +113,8 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _sourceHeader(sources, selected),
-            Expanded(child: _explore(selected.key)),
+            _sectionChips(selected),
+            Expanded(child: _explore(selected)),
           ],
         );
       },
@@ -159,7 +162,11 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
       label: Text(source.name),
       selected: selected,
       showCheckmark: false,
-      onSelected: (_) => setState(() => _selectedKey = source.key),
+      onSelected: (_) => setState(() {
+        _selectedKey = source.key;
+        _selectedSection = 0;
+        _page = 1;
+      }),
       selectedColor: _accent,
       backgroundColor: const Color(0xFFF2F2F7),
       labelStyle: TextStyle(
@@ -174,43 +181,134 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _explore(String sourceKey) {
-    final async = ref.watch(comicExploreProvider(sourceKey));
-    return async.when(
-      loading: () => const ShimmerLoader(
-        crossAxisCount: 6,
-        itemCount: 12,
-        padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
+  Widget _sectionChips(ComicSource source) {
+    if (source.sections.length <= 1) return const SizedBox.shrink();
+    return SizedBox(
+      height: 44,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+        child: Row(
+          children: [
+            for (var i = 0; i < source.sections.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(source.sections[i].title.isEmpty
+                      ? '分区 ${i + 1}'
+                      : source.sections[i].title),
+                  selected: i == _selectedSection,
+                  showCheckmark: false,
+                  onSelected: (_) => setState(() {
+                    _selectedSection = i;
+                    _page = 1;
+                  }),
+                  selectedColor: _accent,
+                  backgroundColor: const Color(0xFFF2F2F7),
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: i == _selectedSection ? Colors.white : _muted,
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  side: BorderSide.none,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+          ],
+        ),
       ),
-      error: (_, __) => EmptyState(
-        icon: Icons.cloud_off_rounded,
-        message: '加载失败',
-        actionLabel: '重试',
-        onAction: () => ref.invalidate(comicExploreProvider(sourceKey)),
-      ),
-      data: (comics) {
-        if (comics.isEmpty) {
-          return const EmptyState(
-              icon: Icons.image_not_supported_rounded, message: '暂无内容');
-        }
-        return _comicGrid(
-          count: comics.length,
-          itemBuilder: (i) => ComicCard(
-            title: comics[i].title,
-            cover: comics[i].cover,
-            heroTag: 'comic_${sourceKey}_${comics[i].id}',
-            onTap: () => Navigator.push(
-              context,
-              smoothRoute(ComicDetailPage(
-                sourceKey: sourceKey,
-                comicId: comics[i].id,
-                title: comics[i].title,
-                cover: comics[i].cover,
-              )),
+    );
+  }
+
+  Widget _explore(ComicSource source) {
+    final sections = source.sections;
+    final section =
+        sections.isEmpty ? 0 : _selectedSection.clamp(0, sections.length - 1);
+    final async =
+        ref.watch(comicExploreProvider((source.key, section, _page)));
+    final pageData = async.valueOrNull;
+
+    return Column(
+      children: [
+        Expanded(
+          child: async.when(
+            loading: () => const ShimmerLoader(
+              crossAxisCount: 6,
+              itemCount: 12,
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
             ),
+            error: (_, __) => EmptyState(
+              icon: Icons.cloud_off_rounded,
+              message: '加载失败',
+              actionLabel: '重试',
+              onAction: () => ref.invalidate(
+                  comicExploreProvider((source.key, section, _page))),
+            ),
+            data: (data) {
+              if (data.comics.isEmpty) {
+                return const EmptyState(
+                    icon: Icons.image_not_supported_rounded, message: '暂无内容');
+              }
+              return _comicGrid(
+                count: data.comics.length,
+                itemBuilder: (i) => ComicCard(
+                  title: data.comics[i].title,
+                  cover: data.comics[i].cover,
+                  heroTag: 'comic_${source.key}_${data.comics[i].id}',
+                  onTap: () => Navigator.push(
+                    context,
+                    smoothRoute(ComicDetailPage(
+                      sourceKey: source.key,
+                      comicId: data.comics[i].id,
+                      title: data.comics[i].title,
+                      cover: data.comics[i].cover,
+                    )),
+                  ),
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+        if (pageData != null && (pageData.hasNext || pageData.page > 1))
+          _paginationBar(pageData),
+      ],
+    );
+  }
+
+  Widget _paginationBar(ComicExplorePage data) {
+    final label = data.maxPage == null
+        ? '第 ${data.page} 页'
+        : '第 ${data.page} / ${data.maxPage} 页';
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: '上一页',
+            icon: const Icon(Icons.chevron_left_rounded),
+            onPressed:
+                data.page > 1 ? () => setState(() => _page = data.page - 1) : null,
+          ),
+          const Spacer(),
+          Text(label, style: const TextStyle(fontSize: 13, color: _muted)),
+          const Spacer(),
+          IconButton(
+            tooltip: '下一页',
+            icon: const Icon(Icons.chevron_right_rounded),
+            onPressed: data.hasNext
+                ? () => setState(() => _page = data.page + 1)
+                : null,
+          ),
+        ],
+      ),
     );
   }
 }

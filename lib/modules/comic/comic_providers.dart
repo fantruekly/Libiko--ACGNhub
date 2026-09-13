@@ -15,17 +15,71 @@ final comicSourcesProvider = FutureProvider<List<ComicSource>>((ref) async {
   return manager.sources;
 });
 
-/// The first explore section's first page for a source.
-final comicExploreProvider =
-    FutureProvider.family<List<Comic>, String>((ref, sourceKey) async {
+/// One page of an explore section.
+class ComicExplorePage {
+  final List<Comic> comics;
+  final int page;
+  final int? maxPage;
+  final bool hasNext;
+  final bool serverPaged;
+
+  const ComicExplorePage({
+    required this.comics,
+    required this.page,
+    this.maxPage,
+    required this.hasNext,
+    required this.serverPaged,
+  });
+}
+
+const _explorePageSize = 30;
+
+/// `multiPageComicList` sections page on the source; every other section is
+/// loaded once and paginated here at [_explorePageSize] comics per page. A
+/// source that pages by offset without a total (Komiic, zaimanhua) reports no
+/// `maxPage`, so `hasNext` is true while the page still has comics.
+final FutureProviderFamily<ComicExplorePage, (String, int, int)>
+    comicExploreProvider = FutureProvider.family<ComicExplorePage,
+        (String, int, int)>((ref, key) async {
+  final (sourceKey, section, page) = key;
   final manager = ref.watch(comicSourceManagerProvider);
   final source = ref
       .watch(comicSourcesProvider)
       .valueOrNull
       ?.where((s) => s.key == sourceKey)
       .firstOrNull;
-  if (source == null || !source.canExplore) return const [];
-  return (await manager.explore(source, 0)).comics;
+  if (source == null) throw StateError('source $sourceKey not loaded');
+  final type = section >= 0 && section < source.sections.length
+      ? source.sections[section].type
+      : '';
+  if (type == 'multiPageComicList') {
+    final result = await manager.explore(source, section, page: page);
+    final maxPage = result.maxPage;
+    return ComicExplorePage(
+      comics: result.comics,
+      page: page,
+      maxPage: maxPage == null || maxPage < 1 ? null : maxPage,
+      hasNext: maxPage != null ? page < maxPage : result.comics.isNotEmpty,
+      serverPaged: true,
+    );
+  }
+  final all = page == 1
+      ? (await manager.explore(source, section, page: 1)).comics
+      : (await ref.watch(
+              comicExploreProvider((sourceKey, section, 1)).future))
+          .comics;
+  final maxPage =
+      all.isEmpty ? 1 : (all.length + _explorePageSize - 1) ~/ _explorePageSize;
+  final start = (page - 1) * _explorePageSize;
+  final end = (start + _explorePageSize).clamp(0, all.length);
+  final comics = start >= all.length ? const <Comic>[] : all.sublist(start, end);
+  return ComicExplorePage(
+    comics: comics,
+    page: page,
+    maxPage: maxPage,
+    hasNext: page < maxPage,
+    serverPaged: false,
+  );
 });
 
 /// A search hit paired with the source that produced it (a comic id is only
