@@ -10,7 +10,9 @@
 
 ## Global Constraints
 
-- **Task 1 is a go/no-go spike.** If `flutter_qjs` cannot build for Windows, or JS cannot be evaluated, STOP and report — do not invent a workaround.
+- **Task 1 is a go/no-go spike.** If the engine cannot build for Windows, or JS cannot be evaluated, STOP and report — do not invent a workaround.
+- **Test-harness constraint (learned in Task 1):** `flutter test` cannot load the QuickJS native library (`flutter_qjs_plugin.dll`, error 126), so **any test that instantiates `JsEngine` must be run as an app-level probe** — write a `.superpowers/sdd/<name>_probe.dart` target and run `flutter run -d windows -t <file>`, asserting with `stdout.writeln` + `exit(0)`. Pure-Dart units (`html_bridge`, `models`, `ComicSource.parseForTest`) still run under `flutter test`. Tasks 3 and 6 are affected.
+- The fork's `FlutterQjs.evaluate` is synchronous; `JsEngine.evaluate` keeps a `Future<dynamic>` signature by wrapping it (`async =>`), and Promise results are still awaited by the engine.
 - `sendMessage` is the single Dart↔JS bridge entry point; every bridge call goes through it.
 - The JS API library is **re-implemented to match Venera's API shape** — never copy Venera's GPL `init.js`.
 - `http` uses its own `Dio` with 15 s timeouts and `validateStatus: (_) => true`, injecting a default browser UA when the JS did not set one.
