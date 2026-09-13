@@ -485,7 +485,7 @@ git commit -m "feat(comic): add the local comic history store"
 
 **Interfaces:**
 - Consumes: `ComicSourceManager`/`Comic`/`ComicDetails`/`ComicEp`/`ImageLoadingConfig` (C1).
-- Produces: `final comicSourceManagerProvider = Provider<ComicSourceManager>(...)`; `final comicSourcesProvider = FutureProvider<List<ComicSource>>(...)`; `final comicExploreProvider = FutureProvider.family<List<Comic>, String>(...)` (sourceKey → the first explore section's first page); `final comicSearchProvider = FutureProvider.family<List<Comic>, String>(...)` (keyword → merged results across sources); `final comicDetailProvider = FutureProvider.family<ComicDetails, (String, String)>(...)`; `final comicEpProvider = FutureProvider.family<ComicEp, (String, String, String)>(...)`; `final comicSourceListUrlProvider` (a `NotifierProvider<..., String>` over `AppDatabase` key `comic_source_list_url`); `class ComicImageProvider` with `static ImageProvider of(String sourceKey, String comicId, String chapterId, String url)`.
+- Produces: `final comicSourceManagerProvider = Provider<ComicSourceManager>(...)`; `final comicSourcesProvider = FutureProvider<List<ComicSource>>(...)`; `final comicExploreProvider = FutureProvider.family<List<Comic>, String>(...)` (sourceKey → the first explore section's first page); `final comicSearchProvider = FutureProvider.family<List<ComicSearchResult>, String>(...)` (keyword → merged results across sources); `final comicDetailProvider = FutureProvider.family<ComicDetails, (String, String)>(...)`; `final comicEpProvider = FutureProvider.family<ComicEp, (String, String, String)>(...)`; `class ComicSearchResult { final Comic comic; final String sourceKey; }`; `class ComicImageProvider` with `Future<ImageProvider> resolve(sourceKey, comicId, chapterId, url)`; and `final comicImageProvider`. (`comicSourceListUrlProvider` is NOT defined here — Task 4 adds it.)
 
 - [ ] **Step 1: Create `lib/modules/comic/comic_providers.dart`**
 
@@ -683,7 +683,7 @@ class _ComicHomePageState extends ConsumerState<ComicHomePage> {
 `Scaffold(appBar: AppBar(title: Text('源管理')), body: ListView(...))`:
 - For each source in `ref.watch(comicSourcesProvider)`: a `ListTile` with the name as title, `key · v${version}` as subtitle, capability chips (`搜索`/`发现`/`详情`/`章节`), a trailing `PopupMenuButton` with 刷新 (enabled only when `url.isNotEmpty`) and 删除 (confirm dialog → `manager.remove(source)` then `ref.invalidate(comicSourcesProvider)`).
 - A 添加源 section: a `TextField` + a 从 URL 导入 `FilledButton`; a 从文件导入 `OutlinedButton` using `file_selector`'s `openFile(acceptedTypeGroups: [XTypeGroup(label: 'JS 源', extensions: ['js'])])`; both call `manager.importFromUrl`/`importFromFile`, show a `SnackBar` on success, and show the `FormatException`/error message inline (red 13 px) on failure; then `ref.invalidate(comicSourcesProvider)`.
-- A 远程规则列表 section: a `TextField` bound to `comic_source_list_url`, a 获取列表 button that GETs the JSON list and renders each entry with an 添加 button calling `manager.importFromUrl(entry['url'])`.
+- A 远程规则列表 section: a `TextField` bound to a `comicSourceListUrlProvider` that Task 4 must add to `comic_providers.dart` — a `NotifierProvider<ComicSourceListUrlNotifier, String>` whose `build()` reads `AppDatabase().getString('comic_source_list_url') ?? ''` and whose `set(String)` writes it back. A 获取列表 button GETs the JSON list and renders each entry with an 添加 button calling `manager.importFromUrl(entry['url'])`.
 
 - [ ] **Step 3: Analyze, test, build**
 
