@@ -26,6 +26,31 @@ class AcgnhubTestSource extends ComicSource {
     onImageLoad: (url) => ({ url: url, headers: { 'referer': 'http://test/' } }),
   };
 
+  category = {
+    title: '测试分类',
+    parts: [
+      {
+        name: '类型',
+        type: 'fixed',
+        categories: ['全部'],
+        categoryParams: [''],
+        itemType: 'category',
+      },
+    ],
+  };
+
+  categoryComics = {
+    load: (category, param, options, page) => ({
+      comics: [
+        new Comic({ id: 'cat' + page + '-1', title: 'Cat ' + page + ' A' }),
+        new Comic({ id: 'cat' + page + '-2', title: 'Cat ' + page + ' B' }),
+        new Comic({ id: 'cat' + page + '-3', title: 'Cat ' + page + ' C' }),
+      ],
+      maxPage: 2,
+    }),
+    optionList: [],
+  };
+
   explore = [
     {
       title: '最近更新',
@@ -41,10 +66,13 @@ class AcgnhubTestSource extends ComicSource {
     {
       title: '分类',
       type: 'singlePageWithMultiPart',
-      load: () => ({
-        '冒险': [new Comic({ id: 'a1', title: 'Adventure 1' })],
-        '日常': [new Comic({ id: 'd1', title: 'Daily 1' })],
-      }),
+      load: () => ([
+        {
+          title: '冒险',
+          comics: [new Comic({ id: 'a1', title: 'Adventure 1' })],
+          viewMore: 'category:全部@',
+        },
+      ]),
     },
     {
       title: '游标',
