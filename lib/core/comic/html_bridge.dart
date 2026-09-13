@@ -7,7 +7,7 @@ import 'package:html/parser.dart' as html_parser;
 /// Handles are evicted in FIFO order (oldest first, regardless of use), not
 /// true LRU, once more than [_capacity] nodes are live.
 class HtmlBridge {
-  HtmlBridge({int capacity = 1024}) : _capacity = capacity;
+  HtmlBridge({int capacity = 16384}) : _capacity = capacity;
 
   final int _capacity;
 
