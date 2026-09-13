@@ -24,24 +24,43 @@ class ComicHomePage extends ConsumerStatefulWidget {
 class _ComicHomePageState extends ConsumerState<ComicHomePage> {
   @override
   Widget build(BuildContext context) {
-    return const DefaultTabController(
+    return DefaultTabController(
       length: 3,
-      child: Column(
-        children: [
-          TabBar(
-            labelColor: _accent,
-            unselectedLabelColor: _muted,
-            indicatorColor: _accent,
-            dividerColor: Color(0xFFE5E5EA),
-            tabs: [Tab(text: '发现'), Tab(text: '收藏'), Tab(text: '历史')],
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [_DiscoverTab(), _FavoritesTab(), _HistoryTab()],
-            ),
-          ),
-        ],
+      child: Builder(
+        builder: (context) {
+          final controller = DefaultTabController.of(context);
+          return Column(
+            children: [
+              const TabBar(
+                labelColor: _accent,
+                unselectedLabelColor: _muted,
+                indicatorColor: _accent,
+                dividerColor: Color(0xFFE5E5EA),
+                tabs: [Tab(text: '发现'), Tab(text: '收藏'), Tab(text: '历史')],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _heroTab(controller, 0, const _DiscoverTab()),
+                    _heroTab(controller, 1, const _FavoritesTab()),
+                    _heroTab(controller, 2, const _HistoryTab()),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  /// Heroes are only registered for the visible tab, so the same comic mounted
+  /// in two kept-alive tabs cannot collide on its `Hero` tag.
+  static Widget _heroTab(TabController controller, int index, Widget child) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) =>
+          HeroMode(enabled: controller.index == index, child: child),
     );
   }
 }
