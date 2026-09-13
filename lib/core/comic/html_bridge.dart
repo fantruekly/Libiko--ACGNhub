@@ -7,7 +7,9 @@ import 'package:html/parser.dart' as html_parser;
 /// Handles are evicted in FIFO order (oldest first, regardless of use), not
 /// true LRU, once more than [_capacity] nodes are live.
 class HtmlBridge {
-  static const _capacity = 64;
+  HtmlBridge({int capacity = 1024}) : _capacity = capacity;
+
+  final int _capacity;
 
   final Map<int, dom.Node> _nodes = {};
   final List<int> _order = [];
@@ -44,6 +46,19 @@ class HtmlBridge {
         ? node.querySelectorAll(selector)
         : (node as dom.Element).querySelectorAll(selector);
     return found.map(_store).toList();
+  }
+
+  List<int> children(int handle) {
+    final node = _get(handle);
+    if (node is dom.Document) {
+      return (node.body?.children ?? const <dom.Element>[])
+          .map(_store)
+          .toList();
+    }
+    if (node is dom.Element) {
+      return node.children.map(_store).toList();
+    }
+    return const [];
   }
 
   int? getElementById(int handle, String id) {

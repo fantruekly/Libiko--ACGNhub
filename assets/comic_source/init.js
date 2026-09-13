@@ -90,6 +90,7 @@
     get html() { return this.innerHtml; }
     get outerHtml() { return call({ method: 'html', op: 'outerHtml', handle: this._h }); }
     get attributes() { return call({ method: 'html', op: 'attributes', handle: this._h }); }
+    get children() { return (call({ method: 'html', op: 'children', handle: this._h }) || []).map(wrap); }
     attr(name) { return call({ method: 'html', op: 'attr', handle: this._h, name: name }); }
   }
 

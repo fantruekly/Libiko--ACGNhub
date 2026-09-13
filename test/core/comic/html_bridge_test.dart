@@ -12,7 +12,7 @@ const _html = '''
 
 void main() {
   late HtmlBridge bridge;
-  setUp(() => bridge = HtmlBridge());
+  setUp(() => bridge = HtmlBridge(capacity: 64));
   tearDown(() => bridge.dispose());
 
   test('querySelector / text / attr / attributes', () {
@@ -56,6 +56,16 @@ void main() {
     bridge.free(a);
     expect(bridge.text(a), '');
     expect(bridge.text(999999), '');
+  });
+
+  test('children returns element children in order', () {
+    final doc = bridge.parse(_html);
+    final main = bridge.getElementById(doc, 'main')!;
+    final kids = bridge.children(main);
+    expect(kids, hasLength(3));
+    expect(bridge.text(kids[0]), 'One');
+    expect(bridge.text(kids[1]), 'Two');
+    expect(bridge.text(kids[2]), 'Text');
   });
 
   test('the FIFO eviction drops the oldest handles beyond capacity', () {

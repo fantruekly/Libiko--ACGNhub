@@ -209,6 +209,8 @@ class JsEngine {
         return _html.attributes(handle);
       case 'attr':
         return _html.attr(handle, map['name'] as String);
+      case 'children':
+        return _html.children(handle);
       case 'free':
         _html.free(handle);
         return null;
