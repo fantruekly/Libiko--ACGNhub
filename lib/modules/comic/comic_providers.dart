@@ -22,6 +22,7 @@ class ComicExplorePage {
   final int? maxPage;
   final bool hasNext;
   final bool serverPaged;
+  final String? next;
 
   const ComicExplorePage({
     required this.comics,
@@ -29,6 +30,7 @@ class ComicExplorePage {
     this.maxPage,
     required this.hasNext,
     required this.serverPaged,
+    this.next,
   });
 }
 
@@ -63,9 +65,27 @@ final FutureProviderFamily<ComicExplorePage, (String, int, int)>
       ?.where((s) => s.key == sourceKey)
       .firstOrNull;
   if (source == null) throw StateError('source $sourceKey not loaded');
-  final type = section >= 0 && section < source.sections.length
-      ? source.sections[section].type
-      : '';
+  final sectionMeta = section >= 0 && section < source.sections.length
+      ? source.sections[section]
+      : null;
+  final type = sectionMeta?.type ?? '';
+  if (sectionMeta?.usesLoadNext == true) {
+    final cursor = page <= 1
+        ? null
+        : (await ref.watch(
+                comicExploreProvider((sourceKey, section, page - 1)).future))
+            .next;
+    final result =
+        await manager.explore(source, section, page: page, cursor: cursor);
+    return ComicExplorePage(
+      comics: result.comics,
+      page: page,
+      maxPage: null,
+      hasNext: result.next != null,
+      serverPaged: true,
+      next: result.next,
+    );
+  }
   if (type == 'multiPageComicList') {
     final result = await manager.explore(source, section, page: page);
     final rawMax = result.maxPage;

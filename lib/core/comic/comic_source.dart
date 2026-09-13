@@ -17,8 +17,10 @@ import 'models.dart';
 class ComicSourceSection {
   final String title;
   final String type;
+  final bool usesLoadNext;
 
-  const ComicSourceSection({required this.title, required this.type});
+  const ComicSourceSection(
+      {required this.title, required this.type, this.usesLoadNext = false});
 }
 
 class ComicSource {
@@ -99,6 +101,7 @@ class ComicSource {
         .map((e) => ComicSourceSection(
               title: e['title']?.toString() ?? '',
               type: e['type']?.toString() ?? '',
+              usesLoadNext: e['usesLoadNext'] == true,
             ))
         .toList();
   }
@@ -196,7 +199,11 @@ globalThis.__acgnhub_registerSource = function (key) {
       loadEp: !!(s.comic && s.comic.loadEp),
       onImageLoad: !!(s.comic && s.comic.onImageLoad),
       sections: (Array.isArray(s.explore) ? s.explore : []).map(function (e) {
-        return { title: e.title || '', type: e.type || '' };
+        return {
+          title: e.title || '',
+          type: e.type || '',
+          usesLoadNext: typeof e.loadNext === 'function'
+        };
       })
     };
   };
