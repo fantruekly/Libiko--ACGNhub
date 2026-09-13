@@ -35,6 +35,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   late int _page;
   bool _chromeVisible = true;
   bool _switchingChapter = false;
+  bool _programmaticScroll = false;
   bool _initialJumpDone = false;
   Timer? _chromeTimer;
   Timer? _historyTimer;
@@ -97,6 +98,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final nav = _nav(details);
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
+        if (_programmaticScroll) return false;
         if (notification is! ScrollUpdateNotification &&
             notification is! ScrollEndNotification) {
           return false;
@@ -118,18 +120,31 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       },
       child: ListView.builder(
         controller: _scrollController,
-        itemCount: images.length,
-        itemBuilder: (context, i) => GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _toggleChrome,
-          child: _ReaderImage(
-            key: ValueKey('$_chapterId-$i'),
-            sourceKey: widget.sourceKey,
-            comicId: widget.comicId,
-            chapterId: _chapterId,
-            url: images[i],
-          ),
-        ),
+        itemCount: images.length + (nav.next != null ? 1 : 0),
+        itemBuilder: (context, i) {
+          if (i >= images.length) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: FilledButton(
+                  onPressed: () => _goToChapter(nav.next!),
+                  child: const Text('下一章'),
+                ),
+              ),
+            );
+          }
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleChrome,
+            child: _ReaderImage(
+              key: ValueKey('$_chapterId-$i'),
+              sourceKey: widget.sourceKey,
+              comicId: widget.comicId,
+              chapterId: _chapterId,
+              url: images[i],
+            ),
+          );
+        },
       ),
     );
   }
@@ -139,7 +154,9 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     if (_page <= 0 || total <= 1) return;
     final max = _scrollController.position.maxScrollExtent;
     final target = (_page / (total - 1)) * max;
+    _programmaticScroll = true;
     _scrollController.jumpTo(target.clamp(0.0, max));
+    _programmaticScroll = false;
   }
 
   Widget _topBar(ComicDetails? details) {
@@ -276,7 +293,11 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     _recordHistory();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      if (_scrollController.hasClients) {
+        _programmaticScroll = true;
+        _scrollController.jumpTo(0);
+        _programmaticScroll = false;
+      }
       _switchingChapter = false;
     });
   }
