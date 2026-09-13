@@ -307,6 +307,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
               message: '加载失败',
               actionLabel: '重试',
               onAction: () {
+                clearExploreCache(source.key, section);
                 ref.invalidate(comicSourcePageProvider);
                 ref.invalidate(
                     comicExploreAllProvider((source.key, section)));

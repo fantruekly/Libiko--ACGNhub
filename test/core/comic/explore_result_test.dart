@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:acgnhub/core/comic/explore_result.dart';
 
@@ -181,5 +183,48 @@ void main() {
       ],
     });
     expect(page.viewMore, 'category:z@w');
+  });
+
+  test('round-trips through JSON', () {
+    final page = parseExploreResult({
+      'comics': [
+        {
+          'id': '1',
+          'title': 'A',
+          'cover': 'c1',
+          'tags': ['t1', 't2'],
+          'description': 'd',
+        },
+      ],
+      'parts': [
+        {
+          'title': 'p1',
+          'comics': [
+            {'id': '2', 'title': 'B', 'subtitle': 's'},
+          ],
+          'viewMore': 'category:x@y',
+        },
+      ],
+      'maxPage': 5,
+      'next': 'cur',
+    });
+    final restored = ExplorePage.fromJson(
+      json.decode(json.encode(page.toJson())) as Map<String, dynamic>,
+    );
+    expect(restored.maxPage, 5);
+    expect(restored.next, 'cur');
+    expect(restored.viewMore, 'category:x@y');
+    expect(restored.comics.map((c) => c.id), page.comics.map((c) => c.id));
+    expect(restored.comics.first.tags, ['t1', 't2']);
+    expect(restored.parts.single.title, 'p1');
+    expect(restored.parts.single.comics.single.subtitle, 's');
+    expect(restored.parts.single.viewMore, 'category:x@y');
+  });
+
+  test('fromJson tolerates a minimal payload', () {
+    final restored = ExplorePage.fromJson(const {});
+    expect(restored.comics, isEmpty);
+    expect(restored.parts, isEmpty);
+    expect(restored.maxPage, isNull);
   });
 }

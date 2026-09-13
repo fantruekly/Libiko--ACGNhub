@@ -138,7 +138,8 @@
     loadSetting(key) {
       const v = call({ method: 'setting', op: 'get', key: 'source_setting.' + this.key + '.' + key });
       if (v !== null && v !== undefined && v !== '') return v;
-      const decl = this.settings ? this.settings[key] : null;
+      const source = this.__acgnhub_origSettings || this.settings;
+      const decl = source ? source[key] : null;
       if (decl === null || decl === undefined) return null;
       if (typeof decl === 'object') {
         return Object.prototype.hasOwnProperty.call(decl, 'default')

@@ -8,6 +8,21 @@ class ComicPart {
   final String? viewMore;
 
   const ComicPart({required this.title, required this.comics, this.viewMore});
+
+  factory ComicPart.fromJson(Map<String, dynamic> json) => ComicPart(
+        title: json['title']?.toString() ?? '',
+        comics: (json['comics'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => Comic.fromJson(e.cast<String, dynamic>()))
+            .toList(),
+        viewMore: json['viewMore']?.toString(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'comics': comics.map((e) => e.toJson()).toList(),
+        if (viewMore != null) 'viewMore': viewMore,
+      };
 }
 
 /// A normalized explore/search result: the flattened comics, the titled parts
@@ -25,6 +40,28 @@ class ExplorePage {
       this.next,
       this.viewMore,
       this.parts = const []});
+
+  factory ExplorePage.fromJson(Map<String, dynamic> json) => ExplorePage(
+        comics: (json['comics'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => Comic.fromJson(e.cast<String, dynamic>()))
+            .toList(),
+        maxPage: (json['maxPage'] as num?)?.toInt(),
+        next: json['next']?.toString(),
+        viewMore: json['viewMore']?.toString(),
+        parts: (json['parts'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => ComicPart.fromJson(e.cast<String, dynamic>()))
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'comics': comics.map((e) => e.toJson()).toList(),
+        if (maxPage != null) 'maxPage': maxPage,
+        if (next != null) 'next': next,
+        if (viewMore != null) 'viewMore': viewMore,
+        'parts': parts.map((e) => e.toJson()).toList(),
+      };
 }
 
 /// Normalizes the shapes a Venera source can return from `search.load` /

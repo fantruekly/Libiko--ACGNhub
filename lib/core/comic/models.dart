@@ -62,6 +62,24 @@ class Comic {
         tags: _stringList(json['tags']),
         description: json['description']?.toString(),
       );
+
+  factory Comic.fromJson(Map<String, dynamic> json) => Comic(
+        id: json['id']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        subtitle: json['subtitle']?.toString(),
+        cover: json['cover']?.toString(),
+        tags: _stringList(json['tags']),
+        description: json['description']?.toString(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        if (subtitle != null) 'subtitle': subtitle,
+        if (cover != null) 'cover': cover,
+        if (tags.isNotEmpty) 'tags': tags,
+        if (description != null) 'description': description,
+      };
 }
 
 class ComicDetails {

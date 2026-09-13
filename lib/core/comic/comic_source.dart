@@ -226,6 +226,7 @@ globalThis.__acgnhub_registerSource = function (key) {
   const cls = globalThis.__acgnhub_pending[key];
   if (!cls) throw new Error('comic source not declared: ' + key);
   const s = new cls();
+  if (s.settings) s.__acgnhub_origSettings = Object.assign({}, s.settings);
   const finish = function () {
     globalThis.__acgnhub_sources[s.key] = s;
     delete globalThis.__acgnhub_pending[s.key];

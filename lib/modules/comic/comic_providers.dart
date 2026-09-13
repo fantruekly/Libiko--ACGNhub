@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_image.dart';
@@ -85,11 +87,51 @@ Future<ComicExplorePage> buildAlignedExplorePage({
   return (name, param);
 }
 
-/// The full one-shot result for a non-server-paged section (cached per
-/// section), including its `viewMore` target.
+/// How long an explore result stays usable from the on-disk cache.
+const _exploreCacheTtl = Duration(minutes: 10);
+
+String _exploreCacheKey(String sourceKey, int section) =>
+    'comic_explore_cache.$sourceKey.$section';
+
+/// Drops the on-disk explore cache for a section so the next load refetches.
+void clearExploreCache(String sourceKey, int section) {
+  AppDatabase().setString(_exploreCacheKey(sourceKey, section), '');
+}
+
+ExplorePage? _readExploreCache(String sourceKey, int section) {
+  final raw = AppDatabase().getString(_exploreCacheKey(sourceKey, section));
+  if (raw == null || raw.isEmpty) return null;
+  try {
+    final map = json.decode(raw) as Map<String, dynamic>;
+    final ts = (map['ts'] as num).toInt();
+    if (DateTime.now().millisecondsSinceEpoch - ts >
+        _exploreCacheTtl.inMilliseconds) {
+      return null;
+    }
+    return ExplorePage.fromJson((map['page'] as Map).cast<String, dynamic>());
+  } catch (_) {
+    return null;
+  }
+}
+
+void _writeExploreCache(String sourceKey, int section, ExplorePage page) {
+  AppDatabase().setString(
+    _exploreCacheKey(sourceKey, section),
+    json.encode({
+      'ts': DateTime.now().millisecondsSinceEpoch,
+      'page': page.toJson(),
+    }),
+  );
+}
+
+/// The full one-shot result for a non-server-paged section, cached per section
+/// (in memory and on disk for [_exploreCacheTtl]), including its `viewMore`
+/// target.
 final comicExploreAllProvider =
     FutureProvider.family<ExplorePage, (String, int)>((ref, key) async {
   final (sourceKey, section) = key;
+  final cached = _readExploreCache(sourceKey, section);
+  if (cached != null) return cached;
   final manager = ref.watch(comicSourceManagerProvider);
   final source = ref
       .watch(comicSourcesProvider)
@@ -97,7 +139,9 @@ final comicExploreAllProvider =
       ?.where((s) => s.key == sourceKey)
       .firstOrNull;
   if (source == null) throw StateError('source $sourceKey not loaded');
-  return manager.explore(source, section, page: 1);
+  final page = await manager.explore(source, section, page: 1);
+  _writeExploreCache(sourceKey, section, page);
+  return page;
 });
 
 /// One source page for a server- or cursor-paged section. Cursor sections
