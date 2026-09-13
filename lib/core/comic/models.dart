@@ -1,3 +1,42 @@
+Map<String, String> _chapters(dynamic raw) {
+  final out = <String, String>{};
+  void add(dynamic value) {
+    if (value is! Map) return;
+    for (final entry in value.entries) {
+      final child = entry.value;
+      if (child is Map) {
+        add(child);
+      } else {
+        out[entry.key.toString()] = child?.toString() ?? '';
+      }
+    }
+  }
+
+  add(raw);
+  return out;
+}
+
+List<String> _stringList(dynamic raw) {
+  final out = <String>[];
+  void add(dynamic value) {
+    if (value is List) {
+      for (final item in value) {
+        add(item);
+      }
+    } else if (value is Map) {
+      for (final item in value.values) {
+        add(item);
+      }
+    } else if (value != null) {
+      final text = value.toString();
+      if (text.isNotEmpty) out.add(text);
+    }
+  }
+
+  add(raw);
+  return out;
+}
+
 class Comic {
   final String id;
   final String title;
@@ -20,8 +59,7 @@ class Comic {
         title: json['title']?.toString() ?? '',
         subtitle: json['subtitle']?.toString(),
         cover: json['cover']?.toString(),
-        tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ??
-            const [],
+        tags: _stringList(json['tags']),
         description: json['description']?.toString(),
       );
 }
@@ -52,16 +90,10 @@ class ComicDetails {
         title: json['title']?.toString() ?? '',
         subtitle: json['subtitle']?.toString(),
         cover: json['cover']?.toString(),
-        tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ??
-            const [],
+        tags: _stringList(json['tags']),
         description: json['description']?.toString(),
-        chapters: (json['chapters'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), v.toString()),
-            ) ??
-            const {},
-        recommendIds:
-            (json['recommend'] as List?)?.map((e) => e.toString()).toList() ??
-                const [],
+        chapters: _chapters(json['chapters']),
+        recommendIds: _stringList(json['recommend']),
       );
 }
 

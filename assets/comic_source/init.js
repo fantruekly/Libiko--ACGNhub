@@ -145,6 +145,11 @@
     };
   };
 
+  globalThis.APP = {
+    version: '1.5.0',
+    locale: 'zh_CN',
+  };
+
   globalThis.ComicSource = ComicSource;
   globalThis.Comic = Comic;
   globalThis.ComicDetails = ComicDetails;

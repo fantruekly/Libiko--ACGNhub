@@ -37,6 +37,30 @@ void main() {
     expect(details.recommendIds, ['x', 'y']);
   });
 
+  test('Comic.fromJs flattens a map of tags', () {
+    final comic = Comic.fromJs({
+      'id': '1',
+      'title': 'T',
+      'tags': {
+        '作者': ['Alice'],
+        '标签': ['Action', 'Comedy'],
+      },
+    });
+    expect(comic.tags, ['Alice', 'Action', 'Comedy']);
+  });
+
+  test('ComicDetails.fromJs flattens grouped chapters', () {
+    final details = ComicDetails.fromJs({
+      'id': '1',
+      'title': 'T',
+      'chapters': {
+        '第一卷': {'c1': '第1话', 'c2': '第2话'},
+        '第二卷': {'c3': '第3话'},
+      },
+    });
+    expect(details.chapters, {'c1': '第1话', 'c2': '第2话', 'c3': '第3话'});
+  });
+
   test('ComicEp.fromJs maps the image list', () {
     final ep = ComicEp.fromJs({'images': ['u1', 'u2']});
     expect(ep.images, ['u1', 'u2']);
