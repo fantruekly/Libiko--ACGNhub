@@ -449,13 +449,41 @@ class ComicSourceManager {
   }
 
   List<Comic> _comicsFrom(dynamic result) {
-    if (result is! Map) return const [];
-    final comics = result['comics'];
-    if (comics is! List) return const [];
-    return comics
-        .whereType<Map>()
-        .map((e) => Comic.fromJs(e.cast<dynamic, dynamic>()))
-        .toList();
+    final out = <Comic>[];
+    void addComics(dynamic list) {
+      if (list is! List) return;
+      out.addAll(list
+          .whereType<Map>()
+          .map((e) => Comic.fromJs(e.cast<dynamic, dynamic>())));
+    }
+
+    void addParts(dynamic parts) {
+      if (parts is! List) return;
+      for (final part in parts) {
+        if (part is Map) addComics(part['comics']);
+      }
+    }
+
+    if (result is List) {
+      // Venera `multiPartPage`: a list of {title, comics} parts.
+      addParts(result);
+    } else if (result is Map) {
+      final comics = result['comics'];
+      final parts = result['parts'];
+      if (comics is List) {
+        addComics(comics);
+      }
+      if (parts is List) {
+        addParts(parts);
+      }
+      if (comics is! List && parts is! List) {
+        // Venera `singlePageWithMultiPart`: a map of section title -> comics.
+        for (final value in result.values) {
+          addComics(value);
+        }
+      }
+    }
+    return out;
   }
 
   void dispose() => _engine.dispose();
