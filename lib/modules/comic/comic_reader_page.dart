@@ -1,0 +1,451 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:window_manager/window_manager.dart';
+
+import '../../core/comic/comic_history.dart';
+import '../../core/comic/models.dart';
+import '../../core/comic/reader_nav.dart';
+import '../../core/widgets/window_controls.dart';
+import 'comic_providers.dart';
+
+const _muted = Color(0xFF8E8E93);
+
+class ComicReaderPage extends ConsumerStatefulWidget {
+  final String sourceKey;
+  final String comicId;
+  final String chapterId;
+  final int initialPage;
+
+  const ComicReaderPage({
+    super.key,
+    required this.sourceKey,
+    required this.comicId,
+    required this.chapterId,
+    this.initialPage = 0,
+  });
+
+  @override
+  ConsumerState<ComicReaderPage> createState() => _ComicReaderPageState();
+}
+
+class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
+  late String _chapterId;
+  late int _page;
+  bool _chromeVisible = true;
+  bool _switchingChapter = false;
+  bool _initialJumpDone = false;
+  Timer? _chromeTimer;
+  Timer? _historyTimer;
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _chapterId = widget.chapterId;
+    _page = widget.initialPage;
+    _showChrome();
+  }
+
+  @override
+  void dispose() {
+    _chromeTimer?.cancel();
+    _historyTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final epAsync = ref.watch(
+        comicEpProvider((widget.sourceKey, widget.comicId, _chapterId)));
+    final details =
+        ref.watch(comicDetailProvider((widget.sourceKey, widget.comicId)))
+            .valueOrNull;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: epAsync.when(
+              loading: () => const Center(
+                  child: CircularProgressIndicator(color: Colors.white54)),
+              error: (_, __) => _chapterError(),
+              data: (ep) => _continuous(ep, details),
+            ),
+          ),
+          if (_chromeVisible) _topBar(details),
+          if (_chromeVisible) _bottomBar(epAsync.valueOrNull, details),
+        ],
+      ),
+    );
+  }
+
+  Widget _continuous(ComicEp ep, ComicDetails? details) {
+    final images = ep.images;
+    if (images.isEmpty) {
+      return const Center(
+          child: Text('本章暂无图片', style: TextStyle(color: Colors.white70)));
+    }
+    if (!_initialJumpDone) {
+      _initialJumpDone = true;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _jumpToInitial(images.length));
+    }
+    final nav = _nav(details);
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is! ScrollUpdateNotification &&
+            notification is! ScrollEndNotification) {
+          return false;
+        }
+        final metrics = notification.metrics;
+        final page = currentPageFromScroll(
+            metrics.pixels, metrics.maxScrollExtent, images.length);
+        _onPageChanged(page, images.length);
+        if (metrics.maxScrollExtent > 0 &&
+            metrics.pixels >= metrics.maxScrollExtent - 8 &&
+            nav.next != null) {
+          _goToChapter(nav.next!);
+        } else if (metrics.pixels <= 8 &&
+            _page == 0 &&
+            nav.previous != null) {
+          _goToChapter(nav.previous!);
+        }
+        return false;
+      },
+      child: ListView.builder(
+        controller: _scrollController,
+        itemCount: images.length,
+        itemBuilder: (context, i) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _toggleChrome,
+          child: _ReaderImage(
+            key: ValueKey('$_chapterId-$i'),
+            sourceKey: widget.sourceKey,
+            comicId: widget.comicId,
+            chapterId: _chapterId,
+            url: images[i],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _jumpToInitial(int total) {
+    if (!mounted || !_scrollController.hasClients) return;
+    if (_page <= 0 || total <= 1) return;
+    final max = _scrollController.position.maxScrollExtent;
+    final target = (_page / (total - 1)) * max;
+    _scrollController.jumpTo(target.clamp(0.0, max));
+  }
+
+  Widget _topBar(ComicDetails? details) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: DragToMoveArea(
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.only(left: 4),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFFFFF),
+            border: Border(
+                bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () => Navigator.pop(context),
+                splashRadius: 20,
+              ),
+              Expanded(
+                child: Text(
+                  details?.title ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1C1C1E)),
+                ),
+              ),
+              const WindowControls(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomBar(ComicEp? ep, ComicDetails? details) {
+    final total = ep?.images.length ?? 0;
+    final chapterTitle = details?.chapters[_chapterId] ?? '';
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFFFFF),
+          border:
+              Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+        ),
+        child: Row(
+          children: [
+            TextButton.icon(
+              onPressed: () => _openChapterList(details),
+              icon: const Icon(Icons.list_rounded, size: 18),
+              label: const Text('目录'),
+            ),
+            const Spacer(),
+            Flexible(
+              child: Text(
+                chapterTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: _muted),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${total == 0 ? 0 : _page + 1} / $total',
+              style: const TextStyle(fontSize: 13, color: _muted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openChapterList(ComicDetails? details) {
+    final chapters = details?.chapters.entries.toList() ?? const [];
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFFFFFFFF),
+      builder: (ctx) => ListView.builder(
+        itemCount: chapters.length,
+        itemBuilder: (_, i) {
+          final entry = chapters[i];
+          return ListTile(
+            title: Text(entry.value),
+            selected: entry.key == _chapterId,
+            selectedColor: const Color(0xFF007AFF),
+            onTap: () {
+              Navigator.pop(ctx);
+              _goToChapter(entry.key);
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _toggleChrome() {
+    _chromeTimer?.cancel();
+    setState(() => _chromeVisible = !_chromeVisible);
+    if (_chromeVisible) _showChrome();
+  }
+
+  void _showChrome() {
+    _chromeTimer?.cancel();
+    if (!_chromeVisible) setState(() => _chromeVisible = true);
+    _chromeTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _chromeVisible = false);
+    });
+  }
+
+  ChapterNav _nav(ComicDetails? details) {
+    final ids = details?.chapters.keys.toList() ?? const <String>[];
+    return chapterNav(ids, _chapterId);
+  }
+
+  void _goToChapter(String chapterId) {
+    if (_switchingChapter || chapterId == _chapterId) return;
+    _switchingChapter = true;
+    setState(() {
+      _chapterId = chapterId;
+      _page = 0;
+    });
+    _recordHistory();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      _switchingChapter = false;
+    });
+  }
+
+  void _onPageChanged(int page, int total) {
+    if (page == _page) return;
+    setState(() => _page = page);
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(seconds: 1), _recordHistory);
+    _preload(page, total);
+  }
+
+  void _recordHistory() {
+    final details =
+        ref.read(comicDetailProvider((widget.sourceKey, widget.comicId)))
+            .valueOrNull;
+    final chapterTitle = details?.chapters[_chapterId] ?? _chapterId;
+    ref.read(comicHistoryProvider.notifier).record(ComicHistoryEntry(
+          sourceKey: widget.sourceKey,
+          comicId: widget.comicId,
+          title: details?.title ?? '',
+          cover: details?.cover,
+          chapterId: _chapterId,
+          chapterTitle: chapterTitle,
+          page: _page,
+          readAt: DateTime.now(),
+        ));
+  }
+
+  Future<void> _preload(int page, int total) async {
+    final images = ref
+        .read(comicEpProvider(
+            (widget.sourceKey, widget.comicId, _chapterId)))
+        .valueOrNull
+        ?.images;
+    if (images == null) return;
+    final imageProvider = ref.read(comicImageProvider);
+    for (final index in preloadIndices(page, total)) {
+      try {
+        final provider = await imageProvider.resolve(
+            widget.sourceKey, widget.comicId, _chapterId, images[index]);
+        if (!mounted) return;
+        await precacheImage(provider, context);
+      } catch (_) {
+        // A preload failure must not disturb reading.
+      }
+    }
+    final details =
+        ref.read(comicDetailProvider((widget.sourceKey, widget.comicId)))
+            .valueOrNull;
+    final nav = _nav(details);
+    if (nav.next == null) return;
+    try {
+      final nextEp = await ref.read(comicEpProvider(
+          (widget.sourceKey, widget.comicId, nav.next!)).future);
+      if (nextEp.images.isEmpty || !mounted) return;
+      final provider = await imageProvider.resolve(
+          widget.sourceKey, widget.comicId, nav.next!, nextEp.images.first);
+      if (mounted) await precacheImage(provider, context);
+    } catch (_) {
+      // A preload failure must not disturb reading.
+    }
+  }
+
+  Widget _chapterError() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline_rounded,
+              color: Colors.white54, size: 40),
+          const SizedBox(height: 12),
+          const Text('章节加载失败', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () => ref.invalidate(comicEpProvider(
+                (widget.sourceKey, widget.comicId, _chapterId))),
+            child: const Text('重试'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReaderImage extends ConsumerStatefulWidget {
+  final String sourceKey;
+  final String comicId;
+  final String chapterId;
+  final String url;
+
+  const _ReaderImage({
+    super.key,
+    required this.sourceKey,
+    required this.comicId,
+    required this.chapterId,
+    required this.url,
+  });
+
+  @override
+  ConsumerState<_ReaderImage> createState() => _ReaderImageState();
+}
+
+class _ReaderImageState extends ConsumerState<_ReaderImage> {
+  late Future<ImageProvider> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReaderImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url ||
+        oldWidget.chapterId != widget.chapterId) {
+      _resolve();
+    }
+  }
+
+  void _resolve() {
+    _future = ref.read(comicImageProvider).resolve(
+        widget.sourceKey, widget.comicId, widget.chapterId, widget.url);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ImageProvider>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return _retry();
+        if (!snapshot.hasData) return _loading();
+        return Image(
+          image: snapshot.data!,
+          fit: BoxFit.contain,
+          width: double.infinity,
+          errorBuilder: (_, __, ___) => _retry(),
+          loadingBuilder: (context, child, progress) =>
+              progress == null ? child : _loading(),
+        );
+      },
+    );
+  }
+
+  Widget _loading() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 48),
+      child: Center(child: CircularProgressIndicator(color: Colors.white38)),
+    );
+  }
+
+  Widget _retry() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.broken_image_outlined,
+                color: Colors.white54, size: 36),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => setState(_resolve),
+              child: const Text('重试', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

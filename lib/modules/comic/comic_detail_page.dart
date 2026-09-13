@@ -9,8 +9,10 @@ import '../../core/comic/models.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_providers.dart';
+import 'comic_reader_page.dart';
 
 const _accent = Color(0xFF007AFF);
 const _muted = Color(0xFF8E8E93);
@@ -106,12 +108,13 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   }
 
   Widget _content(ComicDetails details) {
+    final history = _historyEntry();
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _infoCard(details)),
         SliverToBoxAdapter(child: _chapterSection(details)),
-        if (_historyEntry() != null)
-          SliverToBoxAdapter(child: _continueReading()),
+        if (history != null)
+          SliverToBoxAdapter(child: _continueReading(history)),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
@@ -319,7 +322,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                 runSpacing: 10,
                 children: [
                   for (final chapter in chapters)
-                    _chapterButton(chapter.value),
+                    _chapterButton(chapter.key, chapter.value),
                 ],
               ),
           ],
@@ -328,11 +331,11 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     );
   }
 
-  Widget _chapterButton(String title) {
+  Widget _chapterButton(String id, String title) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => _showReaderPlaceholder(),
+        onTap: () => _openReader(id),
         borderRadius: BorderRadius.circular(10),
         hoverColor: const Color(0x1F007AFF),
         child: Container(
@@ -357,7 +360,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     );
   }
 
-  Widget _continueReading() {
+  Widget _continueReading(ComicHistoryEntry entry) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: SizedBox(
@@ -372,7 +375,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          onPressed: () => _showReaderPlaceholder(),
+          onPressed: () => _openReader(entry.chapterId, entry.page),
           icon: const Icon(Icons.menu_book_rounded, size: 18),
           label: const Text('继续阅读',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
@@ -392,9 +395,16 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     return null;
   }
 
-  void _showReaderPlaceholder() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('阅读器开发中')));
+  void _openReader(String chapterId, [int page = 0]) {
+    Navigator.push(
+      context,
+      smoothRoute(ComicReaderPage(
+        sourceKey: widget.sourceKey,
+        comicId: widget.comicId,
+        chapterId: chapterId,
+        initialPage: page,
+      )),
+    );
   }
 
   Widget _coverPlaceholder(ColorScheme cs) {

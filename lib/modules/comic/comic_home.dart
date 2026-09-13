@@ -10,6 +10,7 @@ import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import 'comic_detail_page.dart';
 import 'comic_providers.dart';
+import 'comic_reader_page.dart';
 import 'comic_source_page.dart';
 
 const _accent = Color(0xFF007AFF);
@@ -298,11 +299,11 @@ Widget _historyRow(BuildContext context, ComicHistoryEntry entry) {
     borderRadius: BorderRadius.circular(10),
     onTap: () => Navigator.push(
       context,
-      smoothRoute(ComicDetailPage(
+      smoothRoute(ComicReaderPage(
         sourceKey: entry.sourceKey,
         comicId: entry.comicId,
-        title: entry.title,
-        cover: entry.cover,
+        chapterId: entry.chapterId,
+        initialPage: entry.page,
       )),
     ),
     child: Padding(
