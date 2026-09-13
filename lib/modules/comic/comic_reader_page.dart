@@ -71,6 +71,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         ref.watch(comicDetailProvider((widget.sourceKey, widget.comicId)))
             .valueOrNull;
     final settings = ref.watch(comicReaderSettingsProvider);
+    final showChrome = _chromeVisible || !epAsync.hasValue;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -80,14 +81,18 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
             child: epAsync.when(
               loading: () => const Center(
                   child: CircularProgressIndicator(color: _muted)),
-              error: (_, __) => _chapterError(),
+              error: (_, __) => GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleChrome,
+                child: _chapterError(),
+              ),
               data: (ep) => settings.mode == ComicReaderMode.pageHorizontal
                   ? _horizontal(ep, details)
                   : _continuous(ep, details),
             ),
           ),
-          if (_chromeVisible) _topBar(details),
-          if (_chromeVisible) _bottomBar(epAsync.valueOrNull, details, settings),
+          if (showChrome) _topBar(details),
+          if (showChrome) _bottomBar(epAsync.valueOrNull, details, settings),
         ],
       ),
     );
