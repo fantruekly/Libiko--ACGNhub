@@ -313,9 +313,16 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
             ),
             const SizedBox(height: 12),
             if (chapters.isEmpty)
-              Text('暂无章节',
-                  style: TextStyle(
-                      fontSize: 13, color: cs.onSurface.withValues(alpha: 0.4)))
+              _canLoadEp()
+                  ? Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [_chapterButton('', '开始阅读')],
+                    )
+                  : Text('暂无章节',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: cs.onSurface.withValues(alpha: 0.4)))
             else
               Wrap(
                 spacing: 10,
@@ -329,6 +336,16 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         ),
       ),
     );
+  }
+
+  bool _canLoadEp() {
+    return ref
+            .watch(comicSourcesProvider)
+            .valueOrNull
+            ?.where((s) => s.key == widget.sourceKey)
+            .firstOrNull
+            ?.canLoadEp ??
+        false;
   }
 
   Widget _chapterButton(String id, String title) {

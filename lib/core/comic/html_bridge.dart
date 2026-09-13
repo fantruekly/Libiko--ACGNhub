@@ -78,8 +78,8 @@ class HtmlBridge {
 
   String text(int handle) {
     final node = _get(handle);
-    if (node is dom.Document) return node.body?.text.trim() ?? '';
-    return node?.text?.trim() ?? '';
+    if (node is dom.Document) return node.body?.text ?? '';
+    return node?.text ?? '';
   }
 
   String innerHtml(int handle) {

@@ -4,20 +4,31 @@
   const call = (obj) => sendMessage(obj);
 
   class Comic {
-    constructor({ id, title, subtitle, cover, tags, description } = {}) {
-      this.id = id || ''; this.title = title || '';
-      this.subtitle = subtitle; this.cover = cover;
-      this.tags = tags || []; this.description = description;
+    constructor(o = {}) {
+      this.id = ''; this.title = '';
+      this.subtitle = null; this.cover = null;
+      this.tags = []; this.description = null;
+      Object.assign(this, o);
+      if (this.id == null) this.id = '';
+      if (this.title == null) this.title = '';
+      if (this.tags == null) this.tags = [];
     }
   }
 
   class ComicDetails {
     constructor(o = {}) {
-      this.id = o.id || ''; this.title = o.title || '';
-      this.subtitle = o.subtitle; this.cover = o.cover;
-      this.tags = o.tags || []; this.description = o.description;
-      this.chapters = o.chapters || {}; this.thumbnails = o.thumbnails || [];
-      this.recommend = o.recommend || []; this.stars = o.stars;
+      this.id = ''; this.title = '';
+      this.subtitle = null; this.cover = null;
+      this.tags = []; this.description = null;
+      this.chapters = {}; this.thumbnails = [];
+      this.recommend = []; this.stars = null;
+      Object.assign(this, o);
+      if (this.id == null) this.id = '';
+      if (this.title == null) this.title = '';
+      if (this.tags == null) this.tags = [];
+      if (this.chapters == null) this.chapters = {};
+      if (this.thumbnails == null) this.thumbnails = [];
+      if (this.recommend == null) this.recommend = [];
     }
   }
 
@@ -103,6 +114,7 @@
     get attributes() { return call({ method: 'html', op: 'attributes', handle: this._h }); }
     get children() { return (call({ method: 'html', op: 'children', handle: this._h }) || []).map(wrap); }
     attr(name) { return call({ method: 'html', op: 'attr', handle: this._h, name: name }); }
+    dispose() { call({ method: 'html', op: 'free', handle: this._h }); }
   }
 
   class HtmlDocument extends HtmlNode {
@@ -162,6 +174,10 @@
     };
   };
 
+  class Comment {
+    constructor(o = {}) { Object.assign(this, o); }
+  }
+
   globalThis.createUuid = function () {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
       const r = (Math.random() * 16) | 0;
@@ -176,6 +192,7 @@
   };
 
   globalThis.Cookie = Cookie;
+  globalThis.Comment = Comment;
   globalThis.ComicSource = ComicSource;
   globalThis.Comic = Comic;
   globalThis.ComicDetails = ComicDetails;
