@@ -36,6 +36,10 @@ class ComicSource {
   final bool canLoadEp;
   final bool canOnImageLoad;
   final List<ComicSourceSection> sections;
+  final bool hasCategoryComics;
+  final String categoryDefault;
+  final String categoryParam;
+  final List<String> categoryOptions;
 
   const ComicSource({
     required this.name,
@@ -50,6 +54,10 @@ class ComicSource {
     this.canLoadEp = false,
     this.canOnImageLoad = false,
     this.sections = const [],
+    this.hasCategoryComics = false,
+    this.categoryDefault = '',
+    this.categoryParam = '',
+    this.categoryOptions = const [],
   });
 
   static final _classRe =
@@ -78,6 +86,8 @@ class ComicSource {
       return v.trim();
     }
 
+    final category = meta['category'];
+
     return ComicSource(
       name: req('name'),
       key: req('key'),
@@ -91,6 +101,10 @@ class ComicSource {
       canLoadEp: meta['loadEp'] == true,
       canOnImageLoad: meta['onImageLoad'] == true,
       sections: _sectionsFrom(meta['sections']),
+      hasCategoryComics: _hasCategory(category),
+      categoryDefault: _categoryStr(category, 'category'),
+      categoryParam: _categoryStr(category, 'param'),
+      categoryOptions: _categoryList(category, 'options'),
     );
   }
 
@@ -104,6 +118,18 @@ class ComicSource {
               usesLoadNext: e['usesLoadNext'] == true,
             ))
         .toList();
+  }
+
+  static bool _hasCategory(dynamic raw) => raw is Map && raw['hasComics'] == true;
+
+  static String _categoryStr(dynamic raw, String key) =>
+      raw is Map ? (raw[key]?.toString() ?? '') : '';
+
+  static List<String> _categoryList(dynamic raw, String key) {
+    if (raw is! Map) return const [];
+    final list = raw[key];
+    if (list is! List) return const [];
+    return list.map((e) => e.toString()).toList();
   }
 
   /// Pure text check used by the parser tests and before evaluation.
@@ -204,7 +230,26 @@ globalThis.__acgnhub_registerSource = function (key) {
           type: e.type || '',
           usesLoadNext: typeof e.loadNext === 'function' && typeof e.load !== 'function'
         };
-      })
+      }),
+      category: (function () {
+        const c = s.category;
+        const cc = s.categoryComics;
+        const parts = c && Array.isArray(c.parts) ? c.parts : [];
+        const part = parts.length ? parts[0] : null;
+        const cats = part && Array.isArray(part.categories) ? part.categories : [];
+        const params = part && Array.isArray(part.categoryParams) ? part.categoryParams : [];
+        const optList = cc && Array.isArray(cc.optionList) ? cc.optionList : [];
+        const options = optList.map(function (o) {
+          const opts = o && Array.isArray(o.options) ? o.options : [];
+          return opts.length ? String(opts[0]).split('-')[0] : '';
+        });
+        return {
+          hasComics: !!(cc && typeof cc.load === 'function'),
+          category: cats.length ? String(cats[0]) : '',
+          param: params.length ? String(params[0]) : '',
+          options: options
+        };
+      })()
     };
   };
   if (typeof s.init === 'function') {
@@ -438,6 +483,26 @@ class ComicSourceManager {
           return await sec.loadNext(${cursor == null ? 'undefined' : jsonEncode(cursor)});
         }
         return { comics: [], maxPage: 1 };
+      })()
+    ''');
+    return parseExploreResult(result);
+  }
+
+  Future<ExplorePage> category(ComicSource source, int page,
+      {String? category, String? param, List<String>? options}) async {
+    await _ensureInitialized();
+    if (!source.hasCategoryComics) return const ExplorePage(comics: []);
+    final cat = category ?? source.categoryDefault;
+    final par = param ?? source.categoryParam;
+    final opts = options ?? source.categoryOptions;
+    final result = await _engine.evaluate('''
+      (async () => {
+        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+        if (!s.categoryComics || typeof s.categoryComics.load !== 'function') {
+          return { comics: [], maxPage: 1 };
+        }
+        return await s.categoryComics.load(${jsonEncode(cat)}, ${jsonEncode(par)},
+          ${jsonEncode(opts)}, $page);
       })()
     ''');
     return parseExploreResult(result);
