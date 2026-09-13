@@ -534,14 +534,14 @@ class ComicSourceManager {
     await _ensureInitialized();
     if (!source.hasLogin) return false;
     try {
-      await _engine.evaluate('''
+      final ok = await _engine.evaluate('''
         (async () => {
           const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
-          await s.account.login(${jsonEncode(username)}, ${jsonEncode(password)});
-          return true;
+          const result = await s.account.login(${jsonEncode(username)}, ${jsonEncode(password)});
+          return result !== false;
         })()
       ''');
-      return true;
+      return ok == true;
     } catch (_) {
       return false;
     }
