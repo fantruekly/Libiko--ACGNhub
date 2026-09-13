@@ -374,6 +374,26 @@ class ComicSourceManager {
         debugPrint('[ComicSourceManager] skipped ${entity.path}: $e');
       }
     }
+    _applyOrder(AppDatabase().getStringList(_orderKey));
+  }
+
+  static const _orderKey = 'comic_source_order';
+
+  void _applyOrder(List<String> order) {
+    if (order.isEmpty) return;
+    _sources.sort((a, b) {
+      final ia = order.indexOf(a.key);
+      final ib = order.indexOf(b.key);
+      if (ia == -1 && ib == -1) return 0;
+      if (ia == -1) return 1;
+      if (ib == -1) return -1;
+      return ia.compareTo(ib);
+    });
+  }
+
+  Future<void> saveOrder(List<String> keys) async {
+    await AppDatabase().setStringList(_orderKey, keys);
+    _applyOrder(keys);
   }
 
   Future<ComicSource> _evaluateSource(String script, String fileName) async {

@@ -26,6 +26,8 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   String? _listError;
   bool _loadingList = false;
   List<Map<String, dynamic>> _remoteEntries = const [];
+  bool _reordering = false;
+  List<ComicSource> _draft = const [];
 
   @override
   void initState() {
@@ -45,19 +47,67 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   @override
   Widget build(BuildContext context) {
     final sourcesAsync = ref.watch(comicSourcesProvider);
+    final hasSources = (sourcesAsync.valueOrNull ?? const []).isNotEmpty;
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
-      appBar: AppBar(title: const Text('源管理')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          ..._sourceSection(sourcesAsync),
-          const SizedBox(height: 24),
-          _addSection(),
-          const SizedBox(height: 24),
-          _remoteListSection(),
+      appBar: AppBar(
+        title: const Text('源管理'),
+        actions: [
+          if (hasSources)
+            IconButton(
+              tooltip: _reordering ? '完成' : '排序',
+              icon: Icon(
+                  _reordering ? Icons.check_rounded : Icons.sort_rounded),
+              onPressed: _toggleReorder,
+            ),
         ],
       ),
+      body: _reordering
+          ? _reorderBody()
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: [
+                ..._sourceSection(sourcesAsync),
+                const SizedBox(height: 24),
+                _addSection(),
+                const SizedBox(height: 24),
+                _remoteListSection(),
+              ],
+            ),
+    );
+  }
+
+  Future<void> _toggleReorder() async {
+    if (_reordering) {
+      await _manager.saveOrder(_draft.map((s) => s.key).toList());
+      ref.invalidate(comicSourcesProvider);
+      if (mounted) setState(() => _reordering = false);
+      return;
+    }
+    final sources = ref.read(comicSourcesProvider).valueOrNull ?? const [];
+    setState(() {
+      _draft = List.of(sources);
+      _reordering = true;
+    });
+  }
+
+  Widget _reorderBody() {
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      buildDefaultDragHandles: false,
+      itemCount: _draft.length,
+      onReorder: (oldIndex, newIndex) {
+        setState(() {
+          if (newIndex > oldIndex) newIndex -= 1;
+          final item = _draft.removeAt(oldIndex);
+          _draft.insert(newIndex, item);
+        });
+      },
+      itemBuilder: (context, index) {
+        final source = _draft[index];
+        return _sourceTile(source,
+            key: ValueKey(source.key), reorderIndex: index);
+      },
     );
   }
 
@@ -99,7 +149,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     );
   }
 
-  Widget _sourceTile(ComicSource source) {
+  Widget _sourceTile(ComicSource source, {Key? key, int? reorderIndex}) {
     final caps = <String>[
       if (source.canSearch) '搜索',
       if (source.canExplore) '发现',
@@ -107,6 +157,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       if (source.canLoadEp) '章节',
     ];
     return Card(
+      key: key,
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       color: Colors.white,
@@ -129,23 +180,28 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
             const SizedBox(height: 4),
           ],
         ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'account') _openAccount(source);
-            if (value == 'refresh') _refresh(source);
-            if (value == 'delete') _confirmDelete(source);
-          },
-          itemBuilder: (_) => [
-            if (source.hasLogin || source.hasCookieLogin)
-              const PopupMenuItem(value: 'account', child: Text('账号')),
-            PopupMenuItem(
-              value: 'refresh',
-              enabled: source.url.isNotEmpty,
-              child: const Text('刷新'),
-            ),
-            const PopupMenuItem(value: 'delete', child: Text('删除')),
-          ],
-        ),
+        trailing: reorderIndex != null
+            ? ReorderableDragStartListener(
+                index: reorderIndex,
+                child: const Icon(Icons.drag_handle_rounded, color: _muted),
+              )
+            : PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'account') _openAccount(source);
+                  if (value == 'refresh') _refresh(source);
+                  if (value == 'delete') _confirmDelete(source);
+                },
+                itemBuilder: (_) => [
+                  if (source.hasLogin || source.hasCookieLogin)
+                    const PopupMenuItem(value: 'account', child: Text('账号')),
+                  PopupMenuItem(
+                    value: 'refresh',
+                    enabled: source.url.isNotEmpty,
+                    child: const Text('刷新'),
+                  ),
+                  const PopupMenuItem(value: 'delete', child: Text('删除')),
+                ],
+              ),
       ),
     );
   }
