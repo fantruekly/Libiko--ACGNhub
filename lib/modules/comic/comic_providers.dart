@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/comic/comic_image.dart';
 import '../../core/comic/comic_reader_settings.dart';
 import '../../core/comic/comic_source.dart';
+import '../../core/comic/explore_result.dart';
 import '../../core/comic/models.dart';
 import '../../core/storage/database.dart';
 
@@ -36,9 +37,20 @@ class ComicExplorePage {
 
 const _explorePageSize = 48;
 
-/// The full one-shot list for a non-server-paged section (cached per section).
+(String?, String?) _continuationTarget(String? viewMore) {
+  if (viewMore == null || !viewMore.startsWith('category:')) {
+    return (null, null);
+  }
+  final rest = viewMore.substring('category:'.length);
+  final at = rest.indexOf('@');
+  if (at < 0) return (rest, null);
+  return (rest.substring(0, at), rest.substring(at + 1));
+}
+
+/// The full one-shot result for a non-server-paged section (cached per
+/// section), including its `viewMore` target.
 final comicExploreAllProvider =
-    FutureProvider.family<List<Comic>, (String, int)>((ref, key) async {
+    FutureProvider.family<ExplorePage, (String, int)>((ref, key) async {
   final (sourceKey, section) = key;
   final manager = ref.watch(comicSourceManagerProvider);
   final source = ref
@@ -47,7 +59,7 @@ final comicExploreAllProvider =
       ?.where((s) => s.key == sourceKey)
       .firstOrNull;
   if (source == null) throw StateError('source $sourceKey not loaded');
-  return (await manager.explore(source, section, page: 1)).comics;
+  return manager.explore(source, section, page: 1);
 });
 
 /// `multiPageComicList` sections page on the source; every other section is
@@ -98,19 +110,45 @@ final FutureProviderFamily<ComicExplorePage, (String, int, int)>
       serverPaged: true,
     );
   }
-  final all =
+  final explore =
       await ref.watch(comicExploreAllProvider((sourceKey, section)).future);
-  final maxPage =
+  final all = explore.comics;
+  final explorePages =
       all.isEmpty ? 1 : (all.length + _explorePageSize - 1) ~/ _explorePageSize;
-  final start = (page - 1) * _explorePageSize;
-  final end = (start + _explorePageSize).clamp(0, all.length);
-  final comics = start >= all.length ? const <Comic>[] : all.sublist(start, end);
+  if (page <= explorePages) {
+    final start = (page - 1) * _explorePageSize;
+    final end = (start + _explorePageSize).clamp(0, all.length);
+    final comics =
+        start >= all.length ? const <Comic>[] : all.sublist(start, end);
+    return ComicExplorePage(
+      comics: comics,
+      page: page,
+      maxPage: source.hasCategoryComics ? null : explorePages,
+      hasNext: source.hasCategoryComics || page < explorePages,
+      serverPaged: false,
+    );
+  }
+  if (!source.hasCategoryComics) {
+    return ComicExplorePage(
+      comics: const [],
+      page: page,
+      maxPage: explorePages,
+      hasNext: false,
+      serverPaged: false,
+    );
+  }
+  final catPage = page - explorePages;
+  final (cat, param) = _continuationTarget(explore.viewMore);
+  final result =
+      await manager.category(source, catPage, category: cat, param: param);
   return ComicExplorePage(
-    comics: comics,
+    comics: result.comics,
     page: page,
-    maxPage: maxPage,
-    hasNext: page < maxPage,
-    serverPaged: false,
+    maxPage: null,
+    hasNext: result.maxPage != null
+        ? catPage < result.maxPage!
+        : result.comics.isNotEmpty,
+    serverPaged: true,
   );
 });
 
