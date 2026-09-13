@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -128,14 +129,32 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     Navigator.push(context, smoothRoute(const ComicSourcePage()));
   }
 
+  Widget _horizontalScroll(
+      {required EdgeInsets padding, required Widget child}) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: const {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: padding,
+        child: child,
+      ),
+    );
+  }
+
   Widget _sourceHeader(List<ComicSource> sources, ComicSource selected) {
     return SizedBox(
       height: 48,
       child: Row(
         children: [
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            child: _horizontalScroll(
               padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
               child: Row(
                 children: [
@@ -188,8 +207,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     if (source.sections.length <= 1) return const SizedBox.shrink();
     return SizedBox(
       height: 44,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      child: _horizontalScroll(
         padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
         child: Row(
           children: [
