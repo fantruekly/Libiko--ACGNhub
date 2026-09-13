@@ -75,7 +75,15 @@
     constructor() {
       this.name = ''; this.key = ''; this.version = ''; this.url = '';
     }
-    loadSetting(key) { return call({ method: 'setting', op: 'get', key: this.key + '.' + key }); }
+    loadSetting(key) {
+      const v = call({ method: 'setting', op: 'get', key: this.key + '.' + key });
+      if (v !== null && v !== undefined && v !== '') return v;
+      const decl = this.settings ? this.settings[key] : null;
+      if (decl && Object.prototype.hasOwnProperty.call(decl, 'default')) {
+        return decl.default;
+      }
+      return null;
+    }
     saveSetting(key, value) { return call({ method: 'setting', op: 'set', key: this.key + '.' + key, value: value }); }
   }
 
