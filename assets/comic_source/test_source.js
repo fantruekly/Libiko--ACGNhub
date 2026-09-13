@@ -25,4 +25,26 @@ class AcgnhubTestSource extends ComicSource {
     loadEp: (comicId, epId) => ({ images: ['http://img/1.jpg', 'http://img/2.jpg'] }),
     onImageLoad: (url) => ({ url: url, headers: { 'referer': 'http://test/' } }),
   };
+
+  explore = [
+    {
+      title: '最近更新',
+      type: 'multiPageComicList',
+      load: (page) => ({
+        comics: [
+          new Comic({ id: 'p' + page + '-1', title: 'Page ' + page + ' A' }),
+          new Comic({ id: 'p' + page + '-2', title: 'Page ' + page + ' B' }),
+        ],
+        maxPage: 3,
+      }),
+    },
+    {
+      title: '分类',
+      type: 'singlePageWithMultiPart',
+      load: () => ({
+        '冒险': [new Comic({ id: 'a1', title: 'Adventure 1' })],
+        '日常': [new Comic({ id: 'd1', title: 'Daily 1' })],
+      }),
+    },
+  ];
 }

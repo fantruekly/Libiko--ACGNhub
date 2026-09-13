@@ -25,7 +25,7 @@ final comicExploreProvider =
       ?.where((s) => s.key == sourceKey)
       .firstOrNull;
   if (source == null || !source.canExplore) return const [];
-  return manager.explore(source, 0);
+  return (await manager.explore(source, 0)).comics;
 });
 
 /// A search hit paired with the source that produced it (a comic id is only

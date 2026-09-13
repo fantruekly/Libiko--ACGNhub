@@ -10,8 +10,16 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../storage/database.dart';
+import 'explore_result.dart';
 import 'js_engine.dart';
 import 'models.dart';
+
+class ComicSourceSection {
+  final String title;
+  final String type;
+
+  const ComicSourceSection({required this.title, required this.type});
+}
 
 class ComicSource {
   final String name;
@@ -25,6 +33,7 @@ class ComicSource {
   final bool canLoadInfo;
   final bool canLoadEp;
   final bool canOnImageLoad;
+  final List<ComicSourceSection> sections;
 
   const ComicSource({
     required this.name,
@@ -38,6 +47,7 @@ class ComicSource {
     this.canLoadInfo = false,
     this.canLoadEp = false,
     this.canOnImageLoad = false,
+    this.sections = const [],
   });
 
   static final _classRe =
@@ -78,7 +88,19 @@ class ComicSource {
       canLoadInfo: meta['loadInfo'] == true,
       canLoadEp: meta['loadEp'] == true,
       canOnImageLoad: meta['onImageLoad'] == true,
+      sections: _sectionsFrom(meta['sections']),
     );
+  }
+
+  static List<ComicSourceSection> _sectionsFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => ComicSourceSection(
+              title: e['title']?.toString() ?? '',
+              type: e['type']?.toString() ?? '',
+            ))
+        .toList();
   }
 
   /// Pure text check used by the parser tests and before evaluation.
@@ -172,7 +194,10 @@ globalThis.__acgnhub_registerSource = function (key) {
       search: !!s.search, explore: !!s.explore,
       loadInfo: !!(s.comic && s.comic.loadInfo),
       loadEp: !!(s.comic && s.comic.loadEp),
-      onImageLoad: !!(s.comic && s.comic.onImageLoad)
+      onImageLoad: !!(s.comic && s.comic.onImageLoad),
+      sections: (s.explore || []).map(function (e) {
+        return { title: e.title || '', type: e.type || '' };
+      })
     };
   };
   if (typeof s.init === 'function') {
@@ -389,20 +414,26 @@ class ComicSourceManager {
         return s.search.load(${jsonEncode(keyword)}, {}, $page);
       })()
     ''');
-    return _comicsFrom(result);
+    return parseExploreResult(result).comics;
   }
 
-  Future<List<Comic>> explore(ComicSource source, int index,
-      {int page = 1}) async {
+  Future<ExplorePage> explore(ComicSource source, int sectionIndex,
+      {int page = 1, String? cursor}) async {
     await _ensureInitialized();
-    if (!source.canExplore) return const [];
+    if (!source.canExplore) return const ExplorePage(comics: []);
     final result = await _engine.evaluate('''
       (async () => {
         const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
-        return s.explore[$index].load($page);
+        const sec = (s.explore || [])[$sectionIndex];
+        if (!sec) return { comics: [], maxPage: 1 };
+        if (typeof sec.load === 'function') return await sec.load($page);
+        if (typeof sec.loadNext === 'function') {
+          return await sec.loadNext(${cursor == null ? 'undefined' : jsonEncode(cursor)});
+        }
+        return { comics: [], maxPage: 1 };
       })()
     ''');
-    return _comicsFrom(result);
+    return parseExploreResult(result);
   }
 
   Future<ComicDetails> loadInfo(ComicSource source, String id) async {
@@ -446,44 +477,6 @@ class ComicSourceManager {
     ''');
     if (result is! Map) return ImageLoadingConfig(url: url);
     return ImageLoadingConfig.fromJs(result);
-  }
-
-  List<Comic> _comicsFrom(dynamic result) {
-    final out = <Comic>[];
-    void addComics(dynamic list) {
-      if (list is! List) return;
-      out.addAll(list
-          .whereType<Map>()
-          .map((e) => Comic.fromJs(e.cast<dynamic, dynamic>())));
-    }
-
-    void addParts(dynamic parts) {
-      if (parts is! List) return;
-      for (final part in parts) {
-        if (part is Map) addComics(part['comics']);
-      }
-    }
-
-    if (result is List) {
-      // Venera `multiPartPage`: a list of {title, comics} parts.
-      addParts(result);
-    } else if (result is Map) {
-      final comics = result['comics'];
-      final parts = result['parts'];
-      if (comics is List) {
-        addComics(comics);
-      }
-      if (parts is List) {
-        addParts(parts);
-      }
-      if (comics is! List && parts is! List) {
-        // Venera `singlePageWithMultiPart`: a map of section title -> comics.
-        for (final value in result.values) {
-          addComics(value);
-        }
-      }
-    }
-    return out;
   }
 
   void dispose() => _engine.dispose();
