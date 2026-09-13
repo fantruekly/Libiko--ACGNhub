@@ -34,6 +34,20 @@ class ComicExplorePage {
 
 const _explorePageSize = 30;
 
+/// The full one-shot list for a non-server-paged section (cached per section).
+final _comicExploreAllProvider =
+    FutureProvider.family<List<Comic>, (String, int)>((ref, key) async {
+  final (sourceKey, section) = key;
+  final manager = ref.watch(comicSourceManagerProvider);
+  final source = ref
+      .watch(comicSourcesProvider)
+      .valueOrNull
+      ?.where((s) => s.key == sourceKey)
+      .firstOrNull;
+  if (source == null) throw StateError('source $sourceKey not loaded');
+  return (await manager.explore(source, section, page: 1)).comics;
+});
+
 /// `multiPageComicList` sections page on the source; every other section is
 /// loaded once and paginated here at [_explorePageSize] comics per page. A
 /// source that pages by offset without a total (Komiic, zaimanhua) reports no
@@ -54,20 +68,18 @@ final FutureProviderFamily<ComicExplorePage, (String, int, int)>
       : '';
   if (type == 'multiPageComicList') {
     final result = await manager.explore(source, section, page: page);
-    final maxPage = result.maxPage;
+    final rawMax = result.maxPage;
+    final maxPage = (rawMax == null || rawMax < 1) ? null : rawMax;
     return ComicExplorePage(
       comics: result.comics,
       page: page,
-      maxPage: maxPage == null || maxPage < 1 ? null : maxPage,
+      maxPage: maxPage,
       hasNext: maxPage != null ? page < maxPage : result.comics.isNotEmpty,
       serverPaged: true,
     );
   }
-  final all = page == 1
-      ? (await manager.explore(source, section, page: 1)).comics
-      : (await ref.watch(
-              comicExploreProvider((sourceKey, section, 1)).future))
-          .comics;
+  final all =
+      await ref.watch(_comicExploreAllProvider((sourceKey, section)).future);
   final maxPage =
       all.isEmpty ? 1 : (all.length + _explorePageSize - 1) ~/ _explorePageSize;
   final start = (page - 1) * _explorePageSize;
