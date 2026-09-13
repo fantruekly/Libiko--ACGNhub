@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_image.dart';
+import '../../core/comic/comic_reader_settings.dart';
 import '../../core/comic/comic_source.dart';
 import '../../core/comic/models.dart';
 import '../../core/storage/database.dart';
@@ -109,3 +110,21 @@ class ComicSourceListUrlNotifier extends Notifier<String> {
 final comicSourceListUrlProvider =
     NotifierProvider<ComicSourceListUrlNotifier, String>(
         ComicSourceListUrlNotifier.new);
+
+/// The persisted reader mode (continuous vertical vs. horizontal page flip).
+class ComicReaderSettingsNotifier extends Notifier<ComicReaderSettings> {
+  final _manager = ComicReaderSettingsManager();
+
+  @override
+  ComicReaderSettings build() => _manager.read();
+
+  Future<void> setMode(ComicReaderMode mode) async {
+    final next = state.copyWith(mode: mode);
+    await _manager.write(next);
+    state = next;
+  }
+}
+
+final comicReaderSettingsProvider =
+    NotifierProvider<ComicReaderSettingsNotifier, ComicReaderSettings>(
+        ComicReaderSettingsNotifier.new);
