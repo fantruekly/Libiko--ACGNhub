@@ -84,11 +84,16 @@ void main() {
   });
 
   test('a malformed stored entry is skipped', () async {
-    SharedPreferences.setMockInitialValues({
-      'flutter.comic_favorites': ['not json'],
-    });
     await AppDatabase.init();
-    expect(ComicFavoriteManager().all(), isEmpty);
+    final manager = ComicFavoriteManager();
+    await manager.toggle(_fav('a', 100));
+
+    final prefs = await SharedPreferences.getInstance();
+    final key =
+        prefs.getKeys().firstWhere((k) => k.endsWith('comic_favorites'));
+    await prefs.setStringList(key, ['not json', ...prefs.getStringList(key)!]);
+
+    expect(manager.all().map((f) => f.comicId), ['a']);
   });
 }
 ```
