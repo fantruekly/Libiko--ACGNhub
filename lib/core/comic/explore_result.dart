@@ -6,8 +6,10 @@ class ExplorePage {
   final List<Comic> comics;
   final int? maxPage;
   final String? next;
+  final String? viewMore;
 
-  const ExplorePage({required this.comics, this.maxPage, this.next});
+  const ExplorePage(
+      {required this.comics, this.maxPage, this.next, this.viewMore});
 }
 
 /// Normalizes the shapes a Venera source can return from `search.load` /
@@ -26,10 +28,20 @@ ExplorePage parseExploreResult(dynamic raw) {
         .map((e) => Comic.fromJs(e.cast<dynamic, dynamic>())));
   }
 
+  String? viewMore;
+  void takeViewMore(dynamic part) {
+    if (part is! Map) return;
+    final vm = part['viewMore'];
+    if (viewMore == null && vm is String && vm.isNotEmpty) viewMore = vm;
+  }
+
   void addParts(dynamic parts) {
     if (parts is! List) return;
     for (final part in parts) {
-      if (part is Map) addComics(part['comics']);
+      if (part is Map) {
+        addComics(part['comics']);
+        takeViewMore(part);
+      }
     }
   }
 
@@ -50,6 +62,7 @@ ExplorePage parseExploreResult(dynamic raw) {
           addComics(item);
         } else if (item is Map) {
           addComics(item['comics']);
+          takeViewMore(item);
         }
       }
     }
@@ -64,5 +77,6 @@ ExplorePage parseExploreResult(dynamic raw) {
     if (n is String && n.isNotEmpty) next = n;
   }
 
-  return ExplorePage(comics: out, maxPage: maxPage, next: next);
+  return ExplorePage(
+      comics: out, maxPage: maxPage, next: next, viewMore: viewMore);
 }

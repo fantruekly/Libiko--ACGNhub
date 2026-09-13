@@ -122,4 +122,31 @@ void main() {
     });
     expect(page.maxPage, 3);
   });
+
+  test('captures the first viewMore from parts', () {
+    final page = parseExploreResult([
+      {
+        'title': 'p1',
+        'comics': [
+          {'id': '1', 'title': 'A'},
+        ],
+      },
+      {
+        'title': 'p2',
+        'comics': [
+          {'id': '2', 'title': 'B'},
+        ],
+        'viewMore': 'category:全部@',
+      },
+      {
+        'title': 'p3',
+        'comics': [
+          {'id': '3', 'title': 'C'},
+        ],
+        'viewMore': 'category:later@x',
+      },
+    ]);
+    expect(page.comics.map((c) => c.id), ['1', '2', '3']);
+    expect(page.viewMore, 'category:全部@');
+  });
 }
