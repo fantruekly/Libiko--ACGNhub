@@ -196,35 +196,36 @@ class JsEngine {
 
   dynamic _convert(Map<dynamic, dynamic> map) {
     final type = map['type'] as String;
-    final data = map['data']?.toString() ?? '';
-    final dataBytes = utf8.encode(data);
+    final raw = map['data'];
+    final text = raw is String ? raw : (raw?.toString() ?? '');
+    final bytes = raw == null ? const <int>[] : _bytes(raw);
     switch (type) {
       case 'utf8':
-        return utf8.decode(_bytes(map['data']), allowMalformed: true);
+        return utf8.decode(bytes, allowMalformed: true);
       case 'utf8Encode':
-        return utf8.encode(data);
+        return utf8.encode(text);
       case 'gbk':
-        return gbk.decode(_bytes(map['data']));
+        return gbk.decode(bytes);
       case 'base64Encode':
-        return base64.encode(dataBytes);
+        return base64.encode(bytes);
       case 'base64Decode':
-        return base64.decode(data);
+        return base64.decode(text);
       case 'hexEncode':
-        return dataBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+        return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
       case 'hexDecode':
-        if (data.length.isOdd) {
+        if (text.length.isOdd) {
           throw FormatException('hexDecode requires an even number of digits');
         }
         return Uint8List.fromList([
-          for (var i = 0; i < data.length; i += 2)
-            int.parse(data.substring(i, i + 2), radix: 16)
+          for (var i = 0; i < text.length; i += 2)
+            int.parse(text.substring(i, i + 2), radix: 16)
         ]);
       case 'md5':
-        return md5.convert(dataBytes).toString();
+        return Uint8List.fromList(md5.convert(bytes).bytes);
       case 'sha1':
-        return sha1.convert(dataBytes).toString();
+        return Uint8List.fromList(sha1.convert(bytes).bytes);
       case 'sha256':
-        return sha256.convert(dataBytes).toString();
+        return Uint8List.fromList(sha256.convert(bytes).bytes);
       case 'aesEcbDecrypt':
         return aesEcbDecrypt(_bytes(map['data']), _bytes(map['key']));
       case 'hmac':

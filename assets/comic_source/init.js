@@ -172,7 +172,7 @@
   globalThis.fetch = async function (url, options) {
     options = options || {};
     const method = (options.method || 'GET').toUpperCase();
-    const r = Network.sendRequest(method, url, options.headers || {}, options.body, null, false);
+    const r = await Network.sendRequest(method, url, options.headers || {}, options.body, null, false);
     return {
       status: r.status,
       ok: r.status >= 200 && r.status < 300,
