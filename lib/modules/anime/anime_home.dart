@@ -175,9 +175,9 @@ class _FeedViewState extends ConsumerState<_FeedView>
                     : SliverPadding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                         sliver: SliverGrid(
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 5,
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 6,
                             mainAxisSpacing: 16,
                             crossAxisSpacing: 16,
                             childAspectRatio: 0.66,
