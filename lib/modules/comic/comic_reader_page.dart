@@ -205,7 +205,9 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                 child: CircularProgressIndicator(color: _muted));
           }
           return _ZoomablePage(
-            onTap: _toggleChrome,
+            onPrev: () => _flipTo(-1),
+            onNext: () => _flipTo(1),
+            onToggleChrome: _toggleChrome,
             child: _ReaderImage(
               key: ValueKey('$_chapterId-$index'),
               sourceKey: widget.sourceKey,
@@ -399,6 +401,29 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   ChapterNav _nav(ComicDetails? details) {
     final ids = details?.chapters.keys.toList() ?? const <String>[];
     return chapterNav(ids, _chapterId);
+  }
+
+  void _flipTo(int delta) {
+    final ep = ref
+        .read(comicEpProvider((widget.sourceKey, widget.comicId, _chapterId)))
+        .valueOrNull;
+    final total = ep?.images.length ?? 0;
+    final nav = _nav(ref
+        .read(comicDetailProvider((widget.sourceKey, widget.comicId)))
+        .valueOrNull);
+    final target = _page + delta;
+    if (target < 0) {
+      if (nav.previous != null) _goToChapter(nav.previous!, atEnd: true);
+      return;
+    }
+    if (target >= total) {
+      if (nav.next != null) _goToChapter(nav.next!);
+      return;
+    }
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(target,
+          duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+    }
   }
 
   void _goToChapter(String chapterId, {bool atEnd = false}) {
@@ -646,9 +671,16 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
 
 class _ZoomablePage extends StatefulWidget {
   final Widget child;
-  final VoidCallback onTap;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final VoidCallback onToggleChrome;
 
-  const _ZoomablePage({required this.child, required this.onTap});
+  const _ZoomablePage({
+    required this.child,
+    required this.onPrev,
+    required this.onNext,
+    required this.onToggleChrome,
+  });
 
   @override
   State<_ZoomablePage> createState() => _ZoomablePageState();
@@ -673,10 +705,22 @@ class _ZoomablePageState extends State<_ZoomablePage> {
     });
   }
 
+  void _handleTapUp(TapUpDetails details) {
+    final width = context.size?.width ?? 0;
+    final x = details.localPosition.dx;
+    if (width > 0 && x < width / 3) {
+      widget.onPrev();
+    } else if (width > 0 && x > width * 2 / 3) {
+      widget.onNext();
+    } else {
+      widget.onToggleChrome();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onTap,
+      onTapUp: _handleTapUp,
       onDoubleTap: _toggleZoom,
       child: InteractiveViewer(
         transformationController: _controller,

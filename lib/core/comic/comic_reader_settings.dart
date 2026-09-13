@@ -7,13 +7,13 @@ enum ComicReaderMode { continuousVertical, pageHorizontal }
 class ComicReaderSettings {
   final ComicReaderMode mode;
 
-  const ComicReaderSettings({this.mode = ComicReaderMode.continuousVertical});
+  const ComicReaderSettings({this.mode = ComicReaderMode.pageHorizontal});
 
   factory ComicReaderSettings.fromJson(Map<String, dynamic> json) =>
       ComicReaderSettings(
         mode: ComicReaderMode.values.firstWhere(
           (m) => m.name == json['mode'],
-          orElse: () => ComicReaderMode.continuousVertical,
+          orElse: () => ComicReaderMode.pageHorizontal,
         ),
       );
 
