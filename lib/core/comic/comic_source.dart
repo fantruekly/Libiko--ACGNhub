@@ -560,6 +560,8 @@ class ComicSourceManager {
       if (ok == true) {
         await AppDatabase()
             .setString('source_data.${source.key}.username', username);
+        await AppDatabase()
+            .setString('source_data.${source.key}.logged_in', '1');
         return true;
       }
       return false;
@@ -614,12 +616,11 @@ class ComicSourceManager {
 
   Future<bool> isLogged(ComicSource source) async {
     await _ensureInitialized();
+    if (AppDatabase().getString('source_data.${source.key}.logged_in') ==
+        '1') {
+      return true;
+    }
     try {
-      if (!source.hasLogin && source.hasCookieLogin) {
-        return AppDatabase()
-                .getString('source_data.${source.key}.logged_in') ==
-            '1';
-      }
       final result = await _engine.evaluate('''
         (async () => {
           const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});

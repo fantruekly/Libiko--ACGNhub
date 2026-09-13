@@ -149,10 +149,12 @@
     }
     saveSetting(key, value) { return call({ method: 'setting', op: 'set', key: 'source_setting.' + this.key + '.' + key, value: value }); }
     get isLogged() {
-      const token = this.loadData('token');
-      const account = this.loadData('account');
-      return (token !== null && token !== undefined && token !== '') ||
-             (account !== null && account !== undefined);
+      const keys = ['token', 'account', 'uid'];
+      for (const k of keys) {
+        const v = this.loadData(k);
+        if (v !== null && v !== undefined && v !== '') return true;
+      }
+      return false;
     }
     loadData(name) {
       const v = call({ method: 'setting', op: 'get', key: 'source_data.' + this.key + '.' + name });
