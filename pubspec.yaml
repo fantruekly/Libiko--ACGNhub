@@ -27,6 +27,13 @@ dependencies:
   media_kit_libs_windows_video: ^1.0.9
   window_manager: ^0.4.3
   file_selector: ^1.1.0
+  flutter_qjs:
+    git:
+      url: https://github.com/venera-app/flutter_qjs.git
+      ref: master
+  crypto: ^3.0.7
+  fast_gbk: ^1.0.0
+  pointycastle: ^3.9.1
 
 dev_dependencies:
   flutter_test:
@@ -35,7 +42,19 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: NotoSansSC
+      fonts:
+        - asset: assets/fonts/NotoSansSC-400.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansSC-500.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansSC-600.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansSC-700.ttf
+          weight: 700
   assets:
     - assets/rules/
     - assets/source_rules/
+    - assets/comic_source/
     - assets/anime_seed.json

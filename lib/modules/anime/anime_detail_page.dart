@@ -5,9 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../core/account/sync_service.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
+import '../../core/services/follow_manager.dart';
 import '../../core/widgets/glass_surface.dart';
+import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
@@ -132,7 +135,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       w, cs, score, episodes, seasonYear, format, status),
                   const TabBar(
                     labelColor: Color(0xFF007AFF),
-                    unselectedLabelColor: Color(0xFF8E8E93),
+                    unselectedLabelColor: Color(0xFF5A5A5F),
                     indicatorColor: Color(0xFF007AFF),
                     dividerColor: Color(0xFFE5E5EA),
                     tabs: [Tab(text: '概览'), Tab(text: '角色'), Tab(text: '关联')],
@@ -384,7 +387,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 24),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,8 +413,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   else ...[
                     if (score != null) ...[
                       RatingStars(score: score),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 14),
                     ],
+                    _followButton(w),
+                    const SizedBox(height: 14),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -438,6 +443,32 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         ),
       ),
     );
+  }
+
+  Widget _followButton(Work w) {
+    return Consumer(builder: (context, ref, _) {
+      final followed = ref.watch(followProvider).any((r) => r.work.id == w.id);
+      return FilledButton.icon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          backgroundColor:
+              followed ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
+          foregroundColor: followed ? const Color(0xFF5A5A5F) : Colors.white,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        onPressed: () {
+          ref.read(followProvider.notifier).toggle(w);
+          ref.read(syncProvider).schedule();
+        },
+        icon: Icon(followed ? Icons.check_rounded : Icons.add_rounded, size: 16),
+        label: Text(followed ? '已追番' : '追番',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      );
+    });
   }
 
   Widget _metaChip(IconData icon, String label, Color color) {
@@ -679,7 +710,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       context,
       MaterialPageRoute(
         builder: (_) => VideoPlayerPage(
-          title: _work.title,
+          work: _work,
           episodes: _episodes ?? const [],
           initialIndex: ep.index,
         ),
@@ -749,11 +780,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   if (loading)
                     Text('搜索中 $doneCount/${_sourceResults.length}',
                         style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF8E8E93)))
+                            fontSize: 12, color: Color(0xFF5A5A5F)))
                   else
                     Text('共 ${results.length} 条',
                         style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF8E8E93))),
+                            fontSize: 12, color: Color(0xFF5A5A5F))),
                   const Spacer(),
                   if (loading)
                     const SizedBox(
@@ -806,7 +837,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 const SizedBox(height: 8),
                 Text(
                   '${failed.length} 个源无结果或失败（${failed.map((r) => r.source.name).join('、')}）',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF8E8E93)),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF5A5A5F)),
                 ),
               ],
             ],
@@ -913,7 +944,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       return const Padding(
         padding: EdgeInsets.only(top: 8),
         child: Text('暂无剧集',
-            style: TextStyle(fontSize: 12, color: Color(0xFF8E8E93))),
+            style: TextStyle(fontSize: 12, color: Color(0xFF5A5A5F))),
       );
     }
     return Padding(
@@ -923,34 +954,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         runSpacing: 10,
         children: [
           for (final ep in eps)
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _playEpisode(ep),
-                borderRadius: BorderRadius.circular(10),
-                hoverColor: const Color(0x1F007AFF),
-                child: Container(
-                  width: 104,
-                  height: 44,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0x0F007AFF),
-                    border: Border.all(color: const Color(0x4D007AFF)),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    ep.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF007AFF)),
-                  ),
-                ),
-              ),
-            ),
+            PillButton(label: ep.title, onTap: () => _playEpisode(ep)),
         ],
       ),
     );

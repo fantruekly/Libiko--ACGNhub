@@ -1,49 +1,141 @@
 ﻿# SDD Progress Ledger
 
-Plan: docs/superpowers/plans/2026-09-12-rule-playback-sources.md
-Base commit: 477fa3d (before Task 1)
+Plan: docs/superpowers/plans/2026-09-12-comic-ui-home-detail.md (C2a)
+Base commit: 89c0a42 (before Task 1)
 
-Task 1: complete (commits 477fa3d..523346b, review clean)
-Task 2: complete (commits 523346b..5a79918, review clean after 1 fix)
-Task 3: complete (commits 0de58df..50e8cf4, review clean)
-Task 4: complete (commits 50e8cf4..4a47a4f, review clean after 1 fix)
-Task 5: complete (commits 4a47a4f..f1c9cbe, review clean after 1 fix)
-Task 6: complete (commits f1c9cbe..c58d72c, review clean)
-Task 7: verification complete (regression fix 7368429; rule calibrated 0c4ec34)
-Final whole-branch review: complete; 3 Important findings fixed in 4b76f2a, fixes verified
-Pending: human in-app smoke test (search -> episodes -> playback)
+Task 1: complete (commit 89c0a42..5050360, review clean)
+Task 2: complete (commit 5050360..ea2f1b3, review clean)
+Task 3: complete (commit ea2f1b3..26b4696, review clean)
+Task 4: complete (commit 26b4696..62f05bd + fix c2e2371, review clean after 1 fix)
+Task 5: complete (commit c2e2371..31c4876, review clean)
+Task 6: complete (commit 31c4876..6a9b0c9, review clean)
+Task 7: complete (commit 6a9b0c9..763add6, review clean; manual GUI smoke test deferred to human)
+Final whole-branch review: 89c0a42..763add6 → "merge with fixes"; fix commit 51791fd
+  (serialized store writes; search surfaces total failure), re-review clean.
+C2a: COMPLETE (89c0a42..51791fd) pending the manual GUI smoke test.
+C2b: plan written (docs/superpowers/plans/2026-09-13-comic-reader.md), execution starting.
+
+## C2b ledger — Comic Reader
+
+Plan: docs/superpowers/plans/2026-09-13-comic-reader.md (C2b)
+Base commit: 51791fd (before C2b Task 1)
+
+Task 1: complete (commit 51791fd..36bac90, review clean)
+Task 2: complete (commit 36bac90..a280520, review clean)
+Task 3: complete (commit a280520..6c404a6 + fix ab4aca3, review clean after 1 fix)
+Task 4: complete (commit ab4aca3..0ce11d0 + fixes a02d5ce, 65e78cd, d020df5, review clean after fixes)
+Final whole-branch review: 51791fd..a02d5ce → "merge with fixes"; fix wave 65e78cd + d020df5
+  (mode-switch page loss, history throttle, backward landing, prev-chapter preload, reliable resume),
+  re-review clean.
+C2b: COMPLETE (51791fd..d020df5), pushed to origin/dev, awaiting the user's PR.
+
+## Venera source compatibility (ad hoc, plan 2026-09-13-comic-venera-compat.md)
+
+- Task 1: complete (commit bbe2ed2..0dedd94 + fix 2db365b, review clean after fixes).
+  Added `loadData`/`saveData`/`deleteData`, `Convert` aliases + `hmacString`, `Network.deleteCookies`,
+  global `randomInt`/`fetch`, per-instance `init()`, and corrected `Network.post/put/delete` arg order.
+- Imported 11 general Venera sources into the app source dir + `copy_manga.data`.
+  Probe: 11/11 load; clean search for copy_manga(21), ManHuaGui(10), zaimanhua(16), Komiic(2),
+  ikmmh(0), shonen_jump_plus(0). The other 5 (baozi/comick/manga_dex/manwaba/ykmh) load but
+  search errored at the site/network layer (404/403/status 0/HTML change), not the engine.
+- Out of scope (per user): AES, account/WebView login, `Cache`/`IO`, `minAppVersion` gating.
+
+## C2c ledger — Comic explore sections + pagination
+
+Plan: docs/superpowers/plans/2026-09-13-comic-explore-sections.md
+Spec: docs/superpowers/specs/2026-09-13-comic-explore-sections-design.md
+Base commit: 5638e3e (before C2c Task 1)
+
+Task 1: complete (commit 5638e3e..1fa6552, review clean)
+Task 2: complete (commit 39c1e4c..a430620, review clean; maxPage may be null for offset paging)
+Task 3: complete (commit f1a5b55..f5d04bd + fix ec3fb68, review clean after 1 fix)
+Final whole-branch review: 5638e3e..ec3fb68 → "merge with fixes"; fix abeaea4
+  (client-paged retry, parser tests, section/page clamps, registry guard), re-review clean.
+C2c: COMPLETE (5638e3e..abeaea4), pushed to origin/dev; manual in-app smoke test deferred to the human.
+
+## C2d ledger — Comic AES + cursor paging
+
+Plan: docs/superpowers/plans/2026-09-13-comic-aes-cursor.md
+Spec: docs/superpowers/specs/2026-09-13-comic-aes-cursor-design.md
+Base commit: c05d7d0 (before C2d Task 1)
+
+Task 1: complete (commit c05d7d0..a889320, review clean)
+Task 2: complete (commit a889320..3713de9, review clean)
+Task 3: complete — imported jm/ehentai. ehentai explore works (12/11 galleries across its 2 sections)
+  after an ad-hoc engine fix c5dc4ad (HtmlNode.children + capacity 64→1024). jm loads and AES works but its
+  configured domains (`www.cdntwice.org/promote`) return 404 — external/source-domain issue, not the engine.
+Final whole-branch review: c05d7d0..c5dc4ad → "merge with fixes"; fix 37eeea8
+  (usesLoadNext requires no `load`; added a cursor probe proving c1→c2→c3), re-review clean.
+C2d: COMPLETE (c05d7d0..37eeea8), pushed to origin/dev. ehentai explore works (2 sections);
+  jm loads but its domains 404 (external). ehentai search needs search-options support (not built).
+Ad-hoc UI fixes (53a4954, fbc56e5): HTML handle capacity 16384 (fixes ehentai pagination),
+  48 comics/page, centered pager.
+
+## C2f ledger — Continuous paging into category content
+
+Plan: docs/superpowers/plans/2026-09-13-comic-continuous-paging.md
+Spec: docs/superpowers/specs/2026-09-13-comic-continuous-paging-design.md
+Base commit: 2964152 (before C2f Task 1)
+
+Task 1: complete (commit 2964152..60c0da8, review clean)
+Task 2: complete (commit 60c0da8..2068f91, review clean)
+Task 3: complete (commit 2068f91..501fd54, review clean)
+Task 4: complete (commit 501fd54..d25b510; continuous probe: page1 [a1] → page2 cat1-* → page3 cat2-* → stop)
+Final whole-branch review: 2964152..d25b510 → "merge with fixes"; fix cba3013
+  (empty-name continuation guard, maxPage normalize, viewMore parser tests, docs; real-source probe
+  verified manhuagui/baozi category continuation), re-review clean.
+C2f: COMPLETE (2964152..cba3013), pushed to origin/dev. One-shot explore sections now continue into
+  the source's category listing; verified against manhuagui (78→42/page) and baozi (108→36/page).
+
+## C2g ledger — Row-aligned source/cursor paging
+
+Plan: docs/superpowers/plans/2026-09-13-comic-row-aligned-paging.md
+Spec: docs/superpowers/specs/2026-09-13-comic-row-aligned-paging-design.md
+Base commit: 2040a01 (before C2g Task 1)
+
+Task 1: complete (commit 2040a01..e3c6566, review clean)
+Task 2: complete (commit 7fe9064..392f65e; alignment probe 48/27; real sources aligned)
+Final whole-branch review: 2040a01..392f65e → "merge with fixes"; fix a4174ef
+  (extracted `buildAlignedExplorePage` + 4 unit tests; autoDispose on the explore families), re-review clean.
+C2g: COMPLETE (2040a01..a4174ef), pushed to origin/dev. Server/cursor sections now show 48/page
+  (multiple of 6) except the true last page; ehentai 48/48 + tail.
+Ad-hoc fixes: reader default = page flip + tap-to-flip (096ec0d); white reader background (b773321);
+  reader chrome on error (4a9046b); continuous pages fit window height (5c6e383);
+  APP global + tags/chapters flattening (a030cb4); innerHTML alias (c357809).
+
+## C2e ledger — Comic account login
+
+Plan: docs/superpowers/plans/2026-09-13-comic-account-login.md
+Spec: docs/superpowers/specs/2026-09-13-comic-account-login-design.md
+Base commit: caf51ef (before C2e Task 1)
+
+Task 1: complete (commit caf51ef..1347214 + fix 5f4f5f9, review clean after 1 fix)
+Task 2: complete (commit 5f4f5f9..e49bae8 + fix cacbc39, review clean after 1 fix)
+Task 3: complete (imported picacg 1.0.5; account probe: picacg hasLogin, ehentai hasCookieLogin fields=[ipb_member_id, ipb_pass_hash, igneous, star])
+Final whole-branch review: caf51ef..cacbc39 → "merge with fixes"; fix bb9ca63
+  (cookie domain matching + jar persistence + account tests), re-review clean.
+C2e: COMPLETE (caf51ef..bb9ca63), pushed to origin/dev. Real sign-in left to the human.
+
+### C2b minor findings (for the final whole-branch review to triage)
+
+- `comic_reader_page.dart` — previous-chapter overscroll lands at the previous chapter's top (not its end); history page-change write is a 1 s debounce rather than a throttle; `_preload` has no de-dup/cancellation and reads `_chapterId` mid-flight (overlapping preloads on rapid scrolling); the bottom bar shows `0 / 0` while a newly selected chapter loads; `_continuous` mutates `_initialJumpDone` and schedules a frame callback during `build`.
 
 ## Notes
 
-- Task 2 fix: extraction scripts returned `JSON.stringify(...)`, but `HeadlessWebview.executeScript`
-  JSON-decodes WebView2's result, so a JS string could never satisfy `result is List`.
-  Fixed in `5a79918`; the plan was corrected.
-- Task 4 fix: the `mergeRules` precedence test used identical built-in/imported values, so it
-  could not fail for the wrong precedence. Fixed in `4a47a4f`.
-- Task 5 fix: the episode "重试" button hit `_expandItem`'s toggle-collapse branch instead of
-  re-fetching. Extracted `_loadEpisodes`; fixed in `f1c9cbe`.
-- Task 7: Task 5's `Future.delayed(300ms)` leaked a pending timer and broke 3 existing widget
-  tests (Task 5/6 ran analyze+build but not `flutter test`). Fixed in `7368429`.
-- Task 7: the bundled 7sefun rule's XPaths (from the upstream Kazumi plugin) no longer matched
-  the site DOM. Recalibrated against the live DOM and verified with headless Chrome: 12 results
-  with titles + `/voddetail/N.html` hrefs, and 1 episode `/vodplay/32967-1-1.html`. The play
-  page is JS-driven, so the existing `StreamResolver` headless path applies. Fixed in `0c4ec34`.
-- Final review fixes (`4b76f2a`): `_disposed` guard stops queued searches after dispose; the
-  scraper tracks the current URL so it does not complete on the initial `about:blank`; the rule
-  import now also catches `FileSystemException`.
-- `.superpowers/sdd/review-package.ps1` now forces UTF-8 console/output encoding.
+- C2 is split: **C2a** (this plan) and **C2b** (the reader). C2a's chapter buttons / 继续阅读 and the
+  home's card taps are intentional placeholders — Task 4 chose `SnackBar('详情页开发中')` for card
+  taps; Task 6 adds `ComicDetailPage` and must replace them.
+- Task 4 fix (`c2e2371`): the kept-alive 发现/收藏 tabs duplicated `Hero` tags; each `TabBarView`
+  child is now wrapped in `HeroMode(enabled: controller.index == i)` like `anime_home.dart`.
+- Task 4 added `comicSourceListUrlProvider` (the plan was amended to say so).
+- Briefs are extracted with an inline fence-aware script (`.superpowers/sdd/make-brief.ps1` is flaky
+  on the longer plans); always check the brief's first line names the right task.
 
-## Minor findings (deferred; not required before merge)
+## Minor findings (triaged by the final whole-branch review — acceptable polish, not fixed)
 
-- `test/core/video/source_rule_test.dart:42-47` — only a missing-field case is tested; non-String and whitespace-only rejection branches in `req` are unverified.
-- `lib/core/video/source_rule.dart:50` — a non-String `userAgent` is silently coerced to null.
-- `lib/core/video/source_rule.dart:35` — Chinese error message vs English doc comments (cosmetic).
-- `test/core/video/xpath_js_test.dart:17,27` — test names still read "…returns JSON" though the contract is now an array.
-- `lib/core/video/webview_scraper.dart:34,50` — doc comments say "returns a JSON array"; cosmetic.
-- `lib/core/video/webview_scraper.dart:108-115` — the URL guard narrows but does not fully eliminate the `about:blank` completion race; a navigation that emits no `urlChanged` pays the full 20 s timeout.
-- `lib/core/video/rule_source.dart:88` — strips one trailing slash from base (benign divergence from agedm/gimy `_abs`).
-- `lib/core/video/rule_source.dart:55` — `VideoItem.id` is the full resolved URL (per brief).
-- `test/core/video/rule_source_test.dart` — no coverage for `mapEpisodes` non-list input or its empty-href drop.
-- `lib/core/video/rule_store.dart` — `_safeName` can collide (`"a b"` and `"a/b"` → `a_b`); `dir.list()` is unsorted so duplicate imported names win nondeterministically; `_importDir` creates the dir on read paths; `importJson` has no unit test; `AssetManifest.json` is deprecated in favour of `AssetManifest.loadFromAssetBundle`.
-- `test/core/video/rule_store_test.dart:6-25` — `_ruleWith` duplicates `_rule` fields (cosmetic).
-- `lib/modules/anime/anime_detail_page.dart` — `_playSection(Work w, ...)` no longer uses `w`; `_loadEpisodes` calls `setState` before a `mounted` check; the empty-state text uses `cs.onSurface.withValues(alpha: 0.5)` instead of `#8E8E93`; episodes are re-fetched on every expand rather than cached; `_playEpisode` can leave its modal dialog open if the page is disposed mid-resolve; `await openFile(...)` sits outside the import `try`.
+- ~~`lib/core/comic/comic_favorite.dart:78` — `toggle` has no write serialization~~ FIXED in 51791fd (both stores now serialize via `_enqueue`).
+- `lib/modules/comic/comic_source_page.dart` — `ref.invalidate(comicSourcesProvider)` runs before the `mounted` guard in async handlers; `_confirmClear` lacks a `context.mounted` guard; the remote-list URL persists on every keystroke; the remote 添加 button is not disabled while importing.
+- `lib/modules/comic/comic_search.dart` — duplicates the private `_comicGrid` constants from `comic_home.dart`; the empty state can show a false-negative `没有找到漫画` while `comicSourcesProvider` is still loading (Task 3 provider behavior); clearing the field does not clear the last results. (The `.when(error:)` branch is now reachable after 51791fd.)
+- `lib/modules/comic/comic_detail_page.dart` — the description 展开/收起 uses a `length > 60` heuristic instead of measuring 3 lines; a tagless comic leaves a stray 10px gap before the description; the favorite stores `details.cover`/`title` (may differ from the list entry's).
+
+(previous plans are complete; their history is in git)

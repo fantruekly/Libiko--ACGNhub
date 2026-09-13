@@ -1,155 +1,224 @@
-### Task 1: `SourceRule` model
+### Task 1: Engine account support
 
 **Files:**
-- Create: `lib/core/video/source_rule.dart`
-- Test: `test/core/video/source_rule_test.dart`
+- Modify: `assets/comic_source/init.js`
+- Modify: `lib/core/comic/js_engine.dart`
+- Modify: `lib/core/comic/comic_source.dart`
 
 **Interfaces:**
-- Produces: `class SourceRule` with fields `name`, `baseUrl`, `searchUrl`, `searchList`, `searchName`, `searchResult`, `chapterRoads`, `chapterResult`, `userAgent` (`String?`), a getter `String get id`, `factory SourceRule.fromJson(Map<String, dynamic>)`, `factory SourceRule.fromJsonString(String)`, and `String buildSearchUrl(String keyword)`.
+- Produces: JS `Cookie` global and `ComicSource.isLogged`; `ComicSource` gains `bool hasLogin`, `bool hasCookieLogin`, `List<String> cookieFields`; `ComicSourceManager.login(source, username, password) → Future<bool>`, `loginWithCookies(source, values) → Future<bool>`, `logout(source) → Future<void>`, `isLogged(source) → Future<bool>`.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Add the `Cookie` global and `isLogged` to `init.js`**
 
-Create `test/core/video/source_rule_test.dart`:
+In `assets/comic_source/init.js`, add a `Cookie` class near the other globals (e.g. after `class Convert { ... }`):
 
-```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
-
-void main() {
-  const validJson = '''
-  {
-    "api": "4",
-    "type": "anime",
-    "name": "七色番",
-    "version": "1.3",
-    "muliSources": true,
-    "useWebview": true,
-    "useNativePlayer": true,
-    "userAgent": "",
-    "baseURL": "https://www.7sefun.top/",
-    "searchURL": "https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword",
-    "searchList": "//div[2]/div[2]/div[2]/div[2]/div",
-    "searchName": "//div[2]/text()",
-    "searchResult": "//a",
-    "chapterRoads": "//div[2]/div[2]/div[2]/div/div[2]/div[1]//div",
-    "chapterResult": "//a"
-  }''';
-
-  test('fromJsonString parses a Kazumi plugin and ignores unknown keys', () {
-    final rule = SourceRule.fromJsonString(validJson);
-    expect(rule.name, '七色番');
-    expect(rule.baseUrl, 'https://www.7sefun.top/');
-    expect(rule.searchList, '//div[2]/div[2]/div[2]/div[2]/div');
-    expect(rule.chapterResult, '//a');
-    expect(rule.userAgent, isNull); // empty string -> null
-    expect(rule.id, 'rule:七色番');
-  });
-
-  test('buildSearchUrl substitutes and URL-encodes @keyword', () {
-    final rule = SourceRule.fromJsonString(validJson);
-    expect(
-      rule.buildSearchUrl('进击的巨人'),
-      'https://www.7sefun.top/vodsearch/-------------.html?wd=%E8%BF%9B%E5%87%BB%E7%9A%84%E5%B7%A8%E4%BA%BA',
-    );
-  });
-
-  test('fromJson throws FormatException on a missing required field', () {
-    expect(
-      () => SourceRule.fromJson({'name': 'x', 'baseURL': 'https://a/'}),
-      throwsFormatException,
-    );
-  });
-
-  test('fromJsonString throws FormatException on a non-object', () {
-    expect(() => SourceRule.fromJsonString('[1,2,3]'), throwsFormatException);
-  });
-}
+```js
+  class Cookie {
+    constructor({ name, value, domain, path } = {}) {
+      this.name = name || '';
+      this.value = value || '';
+      this.domain = domain || '';
+      this.path = path || '/';
+    }
+  }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+and register it before `globalThis.ComicSource = ComicSource;`:
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/source_rule_test.dart`
-Expected: FAIL — `source_rule.dart` not found.
+```js
+  globalThis.Cookie = Cookie;
+```
 
-- [ ] **Step 3: Create `lib/core/video/source_rule.dart`**
+Inside `class ComicSource`, add after `saveSetting(key, value)`:
+
+```js
+    get isLogged() {
+      const token = this.loadData('token');
+      const account = this.loadData('account');
+      return (token !== null && token !== undefined && token !== '') ||
+             (account !== null && account !== undefined);
+    }
+```
+
+- [ ] **Step 2: Serialize cookie objects in `js_engine.dart`**
+
+In `lib/core/comic/js_engine.dart`, replace the loop body of `_cookieHeaderFor` so a list of cookie objects becomes `name=value` pairs:
 
 ```dart
-import 'dart:convert';
-
-/// A Kazumi-compatible source rule: XPath selectors plus the URLs needed to
-/// search a site and list its episodes. Unknown JSON keys are ignored so that
-/// Kazumi plugin files import cleanly.
-class SourceRule {
-  final String name;
-  final String baseUrl;
-  final String searchUrl;
-  final String searchList;
-  final String searchName;
-  final String searchResult;
-  final String chapterRoads;
-  final String chapterResult;
-  final String? userAgent;
-
-  const SourceRule({
-    required this.name,
-    required this.baseUrl,
-    required this.searchUrl,
-    required this.searchList,
-    required this.searchName,
-    required this.searchResult,
-    required this.chapterRoads,
-    required this.chapterResult,
-    this.userAgent,
-  });
-
-  String get id => 'rule:$name';
-
-  factory SourceRule.fromJson(Map<String, dynamic> json) {
-    String req(String key) {
-      final v = json[key];
-      if (v is! String || v.trim().isEmpty) {
-        throw FormatException('缺少或非法的字段: $key');
+  String? _cookieHeaderFor(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return null;
+    final values = <String>[];
+    for (final entry in _cookieJar.entries) {
+      final key = Uri.tryParse(entry.key.toString());
+      if (key == null || key.host != uri.host) continue;
+      final value = entry.value;
+      if (value is List) {
+        for (final cookie in value) {
+          if (cookie is Map) {
+            final name = cookie['name']?.toString() ?? '';
+            final cookieValue = cookie['value']?.toString() ?? '';
+            if (name.isNotEmpty) values.add('$name=$cookieValue');
+          }
+        }
+      } else {
+        final text = value?.toString();
+        if (text != null && text.isNotEmpty) values.add(text);
       }
-      return v.trim();
     }
-
-    final ua = json['userAgent'];
-    return SourceRule(
-      name: req('name'),
-      baseUrl: req('baseURL'),
-      searchUrl: req('searchURL'),
-      searchList: req('searchList'),
-      searchName: req('searchName'),
-      searchResult: req('searchResult'),
-      chapterRoads: req('chapterRoads'),
-      chapterResult: req('chapterResult'),
-      userAgent: (ua is String && ua.trim().isNotEmpty) ? ua.trim() : null,
-    );
+    return values.isEmpty ? null : values.join('; ');
   }
-
-  factory SourceRule.fromJsonString(String source) {
-    final decoded = json.decode(source);
-    if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('规则必须是 JSON 对象');
-    }
-    return SourceRule.fromJson(decoded);
-  }
-
-  String buildSearchUrl(String keyword) =>
-      searchUrl.replaceAll('@keyword', Uri.encodeComponent(keyword));
-}
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 3: Add the account fields to `ComicSource`**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/source_rule_test.dart`
-Expected: PASS (4 tests).
+In `lib/core/comic/comic_source.dart`, add to `ComicSource` after `categoryOptions`:
 
-- [ ] **Step 5: Commit**
+```dart
+  final bool hasLogin;
+  final bool hasCookieLogin;
+  final List<String> cookieFields;
+```
+
+and to the constructor:
+
+```dart
+    this.hasLogin = false,
+    this.hasCookieLogin = false,
+    this.cookieFields = const [],
+```
+
+- [ ] **Step 4: Parse the account metadata in `fromMetadata`**
+
+In `fromMetadata`, before `return ComicSource(...)`:
+
+```dart
+    final account = meta['account'];
+```
+
+and in the constructor call add:
+
+```dart
+      hasLogin: account is Map && account['hasLogin'] == true,
+      hasCookieLogin: account is Map && account['hasCookieLogin'] == true,
+      cookieFields: account is Map && account['cookieFields'] is List
+          ? (account['cookieFields'] as List).map((e) => e.toString()).toList()
+          : const [],
+```
+
+- [ ] **Step 5: Return the account metadata from the registry**
+
+In `_registryJs`, inside `__acgnhub_registerSource`'s `finish` return object, add after `category: ...`:
+
+```js
+      account: (function () {
+        const a = s.account;
+        const cw = a && a.loginWithCookies;
+        return {
+          hasLogin: !!(a && typeof a.login === 'function'),
+          hasCookieLogin: !!(cw && typeof cw.validate === 'function'),
+          cookieFields: cw && Array.isArray(cw.fields) ? cw.fields.map(String) : []
+        };
+      })()
+```
+
+- [ ] **Step 6: Add the manager methods**
+
+In `ComicSourceManager`, add after `category`:
+
+```dart
+  Future<bool> login(
+      ComicSource source, String username, String password) async {
+    await _ensureInitialized();
+    if (!source.hasLogin) return false;
+    try {
+      await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          await s.account.login(${jsonEncode(username)}, ${jsonEncode(password)});
+          return true;
+        })()
+      ''');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> loginWithCookies(
+      ComicSource source, List<String> values) async {
+    await _ensureInitialized();
+    if (!source.hasCookieLogin) return false;
+    try {
+      final ok = await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          return await s.account.loginWithCookies.validate(${jsonEncode(values)});
+        })()
+      ''');
+      if (ok == true) {
+        await AppDatabase()
+            .setString('source_data.${source.key}.logged_in', '1');
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> logout(ComicSource source) async {
+    await _ensureInitialized();
+    try {
+      await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          if (s.account && typeof s.account.logout === 'function') {
+            await s.account.logout();
+          }
+          return true;
+        })()
+      ''');
+    } catch (_) {
+      // Best-effort logout.
+    }
+    await AppDatabase().remove('source_data.${source.key}.logged_in');
+  }
+
+  Future<bool> isLogged(ComicSource source) async {
+    await _ensureInitialized();
+    if (!source.hasLogin && source.hasCookieLogin) {
+      return AppDatabase()
+              .getString('source_data.${source.key}.logged_in') ==
+          '1';
+    }
+    try {
+      final result = await _engine.evaluate('''
+        (async () => {
+          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          return !!s.isLogged;
+        })()
+      ''');
+      return result == true;
+    } catch (_) {
+      return false;
+    }
+  }
+```
+
+(`AppDatabase` is already imported in `comic_source.dart`.)
+
+- [ ] **Step 7: Analyze and build**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
+
+- [ ] **Step 8: Commit and push**
 
 ```bash
-git add lib/core/video/source_rule.dart test/core/video/source_rule_test.dart
-git commit -m "feat(video): add Kazumi-compatible SourceRule model"
+git add assets/comic_source/init.js lib/core/comic/js_engine.dart lib/core/comic/comic_source.dart
+git commit -m "feat(comic): add account login support to the comic engine"
+git push
 ```
 
 ---

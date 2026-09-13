@@ -1,158 +1,100 @@
-# Task 2 Report: `WebviewScraper` + XPath→JS script builders
+# Task 2 Report: Account dialog in 源管理 (C2e)
 
-## Status
-DONE
+**Status:** DONE
 
 ## What I implemented
-- `lib/core/video/webview_scraper.dart`, exactly as specified in the brief:
-  - `const String kBrowserUserAgent` (Chrome 120 desktop UA).
-  - `String buildSearchScript(SourceRule rule)` — emits an IIFE embedding the rule's
-    `searchList`/`searchName`/`searchResult` XPaths via `jsonEncode`, uses `document.evaluate`
-    helpers (`__ev`/`__txt`/`__attr`), and returns `JSON.stringify` of `[{name, href}]`.
-  - `String buildEpisodesScript(SourceRule rule)` — emits an IIFE embedding
-    `chapterRoads`/`chapterResult`, scoping the result query to the first road element,
-    returning `JSON.stringify` of `[{title, href}]`.
-  - `class WebviewScraper.fetchJson(...)` — headless WebView lifecycle mirroring
-    `StreamResolver`: `HeadlessWebview()` → `run()` → `setPopupWindowPolicy(deny)` →
-    `setUserAgent(...)` → subscribe `loadingState` for `navigationCompleted` → `loadUrl` →
-    wait with `timeout` → retry `executeScript` up to `attempts` times (600ms backoff) →
-    dispose in `finally`. Returns the extracted `List`, `const <dynamic>[]` when empty, or
-    `null` on failure.
-- `test/core/video/xpath_js_test.dart` — the brief's 2 unit tests, verbatim.
 
-`SourceRule` was not modified.
+Modified `lib/modules/comic/comic_source_page.dart` only.
 
-## What I tested and results
-- Focused test: `flutter test test/core/video/xpath_js_test.dart` → **2 tests passed**.
-- Full suite: `flutter test` → **55 tests passed**.
-- Static analysis: `flutter analyze lib test` → **No issues found!**
+1. **账号 menu item** (`_sourceTile`): added `if (value == 'account') _openAccount(source);`
+   to `onSelected`, and `if (source.hasLogin || source.hasCookieLogin) const
+   PopupMenuItem(value: 'account', child: Text('账号'))` before the 刷新 entry in
+   `itemBuilder`. Sources with no account show no 账号 action.
+2. **`_openAccount(ComicSource source)`** handler added next to `_refresh` /
+   `_confirmDelete`; opens the dialog via `showDialog<void>`.
+3. **`_AccountDialog`** (`ConsumerStatefulWidget` + `ConsumerState`) appended at
+   the end of the file. It:
+   - builds controllers per the account mode (2 for form login, `cookieFields.length`
+     for cookie login),
+   - reads current status via `comicSourceManagerProvider.isLogged`,
+   - submits via `login(source, user, pass)` or `loginWithCookies(source, values)`,
+   - logs out via `logout(source)`,
+   - shows 已登录/未登录 status, the appropriate fields (password obscured for form
+     login), and a 登录失败 error on failure.
 
-The `WebviewScraper` runtime path is not unit-testable under `flutter test` (needs the
-Windows runner/WebView2), per the brief. It is verified to compile and type-check via
-`flutter analyze`.
+The `PopupMenuButton`'s menu now contains 账号 (when applicable), 刷新, 删除.
 
-## TDD evidence
+### Deviation from the brief (self-review fix)
 
-### RED
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart
-```
-Output (excerpt):
-```
-test/core/video/xpath_js_test.dart:3:8: Error: Error when reading 'lib/core/video/webview_scraper.dart': 系统找不到指定的文件。
-import 'package:acgnhub/core/video/webview_scraper.dart';
-test/core/video/xpath_js_test.dart:18:16: Error: Method not found: 'buildSearchScript'.
-test/core/video/xpath_js_test.dart:27:16: Error: Method not found: 'buildEpisodesScript'.
-00:00 +0 -1: loading D:/ACGNhub/test/core/video/xpath_js_test.dart [E]
-  Failed to load "D:/ACGNhub/test/core/video/xpath_js_test.dart":
-  Compilation failed for testPath=D:/ACGNhub/test/core/video/xpath_js_test.dart
-00:00 +0 -1: Some tests failed.
-```
-Why expected: `webview_scraper.dart` and both builder functions did not exist yet, so the
-test could not compile — proving the test exercises the missing feature rather than passing
-against pre-existing code.
+The brief's `_submit` chose the **form** path with `if (widget.source.hasLogin)`,
+while `initState` and `_label` both use **cookie** priority (`hasCookieLogin`). For a
+source declaring both `login` and `loginWithCookies` where `cookieFields.length < 2`,
+the brief's code would size the controller list by cookie fields but then index
+`_controllers[1]` in the form path — a `RangeError`. I inverted the `_submit`
+condition to `if (widget.source.hasCookieLogin)` so `initState`, `_label`,
+`obscureText`, and `_submit` all agree. Behavior for the real cases is unchanged:
+哔咔 (form-only) → form path; ehentai (cookie-only) → cookie path. Everything else in
+the brief was applied verbatim.
 
-### GREEN
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart
-```
-Output:
-```
-00:00 +0: buildSearchScript embeds the search XPaths and returns JSON
-00:00 +1: buildEpisodesScript embeds the chapter XPaths and returns JSON
-00:00 +2: All tests passed!
-```
+## Verification
 
-## Files changed
-- Added `lib/core/video/webview_scraper.dart` (127 lines).
-- Added `test/core/video/xpath_js_test.dart` (31 lines).
+| Command | Result |
+| --- | --- |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` | `No issues found! (ran in 1.8s)` |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` | `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (only the pre-existing CMake `DEPENDS` policy warning) |
 
-Commit:
-- `e504d96` feat(video): add headless webview scraper and XPath-to-JS builders
+## Files changed + commit
+
+- `lib/modules/comic/comic_source_page.dart` (+145)
+- Commit: `e49bae8` — `feat(comic): add the source account dialog`
+- Pushed: `5f4f5f9..e49bae8  dev -> dev` (origin `https://github.com/fantruekly/ACGNhub`)
 
 ## Self-review findings
-- Completeness: all Produces interfaces (`kBrowserUserAgent`, `buildSearchScript`,
-  `buildEpisodesScript`, `WebviewScraper.fetchJson`) are present with the specified
-  signatures. `SourceRule` untouched.
-- Verbatim fidelity: implementation and test match the brief character-for-character.
-- Quality: lifecycle, subscription cancellation, and dispose are wrapped defensively like
-  the existing `StreamResolver`; no leaks of the WebView on any path.
-- YAGNI: no extra parameters, classes, or speculative features added.
-- Tests verify real behavior: they assert that the generated JS actually embeds the exact
-  quoted XPaths (via `jsonEncode`) and calls `document.evaluate`/`JSON.stringify`. The
-  assertions are string-`contains` based, as mandated by the brief — they confirm the
-  builder output shape but do not execute the JS. Runtime extraction correctness depends on
-  Task 3 / manual Windows-runner validation.
+
+- Fixed the `hasLogin`/`hasCookieLogin` priority inconsistency described above.
+- Controller list and labels are index-safe because the count, `_label`, and `_submit`
+  now derive from the same `hasCookieLogin` predicate.
+- `initState` calls `_refreshStatus()` without awaiting; it guards with `mounted`
+  before `setState`, so no `setState after dispose` risk.
+- `_logout` and `_submit` guard `mounted` after every await.
+- No comments added; matches the surrounding file style.
 
 ## Concerns
-- `WebviewScraper.fetchJson` is not exercised by any automated test (inherent: headless
-  WebView2 requires the Windows runner). Its runtime behavior (navigation-completed timing,
-  `executeScript` decoding of the returned JSON string into a `List`, retry semantics) is
-  unverified until Task 3 or a manual run.
-- `executeScript` is assumed to auto-decode the `JSON.stringify` payload into a `List`
-  (consistent with `webview_windows` behavior and the brief's `result is List` check); if
-  it instead returns a `String`, the scraper would return `const <dynamic>[]`. Worth
-  confirming in Task 3 integration.
-- The test file's path in the brief is `test/core/video/xpath_js_test.dart`, while the
-  task's Context mentions tests live in `test/core/video/` — consistent, no conflict.
 
-## Fix report
+- A source declaring **both** `login` and `loginWithCookies` is treated as cookie-login
+  everywhere in the dialog (consistent with the brief's `initState`/`_label`). Task 1's
+  `isLogged` takes the engine path when `hasLogin` is true for such a source, so the
+  dialog's status read could diverge from the cookie-login DB flag in that rare hybrid
+  case. No real source in scope (哔咔/ehentai) has both.
+- The dialog was not covered by an automated widget test; verification is analyze +
+  debug build + code inspection.
 
-### What changed
-Confirmed bug: `buildSearchScript`/`buildEpisodesScript` returned `JSON.stringify(...)`,
-i.e. a JS **string**. `HeadlessWebview.executeScript` returns the WebView2 JSON result
-already decoded by `json.decode`, so a JS string arrives as a Dart `String`, never a
-`List`; `fetchJson`'s `result is List` check always failed and it always returned `[]`.
+## Task 2 review fix
 
-- `lib/core/video/webview_scraper.dart`
-  1. `buildSearchScript`: `return JSON.stringify(rows);` → `return rows;`.
-  2. `buildEpisodesScript`: `return JSON.stringify(out);` → `return out;`.
-  3. Added `@visibleForTesting static List<dynamic> WebviewScraper.decodeResult(dynamic)`
-     — returns a `List` as-is, tolerates a JSON string that decodes to a list, otherwise
-     returns `const <dynamic>[]`.
-  4. `fetchJson` retry loop: `if (result is List && result.isNotEmpty) return result;` →
-     `final list = decodeResult(result); if (list.isNotEmpty) return list;`.
-  - `document.evaluate` and `jsonEncode`-embedded XPaths left unchanged.
-- `test/core/video/xpath_js_test.dart`
-  - Replaced the two `contains('JSON.stringify')` assertions with array-return contract
-    assertions (`return rows;` / `return out;` plus `isNot(contains('JSON.stringify'))`).
-  - Added 4 `decodeResult` unit tests: `List` as-is, JSON string → list, non-list JSON
-    string → empty, `null`/non-JSON string → empty.
+Addressed three review findings in `lib/modules/comic/comic_source_page.dart` only.
 
-### Commands run and output
-1. Focused test:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart
-```
-```
-00:00 +0: loading D:/ACGNhub/test/core/video/xpath_js_test.dart
-00:00 +0: buildSearchScript embeds the search XPaths and returns JSON
-00:00 +1: buildEpisodesScript embeds the chapter XPaths and returns JSON
-00:00 +2: decodeResult returns a List as-is
-00:00 +3: decodeResult decodes a JSON string to a list
-00:00 +4: decodeResult returns empty for a non-list JSON string
-00:00 +5: decodeResult returns empty for null and non-JSON strings
-00:00 +6: All tests passed!
-```
+1. **(Important) Dialog could get stuck busy.** `_AccountDialogState._refreshStatus`,
+   `_submit`, and `_logout` now wrap the manager calls in `try/catch` and always reset
+   `_busy` (and set a result) even when the manager throws (e.g. engine init failure
+   inside `isLogged`/`login`/`loginWithCookies`/`logout`). `_refreshStatus` swallows the
+   error and leaves `_logged` false; `_submit` sets `_busy = false`, `_logged = ok`, and
+   `_error = '登录失败'` on failure; `_logout` sets `_busy = false`, `_logged = false`.
+   The submit branch keys on `hasCookieLogin`, matching `initState`/`_label`.
+2. **(Minor) Obscure only a real password field.** The password `TextField` now uses
+   `obscureText: !widget.source.hasCookieLogin && i == 1`, so cookie sources' fields
+   (which are not passwords) are not obscured.
+3. **(Minor) Scrollable content.** The `AlertDialog` `content` `Column` is wrapped in a
+   `SingleChildScrollView` so a source with many cookie fields cannot overflow.
 
-2. Static analysis:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
-```
-```
-Analyzing 2 items...
-No issues found! (ran in 1.5s)
-```
+### Verification
 
-3. Full suite:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
-```
-```
-00:06 +59: All tests passed!
-```
+| Command | Result |
+| --- | --- |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` | `No issues found! (ran in 1.8s)` |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` | `+166 ~1: All tests passed!` (1 pre-existing skip: flutter_qjs native lib unavailable under `flutter test`) |
+| `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` | `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (only the pre-existing CMake `DEPENDS` policy warning) |
 
 ### Commit
-- `5a79918` fix(video): return extraction arrays directly so executeScript decodes to a list
+
+- `lib/modules/comic/comic_source_page.dart` — commit `cacbc39` `fix(comic): make the account dialog robust to login failures`
+- Pushed: `e49bae8..cacbc39  dev -> dev`

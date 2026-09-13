@@ -29,6 +29,9 @@ function __attr(xpath, ctx, name) {
   var e = n[0];
   return ((e.getAttribute && e.getAttribute(name)) || '').trim();
 }
+function __rel(xpath) {
+  return xpath.indexOf('//') === 0 ? '.' + xpath : xpath;
+}
 ''';
 
 /// JS that returns a JSON array of `{name, href}` for the rule's search page.
@@ -39,8 +42,8 @@ String buildSearchScript(SourceRule rule) => '''
   var list = __ev(${jsonEncode(rule.searchList)}, document);
   for (var i = 0; i < list.length; i++) {
     rows.push({
-      name: __txt(${jsonEncode(rule.searchName)}, list[i]),
-      href: __attr(${jsonEncode(rule.searchResult)}, list[i], 'href')
+      name: __txt(__rel(${jsonEncode(rule.searchName)}), list[i]),
+      href: __attr(__rel(${jsonEncode(rule.searchResult)}), list[i], 'href')
     });
   }
   return rows;
@@ -54,7 +57,7 @@ String buildEpisodesScript(SourceRule rule) => '''
   var out = [];
   var roads = __ev(${jsonEncode(rule.chapterRoads)}, document);
   if (roads.length) {
-    var links = __ev(${jsonEncode(rule.chapterResult)}, roads[0]);
+    var links = __ev(__rel(${jsonEncode(rule.chapterResult)}), roads[0]);
     for (var i = 0; i < links.length; i++) {
       var e = links[i];
       out.push({

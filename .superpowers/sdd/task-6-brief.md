@@ -1,78 +1,34 @@
-### Task 6: Import-rule button
+### Task 6: Comic detail page
 
 **Files:**
-- Modify: `pubspec.yaml`
-- Modify: `lib/modules/anime/anime_detail_page.dart`
+- Create: `lib/modules/comic/comic_detail_page.dart`
 
 **Interfaces:**
-- Consumes: `ruleStoreProvider` (Task 4), `videoSourcesProvider` (Task 4).
-- Produces: nothing consumed by later tasks.
+- Consumes: `comicDetailProvider` (Task 3), `comicFavoritesProvider` (Task 1), `comicHistoryProvider` (Task 2), `ComicImageProvider` (Task 3), `WindowControls`/`smooth_route`.
+- Produces: `class ComicDetailPage extends ConsumerStatefulWidget { final String sourceKey; final String comicId; final String title; final String? cover; }`.
 
-- [ ] **Step 1: Add the file picker dependency**
+- [ ] **Step 1: Create `lib/modules/comic/comic_detail_page.dart`**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter pub add file_selector`
-Expected: `Got dependencies!` and a `file_selector:` line in `pubspec.yaml`.
+Structure (mirror `lib/modules/anime/anime_detail_page.dart`'s layout):
+- `_header`: `DragToMoveArea` + a 48 px `Container` with a back button, the title (`Expanded`), and `const WindowControls()`.
+- Body: `CustomScrollView` with:
+  - an info card (a `GlassSurface(blur: 0)` like the anime info card): a `Row` of the cover (`Hero(tag: 'comic_${sourceKey}_$comicId')`, 110×154, `ClipRRect(10)`, `memCacheWidth: 300`) and, 24 px to its right, a `Column` of: the title (20 px w600, max 2 lines), a 14 px gap, the 收藏 button (a `FilledButton.icon`, `收藏` accent-filled + `Icons.bookmark_add_outlined` → `已收藏` dimmed `#E5E5EA`/`#8E8E93` + `Icons.bookmark_added_rounded`, 36 px high, radius 10), a 14 px gap, then the tags `Wrap` (the anime `_metaChip` styling) and the description (13 px, muted, max 3 lines + a 展开/收起 toggle);
+  - a 章节 section: a header `Row` (章节 + a count) and a `Wrap` of chapter buttons — each 104×44, radius 10, accent 6 % fill + 30 % border, label = the chapter title (single line ellipsis) — built from `details.chapters`; tapping shows `SnackBar('阅读器开发中')` for C2a (C2b replaces this with `ComicReaderPage`);
+  - a 继续阅读 button when `comicHistoryProvider` has an entry for this comic (also a C2a placeholder `SnackBar`).
+- Loading: `ShimmerLoader`; error: an `EmptyState` with a 重试 action calling `ref.invalidate(comicDetailProvider((sourceKey, comicId)))`.
+- The 收藏 button builds a `ComicFavorite` from the loaded details (`sourceKey`, `comicId`, title, cover, `DateTime.now()`) and calls `ref.read(comicFavoritesProvider.notifier).toggle(...)`.
 
-- [ ] **Step 2: Add the import handler**
+- [ ] **Step 2: Analyze, test, build**
 
-In `lib/modules/anime/anime_detail_page.dart`, add imports:
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass.
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
 
-```dart
-import 'package:file_selector/file_selector.dart';
-import '../../core/video/rule_store.dart';
-```
-
-Add this method to `_AnimeDetailPageState`:
-
-```dart
-  Future<void> _importRule() async {
-    final messenger = ScaffoldMessenger.of(context);
-    const typeGroup = XTypeGroup(label: 'Kazumi 规则', extensions: ['json']);
-    final file = await openFile(acceptedTypeGroups: [typeGroup]);
-    if (file == null) return;
-    try {
-      final rule = await ref.read(ruleStoreProvider).importJson(
-            await file.readAsString(),
-          );
-      ref.invalidate(videoSourcesProvider);
-      if (!mounted) return;
-      messenger.showSnackBar(
-          SnackBar(content: Text('已导入规则：${rule.name}')));
-      _searchAllSources();
-    } on FormatException catch (e) {
-      if (!mounted) return;
-      messenger.showSnackBar(
-          SnackBar(content: Text('规则无效：${e.message}')));
-    }
-  }
-```
-
-- [ ] **Step 3: Add the button to the section header**
-
-In `_playSection`, in the header `Row`, insert before the refresh `IconButton`:
-
-```dart
-                  IconButton(
-                    tooltip: '导入规则',
-                    iconSize: 18,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _importRule,
-                    icon: const Icon(Icons.file_download_outlined),
-                  ),
-```
-
-- [ ] **Step 4: Verify it compiles and builds**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib`
-Expected: `No issues found!`
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
-Expected: `Built build\windows\x64\runner\Debug\acgnhub.exe`
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add pubspec.yaml pubspec.lock lib/modules/anime/anime_detail_page.dart
-git commit -m "feat(anime): import Kazumi rule JSON from the resource section"
+git add lib/modules/comic/comic_detail_page.dart
+git commit -m "feat(comic): add the comic detail page"
 ```
 
 ---

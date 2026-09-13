@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'anime_providers.dart';
 import 'anime_detail_page.dart';
+import 'anime_follow.dart';
+import 'anime_history.dart';
 import '../../core/metadata/metadata_provider.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
@@ -9,84 +11,60 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/models/work.dart';
 
-class AnimeHomePage extends ConsumerStatefulWidget {
+class AnimeHomePage extends ConsumerWidget {
   const AnimeHomePage({super.key});
 
   @override
-  ConsumerState<AnimeHomePage> createState() => _AnimeHomePageState();
-}
-
-class _AnimeHomePageState extends ConsumerState<AnimeHomePage> {
-  static const _accent = Color(0xFF007AFF);
-  static const _feeds = [AnimeFeed.season, AnimeFeed.trending, AnimeFeed.today];
-  static const _labels = ['本季新番', '热门推荐', '今日放送'];
-
-  final _controller = PageController();
-  int _index = 0;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _goTo(int i) {
-    if (i == _index) return;
-    setState(() => _index = i);
-    _controller.animateToPage(
-      i,
-      duration: const Duration(milliseconds: 340),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      length: 5,
+      child: Builder(
+        builder: (context) {
+          final controller = DefaultTabController.of(context);
+          return Column(
             children: [
-              for (var i = 0; i < _feeds.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                _pill(_labels[i], i),
-              ],
+              const TabBar(
+                labelColor: Color(0xFF007AFF),
+                unselectedLabelColor: Color(0xFF5A5A5F),
+                indicatorColor: Color(0xFF007AFF),
+                dividerColor: Color(0xFFE5E5EA),
+                labelStyle:
+                    TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                unselectedLabelStyle:
+                    TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+                tabs: [
+                  Tab(text: '本季新番'),
+                  Tab(text: '热门推荐'),
+                  Tab(text: '今日放送'),
+                  Tab(text: '历史记录'),
+                  Tab(text: '追番'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _heroTab(controller, 0, const _FeedView(feed: AnimeFeed.season)),
+                    _heroTab(controller, 1, const _FeedView(feed: AnimeFeed.trending)),
+                    _heroTab(controller, 2, const _FeedView(feed: AnimeFeed.today)),
+                    _heroTab(controller, 3, const AnimeHistoryView()),
+                    _heroTab(controller, 4, const AnimeFollowView()),
+                  ],
+                ),
+              ),
             ],
-          ),
-        ),
-        Expanded(
-          child: PageView(
-            controller: _controller,
-            onPageChanged: (i) => setState(() => _index = i),
-            children: [for (final f in _feeds) _FeedView(feed: f)],
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 
-  Widget _pill(String label, int i) {
-    final sel = _index == i;
-    return GestureDetector(
-      onTap: () => _goTo(i),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: BoxDecoration(
-          color: sel ? _accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: sel ? null : Border.all(color: const Color(0xFFE5E5EA)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: sel ? Colors.white : const Color(0xFF8E8E93),
-          ),
-        ),
-      ),
+  /// Heroes are only registered for the visible tab, so the same work mounted
+  /// in two kept-alive tabs cannot collide on its `Hero` tag.
+  static Widget _heroTab(TabController controller, int index, Widget child) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) =>
+          HeroMode(enabled: controller.index == index, child: child),
     );
   }
 }
@@ -201,12 +179,12 @@ class _FeedViewState extends ConsumerState<_FeedView>
                     : SliverPadding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                         sliver: SliverGrid(
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 5,
-                            mainAxisSpacing: 16,
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 6,
+                            mainAxisSpacing: 20,
                             crossAxisSpacing: 16,
-                            childAspectRatio: 0.66,
+                            childAspectRatio: 0.60,
                           ),
                           delegate: SliverChildBuilderDelegate(
                             (_, i) => i >= items.length
@@ -254,7 +232,7 @@ class _FeedViewState extends ConsumerState<_FeedView>
           title,
           style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: cs.onSurface,
               height: 1.4),
         ),

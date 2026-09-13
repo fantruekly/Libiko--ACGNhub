@@ -1,232 +1,159 @@
-### Task 4: `RuleStore`, source registry, and the bundled 7sefun rule
+### Task 4: Fixture + continuous-paging verification
 
 **Files:**
-- Create: `lib/core/video/rule_store.dart`
-- Create: `lib/core/video/video_sources.dart`
-- Create: `assets/source_rules/7sefun.json`
-- Modify: `pubspec.yaml`
-- Test: `test/core/video/rule_store_test.dart`
+- Modify: `assets/comic_source/test_source.js`
+- Create (scratch, untracked): `.superpowers/sdd/comic_continuous_probe.dart`
 
-**Interfaces:**
-- Consumes: `SourceRule` (Task 1); `RuleVideoSource` (Task 3); `AgedmSource`, `GimySource` (existing).
-- Produces: `class RuleStore { Future<List<SourceRule>> loadAll(); Future<List<SourceRule>> loadBuiltIn(); Future<List<SourceRule>> loadImported(); Future<SourceRule> importJson(String rawJson); }`; `@visibleForTesting static List<SourceRule> mergeRules(List<SourceRule> builtIn, List<SourceRule> imported)`; `final ruleStoreProvider = Provider<RuleStore>(...)`; `final videoSourcesProvider = FutureProvider<List<VideoSource>>(...)`; `List<VideoSource> buildSources(List<SourceRule> rules)`.
+- [ ] **Step 1: Give the fixture a category browser and a viewMore part**
 
-- [ ] **Step 1: Write the failing test**
+In `assets/comic_source/test_source.js`, change the `分类` explore section to return a list of parts with a `viewMore`, and add a `category` + `categoryComics`:
 
-Create `test/core/video/rule_store_test.dart`:
+```js
+    {
+      title: '分类',
+      type: 'singlePageWithMultiPart',
+      load: () => ([
+        {
+          title: '冒险',
+          comics: [new Comic({ id: 'a1', title: 'Adventure 1' })],
+          viewMore: 'category:全部@',
+        },
+      ]),
+    },
+```
+
+and inside the class, after `comic = { ... }`:
+
+```js
+  category = {
+    title: '测试分类',
+    parts: [
+      {
+        name: '类型',
+        type: 'fixed',
+        categories: ['全部'],
+        categoryParams: [''],
+        itemType: 'category',
+      },
+    ],
+  };
+
+  categoryComics = {
+    load: (category, param, options, page) => ({
+      comics: [
+        new Comic({ id: 'cat' + page + '-1', title: 'Cat ' + page + ' A' }),
+        new Comic({ id: 'cat' + page + '-2', title: 'Cat ' + page + ' B' }),
+        new Comic({ id: 'cat' + page + '-3', title: 'Cat ' + page + ' C' }),
+      ],
+      maxPage: 2,
+    }),
+    optionList: [],
+  };
+```
+
+- [ ] **Step 2: Write the continuous probe**
+
+Create `.superpowers/sdd/comic_continuous_probe.dart`:
 
 ```dart
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/rule_store.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
-
-SourceRule _rule(String name) => SourceRule(
-      name: name,
-      baseUrl: 'https://$name.test/',
-      searchUrl: 'https://$name.test/s?wd=@keyword',
-      searchList: '//div',
-      searchName: '//div[2]',
-      searchResult: '//a',
-      chapterRoads: '//div',
-      chapterResult: '//a',
-    );
-
-void main() {
-  test('mergeRules dedupes by name and imported wins', () {
-    final merged = RuleStore.mergeRules(
-      [_rule('a'), _rule('b')],
-      [_rule('b'), _rule('c')],
-    );
-    expect(merged.map((r) => r.name).toSet(), {'a', 'b', 'c'});
-    expect(merged.firstWhere((r) => r.name == 'b').baseUrl, 'https://b.test/');
-  });
-
-  test('bundled 7sefun rule parses from disk', () async {
-    final raw = await File('assets/source_rules/7sefun.json').readAsString();
-    final rule = SourceRule.fromJsonString(raw);
-    expect(rule.name, '七色番');
-    expect(rule.searchUrl, contains('@keyword'));
-  });
-}
-```
-
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_store_test.dart`
-Expected: FAIL — `rule_store.dart` not found.
-
-- [ ] **Step 3: Create `assets/source_rules/7sefun.json`**
-
-```json
-{
-  "api": "4",
-  "type": "anime",
-  "name": "七色番",
-  "version": "1.3",
-  "muliSources": true,
-  "useWebview": true,
-  "useNativePlayer": true,
-  "userAgent": "",
-  "baseURL": "https://www.7sefun.top/",
-  "searchURL": "https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword",
-  "searchList": "//div[2]/div[2]/div[2]/div[2]/div",
-  "searchName": "//div[2]/text()",
-  "searchResult": "//a",
-  "chapterRoads": "//div[2]/div[2]/div[2]/div/div[2]/div[1]//div",
-  "chapterResult": "//a"
-}
-```
-
-- [ ] **Step 4: Declare the asset directory in `pubspec.yaml`**
-
-Under `flutter: assets:` add the new line (keep the existing two entries):
-
-```yaml
-  assets:
-    - assets/rules/
-    - assets/source_rules/
-    - assets/anime_seed.json
-```
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter pub get`
-Expected: `Got dependencies!`
-
-- [ ] **Step 5: Create `lib/core/video/rule_store.dart`**
-
-```dart
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:acgnhub/core/storage/database.dart';
+import 'package:acgnhub/modules/comic/comic_providers.dart';
 
-import 'source_rule.dart';
-
-/// Loads built-in rules from `assets/source_rules/` and user-imported rules
-/// from `<app support dir>/rules/`. Imported rules win on a name collision.
-class RuleStore {
-  static const _assetDir = 'assets/source_rules/';
-  static const _manifest = 'AssetManifest.json';
-
-  Future<List<SourceRule>> loadAll() async {
-    final builtIn = await loadBuiltIn();
-    final imported = await loadImported();
-    return mergeRules(builtIn, imported);
-  }
-
-  Future<List<SourceRule>> loadBuiltIn() async {
-    final rules = <SourceRule>[];
-    final manifestJson = await rootBundle.loadString(_manifest);
-    final manifest = json.decode(manifestJson) as Map<String, dynamic>;
-    final files = manifest.keys
-        .where((k) => k.startsWith(_assetDir) && k.endsWith('.json'))
-        .toList()
-      ..sort();
-    for (final file in files) {
-      try {
-        rules.add(SourceRule.fromJsonString(await rootBundle.loadString(file)));
-      } catch (e) {
-        debugPrint('[RuleStore] bad built-in rule $file: $e');
-      }
-    }
-    return rules;
-  }
-
-  Future<Directory> _importDir() async {
-    final support = await getApplicationSupportDirectory();
-    final dir = Directory(p.join(support.path, 'rules'));
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir;
-  }
-
-  Future<List<SourceRule>> loadImported() async {
-    final dir = await _importDir();
-    final rules = <SourceRule>[];
-    await for (final entity in dir.list()) {
-      if (entity is! File || !entity.path.endsWith('.json')) continue;
-      try {
-        rules.add(SourceRule.fromJsonString(await entity.readAsString()));
-      } catch (e) {
-        debugPrint('[RuleStore] bad imported rule ${entity.path}: $e');
-      }
-    }
-    return rules;
-  }
-
-  /// Parses [rawJson] (throws [FormatException] if invalid) and persists it.
-  Future<SourceRule> importJson(String rawJson) async {
-    final rule = SourceRule.fromJsonString(rawJson);
-    final dir = await _importDir();
-    final file = File(p.join(dir.path, '${_safeName(rule.name)}.json'));
-    await file.writeAsString(rawJson);
-    return rule;
-  }
-
-  static String _safeName(String name) =>
-      name.replaceAll(RegExp(r'[\\/:*?"<>|\s]+'), '_');
-
-  @visibleForTesting
-  static List<SourceRule> mergeRules(
-      List<SourceRule> builtIn, List<SourceRule> imported) {
-    final byName = <String, SourceRule>{};
-    for (final r in builtIn) {
-      byName[r.name] = r;
-    }
-    for (final r in imported) {
-      byName[r.name] = r;
-    }
-    return byName.values.toList();
-  }
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const ProbeApp());
 }
 
-final ruleStoreProvider = Provider<RuleStore>((ref) => RuleStore());
+class ProbeApp extends StatefulWidget {
+  const ProbeApp({super.key});
+
+  @override
+  State<ProbeApp> createState() => _ProbeAppState();
+}
+
+class _ProbeAppState extends State<ProbeApp> {
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    await AppDatabase.init();
+    final container = ProviderContainer();
+    try {
+      final manager = container.read(comicSourceManagerProvider);
+      await manager.importFromFile(
+          r'D:\ACGNhub\assets\comic_source\test_source.js');
+      final sources = await container.read(comicSourcesProvider.future);
+      final fixture = sources.firstWhere((s) => s.key == 'acgnhub_test');
+      final section = fixture.sections.indexWhere((s) => s.title == '分类');
+      if (section < 0) {
+        print('PROBE CONTINUOUS section not found');
+      } else {
+        for (final page in [1, 2, 3]) {
+          final data = await container.read(
+              comicExploreProvider(('acgnhub_test', section, page)).future);
+          print('PROBE CONTINUOUS page=$page '
+              'ids=${data.comics.map((c) => c.id).toList()} '
+              'maxPage=${data.maxPage} hasNext=${data.hasNext}');
+        }
+      }
+    } catch (e, st) {
+      print('PROBE ERROR $e\n$st');
+    } finally {
+      container.dispose();
+    }
+    print('PROBE DONE');
+    exit(0);
+  }
+
+  @override
+  Widget build(BuildContext context) => const MaterialApp(
+        home: Scaffold(body: Center(child: Text('continuous probe'))),
+      );
+}
 ```
 
-- [ ] **Step 6: Create `lib/core/video/video_sources.dart`**
+- [ ] **Step 3: Run the probe**
 
-```dart
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'agedm_source.dart';
-import 'gimy_source.dart';
-import 'rule_source.dart';
-import 'rule_store.dart';
-import 'source_rule.dart';
-import 'video_source.dart';
-
-/// All playback sources: the hand-written HTTP sources plus every rule source.
-List<VideoSource> buildSources(List<SourceRule> rules) => [
-      AgedmSource(),
-      GimySource(),
-      for (final rule in rules) RuleVideoSource(rule),
-    ];
-
-final videoSourcesProvider = FutureProvider<List<VideoSource>>((ref) async {
-  final rules = await ref.watch(ruleStoreProvider).loadAll();
-  return buildSources(rules);
-});
+```powershell
+$env:Path = "C:\flutter\bin;$env:Path"; flutter run -d windows -t .superpowers/sdd/comic_continuous_probe.dart 2>&1 | Tee-Object -FilePath ".superpowers\sdd\continuous_probe.log"
 ```
 
-- [ ] **Step 7: Run the test to verify it passes**
+Expected: page 1 → `ids=[a1]`, `maxPage=null`, `hasNext=true`; page 2 → `ids=[cat1-1, cat1-2, cat1-3]`, `hasNext=true`; page 3 → `ids=[cat2-1, cat2-2, cat2-3]`, `hasNext=false`. If page 2 does not switch to `cat*`, the continuation is broken — report it.
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_store_test.dart`
-Expected: PASS (2 tests).
+- [ ] **Step 4: Run the explore probe against manhuagui / baozi**
 
-- [ ] **Step 8: Verify it compiles**
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter run -d windows -t .superpowers/sdd/comic_explore_probe.dart 2>&1 | Tee-Object -FilePath ".superpowers\sdd\explore_probe9.log"`
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
+Confirm manhuagui / baozi still return their explore content (the provider continuation is exercised in-app, not by this manager-level probe). Record their counts.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 5: Analyze, test, build**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → all pass.
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
+
+- [ ] **Step 6: Commit and push**
 
 ```bash
-git add lib/core/video/rule_store.dart lib/core/video/video_sources.dart assets/source_rules/7sefun.json pubspec.yaml test/core/video/rule_store_test.dart
-git commit -m "feat(video): add rule store, source registry, and bundled 7sefun rule"
+git add assets/comic_source/test_source.js
+git commit -m "test(comic): fixture for continuous category paging"
+git push
 ```
 
+(The probe is untracked scratch; do not commit it.)
+
 ---
+
+## Self-Review
+
+- **Spec coverage:** §4.1 `viewMore` → Task 1; §4.2 category metadata + `category()` → Task 2; §5 provider continuation → Task 3; §9 fixture/probe → Task 4. §6 UI unchanged (no task). §11 out-of-scope items appear in no task.
+- **Placeholders:** none; every step shows the code.
+- **Type consistency:** `ExplorePage{comics,maxPage,next,viewMore}` (Task 1) is returned by `explore`/`category` (Task 2) and consumed by the provider (Task 3); `ComicSource.hasCategoryComics/categoryDefault/categoryParam/categoryOptions` (Task 2) are read by the provider (Task 3); the family keys `(String sourceKey, int section)` and `(String sourceKey, int section, int page)` are unchanged.
+- **Coupling:** Task 3 changes `comicExploreAllProvider`'s return type, so Task 2 and Task 3 are committed together only if Task 2 leaves the tree compiling (it does — `comicExploreAllProvider` still returns `List<Comic>` until Task 3; Task 2 only adds fields/methods).

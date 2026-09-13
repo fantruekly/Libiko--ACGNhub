@@ -1,0 +1,318 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
+import 'package:fast_gbk/fast_gbk.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_qjs/flutter_qjs.dart';
+
+import 'crypto_util.dart';
+import 'html_bridge.dart';
+
+const _defaultUserAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+class JsEngine {
+  JsEngine({
+    Dio? dio,
+    Map<String, String> Function()? settings,
+  })  : _dio = dio ??
+            Dio(BaseOptions(
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 15),
+              validateStatus: (_) => true,
+            )),
+        _settings = settings ?? (() => <String, String>{});
+
+  final FlutterQjs _engine = FlutterQjs(
+    stackSize: 1024 * 1024,
+    timeout: 5000,
+    memoryLimit: 64 * 1024 * 1024,
+  );
+  final Dio _dio;
+  final Map<String, String> Function() _settings;
+  final Map<String, dynamic> _cookieJar = {};
+  final HtmlBridge _html = HtmlBridge();
+  bool _installed = false;
+  Future<void> _lock = Future<void>.value();
+
+  static const _cookieKey = 'comic_cookies';
+
+  void _loadCookies() {
+    final raw = _settings()[_cookieKey];
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        _cookieJar
+          ..clear()
+          ..addAll(decoded.cast<String, dynamic>());
+      }
+    } catch (_) {
+      // A malformed store is ignored.
+    }
+  }
+
+  void _saveCookies() {
+    try {
+      _settings()[_cookieKey] = jsonEncode(_cookieJar);
+    } catch (_) {
+      // A write failure must not break a request.
+    }
+  }
+
+  void installBridge() {
+    if (_installed) return;
+    _installed = true;
+    _loadCookies();
+    _engine.dispatch();
+    final setter = _engine.evaluate(
+        '(fn) => { globalThis.sendMessage = fn; return true; }') as JSInvokable;
+    setter.invoke([_handle]);
+    setter.free();
+  }
+
+  Future<dynamic> evaluate(String code) {
+    final completer = Completer<dynamic>();
+    _lock = _lock.then((_) async {
+      try {
+        completer.complete(await _engine.evaluate(code));
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
+
+  dynamic _handle(Map<dynamic, dynamic> map) {
+    switch (map['method']) {
+      case 'http':
+        return _http(map);
+      case 'convert':
+        return _convert(map);
+      case 'html':
+        return _htmlOp(map);
+      case 'setting':
+        return _setting(map);
+      case 'cookie':
+        return _cookie(map);
+      case 'log':
+        debugPrint('[comic-source] ${map['message']}');
+        return null;
+      default:
+        throw Exception('Unknown bridge method: ${map['method']}');
+    }
+  }
+
+  /// Cookies stored for [url]'s host, joined into a single `Cookie` header.
+  String? _cookieHeaderFor(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return null;
+    final host = uri.host;
+    bool matches(String? domain, String? keyHost) {
+      final target = (domain != null && domain.isNotEmpty) ? domain : keyHost;
+      if (target == null || target.isEmpty) return false;
+      final d = target.startsWith('.') ? target.substring(1) : target;
+      return host == d || host.endsWith('.$d');
+    }
+
+    final values = <String>[];
+    for (final entry in _cookieJar.entries) {
+      final keyHost = Uri.tryParse(entry.key.toString())?.host;
+      final value = entry.value;
+      if (value is List) {
+        for (final cookie in value) {
+          if (cookie is Map) {
+            final name = cookie['name']?.toString() ?? '';
+            final cookieValue = cookie['value']?.toString() ?? '';
+            final domain = cookie['domain']?.toString();
+            if (matches(domain, keyHost) && name.isNotEmpty) {
+              values.add('$name=$cookieValue');
+            }
+          }
+        }
+      } else if (value is Map) {
+        final name = value['name']?.toString() ?? '';
+        final cookieValue = value['value']?.toString() ?? '';
+        final domain = value['domain']?.toString();
+        if (matches(domain, keyHost) && name.isNotEmpty) {
+          values.add('$name=$cookieValue');
+        }
+      } else {
+        final text = value?.toString();
+        if (text != null && text.isNotEmpty && matches(null, keyHost)) {
+          values.add(text);
+        }
+      }
+    }
+    return values.isEmpty ? null : values.join('; ');
+  }
+
+  Future<Map<String, dynamic>> _http(Map<dynamic, dynamic> map) async {
+    final headers = <String, dynamic>{
+      for (final e in (map['headers'] as Map? ?? {}).entries)
+        e.key.toString(): e.value
+    };
+    headers.putIfAbsent('user-agent', () => _defaultUserAgent);
+    final cookie = _cookieHeaderFor(map['url'] as String);
+    final hasCookie =
+        headers.keys.any((k) => k.toLowerCase() == 'cookie');
+    if (!hasCookie && cookie != null) headers['cookie'] = cookie;
+    final bytes = map['bytes'] == true;
+    try {
+      final response = await _dio.request(
+        map['url'] as String,
+        data: map['data'],
+        options: Options(
+          method: (map['method2'] ?? 'GET').toString(),
+          headers: headers,
+          responseType: bytes ? ResponseType.bytes : ResponseType.plain,
+          extra: (map['extra'] as Map?)?.cast<String, dynamic>(),
+        ),
+      );
+      return {
+        'status': response.statusCode ?? 0,
+        'headers': {
+          for (final e in response.headers.map.entries)
+            e.key: e.value.join(','),
+        },
+        'body': bytes
+            ? response.data as Uint8List
+            : (response.data ?? '').toString(),
+      };
+    } on DioException catch (e) {
+      return {'status': 0, 'headers': const {}, 'body': '', 'error': '$e'};
+    }
+  }
+
+  List<int> _bytes(dynamic data) {
+    if (data is String) return utf8.encode(data);
+    if (data is List<int>) return data;
+    if (data is List) return data.map((e) => (e as num).toInt()).toList();
+    if (data is Uint8List) return data;
+    throw ArgumentError('expected a byte array, got ${data.runtimeType}');
+  }
+
+  dynamic _convert(Map<dynamic, dynamic> map) {
+    final type = map['type'] as String;
+    final raw = map['data'];
+    final text = raw is String ? raw : (raw?.toString() ?? '');
+    final bytes = raw == null ? const <int>[] : _bytes(raw);
+    switch (type) {
+      case 'utf8':
+        return utf8.decode(bytes, allowMalformed: true);
+      case 'utf8Encode':
+        return utf8.encode(text);
+      case 'gbk':
+        return gbk.decode(bytes);
+      case 'base64Encode':
+        return base64.encode(bytes);
+      case 'base64Decode':
+        return base64.decode(text);
+      case 'hexEncode':
+        return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      case 'hexDecode':
+        if (text.length.isOdd) {
+          throw FormatException('hexDecode requires an even number of digits');
+        }
+        return Uint8List.fromList([
+          for (var i = 0; i < text.length; i += 2)
+            int.parse(text.substring(i, i + 2), radix: 16)
+        ]);
+      case 'md5':
+        return Uint8List.fromList(md5.convert(bytes).bytes);
+      case 'sha1':
+        return Uint8List.fromList(sha1.convert(bytes).bytes);
+      case 'sha256':
+        return Uint8List.fromList(sha256.convert(bytes).bytes);
+      case 'aesEcbDecrypt':
+        return aesEcbDecrypt(_bytes(map['data']), _bytes(map['key']));
+      case 'hmac':
+        final algo = (map['algo']?.toString() ?? 'sha256').toLowerCase();
+        final hash = algo == 'sha1'
+            ? sha1
+            : algo == 'md5'
+                ? md5
+                : sha256;
+        return Hmac(hash, _bytes(map['key']))
+            .convert(_bytes(map['data']))
+            .toString();
+      default:
+        throw Exception('Unknown convert type: $type');
+    }
+  }
+
+  dynamic _htmlOp(Map<dynamic, dynamic> map) {
+    final op = map['op'] as String;
+    final handle = (map['handle'] as num?)?.toInt() ?? 0;
+    switch (op) {
+      case 'parse':
+        return _html.parse(map['html'] as String? ?? '');
+      case 'querySelector':
+        return _html.querySelector(handle, map['selector'] as String);
+      case 'querySelectorAll':
+        return _html.querySelectorAll(handle, map['selector'] as String);
+      case 'getElementById':
+        return _html.getElementById(handle, map['id'] as String);
+      case 'text':
+        return _html.text(handle);
+      case 'innerHtml':
+        return _html.innerHtml(handle);
+      case 'outerHtml':
+        return _html.outerHtml(handle);
+      case 'attributes':
+        return _html.attributes(handle);
+      case 'attr':
+        return _html.attr(handle, map['name'] as String);
+      case 'children':
+        return _html.children(handle);
+      case 'free':
+        _html.free(handle);
+        return null;
+      default:
+        throw Exception('Unknown html op: $op');
+    }
+  }
+
+  static const _settingPrefix = 'source_setting.';
+  static const _dataPrefix = 'source_data.';
+
+  dynamic _setting(Map<dynamic, dynamic> map) {
+    final store = _settings();
+    final key = map['key'] as String;
+    if (!key.startsWith(_settingPrefix) && !key.startsWith(_dataPrefix)) {
+      throw Exception('setting key out of scope: $key');
+    }
+    if (map['op'] == 'set') {
+      store[key] = map['value']?.toString() ?? '';
+      return null;
+    }
+    return store[key];
+  }
+
+  dynamic _cookie(Map<dynamic, dynamic> map) {
+    final url = map['url']?.toString() ?? '';
+    if (map['op'] == 'set') {
+      final value = map['cookies'];
+      if (value == null || (value is String && value.isEmpty)) {
+        _cookieJar.remove(url);
+      } else {
+        _cookieJar[url] = value;
+      }
+      _saveCookies();
+      return null;
+    }
+    return _cookieJar[url];
+  }
+
+  void dispose() {
+    _html.dispose();
+    try {
+      _engine.port.close();
+      _engine.close();
+    } catch (e) {
+      debugPrint('[JsEngine] dispose: $e');
+    }
+  }
+}

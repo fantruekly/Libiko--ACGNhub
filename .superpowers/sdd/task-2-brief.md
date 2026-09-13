@@ -1,204 +1,189 @@
-### Task 2: `WebviewScraper` + XPath→JS script builders
+### Task 2: Account dialog in 源管理
 
 **Files:**
-- Create: `lib/core/video/webview_scraper.dart`
-- Test: `test/core/video/xpath_js_test.dart`
+- Modify: `lib/modules/comic/comic_source_page.dart`
 
 **Interfaces:**
-- Consumes: `SourceRule` (Task 1).
-- Produces: `const String kBrowserUserAgent`; `String buildSearchScript(SourceRule rule)`; `String buildEpisodesScript(SourceRule rule)`; `class WebviewScraper { Future<dynamic> fetchJson({required String url, required String script, String? userAgent, Duration timeout, int attempts}); }`.
+- Consumes: `ComicSource.hasLogin`/`hasCookieLogin`/`cookieFields` and the manager's `login`/`loginWithCookies`/`logout`/`isLogged` (Task 1).
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Add the 账号 menu item**
 
-Create `test/core/video/xpath_js_test.dart`:
+In `_sourceTile`'s `PopupMenuButton`, add to `onSelected`:
 
 ```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
-import 'package:acgnhub/core/video/webview_scraper.dart';
-
-const _rule = SourceRule(
-  name: '七色番',
-  baseUrl: 'https://www.7sefun.top/',
-  searchUrl: 'https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword',
-  searchList: '//div[2]/div[2]/div[2]/div[2]/div',
-  searchName: '//div[2]/text()',
-  searchResult: '//a',
-  chapterRoads: '//div[2]/div[2]/div[2]/div/div[2]/div[1]//div',
-  chapterResult: '//a',
-);
-
-void main() {
-  test('buildSearchScript embeds the search XPaths and returns JSON', () {
-    final js = buildSearchScript(_rule);
-    expect(js, contains('document.evaluate'));
-    expect(js, contains('"//div[2]/div[2]/div[2]/div[2]/div"'));
-    expect(js, contains('"//div[2]/text()"'));
-    expect(js, contains('"//a"'));
-    expect(js, contains('JSON.stringify'));
-  });
-
-  test('buildEpisodesScript embeds the chapter XPaths and returns JSON', () {
-    final js = buildEpisodesScript(_rule);
-    expect(js, contains('"//div[2]/div[2]/div[2]/div/div[2]/div[1]//div"'));
-    expect(js, contains('"//a"'));
-    expect(js, contains('JSON.stringify'));
-  });
-}
+            if (value == 'account') _openAccount(source);
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart`
-Expected: FAIL — `webview_scraper.dart` not found.
-
-- [ ] **Step 3: Create `lib/core/video/webview_scraper.dart`**
+and to `itemBuilder`, before the 刷新 entry:
 
 ```dart
-import 'dart:async';
-import 'dart:convert';
+            if (source.hasLogin || source.hasCookieLogin)
+              const PopupMenuItem(value: 'account', child: Text('账号')),
+```
 
-import 'package:flutter/foundation.dart';
-import 'package:webview_windows/webview_windows.dart';
+Add the handler near `_refresh`/`_confirmDelete`:
 
-import 'source_rule.dart';
+```dart
+  void _openAccount(ComicSource source) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _AccountDialog(source: source),
+    );
+  }
+```
 
-const String kBrowserUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+- [ ] **Step 2: Add the `_AccountDialog` widget**
 
-const String _helpersJs = r'''
-function __ev(xpath, ctx) {
-  try {
-    var r = document.evaluate(xpath, ctx || document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-    var out = [];
-    for (var i = 0; i < r.snapshotLength; i++) out.push(r.snapshotItem(i));
-    return out;
-  } catch (e) { return []; }
+Append at the end of `comic_source_page.dart`:
+
+```dart
+class _AccountDialog extends ConsumerStatefulWidget {
+  final ComicSource source;
+
+  const _AccountDialog({required this.source});
+
+  @override
+  ConsumerState<_AccountDialog> createState() => _AccountDialogState();
 }
-function __txt(xpath, ctx) {
-  var n = __ev(xpath, ctx);
-  if (!n.length) return '';
-  return (n[0].textContent || '').trim();
-}
-function __attr(xpath, ctx, name) {
-  var n = __ev(xpath, ctx);
-  if (!n.length) return '';
-  var e = n[0];
-  return ((e.getAttribute && e.getAttribute(name)) || '').trim();
-}
-''';
 
-/// JS that returns a JSON array of `{name, href}` for the rule's search page.
-String buildSearchScript(SourceRule rule) => '''
-(function () {
-  $_helpersJs
-  var rows = [];
-  var list = __ev(${jsonEncode(rule.searchList)}, document);
-  for (var i = 0; i < list.length; i++) {
-    rows.push({
-      name: __txt(${jsonEncode(rule.searchName)}, list[i]),
-      href: __attr(${jsonEncode(rule.searchResult)}, list[i], 'href')
+class _AccountDialogState extends ConsumerState<_AccountDialog> {
+  late final List<TextEditingController> _controllers;
+  bool _logged = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final count = widget.source.hasCookieLogin
+        ? widget.source.cookieFields.length
+        : 2;
+    _controllers =
+        List.generate(count, (_) => TextEditingController());
+    _refreshStatus();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _refreshStatus() async {
+    final logged =
+        await ref.read(comicSourceManagerProvider).isLogged(widget.source);
+    if (mounted) setState(() => _logged = logged);
+  }
+
+  String _label(int index) {
+    if (widget.source.hasCookieLogin) {
+      return widget.source.cookieFields[index];
+    }
+    return index == 0 ? '账号 / 邮箱' : '密码';
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final manager = ref.read(comicSourceManagerProvider);
+    final bool ok;
+    if (widget.source.hasLogin) {
+      ok = await manager.login(widget.source, _controllers[0].text.trim(),
+          _controllers[1].text);
+    } else {
+      ok = await manager.loginWithCookies(
+          widget.source, _controllers.map((c) => c.text.trim()).toList());
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _logged = ok;
+      _error = ok ? null : '登录失败';
     });
   }
-  return JSON.stringify(rows);
-})()
-''';
 
-/// JS that returns a JSON array of `{title, href}` for the rule's first road.
-String buildEpisodesScript(SourceRule rule) => '''
-(function () {
-  $_helpersJs
-  var out = [];
-  var roads = __ev(${jsonEncode(rule.chapterRoads)}, document);
-  if (roads.length) {
-    var links = __ev(${jsonEncode(rule.chapterResult)}, roads[0]);
-    for (var i = 0; i < links.length; i++) {
-      var e = links[i];
-      out.push({
-        title: (e.textContent || '').trim(),
-        href: ((e.getAttribute && e.getAttribute('href')) || '').trim()
-      });
-    }
+  Future<void> _logout() async {
+    setState(() => _busy = true);
+    await ref.read(comicSourceManagerProvider).logout(widget.source);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _logged = false;
+    });
   }
-  return JSON.stringify(out);
-})()
-''';
 
-/// Loads a URL in a headless WebView and evaluates an extraction script.
-/// Mirrors [StreamResolver]'s lifecycle: create, run, load, dispose.
-class WebviewScraper {
-  Future<dynamic> fetchJson({
-    required String url,
-    required String script,
-    String? userAgent,
-    Duration timeout = const Duration(seconds: 20),
-    int attempts = 3,
-  }) async {
-    final webview = HeadlessWebview();
-    final subs = <StreamSubscription>[];
-    final loaded = Completer<void>();
-
-    try {
-      await webview.run();
-      try {
-        await webview.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
-      } catch (_) {}
-      await webview.setUserAgent(userAgent ?? kBrowserUserAgent);
-
-      subs.add(webview.loadingState.listen((state) {
-        if (state == LoadingState.navigationCompleted && !loaded.isCompleted) {
-          loaded.complete();
-        }
-      }));
-
-      await webview.loadUrl(url);
-      await loaded.future.timeout(timeout, onTimeout: () {});
-
-      for (var attempt = 0; attempt < attempts; attempt++) {
-        dynamic result;
-        try {
-          result = await webview.executeScript(script);
-        } catch (_) {
-          result = null;
-        }
-        if (result is List && result.isNotEmpty) return result;
-        if (attempt < attempts - 1) {
-          await Future.delayed(const Duration(milliseconds: 600));
-        }
-      }
-      return const <dynamic>[];
-    } catch (e) {
-      debugPrint('[WebviewScraper] failed for $url: $e');
-      return null;
-    } finally {
-      for (final s in subs) {
-        try {
-          await s.cancel();
-        } catch (_) {}
-      }
-      try {
-        await webview.dispose();
-      } catch (_) {}
-    }
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.source.name),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_logged ? '已登录' : '未登录',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: _logged
+                      ? const Color(0xFF34C759)
+                      : const Color(0xFF8E8E93))),
+          if (!_logged) ...[
+            const SizedBox(height: 12),
+            for (var i = 0; i < _controllers.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TextField(
+                  controller: _controllers[i],
+                  obscureText: widget.source.hasLogin && i == 1,
+                  decoration: InputDecoration(
+                    labelText: _label(i),
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+          ],
+          if (_error != null)
+            Text(_error!,
+                style: const TextStyle(
+                    fontSize: 13, color: Color(0xFFE81123))),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
+        if (_logged)
+          TextButton(
+            onPressed: _busy ? null : _logout,
+            child: const Text('退出登录'),
+          )
+        else
+          FilledButton(
+            onPressed: _busy ? null : _submit,
+            child: const Text('登录'),
+          ),
+      ],
+    );
   }
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 3: Analyze and build**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/xpath_js_test.dart`
-Expected: PASS (2 tests).
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
 
-- [ ] **Step 5: Verify it compiles**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit and push**
 
 ```bash
-git add lib/core/video/webview_scraper.dart test/core/video/xpath_js_test.dart
-git commit -m "feat(video): add headless webview scraper and XPath-to-JS builders"
+git add lib/modules/comic/comic_source_page.dart
+git commit -m "feat(comic): add the source account dialog"
+git push
 ```
 
 ---

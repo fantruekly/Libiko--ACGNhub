@@ -1,27 +1,31 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import '../../core/account/sync_service.dart';
+import '../../core/models/work.dart';
+import '../../core/services/watch_history.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
 
-class VideoPlayerPage extends StatefulWidget {
-  final String title;
+class VideoPlayerPage extends ConsumerStatefulWidget {
+  final Work work;
   final List<VideoEpisode> episodes;
   final int initialIndex;
 
   const VideoPlayerPage({
     super.key,
-    required this.title,
+    required this.work,
     required this.episodes,
     required this.initialIndex,
   });
 
   @override
-  State<VideoPlayerPage> createState() => _VideoPlayerPageState();
+  ConsumerState<VideoPlayerPage> createState() => _VideoPlayerPageState();
 }
 
-class _VideoPlayerPageState extends State<VideoPlayerPage> {
+class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
   late final Player _player;
   late final VideoController _controller;
   String? _error;
@@ -54,23 +58,29 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     if (i < 0 || i >= widget.episodes.length) return;
     final gen = ++_gen;
     final previous = _currentIndex;
+    final episode = widget.episodes[i];
+    final work = widget.work;
+    final history = ref.read(watchHistoryProvider.notifier);
     setState(() {
       _resolving = true;
       _error = null;
       _currentIndex = i;
     });
-    final url = await StreamResolver().resolve(widget.episodes[i].playUrl);
+    final url = await StreamResolver().resolve(episode.playUrl);
     if (!mounted || gen != _gen) return;
     if (url == null) {
       setState(() {
         _resolving = false;
         _currentIndex = previous;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
       return;
     }
     setState(() => _resolving = false);
     await _player.open(Media(url));
+    if (gen == _gen) await history.record(work, episode);
+    ref.read(syncProvider).schedule();
   }
 
   MaterialDesktopVideoControlsThemeData _controlsTheme(BuildContext context, {bool showEpisodes = true}) {
@@ -84,7 +94,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         ),
         Expanded(
           child: Text(
-            widget.title,
+            widget.work.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600, height: 1.3),
@@ -128,15 +138,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             ),
           ),
           if (_resolving)
-            const Positioned(
-              top: 72,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: Colors.white),
+                  ),
                 ),
               ),
             ),

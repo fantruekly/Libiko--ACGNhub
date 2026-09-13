@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:acgnhub/core/video/rule_store.dart';
 import 'package:acgnhub/core/video/source_rule.dart';
 
@@ -39,10 +40,23 @@ void main() {
     );
   });
 
-  test('bundled 7sefun rule parses from disk', () async {
-    final raw = await File('assets/source_rules/7sefun.json').readAsString();
-    final rule = SourceRule.fromJsonString(raw);
-    expect(rule.name, '七色番');
-    expect(rule.searchUrl, contains('@keyword'));
+  test('every bundled rule parses from disk', () async {
+    final dir = Directory('assets/source_rules');
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.json'))
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+    expect(files, hasLength(5));
+    expect(
+      files.map((f) => p.basename(f.path)).toList(),
+      ['7sefun.json', 'MXdm.json', 'akianime.json', 'gugu3.json', 'moonci.json'],
+    );
+    for (final file in files) {
+      final rule = SourceRule.fromJsonString(await file.readAsString());
+      expect(rule.name, isNotEmpty, reason: file.path);
+      expect(rule.searchUrl, contains('@keyword'), reason: file.path);
+    }
   });
 }

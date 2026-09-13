@@ -1,133 +1,91 @@
-# Task 4 Report: `RuleStore`, source registry, and the bundled 7sefun rule
-
-## Status
-DONE
+# Task 4 Report: Fixture + continuous-paging verification
 
 ## What I implemented
-Followed the brief's TDD order exactly, code verbatim.
 
-1. `test/core/video/rule_store_test.dart` — two tests: `mergeRules` dedupe
-   (imported wins) and the bundled 7sefun JSON parsing from disk.
-2. `assets/source_rules/7sefun.json` — the bundled Kazumi-compatible 七色番 rule.
-3. `pubspec.yaml` — added `- assets/source_rules/` under `flutter: assets:`
-   (kept `assets/rules/` and `assets/anime_seed.json`).
-4. `lib/core/video/rule_store.dart` — `RuleStore` with `loadAll()`,
-   `loadBuiltIn()` (reads `AssetManifest.json`, filters `assets/source_rules/*.json`),
-   `loadImported()` (reads `<app support dir>/rules/`), `importJson(rawJson)`
-   (parses then persists, throws `FormatException` via `SourceRule` on invalid input),
-   `_safeName`, and `@visibleForTesting static mergeRules` (imported wins by name).
-   Plus `ruleStoreProvider`.
-5. `lib/core/video/video_sources.dart` — `buildSources(rules)` (AgedmSource,
-   GimySource, then one `RuleVideoSource` per rule) and `videoSourcesProvider`
-   (`FutureProvider` awaiting `loadAll()`).
+### 1. `assets/comic_source/test_source.js` (committed)
+- Added `category = { title: '测试分类', parts: [{ name: '类型', type: 'fixed', categories: ['全部'], categoryParams: [''], itemType: 'category' }] }` and
+  `categoryComics = { load: (category, param, options, page) => ({ comics: [cat{page}-1..3], maxPage: 2 }), optionList: [] }`
+  inside `AcgnhubTestSource`, immediately after `comic = { ... }`.
+- Changed the `分类` explore section from the `{ '冒险': [...], '日常': [...] }` map form to a list-of-parts form with a single `冒险` part carrying `viewMore: 'category:全部@'`.
 
-## What I tested and results
-- Focused: `flutter test test/core/video/rule_store_test.dart` → `+2: All tests passed!`
-- Analyze: `flutter analyze lib test` → `No issues found! (ran in 2.4s)`
-- Full suite: `flutter test` → `+65: All tests passed!`
+### 2. `.superpowers/sdd/comic_continuous_probe.dart` (scratch, untracked)
+- `ProviderContainer` probe: `AppDatabase.init()`, `manager.importFromFile` the fixture, read `comicSourcesProvider`, locate the `分类` section by title, then drive `comicExploreProvider(('acgnhub_test', section, page))` for pages 1–3 and print ids / maxPage / hasNext.
 
-Per the brief, `loadBuiltIn`/`loadImported`/`importJson` asset+disk paths are not
-unit-tested (integration-tested manually); only `mergeRules` and the bundled
-JSON parse are unit-tested.
+## Continuous probe output
 
-## TDD evidence
-
-### RED
-Command: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_store_test.dart`
-
-Output (excerpt):
-```
-test/core/video/rule_store_test.dart:4:8: Error: Error when reading 'lib/core/video/rule_store.dart': 系统找不到指定的文件。
-import 'package:acgnhub/core/video/rule_store.dart';
-test/core/video/rule_store_test.dart:20:20: Error: Undefined name 'RuleStore'.
-    final merged = RuleStore.mergeRules(
-00:00 +0 -1: ... Failed to load ... Compilation failed
-```
-Why expected: the test imports `rule_store.dart` and references `RuleStore`,
-neither of which existed yet — a compile failure for the missing feature, not a typo.
-
-### GREEN
-Command: same as above, after creating the JSON, pubspec entry, and both lib files.
-
-Output (excerpt):
-```
-00:00 +0: mergeRules dedupes by name and imported wins
-00:00 +1: bundled 7sefun rule parses from disk
-00:00 +2: All tests passed!
+Command:
+```powershell
+$env:Path = "C:\flutter\bin;$env:Path"; flutter run -d windows -t .superpowers/sdd/comic_continuous_probe.dart 2>&1 | Tee-Object -FilePath ".superpowers\sdd\continuous_probe.log"
 ```
 
-## Files changed
-- `assets/source_rules/7sefun.json` (new)
-- `lib/core/video/rule_store.dart` (new)
-- `lib/core/video/video_sources.dart` (new)
-- `test/core/video/rule_store_test.dart` (new)
-- `pubspec.yaml` (modified: added asset dir)
+| page | ids | maxPage | hasNext |
+|------|-----|---------|---------|
+| 1 | `[a1]` | `null` | `true` |
+| 2 | `[cat1-1, cat1-2, cat1-3]` | `null` | `true` |
+| 3 | `[cat2-1, cat2-2, cat2-3]` | `null` | `false` |
 
-## Commit
-- `de5a29f` feat(video): add rule store, source registry, and bundled 7sefun rule
+Raw log:
+```
+PROBE CONTINUOUS page=1 ids=[a1] maxPage=null hasNext=true
+PROBE CONTINUOUS page=2 ids=[cat1-1, cat1-2, cat1-3] maxPage=null hasNext=true
+PROBE CONTINUOUS page=3 ids=[cat2-1, cat2-2, cat2-3] maxPage=null hasNext=false
+PROBE DONE
+```
+
+This matches the brief's expected output exactly (page 1 stays on the explore content; pages 2–3 continue into the category listing, one category page per provider page, stopping after `maxPage=2`).
+
+## Explore probe results (manhuagui / baozi)
+
+Command:
+```powershell
+$env:Path = "C:\flutter\bin;$env:Path"; flutter run -d windows -t .superpowers/sdd/comic_explore_probe.dart 2>&1 | Tee-Object -FilePath ".superpowers\sdd\explore_probe9.log"
+```
+
+Relevant raw lines:
+```
+PROBE EXPLORE key=baozi section=0 title=包子漫画 type=singlePageWithMultiPart page=1 count=108 maxPage=null
+PROBE EXPLORE key=baozi section=0 title=包子漫画 type=singlePageWithMultiPart page=2 count=108 maxPage=null
+PROBE EXPLORE key=ManHuaGui section=0 title=漫画柜 type=multiPartPage page=1 count=78 maxPage=null
+PROBE EXPLORE key=ManHuaGui section=0 title=漫画柜 type=multiPartPage page=2 count=78 maxPage=null
+PROBE LOADED COUNT=15
+PROBE VERDICT DONE
+```
+
+- **manhuagui**: 78 comics, both pages (multiPartPage one-shot; page is ignored at manager level).
+- **baozi**: 108 comics, both pages (singlePageWithMultiPart one-shot; page is ignored at manager level).
+
+Both still return their explore content. This probe is manager-level, so the provider continuation is not exercised here (by design, per the brief); the fixture probe above covers the continuation.
+
+## Verification commands + observed results
+
+| Command | Result |
+|---------|--------|
+| `flutter analyze lib test` | `No issues found! (ran in 1.5s)` |
+| `flutter test` | `+158 ~1: All tests passed!` (the `~1` is the pre-existing skipped QuickJS smoke test) |
+| `flutter build windows --debug` | `Built build\windows\x64\runner\Debug\acgnhub.exe` |
+| `git push` | `501fd54..d25b510  dev -> dev` |
+
+Logs: `.superpowers/sdd/analyze_task4.log`, `.superpowers/sdd/test_task4.log`, `.superpowers/sdd/build_task4.log`, `.superpowers/sdd/continuous_probe.log`, `.superpowers/sdd/explore_probe9.log`.
+
+## Files changed + commit
+
+- `assets/comic_source/test_source.js` (tracked) — 32 insertions, 4 deletions.
+- `.superpowers/sdd/comic_continuous_probe.dart` — scratch, untracked (ignored by `.superpowers/sdd/.gitignore`), not committed.
+- Commit: `d25b510` `test(comic): fixture for continuous category paging`, pushed to `origin/dev`.
+
+## Cleanup
+
+Deleted the copied fixture from the app source dir:
+`C:\Users\26568\AppData\Roaming\com.acgnhub\acgnhub\comic_source\test_source.js`
 
 ## Self-review findings
-- Completeness: all brief files and interfaces present; `loadAll`, `loadBuiltIn`,
-  `loadImported`, `importJson`, `mergeRules`, `ruleStoreProvider`,
-  `buildSources`, `videoSourcesProvider` all match the specified signatures.
-- Quality/YAGNI: no extra code beyond the brief; 2-space indentation; no comments
-  beyond the brief's doc comments.
-- Real behavior: `mergeRules` is exercised with real `SourceRule` objects; the
-  bundled rule test parses the real asset file, so a broken JSON or missing
-  required field would fail.
+
+- The diff for the fixture is byte-for-byte the brief's intended shape; only the `分类` section changed and the two new fields were added. The removed `日常` part is intentional (the continuation needs a single `viewMore`-bearing part).
+- The probe prints `maxPage=null` on pages 2–3, which is correct for the continuation branch of `comicExploreProvider` (`maxPage: null`, `hasNext` derived from `catPage < result.maxPage`). The brief only specified ids/hasNext for those pages.
+- The manager-level explore probe showing identical counts for page 1 and page 2 is expected for one-shot section types (`load` receives no page for `singlePageWithMultiPart`/`multiPartPage`); this is unchanged behavior and not a regression.
+- No code comments were added beyond the fixture's existing header comment.
+- No tracked files other than the fixture were staged; the modified `.superpowers/sdd/*.md` and generated plugin registrant files were left untouched.
 
 ## Concerns
-- **Weak "imported wins" assertion:** the test's two `b` rules are built by the
-  same helper, so their `baseUrl` is identical (`https://b.test/`). The assertion
-  `merged.firstWhere(name=='b').baseUrl == 'https://b.test/'` passes whether the
-  built-in or the imported copy won, so the test does not actually distinguish the
-  two. The dedupe-by-name set assertion is valid; the precedence claim is not truly
-  verified. This is the brief's verbatim test — I did not modify it. A stronger test
-  would give the imported `b` a distinct field value.
-- `loadBuiltIn()` depends on `AssetManifest.json` at runtime, which is not covered
-  by any unit test here (per the brief); it is only exercised when the app runs.
 
-## Fix report
-
-### What changed
-Edited only `test/core/video/rule_store_test.dart`:
-- Added `_ruleWith(String name, String baseUrl)`, which builds a `SourceRule` with
-  an explicit `baseUrl`; the existing `_rule(name)` helper was left unchanged.
-- Updated the `mergeRules dedupes by name and imported wins` test so the imported
-  `b` is built with `_ruleWith('b', 'https://b-imported.test/')` and the assertion
-  checks `baseUrl == 'https://b-imported.test/'`. The built-in `b` still has
-  `https://b.test/`, so the assertion now distinguishes the two copies and can
-  fail if precedence is wrong. No other test and no file under `lib/` was touched.
-
-### Commands run and output
-1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/video/rule_store_test.dart`
-   ```
-   00:00 +0: mergeRules dedupes by name and imported wins
-   00:00 +1: bundled 7sefun rule parses from disk
-   00:00 +2: All tests passed!
-   ```
-2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-   ```
-   Analyzing 2 items...
-   No issues found! (ran in 1.4s)
-   ```
-3. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-   ```
-   00:06 +65: All tests passed!
-   ```
-
-### Reversed-precedence observation
-Temporarily swapped the two list arguments (imported list first, built-in list
-second) and re-ran the focused test. It failed as required, proving the assertion
-now genuinely detects precedence:
-
-```
-00:00 +0: mergeRules dedupes by name and imported wins
-00:00 +0 -1: mergeRules dedupes by name and imported wins [E]
-  Expected: 'https://b-imported.test/'
-    Actual: 'https://b.test/'
-00:00 +1 -1: Some tests failed.
-```
-
-The swap was then reverted, and the focused test passed again (`+2: All tests
-passed!`).
+- None. The continuous probe reproduced the expected page/ids/maxPage/hasNext table exactly, all tests pass, analyze is clean, and the debug build succeeds.
