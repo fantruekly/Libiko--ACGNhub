@@ -84,7 +84,7 @@ abstract class NovelSource {
 - 第 1 行：**源 chip**（当前仅「哔哩轻小说」）。
 - 第 2 行：**分区 chip**：`推荐` / `排行` / `文库`。
 - 第 3 行（条件出现）：
-  - 「排行」→ 子 chip：`人气榜`/`月点击`/`周点击`/`月推荐`/`周推荐`/`月鲜花`/`周鲜花`/`月鸡蛋`/`周鸡蛋`/`最近更新`/`最新入库`/`收藏榜`/`新书榜`。其中 `人气榜`（`allvisit`，`/top.html`）为**单页**，不显示分页。
+  - 「排行」→ 子 chip：`人气榜`/`月点击`/`周点击`/`月推荐`/`周推荐`/`月鲜花`/`周鲜花`/`月鸡蛋`/`周鸡蛋`/`最近更新`/`最新入库`/`收藏榜`/`新书榜`。其中 `人气榜`（`allvisit`）同其他榜一样用 `/top/allvisit/<page>.html`（该页每行都有封面；旧的 `/top.html` 只有少数行带封面，已弃用）。
   - 「文库」→ 子 chip：`电击`/`富士见`/`角川`/`MF文库J`/`Fami通`/`GA`/`HJ`/`一迅社`/`集英社`/`小学馆`/`讲谈社`/`少女文库`/`其他文库`/`华文轻小说`。
 - 下方：**网格**（`NovelCard`：封面 + 书名 + 作者）。
 - 「排行」/「文库」在网格底部提供「上一页 / 第 N 页 / 下一页」**手动换页**按钮（不做自动触底加载）。
@@ -111,9 +111,9 @@ novelBrowseProvider((String sourceId, NovelBrowseKind kind, String key, int page
   - 区块：`div.tab-lists`；区块标题 `div.top-title .title`。
   - 条目 `div.lists ul li`：封面 `div.imgbox img[data-original]`（回退 `src`）、书名 `a.title[href=/novel/<id>.html]`、作者 `a.author`、文库 `a.cate`。
   - 注意：部分 `li` 是纯文本条目（`a.author2` + 无名 `a[title]`），需按有无 `a.title` 过滤。
-- **排行**：`/top.html`（人气榜）行结构为 `div.rank_i_li`；`/top/<key>/<page>.html`（其余排行，如 `/top/monthvote/1.html`）行结构为 `div.rank_d_list`：
-  - `div.rank_i_li`（人气榜）：名次 `div.rank_i_num`、书名 `div.rank_i_bname a.rank_i_l_a_book`（或首个 `a[href=/novel/<id>.html]`）、作者 `a.rank_i_l_a_author`、文库 `a.rank_i_l_a_category`、封面 `div.rank_i_bcount img[data-original]`。
-  - `div.rank_d_list`（其余排行）：名次 `div.rank_d_b_num`、书名 `div.rank_d_b_name a`、封面 `div.rank_d_book_img img`（`data-original` 回退 `src`）、作者 `div.rank_d_b_cate a`（首个）。
+- **排行**：`/top/<key>/<page>.html`（所有排行，如 `/top/allvisit/1.html`、`/top/monthvote/1.html`）行结构为 `div.rank_d_list`；旧的 `/top.html`（人气榜单页）行结构为 `div.rank_i_li`（仅少数行带封面，已弃用）：
+  - `div.rank_i_li`（旧 `/top.html`）：名次 `div.rank_i_num`、书名 `div.rank_i_bname a.rank_i_l_a_book`（或首个 `a[href=/novel/<id>.html]`）、作者 `a.rank_i_l_a_author`、文库 `a.rank_i_l_a_category`、封面 `div.rank_i_bcount img[data-original]`。
+  - `div.rank_d_list`（`/top/<key>/<page>.html`）：名次 `div.rank_d_b_num`、书名 `div.rank_d_b_name a`、封面 `div.rank_d_book_img img`（`data-original` 回退 `src`）、作者 `div.rank_d_b_cate a`（首个）。
 - **文库** `GET /wenku/<key>/<page>.html`：与首页 `div.lists ul li` 同构。
 - id 提取：从 `/novel/<id>.html` 取数字。
 

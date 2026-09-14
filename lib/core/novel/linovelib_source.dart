@@ -297,11 +297,7 @@ class LinovelibSource implements NovelSource {
   @override
   String get baseUrl => linovelibBaseUrl;
 
-  static String rankPath(String key, int page) =>
-      key == 'allvisit' ? '/top.html' : '/top/$key/$page.html';
-
-  static bool isSinglePageRanking(NovelBrowse browse) =>
-      browse.kind == NovelBrowseKind.ranking && browse.key == 'allvisit';
+  static String rankPath(String key, int page) => '/top/$key/$page.html';
 
   static String bunkoPath(String key, int page) => '/wenku/$key/$page.html';
 
@@ -334,11 +330,9 @@ class LinovelibSource implements NovelSource {
     final items = browse.kind == NovelBrowseKind.ranking
         ? parseRankRows(html)
         : parseBookList(html);
-    final hasMore = isSinglePageRanking(browse)
-        ? false
-        : (hasPaginationControl(html)
-            ? hasNextPage(html)
-            : items.length >= 10);
+    final hasMore = hasPaginationControl(html)
+        ? hasNextPage(html)
+        : items.length >= 10;
     return NovelList(items: items, page: page, hasMore: hasMore);
   }
 
