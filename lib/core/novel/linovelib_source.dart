@@ -341,8 +341,7 @@ class LinovelibSource implements NovelSource {
   @override
   Future<NovelList> browse(String optionKey, {int page = 1}) async {
     final isRanking = rankingKeys.contains(optionKey);
-    final path =
-        isRanking ? rankPath(optionKey, page) : bunkoPath(optionKey, page);
+    final path = browsePath(optionKey, page);
     final html = await _get(path);
     final items = isRanking ? parseRankRows(html) : parseBookList(html);
     final hasMore =
@@ -353,6 +352,11 @@ class LinovelibSource implements NovelSource {
   static String rankPath(String key, int page) => '/top/$key/$page.html';
 
   static String bunkoPath(String key, int page) => '/wenku/$key/$page.html';
+
+  static String browsePath(String optionKey, int page) =>
+      rankingKeys.contains(optionKey)
+          ? rankPath(optionKey, page)
+          : bunkoPath(optionKey, page);
 
   Future<String> _get(String path) async {
     final res = await _dio.get<String>(
