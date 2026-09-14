@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:acgnhub/core/novel/lknovel_source.dart';
 import 'package:acgnhub/core/novel/models.dart';
@@ -47,6 +50,22 @@ const _chapterData = {
         '<p class="ln-paragraph">第一段</p><img src="https://api.lightnovel.fun/a.jpg" /><p>第二段</p>',
   },
 };
+
+class _FakeAdapter implements HttpClientAdapter {
+  _FakeAdapter(this.body);
+  final String body;
+  final int status = 200;
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    return ResponseBody.fromString(body, status, headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    });
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 void main() {
   test('parseLkBook maps fields and dedupes tags', () {
@@ -182,5 +201,57 @@ void main() {
     expect(chapter.blocks.whereType<NovelText>().length, 2);
     expect(chapter.blocks.whereType<NovelImage>().single.url,
         'https://api.lightnovel.fun/a.jpg');
+  });
+
+  test('parseLkBook prefers full summary over summary_short', () {
+    final n = parseLkBook(const {
+      'book_id': 1,
+      'title': 'T',
+      'summary': '完整简介',
+      'summary_short': '短简介',
+    });
+    expect(n.summary, '完整简介');
+  });
+
+  test('parseLkChapter normalizes lazy and relative image urls', () {
+    final chapter = parseLkChapter(const {
+      'title': 'T',
+      'body_snapshot': {
+        'body_html': '<p>a</p>'
+            '<img data-src="//cdn.x/i.jpg" src="/placeholder.svg" />'
+            '<img src="/upload-files/b.jpg" />',
+      },
+    }, '');
+    final urls =
+        chapter.blocks.whereType<NovelImage>().map((b) => b.url).toList();
+    expect(urls, [
+      'https://cdn.x/i.jpg',
+      'https://www.lightnovel.fun/upload-files/b.jpg',
+    ]);
+  });
+
+  test('http post throws when code is non-zero', () async {
+    final dio = Dio(BaseOptions(baseUrl: lknovelBaseUrl));
+    dio.httpClientAdapter = _FakeAdapter('{"code":3,"data":{"pageSize":["bad"]}}');
+    final source = LknovelSource(dio: dio);
+    await expectLater(source.browse('weekly_hot'), throwsA(isA<Exception>()));
+  });
+
+  test('home skips a failing feed and keeps the rest', () async {
+    final source = LknovelSource(poster: (endpoint, body) async {
+      if (endpoint == 'bff/home-lightnovel-feed-v1') {
+        throw Exception('boom');
+      }
+      return {'code': 0, 'data': _feedData};
+    });
+    final home = await source.home();
+    expect(home.sections.map((s) => s.title), isNot(contains('轻小说')));
+    expect(home.sections, isNotEmpty);
+  });
+
+  test('home throws when every feed is empty', () async {
+    final source = LknovelSource(
+        poster: (endpoint, body) async => {'code': 0, 'data': const {'list': []}});
+    await expectLater(source.home(), throwsA(isA<Exception>()));
   });
 }

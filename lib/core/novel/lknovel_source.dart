@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
 import 'models.dart';
@@ -37,6 +38,14 @@ String? _nonEmpty(dynamic v) {
   return (s == null || s.isEmpty) ? null : s;
 }
 
+String? _imageUrl(dom.Element el) {
+  final raw = el.attributes['data-src'] ?? el.attributes['src'];
+  if (raw == null || raw.isEmpty) return null;
+  if (raw.startsWith('http')) return raw;
+  if (raw.startsWith('//')) return 'https:$raw';
+  return raw.startsWith('/') ? '$lknovelBaseUrl$raw' : '$lknovelBaseUrl/$raw';
+}
+
 List<String> _stringList(dynamic raw) {
   if (raw is List) {
     return [
@@ -61,7 +70,7 @@ Novel parseLkBook(Map<String, dynamic> json) {
     author: _nonEmpty(json['author_name']),
     coverUrl: _nonEmpty(json['cover_url']),
     tags: uniq,
-    summary: _nonEmpty(json['summary_short']) ?? _nonEmpty(json['summary']),
+    summary: _nonEmpty(json['summary']) ?? _nonEmpty(json['summary_short']),
     extra: {
       if (rank != null && rank > 0) 'rank': rank,
     },
@@ -137,8 +146,8 @@ NovelChapter parseLkChapter(Map<String, dynamic> data, String fallbackTitle) {
         final t = el.text.trim();
         if (t.isNotEmpty) blocks.add(NovelText(t));
       } else {
-        final src = el.attributes['src'] ?? el.attributes['data-src'];
-        if (src != null && src.isNotEmpty) blocks.add(NovelImage(src));
+        final url = _imageUrl(el);
+        if (url != null) blocks.add(NovelImage(url));
       }
     }
   }
@@ -173,12 +182,12 @@ class LknovelSource implements NovelSource {
   @override
   String get baseUrl => lknovelBaseUrl;
 
-  static const List<String> rankingKeys = [
+  static const Set<String> rankingKeys = {
     'weekly_hot',
     'daily_hot',
     'daily_fresh',
     'weekly_fresh',
-  ];
+  };
 
   static const Map<String, String> feedEndpoints = {
     'lightnovel': 'bff/home-lightnovel-feed-v1',
@@ -219,7 +228,7 @@ class LknovelSource implements NovelSource {
     final raw = res.data;
     if (raw is! Map) throw Exception('lknovel 响应格式错误：$endpoint');
     final map = raw.cast<String, dynamic>();
-    if (map['code'] != 0) {
+    if (_asInt(map['code']) != 0) {
       throw Exception('lknovel 请求失败：$endpoint (code=${map['code']})');
     }
     return map;
