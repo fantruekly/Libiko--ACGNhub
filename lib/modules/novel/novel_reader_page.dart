@@ -33,12 +33,14 @@ class NovelReaderPage extends ConsumerStatefulWidget {
   final String novelId;
   final String chapterId;
   final String title;
+  final String? cover;
   const NovelReaderPage({
     super.key,
     required this.sourceKey,
     required this.novelId,
     required this.chapterId,
     required this.title,
+    this.cover,
   });
 
   @override
