@@ -246,6 +246,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
         backgroundColor:
             isFavorite ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
         foregroundColor: isFavorite ? const Color(0xFF5A5A5F) : Colors.white,
+        side: BorderSide(
+            color: isFavorite
+                ? const Color(0xFFD1D1D6)
+                : Colors.transparent),
         elevation: 0,
         shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

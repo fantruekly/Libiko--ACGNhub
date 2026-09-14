@@ -26,6 +26,7 @@ class PillButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFF2F2F7),
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE5E5EA)),
           ),
           child: MarqueeText(
             text: label,
