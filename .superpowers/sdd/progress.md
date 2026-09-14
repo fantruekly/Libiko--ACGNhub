@@ -205,3 +205,13 @@ Bug (user): 点「排行」加载不出来. Root cause: `/top.html` (人气榜) 
 `/top/<key>/<page>.html` (月推荐/收藏榜/…) rows are `div.rank_d_list` — `parseRankRows` only handled the former.
 Task 9: complete (commit b7a9af0..13a5f1f, review clean: Approved). Probe: allvisit→60, monthvote→30 (hasMore), goodnum→30 (hasMore).
   Parser cost measured at 8ms for a 79KB page → the reported 卡顿 is NOT HTML parsing; UI-layer cause still unconfirmed (asked user to re-test after the fix).
+
+Ranking freeze (user): 切到排行就卡死/无法操作.
+Root cause: the 排行/文库 pager used `OutlinedButton` inside a `Row`; the app-wide
+`outlinedButtonTheme` sets `minimumSize: Size(double.infinity, 48)`, so the button
+demanded infinite width under unbounded Row constraints → endless
+`RenderBox was not laid out` / `!semantics.parentDataDirty` loop each frame → freeze.
+Reproduced via `flutter run` log (9931 lines of repeating exceptions) with the app
+temporarily starting on 排行. Fix: explicit bounded pager button style (Size(84,40)).
+Task 10: complete (commit bf93a6b..0d08559) + regression test `novel_home_pager_test.dart`
+  (fails without the fix, passes with it). Verified: 0 exceptions, allvisit→60, monthvisit/weekvisit→30.
