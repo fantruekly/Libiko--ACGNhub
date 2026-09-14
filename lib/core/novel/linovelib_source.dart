@@ -121,6 +121,65 @@ bool hasNextPage(String html) {
   return false;
 }
 
+final RegExp _chapterHref = RegExp(r'/novel/\d+/(\d+)\.html');
+
+String? chapterIdFromHref(String? href) {
+  if (href == null) return null;
+  return _chapterHref.firstMatch(href)?.group(1);
+}
+
+String _metaContent(dom.Document doc, String property) {
+  final el = doc.querySelector('meta[property="$property"]') ??
+      doc.querySelector('meta[name="$property"]');
+  return el?.attributes['content']?.trim() ?? '';
+}
+
+Novel parseNovelDetailHeader(String html, String id) {
+  final doc = html_parser.parse(html);
+  final title = _textOf(doc.querySelector('h1.book-name'));
+  final img = doc.querySelector('div.book-img img');
+  final cover = _absUrl(img?.attributes['src'] ?? img?.attributes['data-original']);
+  final author = _metaContent(doc, 'og:novel:author');
+  final tags = _metaContent(doc, 'og:novel:tags')
+      .split(RegExp(r'\s+'))
+      .where((e) => e.isNotEmpty)
+      .toList();
+  final status = _metaContent(doc, 'og:novel:status');
+  final summary = _textOf(doc.querySelector('div.book-dec'));
+  return Novel(
+    id: id,
+    title: title,
+    author: author.isEmpty ? null : author,
+    coverUrl: cover.isEmpty ? null : cover,
+    tags: tags,
+    summary: summary.isEmpty ? null : summary,
+    extra: {
+      'url': '$linovelibBaseUrl/novel/$id.html',
+      if (status.isNotEmpty) 'status': status,
+    },
+  );
+}
+
+List<NovelVolume> parseCatalog(String html, String novelId) {
+  final doc = html_parser.parse(html);
+  final volumes = <NovelVolume>[];
+  for (final vol in doc.querySelectorAll('div.volume-list div.volume')) {
+    final titleA = vol.querySelector('h2.v-line a');
+    final chapters = <NovelChapterRef>[];
+    for (final a in vol.querySelectorAll('ul.chapter-list li a')) {
+      final cid = chapterIdFromHref(a.attributes['href']);
+      if (cid == null) continue;
+      chapters.add(NovelChapterRef(id: cid, title: _textOf(a)));
+    }
+    volumes.add(NovelVolume(
+      title: _textOf(titleA),
+      url: titleA == null ? null : _absUrl(titleA.attributes['href']),
+      chapters: chapters,
+    ));
+  }
+  return volumes;
+}
+
 class LinovelibSource implements NovelSource {
   LinovelibSource({Dio? dio})
       : _dio = dio ??
