@@ -102,7 +102,7 @@ novelBrowseProvider((String sourceId, NovelBrowseKind kind, String key, int page
 ```
 
 - 与漫画一致：首页/分区数据不 autoDispose（切来切去不重载）。
-- 排行/文库每页一个 provider 实例，触底时 page+1。
+- 排行/文库每页一个 provider 实例，点「下一页」时 page+1（手动换页）。
 
 ## 抓取细节（`LinovelibSource`）
 
