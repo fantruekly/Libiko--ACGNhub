@@ -1,80 +1,120 @@
-# Task 1 Report: 轻小说模块模型 `models.dart`
+# Task 1 Report: 浏览分组通用化（模型 / 接口 / linovelib / 首页 UI）
+
+## Status
+
+DONE
 
 ## What I implemented
 
-Created the pure-Dart data models for the new 轻小说 (light novel) module, exactly as specified in the brief:
+Replaced the hardcoded `NovelBrowseKind {ranking, bunko}` enum + `NovelBrowse` class with
+source-declared browse groups/options, so each source can declare its own browse taxonomy.
 
-- `lib/core/novel/models.dart`
-  - `_stringList(dynamic)` helper (list → non-empty `List<String>`).
-  - `Novel` — `id`, `title`, `author?`, `coverUrl?`, `tags`, `summary?`, `extra`; const ctor with defaults, `fromJson`, `toJson` (omits null/empty fields).
-  - `NovelSection`, `NovelHome`, `NovelList`.
-  - `enum NovelBrowseKind { ranking, bunko }` and `NovelBrowse(kind, key)`.
-  - `NovelDetail`, `NovelChapter`.
-- `test/core/novel/models_test.dart` — 3 tests from the brief.
+- **models.dart**: Removed `NovelBrowseKind`/`NovelBrowse`; added `NovelBrowseOption`
+  (`key`, `label`) and `NovelBrowseGroup` (`label`, `options`). Added optional `id` field to
+  `NovelVolume` (for future lknovel per-volume chapter fetching), preserving `title`/`url`/
+  `chapters` and the existing default for `chapters`.
+- **novel_source.dart**: Replaced `browse(NovelBrowse, {page})` with
+  `List<NovelBrowseGroup> get browseGroups` and `browse(String optionKey, {int page = 1})`.
+  `NovelSourceManager` untouched.
+- **linovelib_source.dart**: Added `static const Set<String> rankingKeys`; added
+  `browseGroups` declaring 排行 (13 options) and 文库 (14 options) — exactly the option
+  key/label pairs that previously lived in `novel_home.dart`; rewrote `browse` to dispatch
+  ranking vs. bunko via `rankingKeys` and call `rankPath`/`bunkoPath` + `parseRankRows`/
+  `parseBookList` as before. `rankPath`/`bunkoPath` remain.
+- **novel_providers.dart**: `novelBrowseProvider` family key changed from
+  `(String, NovelBrowseKind, String, int)` to `(String, String, int)`
+  `(sourceId, optionKey, page)`.
+- **novel_home.dart**: Full rewrite to render source chips, then group chips (推荐 + one chip
+  per `source.browseGroups` group), then option chips for the selected group, then the body
+  (home feed for 推荐, paged browse list for a group). Removed `_NovelSection`,
+  `_rankingOptions`, `_bunkoOptions`. `NovelCard`, `_pager`, `_grid`, `_chip` kept unchanged.
+- **Tests**: Updated `models_test.dart` (group/option test), `novel_source_test.dart`
+  (`_FakeSource` now overrides `browseGroups` + new `browse`), and
+  `novel_home_pager_test.dart` (`_FakeSource` declares a 排行 group and new `browse`).
 
-No UI, no network, no new dependency. No `fontFamily` set (no `TextStyle`s at all). SDK constraint untouched.
+## Commands run and results
 
-## What I tested and results
-
-- Focused test: `flutter test test/core/novel/models_test.dart` → 3 tests pass.
-- Full suite: `flutter test` → `+173 ~1: All tests passed!` (173 passed, 1 pre-existing skip: `js_engine_smoke_test.dart` native library not loadable under `flutter test`).
-- Analyzer: `flutter analyze lib test` → `No issues found!`.
-
-## TDD Evidence
-
-### RED
-
-Command:
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/models_test.dart
-```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+=> No issues found! (ran in 4.3s)
 
-Output (excerpt):
-```
-test/core/novel/models_test.dart:4:8: Error: Error when reading 'lib/core/novel/models.dart': 系统找不到指定的路径。
-import 'package:acgnhub/core/novel/models.dart';
-       ^
-test/core/novel/models_test.dart:8:19: Error: Method not found: 'Novel'.
-test/core/novel/models_test.dart:38:27: Error: Undefined name 'NovelBrowseKind'.
-00:00 +0 -1: Some tests failed.
-```
-
-Why expected: the implementation file did not exist yet, so the test target failed to compile — the test genuinely exercises the missing API.
-
-### GREEN
-
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/models_test.dart
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+=> 00:08 +210 ~1: All tests passed!
+   (1 pre-existing skip: js_engine_smoke_test — flutter_qjs native lib unavailable under test)
 ```
 
-Output:
-```
-00:00 +0: Novel round-trips through JSON
-00:00 +1: Novel.fromJson tolerates missing optional fields
-00:00 +2: NovelBrowse holds kind and key
-00:00 +3: All tests passed!
-```
+## Commit
 
-## Files changed
+- `683433e` refactor(novel): source-declared browse groups
+- Pushed to `origin/dev` (`7ce8641..683433e`).
 
-- `lib/core/novel/models.dart` (new, 84 lines)
-- `test/core/novel/models_test.dart` (new, 42 lines)
+## Files changed (all 8 from the brief)
 
-Commit: `3821f0b feat(novel): add novel models` (pushed to `origin/dev`).
+1. lib/core/novel/models.dart
+2. lib/core/novel/novel_source.dart
+3. lib/core/novel/linovelib_source.dart
+4. lib/modules/novel/novel_providers.dart
+5. lib/modules/novel/novel_home.dart
+6. test/core/novel/models_test.dart
+7. test/core/novel/novel_source_test.dart
+8. test/modules/novel/novel_home_pager_test.dart
 
 ## Self-review findings
 
-- **Completeness:** all 8 interfaces from the brief are present with the exact signatures/ctors. Verified `flutter analyze` clean and full suite green.
-- **Quality:** `toJson`/`fromJson` mirror the existing `lib/core/comic/models.dart` style (null/empty omission, `?.toString()` coercion).
-- **YAGNI:** no extra fields, helpers, or serialization for the container classes (`NovelSection`/`NovelHome`/`NovelList`/`NovelDetail`/`NovelChapter`) beyond what the brief specifies.
-- **Test hygiene:** 3 focused tests, one behavior each; the round-trip test goes through `json.encode`/`json.decode` so it verifies true JSON compatibility.
-- No fixes required; nothing found to correct.
+- All 8 files in the brief's `Files:` list were updated and staged/committed.
+- The three test files compile against the new signatures; `flutter analyze lib test` is clean.
+- `flutter test` is fully green (210 passed, 1 pre-existing skip unrelated to this task).
+- `NovelBrowseKind` / `NovelBrowse` have no remaining references in `lib/` or `test/`.
+  A pre-existing dev probe `.superpowers/sdd/novel_rank_probe.dart` still uses the old API,
+  but it is outside `lib`/`test` (not analyzed by the required command) and is a scratch probe,
+  not shipped code. Left untouched per the brief.
+- The brief file itself (`.superpowers/sdd/task-1-brief.md`) showed as modified in the working
+  tree but was NOT touched by me; it was not staged or committed.
 
 ## Concerns
 
-- `_stringList` (from the brief) only flattens a top-level `List` and drops empty strings; it does not recurse into nested lists/maps like the comic module's helper. This matches the brief verbatim and is sufficient for the planned linovelib source, but if a future source emits grouped/nested tags, this helper would silently drop them. Left as-is per the brief; worth noting for the source task.
+- None blocking. Minor: `.superpowers/sdd/novel_rank_probe.dart` is now stale against the new
+  interface. If a future task runs `flutter analyze` over the whole repo (including
+  `.superpowers`), it would flag that probe. Not part of this task's required scope.
 
-## Verdict
+---
 
-DONE — TDD RED→GREEN followed, analyze clean, full suite green, committed and pushed.
+# Fix Report: cover linovelib browse path routing
+
+## Finding addressed
+
+The spec (`docs/superpowers/specs/2026-09-14-lknovel-source-design.md`, ����) requires
+`test/core/novel/linovelib_browse_test.dart` to assert `browseGroups` shape and the
+ranking-vs-bunko `browse` dispatch. Task 1 omitted it, leaving the new dispatch untested.
+The spec permits verifying routing by asserting a path-mapping function.
+
+## Files changed
+
+1. `lib/core/novel/linovelib_source.dart`
+   - Extracted the path choice from `browse` into public
+     `static String browsePath(String optionKey, int page)` and call it from `browse`.
+2. `test/core/novel/linovelib_browse_test.dart` (new)
+   - Asserts exactly 2 groups labelled `['����', '�Ŀ�']`; ���� keys include
+     `allvisit`/`monthvote`/`newhot`; �Ŀ� keys include
+     `dengekibunko`/`chineselightnovel`/`other`;
+     `browsePath('allvisit', 1) == '/top/allvisit/1.html'`,
+     `browsePath('allvisit', 2) == '/top/allvisit/2.html'`,
+     `browsePath('dengekibunko', 2) == '/wenku/dengekibunko/2.html'`.
+
+## Commands run and results
+
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+=> No issues found! (ran in 2.0s)
+
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_browse_test.dart test/core/novel/linovelib_source_test.dart
+=> 00:00 +10: All tests passed!
+
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+=> 00:11 +215 ~1: All tests passed!
+   (1 pre-existing skip: js_engine_smoke_test)
+```
+
+## Concerns
+
+- None.

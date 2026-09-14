@@ -63,22 +63,59 @@ class NovelList {
   const NovelList({required this.items, required this.page, required this.hasMore});
 }
 
-enum NovelBrowseKind { ranking, bunko }
-
-class NovelBrowse {
-  final NovelBrowseKind kind;
+class NovelBrowseOption {
   final String key;
-  const NovelBrowse(this.kind, this.key);
+  final String label;
+  const NovelBrowseOption({required this.key, required this.label});
+}
+
+class NovelBrowseGroup {
+  final String label;
+  final List<NovelBrowseOption> options;
+  const NovelBrowseGroup({required this.label, required this.options});
+}
+
+class NovelChapterRef {
+  final String id;
+  final String title;
+  const NovelChapterRef({required this.id, required this.title});
+}
+
+class NovelVolume {
+  final String? id;
+  final String title;
+  final String? url;
+  final List<NovelChapterRef> chapters;
+  const NovelVolume({
+    this.id,
+    required this.title,
+    this.url,
+    this.chapters = const [],
+  });
 }
 
 class NovelDetail {
   final Novel novel;
-  final Map<String, String> chapters;
-  const NovelDetail({required this.novel, required this.chapters});
+  final List<NovelVolume> volumes;
+  const NovelDetail({required this.novel, required this.volumes});
+}
+
+sealed class NovelBlock {
+  const NovelBlock();
+}
+
+class NovelText extends NovelBlock {
+  final String text;
+  const NovelText(this.text);
+}
+
+class NovelImage extends NovelBlock {
+  final String url;
+  const NovelImage(this.url);
 }
 
 class NovelChapter {
   final String title;
-  final String content;
-  const NovelChapter({required this.title, required this.content});
+  final List<NovelBlock> blocks;
+  const NovelChapter({required this.title, this.blocks = const []});
 }

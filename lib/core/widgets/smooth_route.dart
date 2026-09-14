@@ -20,3 +20,14 @@ Route<T> smoothRoute<T>(Widget page) {
     },
   );
 }
+
+/// An instant route (no transition) used when the destination's own top bar
+/// visually continues the shell's title bar (so a fade would look like the
+/// window controls jumped).
+Route<T> noTransitionRoute<T>(Widget page) {
+  return PageRouteBuilder<T>(
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    pageBuilder: (_, __, ___) => page,
+  );
+}

@@ -1,70 +1,12 @@
-### Task 5: 阅读器页面 + 接线
-
-**Files:**
-- Create: `lib/modules/novel/novel_reader_page.dart`
-- Modify: `lib/modules/novel/novel_detail_page.dart`
-- Test: `test/modules/novel/novel_reader_page_test.dart`
-
-**Interfaces:**
-- Consumes: Task 3 的 `novelReaderSettingsProvider`/`NovelReaderTheme`；Task 4 的 `novelChapterProvider`/`flattenChapters`；`novelDetailProvider`；`EmptyState`；`smoothRoute`。
-- Produces: `class NovelReaderPage extends ConsumerStatefulWidget { final String sourceKey; final String novelId; final String chapterId; final String title; }`。
-
-- [ ] **Step 1: 写失败测试**
-
-`test/modules/novel/novel_reader_page_test.dart`:
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/models.dart';
-import 'package:acgnhub/modules/novel/novel_providers.dart';
-import 'package:acgnhub/modules/novel/novel_reader_page.dart';
-
-void main() {
-  testWidgets('NovelReaderPage renders the chapter title and paragraphs',
-      (tester) async {
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        novelChapterProvider(('linovelib', '5340', '334356'))
-            .overrideWith((ref) async =>
-                const NovelChapter(title: '第60話', content: '第一段。\n\n第二段。')),
-        // Avoid a real network call from the reader's chapter list lookup.
-        novelDetailProvider(('linovelib', '5340')).overrideWith((ref) async =>
-            const NovelDetail(
-                novel: Novel(id: '5340', title: '书名'), volumes: [])),
-      ],
-      child: const MaterialApp(
-        home: NovelReaderPage(
-            sourceKey: 'linovelib',
-            novelId: '5340',
-            chapterId: '334356',
-            title: '书名'),
-      ),
-    ));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('第60話'), findsOneWidget);
-    expect(find.text('第一段。'), findsOneWidget);
-    expect(find.text('第二段。'), findsOneWidget);
-  });
-}
-```
-
-- [ ] **Step 2: 运行确认失败**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_reader_page_test.dart`
-Expected: FAIL（`novel_reader_page.dart` 不存在）
-
-- [ ] **Step 3: 实现 `lib/modules/novel/novel_reader_page.dart`**
-
-```dart
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_reader_settings.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 
 const _accent = Color(0xFF007AFF);
@@ -127,22 +69,24 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
       backgroundColor: palette.bg,
       body: Stack(
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => setState(() => _chromeVisible = !_chromeVisible),
-            child: async.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => EmptyState(
-                icon: Icons.cloud_off_rounded,
-                message: '加载失败',
-                actionLabel: '重试',
-                onAction: () => ref.invalidate(novelChapterProvider(
-                    (widget.sourceKey, widget.novelId, _chapterId))),
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _chromeVisible = !_chromeVisible),
+              child: async.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, __) => EmptyState(
+                  icon: Icons.cloud_off_rounded,
+                  message: '加载失败',
+                  actionLabel: '重试',
+                  onAction: () => ref.invalidate(novelChapterProvider(
+                      (widget.sourceKey, widget.novelId, _chapterId))),
+                ),
+                data: (chapter) => _content(chapter, settings, palette),
               ),
-              data: (chapter) => _content(chapter, settings, palette),
             ),
           ),
-          if (_chromeVisible) _topBar(palette, chapters, index),
+          if (_chromeVisible) _topBar(palette),
           if (_chromeVisible) _bottomBar(palette, chapters, index),
         ],
       ),
@@ -158,40 +102,67 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
   Widget _content(
       NovelChapter chapter, NovelReaderSettings settings, _Palette palette) {
-    final paragraphs = chapter.content
-        .split('\n\n')
-        .map((p) => p.trim())
-        .where((p) => p.isNotEmpty)
-        .toList();
     return SingleChildScrollView(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (paragraphs.isEmpty)
+          if (chapter.title.isNotEmpty) ...[
+            Text(chapter.title,
+                style: TextStyle(
+                    fontSize: settings.fontSize + 4,
+                    fontWeight: FontWeight.w600,
+                    color: palette.fg)),
+            const SizedBox(height: 16),
+          ],
+          if (chapter.blocks.isEmpty)
             Text('本章暂无内容',
                 style: TextStyle(
-                    fontSize: settings.fontSize, color: palette.fg.withValues(alpha: 0.5)))
-          else
-            for (final p in paragraphs)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: Text(
-                  p,
-                  style: TextStyle(
                     fontSize: settings.fontSize,
-                    height: settings.lineHeight,
-                    color: palette.fg,
+                    color: palette.fg.withValues(alpha: 0.5)))
+          else
+            for (final block in chapter.blocks)
+              switch (block) {
+                NovelText(:final text) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Text(text,
+                        style: TextStyle(
+                            fontSize: settings.fontSize,
+                            height: settings.lineHeight,
+                            color: palette.fg)),
                   ),
-                ),
-              ),
+                NovelImage(:final url) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: SizedBox(
+                      height: _illustrationHeight(context),
+                      width: double.infinity,
+                      child: CachedNetworkImage(
+                        imageUrl: url,
+                        fit: BoxFit.contain,
+                        httpHeaders: novelImageHeaders,
+                        placeholder: (_, __) => const Center(
+                            child: CircularProgressIndicator()),
+                        errorWidget: (_, __, ___) => const Center(
+                            child: Icon(Icons.broken_image_outlined)),
+                      ),
+                    ),
+                  ),
+              },
         ],
       ),
     );
   }
 
-  Widget _topBar(_Palette palette, List<NovelChapterRef> chapters, int index) {
+  /// The height of the content viewport (between the 56px top bar and the
+  /// 64px bottom bar), so an illustration fills the page vertically with the
+  /// sides left blank, like a comic page.
+  double _illustrationHeight(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height - 56 - 64 - 24;
+    return h.clamp(200, 4000).toDouble();
+  }
+
+  Widget _topBar(_Palette palette) {
     return Positioned(
       top: 0,
       left: 0,
@@ -218,6 +189,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: palette.fg),
               ),
             ),
+            const WindowControls(),
           ],
         ),
       ),
@@ -227,6 +199,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   Widget _bottomBar(_Palette palette, List<NovelChapterRef> chapters, int index) {
     final hasPrev = index > 0;
     final hasNext = index >= 0 && index < chapters.length - 1;
+    final detail = ref
+        .watch(novelDetailProvider((widget.sourceKey, widget.novelId)))
+        .valueOrNull;
     return Positioned(
       left: 0,
       right: 0,
@@ -242,7 +217,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
           children: [
             _barButton(palette, Icons.chevron_left_rounded, '上一章',
                 hasPrev ? () => _goChapter(chapters[index - 1].id) : null),
-            _barButton(palette, Icons.list_rounded, '目录', () => _openCatalog(chapters)),
+            _barButton(palette, Icons.list_rounded, '目录', () => _openCatalog(detail)),
             _barButton(palette, Icons.text_fields_rounded, '设置', _openSettings),
             _barButton(palette, Icons.chevron_right_rounded, '下一章',
                 hasNext ? () => _goChapter(chapters[index + 1].id) : null),
@@ -272,34 +247,69 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
     if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
-  void _openCatalog(List<NovelChapterRef> chapters) {
+  void _openCatalog(NovelDetail? detail) {
+    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => ListView(
-        children: [
-          for (final c in chapters)
-            ListTile(
-              dense: true,
-              title: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: c.id == _chapterId
-                  ? const Icon(Icons.check_rounded, size: 18, color: _accent)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                if (c.id != _chapterId) _goChapter(c.id);
-              },
-            ),
-        ],
+      backgroundColor: palette.bg,
+      builder: (_) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+                surface: palette.bg,
+                onSurface: palette.fg,
+              ),
+        ),
+        child: ListView(
+          children: [
+            if (detail == null || detail.volumes.isEmpty)
+              const ListTile(title: Text('暂无目录'))
+            else
+              for (final v in detail.volumes) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(v.title,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: palette.fg.withValues(alpha: 0.7))),
+                ),
+                for (final c in v.chapters)
+                  ListTile(
+                    dense: true,
+                    title: Text(c.title,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: c.id == _chapterId
+                        ? const Icon(Icons.check_rounded,
+                            size: 18, color: _accent)
+                        : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (c.id != _chapterId) _goChapter(c.id);
+                    },
+                  ),
+              ],
+          ],
+        ),
       ),
     );
   }
 
   void _openSettings() {
+    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => const _ReaderSettingsSheet(),
+      backgroundColor: palette.bg,
+      builder: (_) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+                surface: palette.bg,
+                onSurface: palette.fg,
+              ),
+        ),
+        child: const _ReaderSettingsSheet(),
+      ),
     );
   }
 }
@@ -381,78 +391,3 @@ class _ReaderSettingsSheet extends ConsumerWidget {
     );
   }
 }
-```
-
-- [ ] **Step 4: 运行确认通过**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_reader_page_test.dart`
-Expected: PASS
-
-- [ ] **Step 5: 详情页章节点击接阅读器**
-
-在 `lib/modules/novel/novel_detail_page.dart`：
-- 顶部加 `import '../../core/widgets/smooth_route.dart';` 与 `import 'novel_reader_page.dart';`。
-- 把 `PillButton(label: ch.title, onTap: () => _openChapter())` 改为传入章节 id，并把 `_openChapter` 改为跳转：
-
-```dart
-                  PillButton(
-                    label: ch.title,
-                    onTap: () => _openChapter(ch),
-                  ),
-```
-
-```dart
-  void _openChapter(NovelChapterRef chapter) {
-    Navigator.push(
-      context,
-      smoothRoute(NovelReaderPage(
-        sourceKey: widget.sourceKey,
-        novelId: widget.novelId,
-        chapterId: chapter.id,
-        title: widget.title,
-      )),
-    );
-  }
-```
-
-（删除原 `_openChapter()` 里的 SnackBar；`NovelChapterRef` 已由 `models.dart` 导入。）
-
-- [ ] **Step 6: 全量校验 + 手动验证**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-Expected: 全部通过
-
-```powershell
-$env:Path = "C:\flutter\bin;$env:Path"
-flutter build windows --debug
-Start-Process -FilePath "D:\ACGNhub\build\windows\x64\runner\Debug\acgnhub.exe" -WorkingDirectory "D:\ACGNhub\build\windows\x64\runner\Debug"
-```
-
-轻小说 → 卡片进详情 → 点章节 → 确认正文显示、可上一/下一章、目录、设置（字号/行距/主题）生效。
-
-- [ ] **Step 7: 提交**
-
-```bash
-git add lib/modules/novel/novel_reader_page.dart lib/modules/novel/novel_detail_page.dart test/modules/novel/novel_reader_page_test.dart
-git commit -m "feat(novel): add reader page and wire detail chapter taps"
-git push
-```
-
----
-
-## Self-Review
-
-**Spec coverage:**
-- `parseChapter`/`nextPageHref`/`fetchChapterPages` → Task 1。
-- `LinovelibSource.chapter`（同章分页拼接、50 页上限）→ Task 1/2。
-- 阅读设置（模型/manager/provider、默认值与 clamp、三主题）→ Task 3。
-- `novelChapterProvider`/`flattenChapters` → Task 4。
-- `NovelReaderPage`（正文、顶/底栏、目录、设置、三态、切章回顶）+ 详情页接线 → Task 5。
-- 测试（解析 fixture、设置模型、阅读器 widget）→ Task 1/3/5。
-
-**Placeholder scan:** 无 TBD/TODO；每个代码步骤含完整代码。
-
-**Type consistency:** `NovelChapter`（已有）在 Task 1/2/4/5 一致；`parseChapter`/`nextPageHref`/`fetchChapterPages`（Task 1）在 Task 2 使用；`NovelReaderSettings`/`NovelReaderTheme`/`novelReaderSettingsProvider`（Task 3）在 Task 5 使用；`novelChapterProvider`/`flattenChapters`（Task 4）在 Task 5 使用；`NovelChapterRef` 来自 `models.dart`。

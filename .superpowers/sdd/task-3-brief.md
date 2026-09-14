@@ -1,233 +1,171 @@
-### Task 3: linovelib 纯解析函数
+### Task 3: lknovel 详情目录与章节正文
+
+给 `LknovelSource` 实现 `detail`（书信息 + 各卷章节，限并发拉取）与 `chapter`（正文 HTML → 文字/插图块）。
 
 **Files:**
-- Create: `lib/core/novel/linovelib_source.dart`（本任务只放解析函数与常量）
-- Test: `test/core/novel/linovelib_parser_test.dart`
+- Modify: `lib/core/novel/lknovel_source.dart`
+- Test: `test/core/novel/lknovel_source_test.dart`
 
 **Interfaces:**
-- Consumes: `models.dart`（Task 1）。
-- Produces（顶层函数，均定义在 `lib/core/novel/linovelib_source.dart`）：
-  - `String? novelIdFromHref(String? href)` — 从 `/novel/<id>.html` 取 `<id>`；不匹配返回 `null`。
-  - `List<Novel> parseBookList(String html)` — 解析首页/文库的 `div.lists ul li`（只取含 `a.title` 的项）。
-  - `List<Novel> parseRankRows(String html)` — 解析排行 `div.rank_i_li`。
-  - `List<NovelSection> parseHome(String html)` — 解析 `div.tab-lists` 为带标题的书单。
-  - `bool hasNextPage(String html)` — 页面存在「下一页」链接时为 true。
+- Consumes: `parseLkVolumes`、`parseLkVolumeChapters`、`parseLkChapter`、`lkData`、`lkHasMore`、`LknovelSource._post`（Task 2）；`NovelVolume.id`（Task 1）。
+- Produces:
+  - `LknovelSource.detail(String id)` → `Future<NovelDetail>`（书信息 + 全部卷章节）
+  - `LknovelSource.chapter(String novelId, String chapterId)` → `Future<NovelChapter>`
 
-- [ ] **Step 1: 写失败测试（含真实精简 fixture）**
+- [ ] **Step 1: 写 `detail`/`chapter` 的失败测试**
 
-`test/core/novel/linovelib_parser_test.dart`:
+在 `test/core/novel/lknovel_source_test.dart` 的 `main()` 末尾（最后一个 `test` 之后）追加：
 
 ```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/linovelib_source.dart';
-
-const _bookListHtml = '''
-<div class="tab-lists qtbg_color">
-  <div class="top-title clearfix"><div class="title fl">强推榜</div></div>
-  <div class="lists"><ul>
-    <li class="postion-right">
-      <div class="imgbox fl"><a href="/novel/2059.html"><img src="x.svg" data-original="https://www.linovelib.com/files/article/image/2/2059/2059s.jpg" alt="安达与岛村"></a></div>
-      <a class="title" href="/novel/2059.html" target="_blank" title="">安达与岛村</a>
-      <a class="author" href="/authorarticle/入间人间.html" title="入间人间">入间人间</a>
-      <a class="cate" href="/wenku/dengekibunko/1.html" title="">[电击文库]</a>
-    </li>
-    <li><a class="author2" href="/authorarticle/x.html">某人</a><a href="/novel/4649.html" title="玩乐关系">玩乐关系</a></li>
-  </ul></div>
-</div>
-''';
-
-const _rankHtml = '''
-<div class="rank_i_lists">
-  <div class="borderB_c_dsh rank_i_li rank_i_li1 clearfix">
-    <div class="rank_i_num fr">1</div>
-    <div class="rank_i_bname fr">
-      <a href="/novel/5340.html" class="rank_i_l_a_book">不相容的異種族妻子們</a>
-      <a href="/authorarticle/x.html" class="rank_i_l_a_author">이만두</a>
-      <a href="/wenku/0/1.html" class="rank_i_l_a_category">[novelpia]</a>
-      <div class="rank_i_l_font">115人推荐</div>
-    </div>
-    <div class="rank_i_bcount fl"><a href="/novel/5340.html"><img data-original="https://www.linovelib.com/files/article/image/5/5340/5340s.jpg"></a></div>
-  </div>
-</div>
-''';
-
-const _nextPageHtml = '<div class="pagination"><a href="/top/monthvote/2.html">下一页</a></div>';
-
-void main() {
-  test('novelIdFromHref extracts id', () {
-    expect(novelIdFromHref('/novel/2059.html'), '2059');
-    expect(novelIdFromHref('https://www.linovelib.com/novel/5340.html'), '5340');
-    expect(novelIdFromHref('/wenku/dengekibunko/1.html'), isNull);
-    expect(novelIdFromHref(null), isNull);
+  test('detail loads every volume and its chapters', () async {
+    final source = LknovelSource(poster: (endpoint, body) async {
+      switch (endpoint) {
+        case 'new-content-read/get-book-detail':
+          return {'code': 0, 'data': _detailData};
+        case 'new-content-read/get-volume-chapters':
+          final vid = body['volume_id'].toString();
+          return {
+            'code': 0,
+            'data': {
+              'volume_id': vid,
+              'list': vid == '36754'
+                  ? [
+                      {'chapter_id': 276838, 'title': '一败目'},
+                      {'chapter_id': 276839, 'title': '间章'},
+                    ]
+                  : [
+                      {'chapter_id': 276788, 'title': '特典'},
+                    ],
+            },
+          };
+      }
+      throw Exception('unexpected endpoint: $endpoint');
+    });
+    final detail = await source.detail('1338');
+    expect(detail.novel.title, '败犬女主太多了！');
+    expect(detail.volumes.map((v) => v.title), ['1卷', '1卷特典']);
+    expect(detail.volumes.first.chapters.map((c) => c.id), ['276838', '276839']);
+    expect(detail.volumes.last.chapters.single.title, '特典');
   });
 
-  test('parseBookList keeps only book entries with a.title', () {
-    final items = parseBookList(_bookListHtml);
-    expect(items, hasLength(1));
-    expect(items.first.id, '2059');
-    expect(items.first.title, '安达与岛村');
-    expect(items.first.author, '入间人间');
-    expect(items.first.coverUrl, 'https://www.linovelib.com/files/article/image/2/2059/2059s.jpg');
-    expect(items.first.tags, ['电击文库']);
+  test('chapter fetches and parses chapter detail', () async {
+    final source = LknovelSource(poster: (endpoint, body) async {
+      expect(endpoint, 'new-content-read/get-chapter-detail');
+      expect(body['book_id'], '1338');
+      expect(body['chapter_id'], '276838');
+      return {'code': 0, 'data': _chapterData};
+    });
+    final chapter = await source.chapter('1338', '276838');
+    expect(chapter.title, '一败目 专业青梅竹马');
+    expect(chapter.blocks.whereType<NovelText>().length, 2);
+    expect(chapter.blocks.whereType<NovelImage>().single.url,
+        'https://api.lightnovel.fun/a.jpg');
   });
-
-  test('parseHome returns titled sections', () {
-    final sections = parseHome(_bookListHtml);
-    expect(sections, hasLength(1));
-    expect(sections.first.title, '强推榜');
-    expect(sections.first.items.single.title, '安达与岛村');
-  });
-
-  test('parseRankRows parses rank rows', () {
-    final items = parseRankRows(_rankHtml);
-    expect(items, hasLength(1));
-    expect(items.first.id, '5340');
-    expect(items.first.title, '不相容的異種族妻子們');
-    expect(items.first.author, '이만두');
-    expect(items.first.coverUrl, 'https://www.linovelib.com/files/article/image/5/5340/5340s.jpg');
-    expect(items.first.extra['rank'], 1);
-  });
-
-  test('hasNextPage detects the next link', () {
-    expect(hasNextPage(_nextPageHtml), isTrue);
-    expect(hasNextPage(_bookListHtml), isFalse);
-  });
-}
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart`
-Expected: FAIL（`linovelib_source.dart` 不存在）
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/lknovel_source_test.dart`
+Expected: `detail`/`chapter` 抛 `UnimplementedError` → 用例失败。
 
-- [ ] **Step 3: 实现解析函数**
+- [ ] **Step 3: 实现 `detail` 与 `chapter`**
 
-在 `lib/core/novel/linovelib_source.dart` 顶部写：
+编辑 `lib/core/novel/lknovel_source.dart`，把末尾两个占位方法：
 
 ```dart
-import 'package:html/dom.dart' as dom;
-import 'package:html/parser.dart' as html_parser;
+  @override
+  Future<NovelDetail> detail(String id) => throw UnimplementedError();
 
-import 'models.dart';
-
-const String linovelibBaseUrl = 'https://www.linovelib.com';
-const String linovelibUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
-final RegExp _novelHref = RegExp(r'/novel/(\d+)\.html');
-
-String? novelIdFromHref(String? href) {
-  if (href == null) return null;
-  final m = _novelHref.firstMatch(href);
-  return m?.group(1);
-}
-
-String _absUrl(String? url) {
-  if (url == null || url.isEmpty) return '';
-  if (url.startsWith('http')) return url;
-  if (url.startsWith('//')) return 'https:$url';
-  return url.startsWith('/') ? '$linovelibBaseUrl$url' : '$linovelibBaseUrl/$url';
-}
-
-String _textOf(dom.Element? el) => el?.text.trim() ?? '';
-
-Novel? _novelFromBookLi(dom.Element li) {
-  final titleA = li.querySelector('a.title');
-  final id = novelIdFromHref(titleA?.attributes['href']);
-  if (titleA == null || id == null) return null;
-  final img = li.querySelector('div.imgbox img');
-  final cover = _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
-  final author = _textOf(li.querySelector('a.author'));
-  final cate = _textOf(li.querySelector('a.cate'));
-  final tags = <String>[];
-  if (cate.isNotEmpty) {
-    tags.add(cate.replaceAll('[', '').replaceAll(']', ''));
-  }
-  return Novel(
-    id: id,
-    title: _textOf(titleA),
-    author: author.isEmpty ? null : author,
-    coverUrl: cover.isEmpty ? null : cover,
-    tags: tags,
-    extra: {'url': '$linovelibBaseUrl/novel/$id.html'},
-  );
-}
-
-List<Novel> parseBookList(String html) {
-  final doc = html_parser.parse(html);
-  final out = <Novel>[];
-  for (final li in doc.querySelectorAll('div.lists ul li')) {
-    final n = _novelFromBookLi(li);
-    if (n != null) out.add(n);
-  }
-  return out;
-}
-
-List<NovelSection> parseHome(String html) {
-  final doc = html_parser.parse(html);
-  final sections = <NovelSection>[];
-  for (final block in doc.querySelectorAll('div.tab-lists')) {
-    final title = _textOf(block.querySelector('div.top-title .title'));
-    final items = <Novel>[];
-    for (final li in block.querySelectorAll('div.lists ul li')) {
-      final n = _novelFromBookLi(li);
-      if (n != null) items.add(n);
-    }
-    if (items.isNotEmpty) {
-      sections.add(NovelSection(title: title.isEmpty ? '推荐' : title, items: items));
-    }
-  }
-  return sections;
-}
-
-List<Novel> parseRankRows(String html) {
-  final doc = html_parser.parse(html);
-  final out = <Novel>[];
-  for (final row in doc.querySelectorAll('div.rank_i_li')) {
-    final bookA = row.querySelector('a.rank_i_l_a_book') ??
-        row.querySelector('div.rank_i_bname a[href*="/novel/"]');
-    final id = novelIdFromHref(bookA?.attributes['href']);
-    if (bookA == null || id == null) continue;
-    final img = row.querySelector('div.rank_i_bcount img');
-    final cover = _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
-    final author = _textOf(row.querySelector('a.rank_i_l_a_author'));
-    final rank = int.tryParse(_textOf(row.querySelector('div.rank_i_num')));
-    out.add(Novel(
-      id: id,
-      title: _textOf(bookA),
-      author: author.isEmpty ? null : author,
-      coverUrl: cover.isEmpty ? null : cover,
-      extra: {
-        'url': '$linovelibBaseUrl/novel/$id.html',
-        if (rank != null) 'rank': rank,
-      },
-    ));
-  }
-  return out;
-}
-
-bool hasNextPage(String html) {
-  final doc = html_parser.parse(html);
-  for (final a in doc.querySelectorAll('a')) {
-    final t = a.text.trim();
-    if (t.contains('下一页') || t.contains('下页')) return true;
-  }
-  return false;
-}
+  @override
+  Future<NovelChapter> chapter(String novelId, String chapterId) =>
+      throw UnimplementedError();
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+替换为：
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart`
-Expected: PASS（5 tests）
+```dart
+  @override
+  Future<NovelDetail> detail(String id) async {
+    final json = await _post(
+        'new-content-read/get-book-detail', {'book_id': id, 'with_volumes': 1});
+    final data = lkData(json);
+    final novel = parseLkBook(data);
+    final metas = parseLkVolumes(data);
+    const batchSize = 6;
+    final volumes = <NovelVolume>[];
+    for (var i = 0; i < metas.length; i += batchSize) {
+      final end = (i + batchSize).clamp(0, metas.length);
+      final batch = metas.sublist(i, end);
+      final loaded = await Future.wait(batch.map((v) async {
+        try {
+          final chapters = await _volumeChapters(id, v.id ?? '');
+          return NovelVolume(id: v.id, title: v.title, chapters: chapters);
+        } catch (_) {
+          return NovelVolume(id: v.id, title: v.title, chapters: const []);
+        }
+      }));
+      volumes.addAll(loaded);
+    }
+    return NovelDetail(novel: novel, volumes: volumes);
+  }
+
+  Future<List<NovelChapterRef>> _volumeChapters(
+      String bookId, String volumeId) async {
+    final out = <NovelChapterRef>[];
+    var page = 1;
+    while (true) {
+      final json = await _post('new-content-read/get-volume-chapters', {
+        'book_id': bookId,
+        'volume_id': volumeId,
+        'page': page,
+        'page_size': 50,
+        'pageSize': 50,
+      });
+      final data = lkData(json);
+      out.addAll(parseLkVolumeChapters(data));
+      if (!lkHasMore(data, page) || page >= 100) break;
+      page++;
+    }
+    return out;
+  }
+
+  @override
+  Future<NovelChapter> chapter(String novelId, String chapterId) async {
+    final json = await _post('new-content-read/get-chapter-detail',
+        {'book_id': novelId, 'chapter_id': chapterId});
+    return parseLkChapter(lkData(json), '');
+  }
+```
+
+- [ ] **Step 4: 运行静态检查与测试**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+Expected: `No issues found!`
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+Expected: 全部通过（含新增 `detail`/`chapter` 用例）。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add lib/core/novel/linovelib_source.dart test/core/novel/linovelib_parser_test.dart
-git commit -m "feat(novel): add linovelib html parsers"
-git push
+git add lib/core/novel/lknovel_source.dart test/core/novel/lknovel_source_test.dart
+git commit -m "feat(novel): lknovel detail catalog and chapter reader"
+git push origin dev
 ```
 
 ---
+
+## 验证（任务全部完成后）
+
+1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` 全绿。
+2. 构建并启动应用，切到轻小说模块：
+   - 源 chips 出现「哔哩轻小说」「轻之国度」。
+   - 选「轻之国度」→「推荐」显示 4 个书单区块（轻小说/原创/同人/最近更新）。
+   - 切「排行」→ 综合热度/日热度/日新书/周新书；切「分类」→ 轻小说/原创/同人/最近更新/新书；分页可翻页。
+   - 点开一本书 → 详情显示封面/简介/分卷目录；点章节进入阅读器，正文与插图正常，上一/下一章与目录可用。
+   - 切回「哔哩轻小说」→ 排行/文库与之前一致（回归）。
+
+## 已知取舍
+
+- lknovel 目录为懒加载接口，`detail` 需按卷并发请求（限并发 6），大型系列书首次进入详情会略慢；单卷失败仅该卷留空。
+- 搜索未实现（界面无搜索框）。

@@ -174,3 +174,126 @@ Novel module v1: COMPLETE (a4691b5..c4519db + spec doc fix). Pushed to origin/de
   Manual live-site verification (源 chip / 网格 / 排行子chip / 手动换页 / 文库) still owed to the human.
   Deferred Minors: hasMore `>=10` fallback can show one extra empty page; browse hasMore not unit-tested;
   double HTML parse in hasPaginationControl+hasNextPage; Novel.fromJson extra cast is lazy.
+
+## Novel detail ledger — 书籍详情 + 分卷目录
+
+Plan: docs/superpowers/plans/2026-09-14-novel-detail.md
+Spec: docs/superpowers/specs/2026-09-14-novel-detail-design.md
+Base commit: 9b96e56 (before Task 1)
+
+Task 1: complete (commit 9b96e56..a52210b, review clean)
+  Minor (deferred): no coverage for NovelVolume url==null / chapters==[] defaults; NovelChapterRef has no equality.
+Task 2: complete (commit a52210b..a4e5064, review clean)
+  Minor (deferred): parseCatalog non-chapter-href skip untested; missing-element fallbacks untested; cover src/data-original precedence asymmetry vs list parsers.
+Task 3: complete (commit a4e5064..03cafdf, review clean)
+  Minor (deferred): detail fetches the two pages sequentially; detail merge not unit-tested (network).
+Task 4: complete (commit 03cafdf..e018ea5, review clean; no issues)
+Task 5: complete (commit e018ea5..7d02e87, review clean)
+  Minor (deferred): 展开/收起 shows even when the summary fits 3 lines; some surface colors outside tokens; no test for error/empty/SnackBar states.
+  Visual verification deferred to human.
+Final whole-branch review: 9b96e56..7d02e87 → "merge with fixes" (Critical: cover precedence; Important: cover placeholder, summary fallback; ~9 Minor).
+Task 6 (review fixes): complete (commit 7d02e87..87710ee + 584df15, re-review clean: "Ready to merge? Yes")
+  data-original-first cover; meta-description summary fallback; cover placeholder/errorWidget; overflow-gated 展开 (honors textScaler, painter disposed); Future.wait; spec sync.
+Novel detail increment: COMPLETE (9b96e56..584df15). Pushed to origin/dev.
+  Manual live-site verification (卡片→详情页：封面/作者/标签/简介/分卷目录/点章节提示) still owed to the human.
+  Deferred Minors: no regression test for textScaler overflow; hardcoded TextDirection.ltr; `data-original=""` doesn't fall through to src;
+  parseCatalog's unused novelId; eager Wrap of all chapters; some surface colors outside tokens.
+
+## Novel ranking fix (ad hoc)
+
+Bug (user): 点「排行」加载不出来. Root cause: `/top.html` (人气榜) rows are `div.rank_i_li`;
+`/top/<key>/<page>.html` (月推荐/收藏榜/…) rows are `div.rank_d_list` — `parseRankRows` only handled the former.
+Task 9: complete (commit b7a9af0..13a5f1f, review clean: Approved). Probe: allvisit→60, monthvote→30 (hasMore), goodnum→30 (hasMore).
+  Parser cost measured at 8ms for a 79KB page → the reported 卡顿 is NOT HTML parsing; UI-layer cause still unconfirmed (asked user to re-test after the fix).
+
+Ranking freeze (user): 切到排行就卡死/无法操作.
+Root cause: the 排行/文库 pager used `OutlinedButton` inside a `Row`; the app-wide
+`outlinedButtonTheme` sets `minimumSize: Size(double.infinity, 48)`, so the button
+demanded infinite width under unbounded Row constraints → endless
+`RenderBox was not laid out` / `!semantics.parentDataDirty` loop each frame → freeze.
+Reproduced via `flutter run` log (9931 lines of repeating exceptions) with the app
+temporarily starting on 排行. Fix: explicit bounded pager button style (Size(84,40)).
+Task 10: complete (commit bf93a6b..0d08559) + regression test `novel_home_pager_test.dart`
+  (fails without the fix, passes with it). Verified: 0 exceptions, allvisit→60, monthvisit/weekvisit→30.
+
+## Novel reader ledger — 阅读器
+
+Plan: docs/superpowers/plans/2026-09-14-novel-reader.md
+Spec: docs/superpowers/specs/2026-09-14-novel-reader-design.md
+Base commit: 98c8c85 (before Task 1)
+
+Task 1: complete (commit 98c8c85..9d9cf5b, review clean)
+  Minor (deferred): maxPages cap / self-referential link untested; fetchChapterPages passes '' as fallback title.
+Task 2: complete (commit 9d9cf5b..79c4d7c, review clean)
+  Minor (deferred): chapter path string duplicated between chapterPath and fetchChapterPages; chapter() has no direct behavioral test.
+Task 3: complete (commit 79c4d7c..a00f8a0, review clean)
+  Important (plan-mandated, deferred to final review): `write()` discards AppDatabase.setString's bool, then
+  `_update` sets `state` unconditionally → a failed write desyncs state from storage. Same as comic_reader_settings.
+  Minor (deferred): concurrent setter lost-updates; setter clamp untested.
+Task 4: complete (commit a00f8a0..0103699, review clean)
+  Minor (deferred): novelChapterProvider has no direct test (only flattenChapters).
+Task 5: complete (commit 0103699..23fad20, review clean). 3 justified deviations from the brief's verbatim
+  code (brief was internally inconsistent): test setUp needs AppDatabase.init(); added chapter-title heading
+  the test asserts; wrapped content in Positioned.fill (Stack shrink-wrap → bottom-bar RenderFlex overflow).
+  Minor (deferred): _topBar unused chapters/index params; sheets don't use the reading palette; happy-path test only.
+Final whole-branch review: 98c8c85..23fad20 → "merge with fixes" (3 Important: settings lost-update/persist desync,
+  missing next-chapter nav test, dead chapterPath; ~7 Minor).
+Task 6 (review fixes): complete (commit 23fad20..6f9ba67, re-review clean: "Ready to merge? Yes")
+  state synced before write; chapterPath wired into fetchChapterPages; volume-grouped + palette-themed sheets;
+  _topBar params dropped; next-chapter navigation test added.
+Novel reader increment: COMPLETE (98c8c85..6f9ba67). Pushed to origin/dev.
+
+## Novel reader follow-up fixes (ad hoc)
+
+Task 7 (illustrations): complete (commit 6f9ba67..6b7dc5b, review clean). `NovelChapter` now holds ordered
+  `List<NovelBlock>` (`NovelText`/`NovelImage`); `parseChapter` reads `#TextContent` children, images from
+  `data-src` (skipping sloading/.svg); reader renders `CachedNetworkImage`. Ripple test files also updated.
+  Minor (deferred): `_imageUrl` trusts a present-but-empty data-src; no widget test for image rendering/empty state.
+Task 8 (window controls): complete (commit 6b7dc5b..cfeaf12, review clean: Approved). Detail AppBar actions +
+  reader `_topBar` now show `WindowControls` (the pushed full-screen routes had covered the shell title bar).
+Task 9 (image hotlink): complete (commit cfeaf12..ea5ba0a, review clean). `novelImageHeaders` (Referer) applied to
+  all 3 novel CachedNetworkImage sites — `img3.readpai.com` images 403 without it.
+Task 10 (detail header/transition): complete (commit ea5ba0a..1eecffa, review clean). Custom 48px DragToMoveArea
+  header (back + title + WindowControls) replacing the Material AppBar; `noTransitionRoute` for the detail push.
+  Note: `_header(novel)` content card renamed `_infoCard(novel)` to avoid the name collision.
+Task 11 (uniform cards): complete (commit ea1bc47..64df555, review clean). Author line removed from `NovelCard`
+  (explore grid) so all covers are the same height; card test now asserts author is absent.
+Task 12 (illustration sizing): complete (commit 64df555..3d79ee1, review clean). Reader `NovelImage` wrapped in a
+  fixed `SizedBox(height: _illustrationHeight(context))` with `BoxFit.contain` — fills the page vertically, blank sides.
+Task 13 (人气榜 covers): complete (commit 7227414..9277f9b, review clean). `rankPath` now uniform
+  `/top/<key>/<page>.html`; allvisit uses `/top/allvisit/<page>.html` (30/30 rows with covers) instead of `/top.html`
+  (only ~6/122 rows had covers); `isSinglePageRanking` removed. Minor: the `rank_i_li` branch in `parseRankRows` is now
+  unreachable via `rankPath` but kept (with its test).
+  Manual live-site verification owed to the human: selectors (#mlfy_main_text h1, div#TextContent p, div.mlfy_page a),
+  relative vs absolute 下一页 hrefs, and that chapter bodies are <p>-wrapped.
+  Deferred Minors: rapid-tap still bounded by rebuild timing; partial sheet theme override; duplicated Theme boilerplate;
+  novelChapterProvider untested directly; maxPages cap untested.
+
+## lknovel source plan (2026-09-14-lknovel-source.md)
+
+Task 1: complete (commits 7ce8641..3fe3bb4, re-review clean: Approved). Browse model generalized:
+  NovelBrowseOption/NovelBrowseGroup; NovelSource.browseGroups + browse(String optionKey); NovelBrowse(Kind) removed;
+  NovelVolume.id optional; novelBrowseProvider key (sourceId,optionKey,page); novel_home renders source-declared groups.
+  Fix 3fe3bb4 added LinovelibSource.browsePath + test/core/novel/linovelib_browse_test.dart.
+  Minor (deferred to final review): parser dispatch (parseRankRows/parseBookList) not independently asserted; option-chip index cosmetic.
+Task 2: complete (commits 3fe3bb4..79289b1, review clean: Approved). New lib/core/novel/lknovel_source.dart:
+  LknovelSource (id lknovel, name 轻之国度) + LkPoster seam + pure parsers (lkData/parseLkBook/parseLkList/
+  lkHasMore/parseLkVolumes/parseLkVolumeChapters/parseLkChapter); home() 4 feeds w/ per-feed resilience;
+  browseGroups 排行/分类; browse() rank_scene vs feed endpoints; registered in novel_providers.dart.
+  detail/chapter are intentional UnimplementedError stubs (Task 3).
+  Confirmed live: bff/home-feed-v1 works (code 0) for new_books.
+  Minor (deferred to final review): home partial-failure/all-empty untested; code string '0' not handled;
+  lkHasMore 30-item fallback heuristic; _stringList duplicated from models.dart.
+Task 3: complete (commits 79289b1..8e1159a, review clean: Approved). LknovelSource.detail (get-book-detail
+  with_volumes:1 + per-volume get-volume-chapters, batch 6, page>=100 cap, per-volume try/catch -> empty) and
+  chapter (get-chapter-detail -> parseLkChapter) implemented; 2 tests appended (RED->GREEN).
+  Minor (deferred to final review): catch(_) swallows all errors (no debug log); failure isolation & pagination
+  cap covered by construction only.
+ALL 3 TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (7ce8641..8e1159a): 'With fixes'. 2 Important (illustration URL normalization;
+  prefer full summary over summary_short) + minors. Fix commit 86d4faa resolved Important #1/#2 and minors
+  #3 (code via _asInt), #4 (rankingKeys Set), #5 (5 new tests). Re-review 8e1159a..86d4faa: Approved.
+  Remaining Minors (recorded, not fixed): code!=0 test doesn't guard the _asInt change (needs a {"code":"0"} non-throw case);
+  _imageUrl treats data-src="" as present and drops a valid src; non-http schemes (data:) mangled.
+lknovel source feature: COMPLETE (7ce8641..86d4faa). Pushed to origin/dev.
+  Live manual verification still owed: open a lknovel chapter with an illustration + a long-series detail.

@@ -1,85 +1,51 @@
-### Task 9: Remove Bangumi entirely
+### Task 9: 小说图片加 Referer 头（修插图与部分封面）
+
+> 用户反馈：插图仍不显示、部分封面加载不出。根因（实测）：`img3.readpai.com` 的图片有**防盗链**——无 `Referer` 返回 403，带 `Referer: https://www.linovelib.com/` 才 200。`CachedNetworkImage` 默认不带 Referer。
 
 **Files:**
-- Delete: `lib/modules/anime/bangumi_service.dart`
-- Delete: `assets/bangumi_calendar.json`
-- Modify: `lib/modules/anime/anime_providers.dart`
-- Modify: `pubspec.yaml`
+- Modify: `lib/modules/novel/novel_home.dart`
+- Modify: `lib/modules/novel/novel_detail_page.dart`
+- Modify: `lib/modules/novel/novel_reader_page.dart`
 
 **Interfaces:**
-- Removes: `trendingAnimeProvider`, `bangumiServiceProvider`, `BangumiService`.
+- Produces: 顶层常量 `const novelImageHeaders = {'Referer': 'https://www.linovelib.com/'};`（放 `linovelib_source.dart`，供三处复用）。
 
-- [ ] **Step 1: Delete the service and asset**
+- [ ] **Step 1: 加常量**
 
-Run:
-```powershell
-Remove-Item -LiteralPath "D:\ACGNhub\lib\modules\anime\bangumi_service.dart"
-Remove-Item -LiteralPath "D:\ACGNhub\assets\bangumi_calendar.json"
-```
-
-- [ ] **Step 2: Remove Bangumi providers**
-
-In `lib/modules/anime/anime_providers.dart`:
-- Remove `import 'bangumi_service.dart';`
-- Remove the `_stableCoverUrl` helper
-- Remove the entire `trendingAnimeProvider` definition
-- Remove the `bangumiServiceProvider` definition
-
-Keep `sourceManagerProvider`, `animeSourceListProvider`, `metadataServiceProvider`, `animeFeedProvider`.
-
-The file should end up as:
+在 `lib/core/novel/linovelib_source.dart` 顶部常量区加：
 
 ```dart
-import 'dart:convert';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
-import '../../core/metadata/metadata_provider.dart';
-import '../../core/metadata/metadata_service.dart';
-import '../../core/source/source_manager.dart';
-import '../../core/models/work.dart';
-import 'anime_source.dart';
-import 'anime_rule.dart';
-
-final sourceManagerProvider = Provider<SourceManager>((ref) {
-  return SourceManager();
-});
-
-final animeSourceListProvider = FutureProvider<List<AnimeSource>>((ref) async {
-  final manager = ref.read(sourceManagerProvider);
-  final manifestJson = await rootBundle.loadString('AssetManifest.json');
-  final manifest = json.decode(manifestJson) as Map<String, dynamic>;
-  final ruleFiles = manifest.keys.where((k) => k.startsWith('assets/rules/') && k.endsWith('.json')).toList();
-  for (final file in ruleFiles) {
-    final jsonString = await rootBundle.loadString(file);
-    final rule = AnimeRule.fromJsonString(jsonString);
-    manager.register(AnimeSource(rule));
-  }
-  return manager.getByType(WorkType.anime).cast<AnimeSource>();
-});
-
-final metadataServiceProvider = Provider<MetadataService>((ref) => MetadataService());
-
-final animeFeedProvider = FutureProvider.family<List<Work>, AnimeFeed>((ref, feed) {
-  return ref.watch(metadataServiceProvider).feed(feed);
-});
+const Map<String, String> novelImageHeaders = {
+  'Referer': 'https://www.linovelib.com/',
+};
 ```
 
-- [ ] **Step 3: Remove the asset from pubspec**
+- [ ] **Step 2: 三处 `CachedNetworkImage` 加 `httpHeaders`**
 
-In `pubspec.yaml`, remove the line `    - assets/bangumi_calendar.json` under `assets:`.
+- `novel_home.dart` 的 `NovelCard`：
+```dart
+                  ? CachedNetworkImage(
+                      imageUrl: novel.coverUrl!,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 400,
+                      httpHeaders: novelImageHeaders,
+                      placeholder: (_, __) => _placeholder(),
+                      errorWidget: (_, __, ___) => _placeholder(),
+                    )
+```
+  （顶部加 `import '../../core/novel/linovelib_source.dart';`。）
+- `novel_detail_page.dart` 的封面：给其 `CachedNetworkImage` 加 `httpHeaders: novelImageHeaders,`（并 import `../../core/novel/linovelib_source.dart`）。
+- `novel_reader_page.dart` 的插图：给其 `CachedNetworkImage` 加 `httpHeaders: novelImageHeaders,`（并 import `../../core/novel/linovelib_source.dart`）。
 
-- [ ] **Step 4: Verify no references remain**
+- [ ] **Step 3: 全量校验 + 提交**
 
-Run: `flutter analyze lib`
-Expected: No errors and no references to `bangumi`.
-
-Also run: `git grep -i bangumi -- lib` (expected: no output).
-
-- [ ] **Step 5: Commit (only if user asked)**
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → 全部通过
 
 ```bash
-git add -A
-git commit -m "chore: remove Bangumi metadata integration"
+git add lib/core/novel/linovelib_source.dart lib/modules/novel/novel_home.dart lib/modules/novel/novel_detail_page.dart lib/modules/novel/novel_reader_page.dart
+git commit -m "fix(novel): send Referer header for novel images (hotlink protection)"
+git push
 ```
 
 ---

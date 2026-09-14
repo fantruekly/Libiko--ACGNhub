@@ -1,223 +1,214 @@
-### Task 7: 最终审查修复（手动换页 + hasMore + 请求头 + 小项）
+### Task 7: 插图渲染（正文块模型）
 
-> 来自最终整支审查。用户决定：**去掉自动触底加载，改为底部手动「上一页/下一页」换页**；其余 Important/Minor 一并修。
+> 用户反馈：插图无法显示。根因：linovelib 插图章节的图片在 `div#TextContent` 内，形如
+> `<img src="/images/sloading.svg" data-src="https://img3.readpai.com/.../321969.jpeg" class="imagecontent lazyload">`
+> ——真实地址在 `data-src`（`src` 是懒加载占位）。阅读器只取 `<p>`，故插图丢失。
 
 **Files:**
+- Modify: `lib/core/novel/models.dart`
 - Modify: `lib/core/novel/linovelib_source.dart`
-- Modify: `lib/modules/novel/novel_home.dart`
-- Modify: `lib/modules/novel/novel_providers.dart`
-- Test: `test/core/novel/linovelib_parser_test.dart`、`test/modules/novel/novel_card_test.dart`
+- Modify: `lib/modules/novel/novel_reader_page.dart`
+- Modify: `test/core/novel/linovelib_chapter_parser_test.dart`
+- Modify: `test/modules/novel/novel_reader_page_test.dart`
 
 **Interfaces:**
-- Produces: `bool hasPaginationControl(String html)`（`div.pagination` 是否存在）；`hasNextPage(String html)` 改为只在 `div.pagination` 内找「下一页」。
-- `novelSourcesProvider` 由 `FutureProvider<List<NovelSource>>` 改为 `Provider<List<NovelSource>>`（同步，无 loading 帧）。
+- Produces: `sealed class NovelBlock`; `class NovelText extends NovelBlock { final String text; }`; `class NovelImage extends NovelBlock { final String url; }`; `class NovelChapter { final String title; final List<NovelBlock> blocks; }`（**替换**原 `content` 字段）。
 
-- [ ] **Step 1: 写失败测试（hasPaginationControl / hasNextPage）**
+- [ ] **Step 1: 改测试**
 
-在 `test/core/novel/linovelib_parser_test.dart` 末尾追加：
+`linovelib_chapter_parser_test.dart`：把断言 `ch.content` 改为 `ch.blocks`。例如：
 
 ```dart
-const _pagerNextHtml =
-    '<div class="pagination"><a href="/top/monthvote/2.html">下一页</a></div>';
-const _pagerNoNextHtml =
-    '<div class="pagination"><a href="/top/monthvote/1.html">上一页</a></div>';
-const _pagerLastHtml =
-    '<div class="pagination"><span>下一页</span></div>';
-
-void _paginationTests() {
-  test('hasPaginationControl detects the container', () {
-    expect(hasPaginationControl(_pagerNextHtml), isTrue);
-    expect(hasPaginationControl(_bookListHtml), isFalse);
+  test('parseChapter reads title, paragraphs and images in order', () {
+    final ch = parseChapter(_pagedHtml, 'FB');
+    expect(ch.title, '第60話 規則（2）');
+    expect(
+      ch.blocks.map((b) => switch (b) {
+            NovelText(:final text) => text,
+            NovelImage(:final url) => 'IMG:$url',
+          }),
+      ['第一段。', '第二段。', '第三段。'],
+    );
   });
-
-  test('hasNextPage only trusts a next link inside div.pagination', () {
-    expect(hasNextPage(_pagerNextHtml), isTrue);
-    expect(hasNextPage(_pagerNoNextHtml), isFalse);
-    expect(hasNextPage(_pagerLastHtml), isFalse); // <span>, not a link
-    expect(hasNextPage(_bookListHtml), isFalse); // no pagination control
-  });
-}
 ```
 
-并在 `main()` 末尾（最后一个 `});` 之后、`}` 之前）调用 `_paginationTests();`。
+并新增插图用例：
+
+```dart
+  test('parseChapter extracts lazy-loaded images and skips placeholders', () {
+    const html = '''
+<div id="TextContent">
+  <p>文</p>
+  <img src="/images/sloading.svg" data-src="https://img3.readpai.com/5/1/2/a.jpeg" class="imagecontent lazyload">
+  <img src="/images/sloading.svg" data-src="/files/x.png">
+</div>''';
+    final ch = parseChapter(html, 'T');
+    final images = ch.blocks.whereType<NovelImage>().map((b) => b.url).toList();
+    expect(images, [
+      'https://img3.readpai.com/5/1/2/a.jpeg',
+      'https://www.linovelib.com/files/x.png',
+    ]);
+  });
+```
+
+（若测试文件未 import `models.dart` 需补 `import 'package:acgnhub/core/novel/models.dart';`。`fetchChapterPages` 测试的 `ch.content` 断言改为 `ch.blocks.whereType<NovelText>().map((b)=>b.text).join('\n\n')`。）
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart`
-Expected: FAIL（`hasPaginationControl` 未定义）
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart`
+Expected: FAIL（`NovelBlock` 未定义）
 
-- [ ] **Step 3: 改 `linovelib_source.dart`**
+- [ ] **Step 3: 改 `models.dart`**
 
-把 `hasNextPage` 替换为：
+把 `NovelChapter` 替换为：
 
 ```dart
-bool hasPaginationControl(String html) =>
-    html_parser.parse(html).querySelector('div.pagination') != null;
+sealed class NovelBlock {
+  const NovelBlock();
+}
 
-bool hasNextPage(String html) {
-  final container = html_parser.parse(html).querySelector('div.pagination');
-  if (container == null) return false;
-  for (final a in container.querySelectorAll('a')) {
-    final t = a.text.trim();
-    if (t.contains('下一页') || t.contains('下页')) return true;
-  }
-  return false;
+class NovelText extends NovelBlock {
+  final String text;
+  const NovelText(this.text);
+}
+
+class NovelImage extends NovelBlock {
+  final String url;
+  const NovelImage(this.url);
+}
+
+class NovelChapter {
+  final String title;
+  final List<NovelBlock> blocks;
+  const NovelChapter({required this.title, this.blocks = const []});
 }
 ```
 
-`LinovelibSource` 的 headers 补 `Accept`/`Accept-Language`：
+- [ ] **Step 4: 改 `linovelib_source.dart` 的 `parseChapter` / `fetchChapterPages`**
+
+`parseChapter` 改为按 `div#TextContent` 的子元素顺序产出块：
 
 ```dart
-              headers: {
-                'User-Agent': linovelibUserAgent,
-                'Accept':
-                    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'Referer': '$linovelibBaseUrl/',
+String? _imageUrl(dom.Element img) {
+  final raw = img.attributes['data-src'] ?? img.attributes['src'];
+  if (raw == null || raw.isEmpty) return null;
+  if (raw.contains('sloading') || raw.endsWith('.svg')) return null;
+  return _absUrl(raw);
+}
+
+NovelChapter parseChapter(String html, String fallbackTitle) {
+  final doc = html_parser.parse(html);
+  final title = _textOf(doc.querySelector('#mlfy_main_text h1'));
+  final blocks = <NovelBlock>[];
+  final content = doc.querySelector('div#TextContent');
+  if (content != null) {
+    for (final node in content.nodes) {
+      if (node is! dom.Element) continue;
+      switch (node.localName) {
+        case 'p':
+          final t = node.text.trim();
+          if (t.isNotEmpty) blocks.add(NovelText(t));
+        case 'img':
+          final url = _imageUrl(node);
+          if (url != null) blocks.add(NovelImage(url));
+      }
+    }
+  }
+  return NovelChapter(
+      title: title.isEmpty ? fallbackTitle : title, blocks: blocks);
+}
+```
+
+`fetchChapterPages` 把拼接从字符串改为块列表：
+
+```dart
+  final first = parseChapter(firstHtml, '');
+  final blocks = <NovelBlock>[...first.blocks];
+  var next = nextPageHref(firstHtml, novelId, chapterId);
+  var pages = 1;
+  while (next != null && pages < maxPages) {
+    final html = await fetch(next);
+    blocks.addAll(parseChapter(html, '').blocks);
+    next = nextPageHref(html, novelId, chapterId);
+    pages++;
+  }
+  return NovelChapter(title: first.title, blocks: blocks);
+```
+
+- [ ] **Step 5: 改阅读器 `_content` 渲染块**
+
+`novel_reader_page.dart`：顶部加 `import 'package:cached_network_image/cached_network_image.dart';`；`_content` 改为遍历 `chapter.blocks`：
+
+```dart
+  Widget _content(
+      NovelChapter chapter, NovelReaderSettings settings, _Palette palette) {
+    return SingleChildScrollView(
+      controller: _scroll,
+      padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (chapter.title.isNotEmpty) ...[
+            Text(chapter.title,
+                style: TextStyle(
+                    fontSize: settings.fontSize + 4,
+                    fontWeight: FontWeight.w600,
+                    color: palette.fg)),
+            const SizedBox(height: 16),
+          ],
+          if (chapter.blocks.isEmpty)
+            Text('本章暂无内容',
+                style: TextStyle(
+                    fontSize: settings.fontSize,
+                    color: palette.fg.withValues(alpha: 0.5)))
+          else
+            for (final block in chapter.blocks)
+              switch (block) {
+                NovelText(:final text) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Text(text,
+                        style: TextStyle(
+                            fontSize: settings.fontSize,
+                            height: settings.lineHeight,
+                            color: palette.fg)),
+                  ),
+                NovelImage(:final url) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: url,
+                        fit: BoxFit.contain,
+                        placeholder: (_, __) => const SizedBox(
+                            height: 180,
+                            child: Center(child: CircularProgressIndicator())),
+                        errorWidget: (_, __, ___) => const SizedBox(
+                            height: 80,
+                            child: Center(
+                                child: Icon(Icons.broken_image_outlined))),
+                      ),
+                    ),
+                  ),
               },
-```
-
-`browse` 的返回改为按 spec 判定 `hasMore`：
-
-```dart
-    final items = browse.kind == NovelBrowseKind.ranking
-        ? parseRankRows(html)
-        : parseBookList(html);
-    final hasMore = hasPaginationControl(html)
-        ? hasNextPage(html)
-        : items.length >= 10;
-    return NovelList(items: items, page: page, hasMore: hasMore);
-```
-
-`parseRankRows` 补文库标签（与 `_novelFromBookLi` 一致）：
-
-```dart
-    final cate = _textOf(row.querySelector('a.rank_i_l_a_category'));
-    final tags = <String>[];
-    if (cate.isNotEmpty) {
-      tags.add(cate.replaceAll('[', '').replaceAll(']', ''));
-    }
-    out.add(Novel(
-      id: id,
-      title: _textOf(bookA),
-      author: author.isEmpty ? null : author,
-      coverUrl: cover.isEmpty ? null : cover,
-      tags: tags,
-      extra: {
-        'url': '$linovelibBaseUrl/novel/$id.html',
-        if (rank != null) 'rank': rank,
-      },
-    ));
-```
-
-- [ ] **Step 4: 运行确认通过**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart`
-Expected: PASS（原 5 + 新 2）
-
-- [ ] **Step 5: `novel_providers.dart` 把 `novelSourcesProvider` 改同步**
-
-```dart
-final novelSourcesProvider =
-    Provider<List<NovelSource>>((ref) => ref.watch(novelSourceManagerProvider).sources);
-```
-
-- [ ] **Step 6: `novel_home.dart` 去掉自动触底，改手动换页**
-
-- `build()` 里 `final sources = ref.watch(novelSourcesProvider);`（不再是 AsyncValue），`_sourceChips(sources)` 接收 `List<NovelSource>`。
-- 删除 `_grid` 的 `onLoadMore` 参数与 `NotificationListener`。
-- `_body()` 的 loading 分支改为与网格参数一致：
-  `const ShimmerLoader(crossAxisCount: 6, itemCount: 12, aspectRatio: 0.58, padding: EdgeInsets.fromLTRB(16, 8, 16, 24))`
-- `_body()` 的排行/文库 `data` 分支：
-
-```dart
-      data: (list) => Column(
-        children: [
-          Expanded(child: _grid(list.items)),
-          _pager(list.hasMore),
-        ],
-      ),
-```
-
-- 新增 `_pager`：
-
-```dart
-  Widget _pager(bool hasMore) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          OutlinedButton(
-            onPressed: _page > 1 ? () => setState(() => _page--) : null,
-            child: const Text('上一页'),
-          ),
-          const SizedBox(width: 16),
-          Text('第 $_page 页',
-              style: const TextStyle(fontSize: 13, color: _muted)),
-          const SizedBox(width: 16),
-          OutlinedButton(
-            onPressed: hasMore ? () => setState(() => _page++) : null,
-            child: const Text('下一页'),
-          ),
         ],
       ),
     );
   }
 ```
 
-- `_grid` 签名改为 `Widget _grid(List<Novel> items)`，去掉滚动监听：
+- [ ] **Step 6: 阅读器测试改断言**
 
-```dart
-  Widget _grid(List<Novel> items) {
-    if (items.isEmpty) {
-      return const EmptyState(icon: Icons.menu_book_rounded, message: '暂无内容');
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6,
-          mainAxisSpacing: 20,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.58),
-      itemCount: items.length,
-      itemBuilder: (_, i) => NovelCard(novel: items[i]),
-    );
-  }
-```
+`novel_reader_page_test.dart` 的 override 从 `NovelChapter(title:..., content:...)` 改为 `blocks:`，断言 `find.text('第一段。')` 等；「下一章」测试同理（`content: '甲段'` → `blocks: [NovelText('甲段')]`）。
 
-- [ ] **Step 7: 补 `NovelCard` 占位测试**
+- [ ] **Step 7: 全量校验 + 提交**
 
-在 `test/modules/novel/novel_card_test.dart` 追加：
-
-```dart
-  testWidgets('NovelCard shows a placeholder when there is no cover',
-      (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(
-        body: SizedBox(
-          width: 120,
-          height: 200,
-          child: NovelCard(novel: Novel(id: '1', title: '安达与岛村')),
-        ),
-      ),
-    ));
-    expect(find.text('安'), findsOneWidget);
-  });
-```
-
-- [ ] **Step 8: 全量校验**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-Expected: 全部通过
-
-- [ ] **Step 9: 提交**
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → 全部通过
 
 ```bash
-git add lib/core/novel/linovelib_source.dart lib/modules/novel/novel_home.dart lib/modules/novel/novel_providers.dart test/core/novel/linovelib_parser_test.dart test/modules/novel/novel_card_test.dart
-git commit -m "fix(novel): manual paging, spec-compliant hasMore, browser headers, polish"
+git add lib/core/novel/models.dart lib/core/novel/linovelib_source.dart lib/modules/novel/novel_reader_page.dart test/core/novel/linovelib_chapter_parser_test.dart test/modules/novel/novel_reader_page_test.dart
+git commit -m "fix(novel): render chapter illustrations (block model with images)"
 git push
 ```
+
+---

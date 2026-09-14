@@ -8,8 +8,11 @@ abstract class NovelSource {
   /// 首页：若干带标题的书单。
   Future<NovelHome> home();
 
-  /// 排行 / 文库分类，分页。
-  Future<NovelList> browse(NovelBrowse browse, {int page = 1});
+  /// 该源声明的浏览分组（每个分组含若干选项）。
+  List<NovelBrowseGroup> get browseGroups;
+
+  /// 按浏览选项分页拉取书单。
+  Future<NovelList> browse(String optionKey, {int page = 1});
 
   // v1 仅声明，后续实现：
   Future<List<Novel>> search(String keyword, {int page = 1});

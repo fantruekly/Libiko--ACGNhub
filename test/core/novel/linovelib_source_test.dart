@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:acgnhub/core/novel/linovelib_source.dart';
-import 'package:acgnhub/core/novel/models.dart';
 
 void main() {
   test('rankPath builds the ranking url', () {
     expect(LinovelibSource.rankPath('monthvote', 1), '/top/monthvote/1.html');
-    expect(LinovelibSource.rankPath('allvisit', 1), '/top.html');
+    expect(LinovelibSource.rankPath('allvisit', 1), '/top/allvisit/1.html');
+    expect(LinovelibSource.rankPath('allvisit', 2), '/top/allvisit/2.html');
   });
 
   test('bunkoPath builds the bunko url', () {
@@ -19,18 +19,12 @@ void main() {
     expect(s.baseUrl, linovelibBaseUrl);
   });
 
-  test('allvisit is a single-page ranking', () {
-    expect(
-        LinovelibSource.isSinglePageRanking(
-            const NovelBrowse(NovelBrowseKind.ranking, 'allvisit')),
-        isTrue);
-    expect(
-        LinovelibSource.isSinglePageRanking(
-            const NovelBrowse(NovelBrowseKind.ranking, 'monthvote')),
-        isFalse);
-    expect(
-        LinovelibSource.isSinglePageRanking(
-            const NovelBrowse(NovelBrowseKind.bunko, 'dengekibunko')),
-        isFalse);
+  test('detail/catalog paths', () {
+    expect(LinovelibSource.detailPath('5340'), '/novel/5340.html');
+    expect(LinovelibSource.catalogPath('5340'), '/novel/5340/catalog');
+  });
+
+  test('chapterPath builds the chapter url', () {
+    expect(LinovelibSource.chapterPath('5340', '334356'), '/novel/5340/334356.html');
   });
 }

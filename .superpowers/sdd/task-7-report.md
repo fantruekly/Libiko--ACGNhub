@@ -1,104 +1,90 @@
-# Task 7 Report: 轻小说模块最终审查修复
+# Task 7 Report: 轻小说插图渲染（正文块模型）
 
-## 概述
+## Status: DONE
 
-按最终整支审查结论修复 3 个 Important 问题及若干小项：去掉自动触底加载、改为底部手动「上一页 / 第 N 页 / 下一页」换页；`hasMore` 按 spec 判定；请求头补 `Accept`/`Accept-Language`；`novelSourcesProvider` 改同步；排行行补文库标签；补 `NovelCard` 占位测试。
+## What I implemented
 
-## 实现内容
+Root cause: linovelib 插图章节把图片放在 `div#TextContent` 内，真实地址在 `data-src`（`src` 是 `sloading.svg` 懒加载占位），旧阅读器只提取 `<p>`，图片丢失。
 
-### 1. `lib/core/novel/linovelib_source.dart`
-- 新增 `bool hasPaginationControl(String html)`：`div.pagination` 是否存在。
-- 重写 `hasNextPage(String html)`：只在 `div.pagination` 容器内查找文本含「下一页 / 下页」的 `<a>`；`<span>` 不算。
-- `LinovelibSource` 的 Dio 默认 headers 补 `Accept` 与 `Accept-Language`。
-- `browse()` 的 `hasMore` 改为：有分页控件时按 `hasNextPage`，否则按 `items.length >= 10`。
-- `parseRankRows` 补 `a.rank_i_l_a_category` 文库标签解析（去掉 `[` `]`），与 `_novelFromBookLi` 一致。
+1. **`lib/core/novel/models.dart`** — 用有序块模型替换 `NovelChapter.content: String`：
+   - `sealed class NovelBlock`
+   - `class NovelText extends NovelBlock { final String text; }`
+   - `class NovelImage extends NovelBlock { final String url; }`
+   - `class NovelChapter { final String title; final List<NovelBlock> blocks; }`
+2. **`lib/core/novel/linovelib_source.dart`**：
+   - 新增 `_imageUrl(dom.Element)`：优先 `data-src`，回退 `src`；跳过含 `sloading` 或以 `.svg` 结尾的占位符；其余经 `_absUrl` 补全。
+   - `parseChapter` 改为遍历 `div#TextContent` 的**直接子元素**（按顺序）：`p` → `NovelText`（trim 后非空），`img` → `NovelImage`。
+   - `fetchChapterPages` 改为跨分页拼接块列表。
+3. **`lib/modules/novel/novel_reader_page.dart`**：
+   - 引入 `cached_network_image`。
+   - `_content` 遍历 `chapter.blocks`，用 switch 模式匹配渲染 `NovelText`（保留字号/行距/前景色）与 `NovelImage`（`ClipRRect` + `CachedNetworkImage`，含 placeholder / errorWidget）。空块显示「本章暂无内容」。
+4. **测试**：更新所有因模型变更受影响的测试文件（含上下文未列出的两个 ripple 文件）。
 
-### 2. `lib/modules/novel/novel_providers.dart`
-- `novelSourcesProvider` 由 `FutureProvider<List<NovelSource>>` 改为同步 `Provider<List<NovelSource>>`（无 loading 帧）。
+## What I tested and results
 
-### 3. `lib/modules/novel/novel_home.dart`
-- `build()` 直接 `_sourceChips(sources)`（不再是 AsyncValue）。
-- 删除 `_grid` 的 `onLoadMore` 参数与 `NotificationListener` 自动触底逻辑。
-- 加载分支统一为 `ShimmerLoader(crossAxisCount: 6, itemCount: 12, aspectRatio: 0.58, padding: EdgeInsets.fromLTRB(16, 8, 16, 24))`。
-- 排行/文库 data 分支改为 `Column(Expanded(_grid), _pager(hasMore))`。
-- 新增 `_pager`：上一页（`_page > 1` 才可点）/「第 N 页」/ 下一页（`hasMore` 才可点）。
-- `_grid` 签名简化为 `Widget _grid(List<Novel> items)`。
-
-### 4. 测试
-- `test/core/novel/linovelib_parser_test.dart`：新增 `_paginationTests()`（`hasPaginationControl` + 新的 `hasNextPage` 语义）。
-- `test/modules/novel/novel_card_test.dart`：新增无封面占位测试（期望显示标题首字「安」）。
-
-## 测试结果
-
-- `flutter analyze lib test`：`No issues found!`
-- `flutter test`：`All tests passed!`（188 passed，1 skipped —— 该 skip 为既有的 `js_engine_smoke_test`，非本任务引入）。
+- `flutter analyze lib test` → **No issues found!**
+- `flutter test` → **All tests passed!** (211 passed, 1 skipped)
+- 定点：`flutter test test/core/novel/linovelib_chapter_parser_test.dart test/modules/novel/novel_reader_page_test.dart` → **All tests passed!** (7 tests)
 
 ## TDD Evidence
 
 ### RED
-命令：
+
+Command:
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart
 ```
-输出（节选）：
+Failing output (excerpt):
 ```
-test/core/novel/linovelib_parser_test.dart:88:12: Error: Method not found: 'hasPaginationControl'.
-    expect(hasPaginationControl(_pagerNextHtml), isTrue);
-           ^^^^^^^^^^^^^^^^^^^^
-test/core/novel/linovelib_parser_test.dart:89:12: Error: Method not found: 'hasPaginationControl'.
-    expect(hasPaginationControl(_bookListHtml), isFalse);
-           ^^^^^^^^^^^^^^^^^^^^
-00:00 +0 -1: loading ... [E]
-  Failed to load ".../linovelib_parser_test.dart":
-  Compilation failed ...: Method not found: 'hasPaginationControl'.
+test/core/novel/linovelib_chapter_parser_test.dart:24:13: Error: 'NovelImage' isn't a type.
+test/core/novel/linovelib_chapter_parser_test.dart:49:29: Error: 'NovelText' isn't a type.
+test/core/novel/linovelib_chapter_parser_test.dart:22:10: Error: The getter 'blocks' isn't defined for the type 'NovelChapter'.
+  - 'NovelChapter' is from 'package:acgnhub/core/novel/models.dart'
 00:00 +0 -1: Some tests failed.
 ```
-预期失败原因：测试先于实现编写，`hasPaginationControl` 尚不存在，编译失败即 RED。
+Why expected: tests were written against the new interface (`NovelBlock`/`NovelText`/`NovelImage`/`blocks`) before the model existed, so the compiler rejected the undefined types/getters — the intended red state proving the tests exercise the new API.
 
 ### GREEN
-命令：
+
+Command:
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart test/modules/novel/novel_reader_page_test.dart
 ```
-输出（节选）：
+Passing output:
 ```
-00:00 +0: novelIdFromHref extracts id
-00:00 +1: parseBookList keeps only book entries with a.title
-00:00 +2: parseHome returns titled sections
-00:00 +3: parseRankRows parses rank rows
-00:00 +4: hasNextPage detects the next link
-00:00 +5: hasPaginationControl detects the container
-00:00 +6: hasNextPage only trusts a next link inside div.pagination
+00:00 +0: ... parseChapter reads title, paragraphs and images in order
+00:00 +1: ... parseChapter extracts lazy-loaded images and skips placeholders
+00:00 +2: ... parseChapter falls back to the given title
+00:00 +3: ... nextPageHref returns same-chapter page links only
+00:00 +4: ... fetchChapterPages concatenates same-chapter pages
+00:00 +5: ... NovelReaderPage renders the chapter title and paragraphs
+00:00 +6: ... tapping 下一章 loads the next chapter
 00:00 +7: All tests passed!
 ```
-原 5 + 新 2 全部通过。
 
-全量：
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
-No issues found! (ran in 2.1s)
+Full suite: `flutter test` → `00:08 +211 ~1: All tests passed!`
 
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
-00:10 +188 ~1: All tests passed!
-```
+## Files changed
 
-## 变更文件
-
+- `lib/core/novel/models.dart`
 - `lib/core/novel/linovelib_source.dart`
-- `lib/modules/novel/novel_home.dart`
-- `lib/modules/novel/novel_providers.dart`
-- `test/core/novel/linovelib_parser_test.dart`
-- `test/modules/novel/novel_card_test.dart`
+- `lib/modules/novel/novel_reader_page.dart`
+- `test/core/novel/linovelib_chapter_parser_test.dart`
+- `test/modules/novel/novel_reader_page_test.dart`
+- `test/core/novel/novel_source_test.dart` (ripple: `NovelChapter(title:'t', content:'c')` → `blocks:[NovelText('c')]`)
+- `test/modules/novel/novel_home_pager_test.dart` (same ripple)
 
-## 自查发现
+Commit: `6b7dc5b fix(novel): render chapter illustrations (block model with images)` (pushed to `dev`, `d4878d6..6b7dc5b`).
 
-- 未新增任何依赖；未在任何 `TextStyle` 设置 `fontFamily`（`_pager` 仅 fontSize/color）。
-- 颜色沿用 accent `0xFF007AFF`、fg `0xFF1C1C1E`、muted `0xFF5A5A5F`。
-- `novelSourcesProvider` 改为同步后，唯一使用点 `novel_home.dart` 已同步更新，analyze 无残留错误。
-- 分页 `hasMore` 无分页控件时按 `items.length >= 10` 判定，属 brief/spec 规定行为：若某页恰好 ≥10 条但实为末页，会多一次空页翻页。保留 spec 行为，未擅自改动。
-- 测试均不发起真实网络请求（解析测试用内联 HTML，Widget 测试用 `Novel` 常量）。
+## Self-review findings
 
-## 关注点
+- **Ripple check**: `grep` for `NovelChapter(` and `.content` under `lib/` and `test/` surfaced two test files beyond the brief's list (`novel_source_test.dart`, `novel_home_pager_test.dart`); both updated. No remaining `content:` usages under the novel tests, and no `.content` references remain in `lib/core/novel/`.
+- **Diff fidelity**: implementation matches the brief's verbatim code (verified via `git diff`).
+- **No new dependency**: reused `cached_network_image ^3.4.1` (already in `pubspec.yaml`).
+- **No `fontFamily`** is set in any `TextStyle`.
+- **No real network in tests**: reader test overrides providers; parser tests use inline HTML strings.
 
-- `hasMore` 的 `items.length >= 10` 启发式在「末页恰好满 10 条且无分页控件」时可能给出一次多余的可翻页提示；这是 brief 明确规定，如需更严格可后续以真实站点结构再校验。
-- 未在真实 linovelib 站点做联网冒烟验证（约束禁止测试联网）。
+## Concerns
+
+- `parseChapter` now iterates only **direct children** of `#TextContent` (per the brief/verified DOM). If some chapter variant nests paragraphs inside a wrapper `div`, those would no longer be picked up. Current linovelib structure puts `p`/`img` as direct children, so this is correct for the known case.
+- `_imageUrl` prefers `data-src` unconditionally; a placeholder in `data-src` with a real `src` would be skipped, but that ordering matches the site's lazyload convention.

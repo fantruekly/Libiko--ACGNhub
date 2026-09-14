@@ -1,157 +1,44 @@
-﻿### Task 11: Create anime home page with Riverpod
+### Task 11: 探索页卡片去掉作者（统一封面高度）
+
+> 用户反馈：探索页部分小说带作者，导致卡片高度不一致、封面大小会变。
 
 **Files:**
-- Create: `lib/modules/anime/anime_providers.dart`
-- Create: `lib/modules/anime/anime_home.dart`
+- Modify: `lib/modules/novel/novel_home.dart`
+- Modify: `test/modules/novel/novel_card_test.dart`（若断言了作者）
 
-**Interfaces:**
-- Consumes: `SourceManager` (Task 3), `AnimeSource` (Task 9), `WorkCard` (Task 7)
-- Produces: `animeSourceListProvider`, `AnimeHomePage` widget
+- [ ] **Step 1: 改 `NovelCard`**
 
-- [ ] **Step 1: Write providers**
-
-Create `lib/modules/anime/anime_providers.dart`:
+删除作者那一行：
 
 ```dart
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/source/source_manager.dart';
-import '../../core/models/work.dart';
-import 'anime_source.dart';
-import 'anime_rule.dart';
-import 'dart:convert';
-import 'package:flutter/services.dart';
-
-final sourceManagerProvider = Provider<SourceManager>((ref) {
-  return SourceManager();
-});
-
-final animeSourceListProvider = FutureProvider<List<AnimeSource>>((ref) async {
-  final manager = ref.read(sourceManagerProvider);
-
-  // Load built-in rules
-  final manifest = await rootBundle.loadString('AssetManifest.json');
-  final ruleFiles = <String>[];
-  if (manifest.contains('assets/rules/')) {
-    final lines = manifest.split('\n');
-    for (final line in lines) {
-      if (line.contains('assets/rules/') && line.contains('.json')) {
-        final key = line.split('"')[1];
-        if (key != null) ruleFiles.add(key);
-      }
-    }
-  }
-
-  // Load default rule if no files found in manifest
-  for (final file in ruleFiles) {
-    final jsonString = await rootBundle.loadString(file);
-    final rule = AnimeRule.fromJsonString(jsonString);
-    final source = AnimeSource(rule);
-    manager.register(source);
-  }
-
-  return manager.getByType(WorkType.anime).cast<AnimeSource>();
-});
-```
-
-- [ ] **Step 2: Write AnimeHomePage**
-
-Create `lib/modules/anime/anime_home.dart`:
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'anime_providers.dart';
-
-class AnimeHomePage extends ConsumerWidget {
-  const AnimeHomePage({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final sourcesAsync = ref.watch(animeSourceListProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('鍔ㄦ极'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AnimeSearchPage()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: sourcesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('鍔犺浇澶辫触: $err')),
-        data: (sources) {
-          if (sources.isEmpty) {
-            return const Center(child: Text('娌℃湁鍙敤鐨勫姩婕簮'));
-          }
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(animeSourceListProvider.future),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text(
-                  '宸插姞杞界殑鍔ㄦ极婧?,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                ...sources.map((s) => Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.tv),
-                        title: Text(s.name),
-                        subtitle: Text(s.baseUrl),
-                        trailing: const Icon(Icons.chevron_right),
-                      ),
-                    )),
-                const SizedBox(height: 24),
-                const Text(
-                  '浣跨敤鎼滅储鏌ユ壘浣犳兂鐪嬬殑鍔ㄦ极',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ],
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 38,
+            child: Text(
+              novel.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w500, height: 1.45, color: _fg),
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class AnimeSearchPage extends StatelessWidget {
-  const AnimeSearchPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('鎼滅储鍔ㄦ极')),
-      body: const Center(child: Text('鎼滅储鍔熻兘寮€鍙戜腑')),
-    );
-  }
-}
+          ),
 ```
 
-- [ ] **Step 3: Run build to verify**
+（即删掉 `if (novel.author != null && novel.author!.isNotEmpty) Text(novel.author!, ...)` 整段。）
+
+- [ ] **Step 2: 适配测试**
+
+`test/modules/novel/novel_card_test.dart`：若断言了 `find.text('入间人间')`（作者），删掉该断言，改为断言标题仍存在。
+
+- [ ] **Step 3: 全量校验 + 提交**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → 全部通过
 
 ```bash
-flutter build windows --debug
-```
-
-Expected: Build succeeds.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add lib/modules/anime/
-git commit -m "feat(anime): add anime home page with Riverpod providers"
+git add lib/modules/novel/novel_home.dart test/modules/novel/novel_card_test.dart
+git commit -m "fix(novel): drop author from explore cards for uniform covers"
+git push
 ```
 
 ---
-
-
