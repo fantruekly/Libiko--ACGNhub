@@ -29,9 +29,9 @@ class AnimeHomePage extends ConsumerWidget {
                 indicatorColor: Color(0xFF007AFF),
                 dividerColor: Color(0xFFE5E5EA),
                 labelStyle:
-                    TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                 unselectedLabelStyle:
-                    TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+                    TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
                 tabs: [
                   Tab(text: '本季新番'),
                   Tab(text: '热门推荐'),
