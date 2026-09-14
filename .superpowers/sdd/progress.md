@@ -297,3 +297,80 @@ Final whole-branch review (7ce8641..8e1159a): 'With fixes'. 2 Important (illustr
   _imageUrl treats data-src="" as present and drops a valid src; non-http schemes (data:) mangled.
 lknovel source feature: COMPLETE (7ce8641..86d4faa). Pushed to origin/dev.
   Live manual verification still owed: open a lknovel chapter with an illustration + a long-series detail.
+
+## Novel library plan (2026-09-14-novel-library.md)
+
+Task 1: complete (commits 3889f68..da31bef, review clean: Approved). Added lib/core/novel/novel_history.dart +
+  novel_favorite.dart (SharedPreferences keys novel_history/novel_favorites, Riverpod notifiers/providers,
+  upsert dedupe by (sourceKey,novelId), newest-first). Tests novel_history_test/novel_favorite_test.
+  Minor (deferred): upsert inserts at index 0 relying on all() sort (comic-identical).
+Task 2: complete (commits da31bef..56308ac, review clean: Approved). NovelHomePage now DefaultTabController
+  探索/收藏/历史; _ExploreTab (keep-alive) holds prior explore UI; _FavoritesTab grid; _HistoryTab list + 清空历史
+  confirm + empty states. NOTE: implementer pre-added optional unused NovelReaderPage.cover (brief-sanctioned) —
+  Task 3 must reuse it, not add a second.
+  Minor (deferred): _confirmClear reads ref after await (disposed-ref risk, comic-identical); tabs test doesn't
+  cover clear-flow/routes/headers; _relativeTime future-delta edge.
+Task 3: complete (commits 56308ac..ef15e4a, review clean: Approved). NovelReaderPage records NovelHistoryEntry via
+  ref.listen on novelChapterProvider (whenData), reuses pre-existing cover field. Test asserts recorded entry.
+  Minor (deferred): ref.listen fireImmediately=false means an already-cached chapter won't re-record on reopen
+  (timestamp may be stale within a session); empty-title fallback branch untested; some entry fields unasserted.
+Task 4: complete (commits ef15e4a..0395001, review clean: Approved). NovelDetailPage: favorite FilledButton.icon in
+  _infoCard (收藏/已收藏); full-width 继续阅读 when history exists; _openChapter passes cover.
+  Minor (deferred): cover fallback doesn't guard widget.cover==''; favorite saves novel.coverUrl (null when using
+  widget.cover fallback); isFavorite/cover resolution DRY nits.
+ALL 4 TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (3889f68..0395001): 'With fixes'. 1 Important (reader stale when chapter already cached)
+  + minors. Fix commit 809da9f: reader records via build-time async.whenData + _lastRecordedChapterId guard
+  (Riverpod 2.6.1 has no listen fireImmediately / overrideWithValue — adapted); detail persists resolved cover;
+  removed dead isFavorite; added storage round-trip/malformed tests + cached-chapter regression test.
+  Re-review 0395001..809da9f: Approved.
+Novel library feature: COMPLETE (3889f68..809da9f). Pushed to origin/dev.
+  Live manual verification still owed: open a novel, read chapters, check 继续阅读/收藏/历史/清空历史.
+
+## Novel UI fixes plan (2026-09-14-novel-ui-fixes.md)
+
+Task 1: complete (commits 64335b5..9330236, review clean: Approved). linovelib bunko now fetched from
+  https://w.linovelib.com (Cloudflare-challenged on www); added linovelibMobileBaseUrl, parseMobileBookList,
+  mobileHasNextPage; browsePath returns absolute URLs; _getUrl added. Ranking unchanged.
+  Minor (deferred): bunkoPath/parseBookList now unused in prod (still tested); _getUrl duplicates _get;
+  no test for img src fallback.
+Task 2: complete (commits 9330236..b6028f3, review clean: Approved). LknovelSource.detail batchSize 6->12.
+  Minor (deferred): higher concurrency may hit host rate limits (no backoff).
+Task 3: complete (commits b6028f3..5bc213e, review clean: Approved). novel_home _pager now comic-style
+  (chevron IconButtons + 第 X 页 + top border); _pagerButtonStyle removed; pager test asserts chevrons.
+  Minor (deferred): pager test still has inert outlinedButtonTheme override + stale name/comment.
+Task 4: complete (commits 5bc213e..e85c766, review clean after fix: Approved). New lib/core/widgets/marquee_text.dart
+  (fits -> plain Text; overflow -> OverflowBox intrinsic layout + MouseRegion hover scroll + outer ClipRect);
+  applied to PillButton label + reader catalog ListTile. Fix e85c766 unclamped inner Text (was clipped) and
+  disposed TextPainter; controller eager-inited in initState (brief's late-final lazy init crashed dispose).
+  Minor (deferred): no didUpdateWidget reset; test assumes single Transform.
+ALL 4 TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (64335b5..e85c766): 'Ready to merge: Yes'. 1 Important (lknovel concurrency 12 +
+  silent per-volume failure — pre-existing tradeoff, user chose higher concurrency) + minors. No must-fix.
+  Live-verified: w.linovelib.com/wenku/<key>/1.html loads for dengekibunko/emuefubunkojei/other with the app's
+  Referer, 30 book-li/page, numeric a.last (21/12/42).
+  Minor (deferred): stale pager test scaffolding (inert outlinedButtonTheme + old name); bunkoPath/parseBookList
+  unused in prod; _getUrl duplicates _get; marquee no didUpdateWidget; mobile parser src-fallback untested.
+Novel UI fixes feature: COMPLETE (64335b5..e85c766). Pushed to origin/dev.
+
+## Novel search plan (2026-09-14-novel-search.md)
+
+Task 1: complete (commits 2fddbf2..2a0aabe, review clean: Approved). linovelib_source.dart: parseSearchResults
+  (div.search-result-list) + LinovelibSource.search (POST /S6/ form searchkey). Test linovelib_search_parser_test.
+  Minor (deferred): narrow test coverage; data-original='' not falling back to src (consistent with existing).
+Task 2: complete (commits 2a0aabe..2433e0f, review clean: Approved). LknovelSource.search -> POST
+  bff/apk-search-result-v1 {q,page,page_size}; parseLkList. Test added.
+  Minor (deferred): empty-keyword branch untested.
+Task 3: complete (commits 2433e0f..1a6feb6, review clean: Approved). NovelSearchResult + novelSearchProvider
+  (aggregate, per-source failure isolation, title dedupe, all-fail StateError). 3 tests.
+  Minor (deferred): catch(e) broad; zero-source throws with null lastError; empty-keyword untested.
+Task 4: complete (commits 1a6feb6..4679bea, review clean: Approved). NovelSearchPage (mirror ComicSearchPage) +
+  main_shell top-bar entry for index 2. 2 tests.
+  Minor (deferred): grid inlined (no _resultsGrid helper); _currentIndex >= 0 redundant; noTransitionRoute
+  differs from comic's smoothRoute; page tests don't cover provider merge logic.
+ALL 4 TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (2fddbf2..4679bea): 'With fixes'. 1 Important (missing empty-results page test)
+  + minors. Fix 71f2596: added empty-results page test, empty-keyword tests (provider + lknovel), linovelib
+  src-fallback test, and a zero-source guard in novelSearchProvider. Re-review 4679bea..71f2596: Approved.
+Novel search feature: COMPLETE (2fddbf2..71f2596). Pushed to origin/dev.
+  Live manual verification still owed: open novel module -> search a keyword -> results/detail.
