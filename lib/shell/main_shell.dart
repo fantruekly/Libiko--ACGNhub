@@ -6,6 +6,7 @@ import '../modules/anime/anime_home.dart';
 import '../modules/anime/anime_search.dart';
 import '../modules/comic/comic_home.dart';
 import '../modules/comic/comic_search.dart';
+import '../modules/novel/novel_home.dart';
 import 'settings_page.dart';
 import 'app_sidebar.dart';
 
@@ -29,8 +30,7 @@ class _MainShellState extends State<MainShell> {
   final _pages = <Widget>[
     const AnimeHomePage(),
     const ComicHomePage(),
-    _buildModulePlaceholder('轻小说', Icons.auto_stories_rounded, '轻小说模块',
-        '阅读 Wenku8 文库的轻小说资源', const Color(0xFF34C759)),
+    const NovelHomePage(),
     _buildModulePlaceholder('游戏', Icons.games_rounded, '游戏模块',
         '浏览 Galgame 游戏资源与详细信息', const Color(0xFFAF52DE)),
   ];

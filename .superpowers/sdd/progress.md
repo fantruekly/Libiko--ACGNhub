@@ -139,3 +139,38 @@ C2e: COMPLETE (caf51ef..bb9ca63), pushed to origin/dev. Real sign-in left to the
 - `lib/modules/comic/comic_detail_page.dart` — the description 展开/收起 uses a `length > 60` heuristic instead of measuring 3 lines; a tagless comic leaves a stray 10px gap before the description; the favorite stores `details.cover`/`title` (may differ from the list entry's).
 
 (previous plans are complete; their history is in git)
+
+## Novel module v1 ledger — 首页浏览/排行
+
+Plan: docs/superpowers/plans/2026-09-14-novel-module.md
+Spec: docs/superpowers/specs/2026-09-14-novel-module-design.md
+Base commit: a4691b5 (before Task 1)
+
+Task 1: complete (commit a4691b5..3821f0b, review clean)
+  Minor (deferred to final review): `_stringList` only flattens a top-level list;
+  container classes (NovelSection/NovelHome/NovelList/NovelDetail/NovelChapter) have no direct tests.
+Task 2: complete (commit 3821f0b..eeaed68, review clean)
+  Minor (deferred): duplicate-id via constructor not asserted; `sources` allocates a wrapper per call; `byId` O(n).
+Task 3: complete (commit eeaed68..c08c2f8, review clean)
+  Minor (deferred): `hasNextPage` scans all `<a>` (could scope to div.pagination); `parseRankRows` omits category tags; some `_absUrl` branches untested.
+Task 4: complete (commit c08c2f8..a7ebfcb, review clean)
+  Minor (deferred): `_get` non-200 branch is dead (Dio throws first); home()/browse() routing/error paths untested; hasNextPage re-parses per call.
+  Live-HTML behavior (selectors/UTF-8/URL join) verified only by manual run later.
+Task 5: complete (commit a7ebfcb..784556e, review clean)
+  Minor (deferred): provider bodies untested (only flattenHome); novelSourcesProvider is async without await.
+Task 6: complete (commit 784556e..494da54, review clean)
+  Minor (deferred): paging can re-fire/skip a page on fast scroll; next-page load swaps grid for full-screen shimmer;
+  shimmer/grid aspect mismatch; source-load failure hidden by valueOrNull; NovelCard test is title/author only.
+  Visual verification deferred to human.
+Final whole-branch review: a4691b5..494da54 → "merge with fixes" (3 Important: replace-not-append paging,
+  page-skip on fast scroll, hasMore not per spec; ~8 Minor).
+  User decision: replace auto-load with a manual 上一页/下一页 pager; fix the rest.
+Task 7 (review fixes): complete (commit 494da54..da36459, re-review: 3 Important resolved; 1 new Important)
+  Manual pager; hasMore = pagination-control ? next-link : items>=10; Accept/Accept-Language headers;
+  parseRankRows tags; novelSourcesProvider → sync Provider; shimmer/grid metrics matched; +2 parser tests, +1 card test.
+Task 8 (re-review fixes): complete (commit da36459..c4519db, re-review clean: "Ready to merge? Yes")
+  allvisit (人气榜) forced single-page (isSinglePageRanking) — fixes the 下一页 loop; rank-tags test; spec sync.
+Novel module v1: COMPLETE (a4691b5..c4519db + spec doc fix). Pushed to origin/dev.
+  Manual live-site verification (源 chip / 网格 / 排行子chip / 手动换页 / 文库) still owed to the human.
+  Deferred Minors: hasMore `>=10` fallback can show one extra empty page; browse hasMore not unit-tested;
+  double HTML parse in hasPaginationControl+hasNextPage; Novel.fromJson extra cast is lazy.

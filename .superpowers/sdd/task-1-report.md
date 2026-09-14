@@ -1,120 +1,80 @@
-# Task 1 Report: engine account support (C2e)
+# Task 1 Report: 轻小说模块模型 `models.dart`
 
 ## What I implemented
 
-Sub-project C2e Task 1, for the ACGNhub Flutter comic module. Added the
-JS-side `Cookie` global and `ComicSource.isLogged`, made the Dart cookie bridge
-serialize cookie objects, and added account metadata plus manager login methods.
+Created the pure-Dart data models for the new 轻小说 (light novel) module, exactly as specified in the brief:
 
-### `assets/comic_source/init.js`
+- `lib/core/novel/models.dart`
+  - `_stringList(dynamic)` helper (list → non-empty `List<String>`).
+  - `Novel` — `id`, `title`, `author?`, `coverUrl?`, `tags`, `summary?`, `extra`; const ctor with defaults, `fromJson`, `toJson` (omits null/empty fields).
+  - `NovelSection`, `NovelHome`, `NovelList`.
+  - `enum NovelBrowseKind { ranking, bunko }` and `NovelBrowse(kind, key)`.
+  - `NovelDetail`, `NovelChapter`.
+- `test/core/novel/models_test.dart` — 3 tests from the brief.
 
-- Added a `Cookie` class (`name`/`value`/`domain`/`path`, defaults `''`/`''`/`''`/`'/'`)
-  after `class Convert`.
-- Added a `get isLogged()` getter to `class ComicSource` after `saveSetting`:
-  true when `loadData('token')` is non-null/non-empty or `loadData('account')`
-  is non-null.
-- Registered `globalThis.Cookie = Cookie;` before `globalThis.ComicSource`.
+No UI, no network, no new dependency. No `fontFamily` set (no `TextStyle`s at all). SDK constraint untouched.
 
-### `lib/core/comic/js_engine.dart`
+## What I tested and results
 
-- Rewrote the body of `_cookieHeaderFor`: a jar entry whose value is a `List` is
-  expanded into `name=value` pairs (skipping non-`Map` items and empty names);
-  any other value falls back to `value?.toString()`. Malformed entries are
-  skipped rather than throwing. Values are joined with `'; '`.
+- Focused test: `flutter test test/core/novel/models_test.dart` → 3 tests pass.
+- Full suite: `flutter test` → `+173 ~1: All tests passed!` (173 passed, 1 pre-existing skip: `js_engine_smoke_test.dart` native library not loadable under `flutter test`).
+- Analyzer: `flutter analyze lib test` → `No issues found!`.
 
-### `lib/core/comic/comic_source.dart`
+## TDD Evidence
 
-- `ComicSource`: added `hasLogin`, `hasCookieLogin`, `cookieFields` fields and
-  constructor defaults (`false`, `false`, `const []`).
-- `fromMetadata`: reads `meta['account']` and maps it to the three fields
-  (`cookieFields` coerced with `.map((e) => e.toString())`).
-- `_registryJs`: the `__acgnhub_registerSource` return object now includes an
-  `account` block derived from `s.account` / `s.account.loginWithCookies`
-  (`hasLogin`, `hasCookieLogin`, `cookieFields`).
-- `ComicSourceManager`: added `login`, `loginWithCookies`, `logout`, `isLogged`
-  after `category`. Form login evaluates `s.account.login`; cookie login
-  evaluates `s.account.loginWithCookies.validate(values)` and persists a
-  `source_data.<key>.logged_in` flag via `AppDatabase`; logout best-effort calls
-  `s.account.logout()` and removes the flag; `isLogged` reads the flag for
-  cookie-only sources and otherwise evaluates `!!s.isLogged`.
+### RED
 
-## Verification commands and results
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/models_test.dart
+```
 
-- `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-  - `No issues found! (ran in 2.2s)`
-- `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
-  - `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (11.2s). Only the
-    unrelated CMake `CMP0175` dev warning from `webview_windows`.
-- `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/comic/comic_source_test.dart test/core/comic/js_engine_smoke_test.dart`
-  - `+3 ~1: All tests passed!` (the smoke test is skipped because the
-    `flutter_qjs` native library is not loadable under `flutter test`, as
-    expected).
+Output (excerpt):
+```
+test/core/novel/models_test.dart:4:8: Error: Error when reading 'lib/core/novel/models.dart': 系统找不到指定的路径。
+import 'package:acgnhub/core/novel/models.dart';
+       ^
+test/core/novel/models_test.dart:8:19: Error: Method not found: 'Novel'.
+test/core/novel/models_test.dart:38:27: Error: Undefined name 'NovelBrowseKind'.
+00:00 +0 -1: Some tests failed.
+```
 
-The engine cannot run under `flutter test`; behavioral verification of the
-account metadata is deferred to the Task 3 probe per the task context.
+Why expected: the implementation file did not exist yet, so the test target failed to compile — the test genuinely exercises the missing API.
 
-## Files changed + commit
+### GREEN
 
-- `assets/comic_source/init.js`
-- `lib/core/comic/js_engine.dart`
-- `lib/core/comic/comic_source.dart`
+Command:
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/models_test.dart
+```
 
-Commit `1347214` — `feat(comic): add account login support to the comic engine`
-Pushed to `origin/dev` (`caf51ef..1347214`).
+Output:
+```
+00:00 +0: Novel round-trips through JSON
+00:00 +1: Novel.fromJson tolerates missing optional fields
+00:00 +2: NovelBrowse holds kind and key
+00:00 +3: All tests passed!
+```
+
+## Files changed
+
+- `lib/core/novel/models.dart` (new, 84 lines)
+- `test/core/novel/models_test.dart` (new, 42 lines)
+
+Commit: `3821f0b feat(novel): add novel models` (pushed to `origin/dev`).
 
 ## Self-review findings
 
-- `isLogged` getter uses the existing `loadData`, which already returns `null`
-  for missing/empty values and JSON-parses otherwise; the explicit
-  `null`/`undefined`/`''` checks are redundant but harmless and match the brief.
-- `_cookieHeaderFor` never throws on malformed entries: non-`Map` list items are
-  skipped, and a non-list `Map` value degrades to its `toString()` (no throw),
-  satisfying the global constraint.
-- `fromMetadata` `account is Map && account['cookieFields'] is List` parses as
-  `(account is Map) && (...)` because `is` binds tighter than `&&`; correct.
-- `AppDatabase` is already imported and used elsewhere in the file, so the new
-  manager methods need no extra import.
-- `jsonEncode(values)` for `List<String>` and the source key produce valid JS
-  literals inside the `evaluate` templates.
-- No new analyzer warnings; no comments added beyond the brief's `// Best-effort
-  logout.` (the file already contains comments).
+- **Completeness:** all 8 interfaces from the brief are present with the exact signatures/ctors. Verified `flutter analyze` clean and full suite green.
+- **Quality:** `toJson`/`fromJson` mirror the existing `lib/core/comic/models.dart` style (null/empty omission, `?.toString()` coercion).
+- **YAGNI:** no extra fields, helpers, or serialization for the container classes (`NovelSection`/`NovelHome`/`NovelList`/`NovelDetail`/`NovelChapter`) beyond what the brief specifies.
+- **Test hygiene:** 3 focused tests, one behavior each; the round-trip test goes through `json.encode`/`json.decode` so it verifies true JSON compatibility.
+- No fixes required; nothing found to correct.
 
 ## Concerns
 
-- `loginWithCookies` and `logout` call `AppDatabase()` directly, which throws if
-  `AppDatabase.init()` has not run. This matches the brief and the app's
-  lifecycle, but is a latent ordering dependency.
-- Behavioral correctness of the `account` registry metadata and login/logout
-  round-trips is not covered by `flutter test`; relies on the Task 3 probe.
-- A non-list `Map` cookie-jar value serializes as a Dart map `toString()` rather
-  than a `Cookie` header. Sources are expected to pass an array, so this is an
-  unreachable edge case handled without throwing.
+- `_stringList` (from the brief) only flattens a top-level `List` and drops empty strings; it does not recurse into nested lists/maps like the comic module's helper. This matches the brief verbatim and is sufficient for the planned linovelib source, but if a future source emits grouped/nested tags, this helper would silently drop them. Left as-is per the brief; worth noting for the source task.
 
-## Task 1 review fix
+## Verdict
 
-### What changed
-
-`ComicSourceManager.login` in `lib/core/comic/comic_source.dart` discarded the
-JS result and returned `true` whenever the evaluate did not throw, so a source
-that signals failure by returning `false` was reported as a successful login.
-
-- The evaluated snippet now captures the login result and returns
-  `result !== false`.
-- `login` now stores that value in `ok` and returns `ok == true`, so an explicit
-  `false` is treated as failure.
-- The surrounding `try`/`catch` still returns `false` on a thrown error.
-
-No other changes; no comments added.
-
-### Verification
-
-- `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-  - `No issues found! (ran in 1.7s)`
-- `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
-  - `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (11.2s). Only the
-    unrelated CMake `CMP0175` dev warning from `webview_windows`.
-
-### Commit
-
-Commit `5f4f5f9` — `fix(comic): treat an explicit false login result as a failure`
-Pushed to `origin/dev` (`1347214..5f4f5f9`).
+DONE — TDD RED→GREEN followed, analyze clean, full suite green, committed and pushed.
