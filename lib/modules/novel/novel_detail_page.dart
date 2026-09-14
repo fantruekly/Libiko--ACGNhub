@@ -7,6 +7,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 import 'novel_reader_page.dart';
 
@@ -42,6 +43,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
         title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: const [WindowControls()],
       ),
       body: async.when(
         loading: () => const ShimmerLoader(

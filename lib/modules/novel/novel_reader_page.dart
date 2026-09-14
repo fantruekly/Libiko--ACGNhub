@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_reader_settings.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 
 const _accent = Color(0xFF007AFF);
@@ -180,6 +181,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: palette.fg),
               ),
             ),
+            const WindowControls(),
           ],
         ),
       ),
