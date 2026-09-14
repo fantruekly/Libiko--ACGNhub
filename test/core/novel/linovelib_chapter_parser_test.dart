@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:acgnhub/core/novel/linovelib_source.dart';
+import 'package:acgnhub/core/novel/models.dart';
 
 const _pagedHtml = '''
 <div id="mlfy_main_text"><h1>第60話 規則（2）</h1>
@@ -14,16 +15,38 @@ const _lastPageHtml = '''
 ''';
 
 void main() {
-  test('parseChapter reads title and paragraphs', () {
+  test('parseChapter reads title, paragraphs and images in order', () {
     final ch = parseChapter(_pagedHtml, 'FB');
     expect(ch.title, '第60話 規則（2）');
-    expect(ch.content, '第一段。\n\n第二段。\n\n第三段。');
+    expect(
+      ch.blocks.map((b) => switch (b) {
+            NovelText(:final text) => text,
+            NovelImage(:final url) => 'IMG:$url',
+          }),
+      ['第一段。', '第二段。', '第三段。'],
+    );
+  });
+
+  test('parseChapter extracts lazy-loaded images and skips placeholders', () {
+    const html = '''
+<div id="TextContent">
+  <p>文</p>
+  <img src="/images/sloading.svg" data-src="https://img3.readpai.com/5/1/2/a.jpeg" class="imagecontent lazyload">
+  <img src="/images/sloading.svg" data-src="/files/x.png">
+</div>''';
+    final ch = parseChapter(html, 'T');
+    final images = ch.blocks.whereType<NovelImage>().map((b) => b.url).toList();
+    expect(images, [
+      'https://img3.readpai.com/5/1/2/a.jpeg',
+      'https://www.linovelib.com/files/x.png',
+    ]);
   });
 
   test('parseChapter falls back to the given title', () {
     final ch = parseChapter('<div id="TextContent"><p>只有正文</p></div>', '备用标题');
     expect(ch.title, '备用标题');
-    expect(ch.content, '只有正文');
+    expect(
+        ch.blocks.whereType<NovelText>().map((b) => b.text).join('\n\n'), '只有正文');
   });
 
   test('nextPageHref returns same-chapter page links only', () {
@@ -47,6 +70,7 @@ void main() {
       },
     );
     expect(calls, 2);
-    expect(ch.content, '第一段。\n\n第二段。\n\n第三段。\n\n末段。');
+    expect(ch.blocks.whereType<NovelText>().map((b) => b.text).join('\n\n'),
+        '第一段。\n\n第二段。\n\n第三段。\n\n末段。');
   });
 }

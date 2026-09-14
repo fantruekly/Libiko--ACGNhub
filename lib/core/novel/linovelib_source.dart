@@ -203,21 +203,33 @@ List<NovelVolume> parseCatalog(String html, String novelId) {
   return volumes;
 }
 
+String? _imageUrl(dom.Element img) {
+  final raw = img.attributes['data-src'] ?? img.attributes['src'];
+  if (raw == null || raw.isEmpty) return null;
+  if (raw.contains('sloading') || raw.endsWith('.svg')) return null;
+  return _absUrl(raw);
+}
+
 NovelChapter parseChapter(String html, String fallbackTitle) {
   final doc = html_parser.parse(html);
   final title = _textOf(doc.querySelector('#mlfy_main_text h1'));
-  final paragraphs = <String>[];
+  final blocks = <NovelBlock>[];
   final content = doc.querySelector('div#TextContent');
   if (content != null) {
-    for (final p in content.querySelectorAll('p')) {
-      final t = p.text.trim();
-      if (t.isNotEmpty) paragraphs.add(t);
+    for (final node in content.nodes) {
+      if (node is! dom.Element) continue;
+      switch (node.localName) {
+        case 'p':
+          final t = node.text.trim();
+          if (t.isNotEmpty) blocks.add(NovelText(t));
+        case 'img':
+          final url = _imageUrl(node);
+          if (url != null) blocks.add(NovelImage(url));
+      }
     }
   }
   return NovelChapter(
-    title: title.isEmpty ? fallbackTitle : title,
-    content: paragraphs.join('\n\n'),
-  );
+      title: title.isEmpty ? fallbackTitle : title, blocks: blocks);
 }
 
 String? nextPageHref(String html, String novelId, String chapterId) {
@@ -242,17 +254,16 @@ Future<NovelChapter> fetchChapterPages({
 }) async {
   final firstHtml = await fetch(LinovelibSource.chapterPath(novelId, chapterId));
   final first = parseChapter(firstHtml, '');
-  final buffer = <String>[if (first.content.isNotEmpty) first.content];
+  final blocks = <NovelBlock>[...first.blocks];
   var next = nextPageHref(firstHtml, novelId, chapterId);
   var pages = 1;
   while (next != null && pages < maxPages) {
     final html = await fetch(next);
-    final page = parseChapter(html, '');
-    if (page.content.isNotEmpty) buffer.add(page.content);
+    blocks.addAll(parseChapter(html, '').blocks);
     next = nextPageHref(html, novelId, chapterId);
     pages++;
   }
-  return NovelChapter(title: first.title, content: buffer.join('\n\n'));
+  return NovelChapter(title: first.title, blocks: blocks);
 }
 
 class LinovelibSource implements NovelSource {

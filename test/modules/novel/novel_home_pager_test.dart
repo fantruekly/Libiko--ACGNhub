@@ -32,7 +32,7 @@ class _FakeSource extends NovelSource {
       const NovelDetail(novel: Novel(id: 'x', title: 'x'), volumes: []);
   @override
   Future<NovelChapter> chapter(String novelId, String chapterId) async =>
-      const NovelChapter(title: 't', content: 'c');
+      const NovelChapter(title: 't', blocks: [NovelText('c')]);
 }
 
 void main() {

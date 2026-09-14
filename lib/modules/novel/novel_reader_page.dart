@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -99,46 +100,54 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
   Widget _content(
       NovelChapter chapter, NovelReaderSettings settings, _Palette palette) {
-    final paragraphs = chapter.content
-        .split('\n\n')
-        .map((p) => p.trim())
-        .where((p) => p.isNotEmpty)
-        .toList();
     return SingleChildScrollView(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (chapter.title.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                chapter.title,
+          if (chapter.title.isNotEmpty) ...[
+            Text(chapter.title,
                 style: TextStyle(
-                  fontSize: settings.fontSize + 4,
-                  fontWeight: FontWeight.w600,
-                  color: palette.fg,
-                ),
-              ),
-            ),
-          if (paragraphs.isEmpty)
+                    fontSize: settings.fontSize + 4,
+                    fontWeight: FontWeight.w600,
+                    color: palette.fg)),
+            const SizedBox(height: 16),
+          ],
+          if (chapter.blocks.isEmpty)
             Text('本章暂无内容',
                 style: TextStyle(
-                    fontSize: settings.fontSize, color: palette.fg.withValues(alpha: 0.5)))
-          else
-            for (final p in paragraphs)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: Text(
-                  p,
-                  style: TextStyle(
                     fontSize: settings.fontSize,
-                    height: settings.lineHeight,
-                    color: palette.fg,
+                    color: palette.fg.withValues(alpha: 0.5)))
+          else
+            for (final block in chapter.blocks)
+              switch (block) {
+                NovelText(:final text) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Text(text,
+                        style: TextStyle(
+                            fontSize: settings.fontSize,
+                            height: settings.lineHeight,
+                            color: palette.fg)),
                   ),
-                ),
-              ),
+                NovelImage(:final url) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: url,
+                        fit: BoxFit.contain,
+                        placeholder: (_, __) => const SizedBox(
+                            height: 180,
+                            child: Center(child: CircularProgressIndicator())),
+                        errorWidget: (_, __, ___) => const SizedBox(
+                            height: 80,
+                            child: Center(
+                                child: Icon(Icons.broken_image_outlined))),
+                      ),
+                    ),
+                  ),
+              },
         ],
       ),
     );

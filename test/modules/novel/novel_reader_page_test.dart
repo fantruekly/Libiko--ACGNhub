@@ -18,8 +18,9 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         novelChapterProvider(('linovelib', '5340', '334356'))
-            .overrideWith((ref) async =>
-                const NovelChapter(title: '第60話', content: '第一段。\n\n第二段。')),
+            .overrideWith((ref) async => const NovelChapter(
+                title: '第60話',
+                blocks: [NovelText('第一段。'), NovelText('第二段。')])),
         // Avoid a real network call from the reader's chapter list lookup.
         novelDetailProvider(('linovelib', '5340')).overrideWith((ref) async =>
             const NovelDetail(
@@ -44,9 +45,9 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         novelChapterProvider(('linovelib', '1', 'c1')).overrideWith((ref) async =>
-            const NovelChapter(title: '第一章', content: '甲段')),
+            const NovelChapter(title: '第一章', blocks: [NovelText('甲段')])),
         novelChapterProvider(('linovelib', '1', 'c2')).overrideWith((ref) async =>
-            const NovelChapter(title: '第二章', content: '乙段')),
+            const NovelChapter(title: '第二章', blocks: [NovelText('乙段')])),
         novelDetailProvider(('linovelib', '1')).overrideWith((ref) async =>
             const NovelDetail(novel: Novel(id: '1', title: '书'), volumes: [
               NovelVolume(title: '正文', chapters: [

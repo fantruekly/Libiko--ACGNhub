@@ -90,8 +90,22 @@ class NovelDetail {
   const NovelDetail({required this.novel, required this.volumes});
 }
 
+sealed class NovelBlock {
+  const NovelBlock();
+}
+
+class NovelText extends NovelBlock {
+  final String text;
+  const NovelText(this.text);
+}
+
+class NovelImage extends NovelBlock {
+  final String url;
+  const NovelImage(this.url);
+}
+
 class NovelChapter {
   final String title;
-  final String content;
-  const NovelChapter({required this.title, required this.content});
+  final List<NovelBlock> blocks;
+  const NovelChapter({required this.title, this.blocks = const []});
 }
