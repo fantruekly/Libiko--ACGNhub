@@ -75,8 +75,8 @@ class NovelReaderSettingsNotifier extends Notifier<NovelReaderSettings> {
   NovelReaderSettings build() => _manager.read();
 
   Future<void> _update(NovelReaderSettings next) async {
-    await _manager.write(next);
     state = next;
+    await _manager.write(next);
   }
 
   Future<void> setFontSize(double value) =>

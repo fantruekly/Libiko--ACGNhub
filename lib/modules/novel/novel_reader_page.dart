@@ -83,7 +83,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
               ),
             ),
           ),
-          if (_chromeVisible) _topBar(palette, chapters, index),
+          if (_chromeVisible) _topBar(palette),
           if (_chromeVisible) _bottomBar(palette, chapters, index),
         ],
       ),
@@ -144,7 +144,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
     );
   }
 
-  Widget _topBar(_Palette palette, List<NovelChapterRef> chapters, int index) {
+  Widget _topBar(_Palette palette) {
     return Positioned(
       top: 0,
       left: 0,
@@ -180,6 +180,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   Widget _bottomBar(_Palette palette, List<NovelChapterRef> chapters, int index) {
     final hasPrev = index > 0;
     final hasNext = index >= 0 && index < chapters.length - 1;
+    final detail = ref
+        .watch(novelDetailProvider((widget.sourceKey, widget.novelId)))
+        .valueOrNull;
     return Positioned(
       left: 0,
       right: 0,
@@ -195,7 +198,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
           children: [
             _barButton(palette, Icons.chevron_left_rounded, '上一章',
                 hasPrev ? () => _goChapter(chapters[index - 1].id) : null),
-            _barButton(palette, Icons.list_rounded, '目录', () => _openCatalog(chapters)),
+            _barButton(palette, Icons.list_rounded, '目录', () => _openCatalog(detail)),
             _barButton(palette, Icons.text_fields_rounded, '设置', _openSettings),
             _barButton(palette, Icons.chevron_right_rounded, '下一章',
                 hasNext ? () => _goChapter(chapters[index + 1].id) : null),
@@ -225,34 +228,69 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
     if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
-  void _openCatalog(List<NovelChapterRef> chapters) {
+  void _openCatalog(NovelDetail? detail) {
+    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => ListView(
-        children: [
-          for (final c in chapters)
-            ListTile(
-              dense: true,
-              title: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: c.id == _chapterId
-                  ? const Icon(Icons.check_rounded, size: 18, color: _accent)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                if (c.id != _chapterId) _goChapter(c.id);
-              },
-            ),
-        ],
+      backgroundColor: palette.bg,
+      builder: (_) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+                surface: palette.bg,
+                onSurface: palette.fg,
+              ),
+        ),
+        child: ListView(
+          children: [
+            if (detail == null || detail.volumes.isEmpty)
+              const ListTile(title: Text('暂无目录'))
+            else
+              for (final v in detail.volumes) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(v.title,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: palette.fg.withValues(alpha: 0.7))),
+                ),
+                for (final c in v.chapters)
+                  ListTile(
+                    dense: true,
+                    title: Text(c.title,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: c.id == _chapterId
+                        ? const Icon(Icons.check_rounded,
+                            size: 18, color: _accent)
+                        : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (c.id != _chapterId) _goChapter(c.id);
+                    },
+                  ),
+              ],
+          ],
+        ),
       ),
     );
   }
 
   void _openSettings() {
+    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => const _ReaderSettingsSheet(),
+      backgroundColor: palette.bg,
+      builder: (_) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+                surface: palette.bg,
+                onSurface: palette.fg,
+              ),
+        ),
+        child: const _ReaderSettingsSheet(),
+      ),
     );
   }
 }

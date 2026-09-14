@@ -240,7 +240,7 @@ Future<NovelChapter> fetchChapterPages({
   required Future<String> Function(String path) fetch,
   int maxPages = 50,
 }) async {
-  final firstHtml = await fetch('/novel/$novelId/$chapterId.html');
+  final firstHtml = await fetch(LinovelibSource.chapterPath(novelId, chapterId));
   final first = parseChapter(firstHtml, '');
   final buffer = <String>[if (first.content.isNotEmpty) first.content];
   var next = nextPageHref(firstHtml, novelId, chapterId);
