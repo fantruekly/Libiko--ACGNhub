@@ -50,6 +50,7 @@ class NovelReaderPage extends ConsumerStatefulWidget {
 
 class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   late String _chapterId = widget.chapterId;
+  String? _lastRecordedChapterId;
   bool _chromeVisible = true;
   final _scroll = ScrollController();
 
@@ -70,21 +71,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
     ref.listen(
       novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)),
-      (_, next) {
-        next.whenData((chapter) {
-          ref.read(novelHistoryProvider.notifier).record(NovelHistoryEntry(
-                sourceKey: widget.sourceKey,
-                novelId: widget.novelId,
-                title: widget.title,
-                cover: widget.cover,
-                chapterId: _chapterId,
-                chapterTitle:
-                    chapter.title.isEmpty ? '第 $_chapterId 章' : chapter.title,
-                updatedAt: DateTime.now(),
-              ));
-        });
-      },
+      (_, next) => next.whenData(_recordHistory),
     );
+    async.whenData(_recordHistory);
 
     return Scaffold(
       backgroundColor: palette.bg,
@@ -112,6 +101,21 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
         ],
       ),
     );
+  }
+
+  void _recordHistory(NovelChapter chapter) {
+    if (_lastRecordedChapterId == _chapterId) return;
+    _lastRecordedChapterId = _chapterId;
+    ref.read(novelHistoryProvider.notifier).record(NovelHistoryEntry(
+          sourceKey: widget.sourceKey,
+          novelId: widget.novelId,
+          title: widget.title,
+          cover: widget.cover,
+          chapterId: _chapterId,
+          chapterTitle:
+              chapter.title.isEmpty ? '第 $_chapterId 章' : chapter.title,
+          updatedAt: DateTime.now(),
+        ));
   }
 
   List<NovelChapterRef> _chapters() {

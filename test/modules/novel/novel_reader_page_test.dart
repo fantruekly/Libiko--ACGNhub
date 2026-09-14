@@ -103,4 +103,27 @@ void main() {
     expect(history.first.chapterTitle, '第一章');
     expect(history.first.cover, 'cover.jpg');
   });
+
+  testWidgets('records history even when the chapter is already cached',
+      (tester) async {
+    final container = ProviderContainer(overrides: [
+      novelChapterProvider(('linovelib', '1', 'c1')).overrideWith((ref) async =>
+          const NovelChapter(title: '第一章', blocks: [])),
+      novelDetailProvider(('linovelib', '1')).overrideWith((ref) async =>
+          const NovelDetail(novel: Novel(id: '1', title: '书'), volumes: [])),
+    ]);
+    addTearDown(container.dispose);
+    await container.read(novelChapterProvider(('linovelib', '1', 'c1')).future);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(
+        home: NovelReaderPage(
+            sourceKey: 'linovelib', novelId: '1', chapterId: 'c1', title: '书'),
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(container.read(novelHistoryProvider), hasLength(1));
+    expect(container.read(novelHistoryProvider).first.chapterId, 'c1');
+  });
 }

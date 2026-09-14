@@ -104,13 +104,14 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   Widget _content(NovelDetail detail) {
     final novel = detail.novel;
-    final cover =
-        (novel.coverUrl?.isNotEmpty ?? false) ? novel.coverUrl : widget.cover;
+    final cover = (novel.coverUrl?.isNotEmpty ?? false)
+        ? novel.coverUrl
+        : ((widget.cover?.isNotEmpty ?? false) ? widget.cover : null);
     final history = _historyEntry();
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _infoCard(novel),
+        _infoCard(novel, cover),
         if (history != null) ...[
           const SizedBox(height: 12),
           _continueReading(history, cover),
@@ -143,11 +144,8 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     );
   }
 
-  Widget _infoCard(Novel novel) {
+  Widget _infoCard(Novel novel, String? cover) {
     final summary = novel.summary ?? '';
-    final cover = (novel.coverUrl?.isNotEmpty ?? false)
-        ? novel.coverUrl
-        : (widget.cover?.isNotEmpty ?? false ? widget.cover : null);
     final status = novel.extra['status']?.toString();
     return Container(
       padding: const EdgeInsets.all(16),
@@ -231,13 +229,13 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             }),
           ],
           const SizedBox(height: 14),
-          _favoriteButton(novel),
+          _favoriteButton(novel, cover),
         ],
       ),
     );
   }
 
-  Widget _favoriteButton(Novel novel) {
+  Widget _favoriteButton(Novel novel, String? cover) {
     final favorites = ref.watch(novelFavoritesProvider);
     final isFavorite = favorites.any((f) =>
         f.sourceKey == widget.sourceKey && f.novelId == widget.novelId);
@@ -257,7 +255,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               sourceKey: widget.sourceKey,
               novelId: widget.novelId,
               title: novel.title,
-              cover: novel.coverUrl,
+              cover: cover,
               addedAt: DateTime.now(),
             ));
       },

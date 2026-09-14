@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:acgnhub/core/novel/novel_favorite.dart';
@@ -44,5 +46,31 @@ void main() {
     expect(manager.all().map((f) => f.novelId), ['b', 'a']);
     await manager.clear();
     expect(manager.all(), isEmpty);
+  });
+
+  test('NovelFavorite round-trips through JSON', () {
+    final f = NovelFavorite(
+      sourceKey: 's1',
+      novelId: 'a',
+      title: 'T',
+      cover: 'c.jpg',
+      addedAt: DateTime.fromMillisecondsSinceEpoch(123),
+    );
+    final r = NovelFavorite.fromJson(
+        json.decode(json.encode(f.toJson())) as Map<String, dynamic>);
+    expect(r.novelId, 'a');
+    expect(r.cover, 'c.jpg');
+    expect(r.addedAt.millisecondsSinceEpoch, 123);
+  });
+
+  test('a malformed stored favorite entry is skipped', () async {
+    await AppDatabase.init();
+    final manager = NovelFavoriteManager();
+    await manager.toggle(_fav('a', 100));
+    final prefs = await SharedPreferences.getInstance();
+    final key =
+        prefs.getKeys().firstWhere((k) => k.endsWith('novel_favorites'));
+    await prefs.setStringList(key, ['not json', ...prefs.getStringList(key)!]);
+    expect(manager.all().map((f) => f.novelId), ['a']);
   });
 }

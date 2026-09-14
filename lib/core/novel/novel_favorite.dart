@@ -115,9 +115,6 @@ class NovelFavoritesNotifier extends Notifier<List<NovelFavorite>> {
   @override
   List<NovelFavorite> build() => _manager.all();
 
-  bool isFavorite(String sourceKey, String novelId) =>
-      state.any((f) => f.sourceKey == sourceKey && f.novelId == novelId);
-
   Future<void> toggle(NovelFavorite favorite) async {
     await _manager.toggle(favorite);
     state = _manager.all();
