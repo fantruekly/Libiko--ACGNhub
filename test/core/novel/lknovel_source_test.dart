@@ -254,4 +254,17 @@ void main() {
         poster: (endpoint, body) async => {'code': 0, 'data': const {'list': []}});
     await expectLater(source.home(), throwsA(isA<Exception>()));
   });
+
+  test('search posts to apk-search-result-v1', () async {
+    Map<String, dynamic>? seen;
+    final source = LknovelSource(poster: (endpoint, body) async {
+      expect(endpoint, 'bff/apk-search-result-v1');
+      seen = body;
+      return {'code': 0, 'data': _feedData};
+    });
+    final list = await source.search('败犬', page: 2);
+    expect(seen!['q'], '败犬');
+    expect(seen!['page'], 2);
+    expect(list.single.id, '1338');
+  });
 }
