@@ -34,10 +34,13 @@ void main() {
     expect(n.extra, isEmpty);
   });
 
-  test('NovelBrowse holds kind and key', () {
-    const b = NovelBrowse(NovelBrowseKind.bunko, 'dengekibunko');
-    expect(b.kind, NovelBrowseKind.bunko);
-    expect(b.key, 'dengekibunko');
+  test('NovelBrowseGroup holds labeled options', () {
+    const g = NovelBrowseGroup(label: '文库', options: [
+      NovelBrowseOption(key: 'dengekibunko', label: '电击'),
+    ]);
+    expect(g.label, '文库');
+    expect(g.options.single.key, 'dengekibunko');
+    expect(g.options.single.label, '电击');
   });
 
   test('NovelDetail holds volumes with chapter refs', () {

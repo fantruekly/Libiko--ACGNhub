@@ -74,41 +74,6 @@ class NovelCard extends StatelessWidget {
   }
 }
 
-enum _NovelSection { recommend, ranking, bunko }
-
-const _rankingOptions = <String, String>{
-  'allvisit': '人气榜',
-  'monthvisit': '月点击',
-  'weekvisit': '周点击',
-  'monthvote': '月推荐',
-  'weekvote': '周推荐',
-  'monthflower': '月鲜花',
-  'weekflower': '周鲜花',
-  'monthegg': '月鸡蛋',
-  'weekegg': '周鸡蛋',
-  'lastupdate': '最近更新',
-  'postdate': '最新入库',
-  'goodnum': '收藏榜',
-  'newhot': '新书榜',
-};
-
-const _bunkoOptions = <String, String>{
-  'dengekibunko': '电击',
-  'fujimibunko': '富士见',
-  'kadokawabunko': '角川',
-  'emuefubunkojei': 'MF文库J',
-  'famitsubunko': 'Fami通',
-  'gagraphicbunko': 'GA',
-  'hobbyjapanbunko': 'HJ',
-  'ichijinsha': '一迅社',
-  'shueisha': '集英社',
-  'shogakukan': '小学馆',
-  'kodansha': '讲谈社',
-  'teenagebunko': '少女文库',
-  'other': '其他文库',
-  'chineselightnovel': '华文轻小说',
-};
-
 class NovelHomePage extends ConsumerStatefulWidget {
   const NovelHomePage({super.key});
   @override
@@ -117,22 +82,23 @@ class NovelHomePage extends ConsumerStatefulWidget {
 
 class _NovelHomePageState extends ConsumerState<NovelHomePage> {
   String _sourceId = 'linovelib';
-  _NovelSection _section = _NovelSection.recommend;
-  String _rankingKey = 'allvisit';
-  String _bunkoKey = 'dengekibunko';
+  int _groupIndex = -1;
+  int _optionIndex = 0;
   int _page = 1;
 
   @override
   Widget build(BuildContext context) {
     final sources = ref.watch(novelSourcesProvider);
+    final source = ref.watch(novelSourceManagerProvider).byId(_sourceId);
+    final groups = source?.browseGroups ?? const <NovelBrowseGroup>[];
     return Column(
       children: [
         const SizedBox(height: 8),
         _sourceChips(sources),
-        _sectionChips(),
-        if (_section == _NovelSection.ranking) _optionChips(_rankingOptions, _rankingKey, (k) => setState(() { _rankingKey = k; _page = 1; })),
-        if (_section == _NovelSection.bunko) _optionChips(_bunkoOptions, _bunkoKey, (k) => setState(() { _bunkoKey = k; _page = 1; })),
-        Expanded(child: _body()),
+        _sectionChips(groups),
+        if (_groupIndex >= 0 && _groupIndex < groups.length)
+          _optionChips(groups[_groupIndex]),
+        Expanded(child: _body(groups)),
       ],
     );
   }
@@ -149,6 +115,8 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
               padding: const EdgeInsets.only(right: 8),
               child: _chip(s.name, s.id == _sourceId, () => setState(() {
                 _sourceId = s.id;
+                _groupIndex = -1;
+                _optionIndex = 0;
                 _page = 1;
               })),
             ),
@@ -157,19 +125,26 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
     );
   }
 
-  Widget _sectionChips() {
-    const labels = {_NovelSection.recommend: '推荐', _NovelSection.ranking: '排行', _NovelSection.bunko: '文库'};
+  Widget _sectionChips(List<NovelBrowseGroup> groups) {
     return SizedBox(
       height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          for (final e in labels.entries)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _chip('推荐', _groupIndex < 0, () => setState(() {
+              _groupIndex = -1;
+              _page = 1;
+            })),
+          ),
+          for (var i = 0; i < groups.length; i++)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: _chip(e.value, e.key == _section, () => setState(() {
-                _section = e.key;
+              child: _chip(groups[i].label, _groupIndex == i, () => setState(() {
+                _groupIndex = i;
+                _optionIndex = 0;
                 _page = 1;
               })),
             ),
@@ -178,17 +153,20 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
     );
   }
 
-  Widget _optionChips(Map<String, String> options, String selected, ValueChanged<String> onTap) {
+  Widget _optionChips(NovelBrowseGroup group) {
     return SizedBox(
       height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          for (final e in options.entries)
+          for (var i = 0; i < group.options.length; i++)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: _chip(e.value, e.key == selected, () => onTap(e.key)),
+              child: _chip(group.options[i].label, _optionIndex == i, () => setState(() {
+                _optionIndex = i;
+                _page = 1;
+              })),
             ),
         ],
       ),
@@ -212,8 +190,8 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
     );
   }
 
-  Widget _body() {
-    if (_section == _NovelSection.recommend) {
+  Widget _body(List<NovelBrowseGroup> groups) {
+    if (_groupIndex < 0 || _groupIndex >= groups.length) {
       final async = ref.watch(novelHomeProvider(_sourceId));
       return async.when(
         loading: () => const ShimmerLoader(
@@ -230,9 +208,12 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
         data: (home) => _grid(flattenHome(home)),
       );
     }
-    final kind = _section == _NovelSection.ranking ? NovelBrowseKind.ranking : NovelBrowseKind.bunko;
-    final key = _section == _NovelSection.ranking ? _rankingKey : _bunkoKey;
-    final async = ref.watch(novelBrowseProvider((_sourceId, kind, key, _page)));
+    final group = groups[_groupIndex];
+    if (group.options.isEmpty) {
+      return const EmptyState(icon: Icons.menu_book_rounded, message: '暂无内容');
+    }
+    final option = group.options[_optionIndex.clamp(0, group.options.length - 1)];
+    final async = ref.watch(novelBrowseProvider((_sourceId, option.key, _page)));
     return async.when(
       loading: () => const ShimmerLoader(
           crossAxisCount: 6,
@@ -243,7 +224,8 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
         actionLabel: '重试',
-        onAction: () => ref.invalidate(novelBrowseProvider((_sourceId, kind, key, _page))),
+        onAction: () =>
+            ref.invalidate(novelBrowseProvider((_sourceId, option.key, _page))),
       ),
       data: (list) => Column(
         children: [

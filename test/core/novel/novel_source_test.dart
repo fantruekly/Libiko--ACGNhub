@@ -12,7 +12,9 @@ class _FakeSource extends NovelSource {
   @override
   Future<NovelHome> home() async => const NovelHome(sections: []);
   @override
-  Future<NovelList> browse(NovelBrowse browse, {int page = 1}) async =>
+  List<NovelBrowseGroup> get browseGroups => const [];
+  @override
+  Future<NovelList> browse(String optionKey, {int page = 1}) async =>
       NovelList(items: const [], page: page, hasMore: false);
   @override
   Future<List<Novel>> search(String keyword, {int page = 1}) async => const [];

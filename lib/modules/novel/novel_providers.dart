@@ -31,12 +31,11 @@ final novelHomeProvider =
 });
 
 final novelBrowseProvider =
-    FutureProvider.family<NovelList, (String, NovelBrowseKind, String, int)>(
-        (ref, key) async {
-  final (sourceId, kind, browseKey, page) = key;
+    FutureProvider.family<NovelList, (String, String, int)>((ref, key) async {
+  final (sourceId, optionKey, page) = key;
   final source = ref.watch(novelSourceManagerProvider).byId(sourceId);
   if (source == null) throw StateError('novel source $sourceId not found');
-  return source.browse(NovelBrowse(kind, browseKey), page: page);
+  return source.browse(optionKey, page: page);
 });
 
 final novelDetailProvider =

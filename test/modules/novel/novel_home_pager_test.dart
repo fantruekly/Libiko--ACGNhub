@@ -19,7 +19,13 @@ class _FakeSource extends NovelSource {
         NovelSection(title: 's', items: [Novel(id: '1', title: 'A')]),
       ]);
   @override
-  Future<NovelList> browse(NovelBrowse browse, {int page = 1}) async =>
+  List<NovelBrowseGroup> get browseGroups => const [
+        NovelBrowseGroup(label: '排行', options: [
+          NovelBrowseOption(key: 'allvisit', label: '人气榜'),
+        ]),
+      ];
+  @override
+  Future<NovelList> browse(String optionKey, {int page = 1}) async =>
       NovelList(
         items: [for (var i = 0; i < 30; i++) Novel(id: '$i', title: 'Book$i')],
         page: page,

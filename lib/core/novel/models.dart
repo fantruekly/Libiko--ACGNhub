@@ -63,12 +63,16 @@ class NovelList {
   const NovelList({required this.items, required this.page, required this.hasMore});
 }
 
-enum NovelBrowseKind { ranking, bunko }
-
-class NovelBrowse {
-  final NovelBrowseKind kind;
+class NovelBrowseOption {
   final String key;
-  const NovelBrowse(this.kind, this.key);
+  final String label;
+  const NovelBrowseOption({required this.key, required this.label});
+}
+
+class NovelBrowseGroup {
+  final String label;
+  final List<NovelBrowseOption> options;
+  const NovelBrowseGroup({required this.label, required this.options});
 }
 
 class NovelChapterRef {
@@ -78,10 +82,16 @@ class NovelChapterRef {
 }
 
 class NovelVolume {
+  final String? id;
   final String title;
   final String? url;
   final List<NovelChapterRef> chapters;
-  const NovelVolume({required this.title, this.url, this.chapters = const []});
+  const NovelVolume({
+    this.id,
+    required this.title,
+    this.url,
+    this.chapters = const [],
+  });
 }
 
 class NovelDetail {

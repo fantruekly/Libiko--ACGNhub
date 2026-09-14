@@ -297,6 +297,59 @@ class LinovelibSource implements NovelSource {
   @override
   String get baseUrl => linovelibBaseUrl;
 
+  static const Set<String> rankingKeys = {
+    'allvisit', 'monthvisit', 'weekvisit', 'monthvote', 'weekvote',
+    'monthflower', 'weekflower', 'monthegg', 'weekegg', 'lastupdate',
+    'postdate', 'goodnum', 'newhot',
+  };
+
+  @override
+  List<NovelBrowseGroup> get browseGroups => const [
+        NovelBrowseGroup(label: '排行', options: [
+          NovelBrowseOption(key: 'allvisit', label: '人气榜'),
+          NovelBrowseOption(key: 'monthvisit', label: '月点击'),
+          NovelBrowseOption(key: 'weekvisit', label: '周点击'),
+          NovelBrowseOption(key: 'monthvote', label: '月推荐'),
+          NovelBrowseOption(key: 'weekvote', label: '周推荐'),
+          NovelBrowseOption(key: 'monthflower', label: '月鲜花'),
+          NovelBrowseOption(key: 'weekflower', label: '周鲜花'),
+          NovelBrowseOption(key: 'monthegg', label: '月鸡蛋'),
+          NovelBrowseOption(key: 'weekegg', label: '周鸡蛋'),
+          NovelBrowseOption(key: 'lastupdate', label: '最近更新'),
+          NovelBrowseOption(key: 'postdate', label: '最新入库'),
+          NovelBrowseOption(key: 'goodnum', label: '收藏榜'),
+          NovelBrowseOption(key: 'newhot', label: '新书榜'),
+        ]),
+        NovelBrowseGroup(label: '文库', options: [
+          NovelBrowseOption(key: 'dengekibunko', label: '电击'),
+          NovelBrowseOption(key: 'fujimibunko', label: '富士见'),
+          NovelBrowseOption(key: 'kadokawabunko', label: '角川'),
+          NovelBrowseOption(key: 'emuefubunkojei', label: 'MF文库J'),
+          NovelBrowseOption(key: 'famitsubunko', label: 'Fami通'),
+          NovelBrowseOption(key: 'gagraphicbunko', label: 'GA'),
+          NovelBrowseOption(key: 'hobbyjapanbunko', label: 'HJ'),
+          NovelBrowseOption(key: 'ichijinsha', label: '一迅社'),
+          NovelBrowseOption(key: 'shueisha', label: '集英社'),
+          NovelBrowseOption(key: 'shogakukan', label: '小学馆'),
+          NovelBrowseOption(key: 'kodansha', label: '讲谈社'),
+          NovelBrowseOption(key: 'teenagebunko', label: '少女文库'),
+          NovelBrowseOption(key: 'other', label: '其他文库'),
+          NovelBrowseOption(key: 'chineselightnovel', label: '华文轻小说'),
+        ]),
+      ];
+
+  @override
+  Future<NovelList> browse(String optionKey, {int page = 1}) async {
+    final isRanking = rankingKeys.contains(optionKey);
+    final path =
+        isRanking ? rankPath(optionKey, page) : bunkoPath(optionKey, page);
+    final html = await _get(path);
+    final items = isRanking ? parseRankRows(html) : parseBookList(html);
+    final hasMore =
+        hasPaginationControl(html) ? hasNextPage(html) : items.length >= 10;
+    return NovelList(items: items, page: page, hasMore: hasMore);
+  }
+
   static String rankPath(String key, int page) => '/top/$key/$page.html';
 
   static String bunkoPath(String key, int page) => '/wenku/$key/$page.html';
@@ -319,21 +372,6 @@ class LinovelibSource implements NovelSource {
     final sections = parseHome(html);
     if (sections.isEmpty) throw Exception('linovelib 首页解析为空');
     return NovelHome(sections: sections);
-  }
-
-  @override
-  Future<NovelList> browse(NovelBrowse browse, {int page = 1}) async {
-    final path = browse.kind == NovelBrowseKind.ranking
-        ? rankPath(browse.key, page)
-        : bunkoPath(browse.key, page);
-    final html = await _get(path);
-    final items = browse.kind == NovelBrowseKind.ranking
-        ? parseRankRows(html)
-        : parseBookList(html);
-    final hasMore = hasPaginationControl(html)
-        ? hasNextPage(html)
-        : items.length >= 10;
-    return NovelList(items: items, page: page, hasMore: hasMore);
   }
 
   @override
