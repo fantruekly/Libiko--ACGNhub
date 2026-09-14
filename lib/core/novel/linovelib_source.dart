@@ -138,14 +138,16 @@ Novel parseNovelDetailHeader(String html, String id) {
   final doc = html_parser.parse(html);
   final title = _textOf(doc.querySelector('h1.book-name'));
   final img = doc.querySelector('div.book-img img');
-  final cover = _absUrl(img?.attributes['src'] ?? img?.attributes['data-original']);
+  final cover =
+      _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
   final author = _metaContent(doc, 'og:novel:author');
   final tags = _metaContent(doc, 'og:novel:tags')
       .split(RegExp(r'\s+'))
       .where((e) => e.isNotEmpty)
       .toList();
   final status = _metaContent(doc, 'og:novel:status');
-  final summary = _textOf(doc.querySelector('div.book-dec'));
+  var summary = _textOf(doc.querySelector('div.book-dec'));
+  if (summary.isEmpty) summary = _metaContent(doc, 'description');
   return Novel(
     id: id,
     title: title,
@@ -262,11 +264,11 @@ class LinovelibSource implements NovelSource {
 
   @override
   Future<NovelDetail> detail(String id) async {
-    final detailHtml = await _get(detailPath(id));
-    final catalogHtml = await _get(catalogPath(id));
+    final pages =
+        await Future.wait([_get(detailPath(id)), _get(catalogPath(id))]);
     return NovelDetail(
-      novel: parseNovelDetailHeader(detailHtml, id),
-      volumes: parseCatalog(catalogHtml, id),
+      novel: parseNovelDetailHeader(pages[0], id),
+      volumes: parseCatalog(pages[1], id),
     );
   }
 

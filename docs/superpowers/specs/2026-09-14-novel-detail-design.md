@@ -34,7 +34,7 @@ v1 首页已能浏览/排行，但点卡片无反应。本增量让用户点卡�
 
 - 详情页 `GET /novel/<id>.html`：
   - 书名：`h1.book-name` 文本。
-  - 封面：`div.book-img img` 的 `src`（回退 `data-original`）。
+  - 封面：`div.book-img img` 的 `data-original`（回退 `src`）。
   - 作者：`meta[property="og:novel:author"]` 的 `content`。
   - 标签：`meta[property="og:novel:tags"]` 的 `content`（空格分隔 → `List<String>`）。
   - 状态：`meta[property="og:novel:status"]` 的 `content`（如「连载」）。

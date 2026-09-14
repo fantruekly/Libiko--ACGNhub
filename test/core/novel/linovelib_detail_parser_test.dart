@@ -59,6 +59,18 @@ void main() {
     expect(novel.extra['status'], '连载');
   });
 
+  test('parseNovelDetailHeader prefers data-original cover and meta summary',
+      () {
+    const html = '''
+<meta property="og:novel:author" content="A" />
+<meta name="description" content="META简介" />
+<div class="book-img"><img src="x.svg" data-original="https://x/real.jpg"></div>
+<h1 class="book-name">书名</h1>''';
+    final novel = parseNovelDetailHeader(html, '1');
+    expect(novel.coverUrl, 'https://x/real.jpg');
+    expect(novel.summary, 'META简介');
+  });
+
   test('parseCatalog parses volumes and chapters', () {
     final volumes = parseCatalog(_catalogHtml, '5340');
     expect(volumes, hasLength(2));

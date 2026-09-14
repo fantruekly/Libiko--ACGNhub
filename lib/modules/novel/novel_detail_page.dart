@@ -114,8 +114,13 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                   width: 100,
                   height: 132,
                   child: cover != null
-                      ? CachedNetworkImage(imageUrl: cover, fit: BoxFit.cover)
-                      : Container(color: const Color(0xFFE8EAF6)),
+                      ? CachedNetworkImage(
+                          imageUrl: cover,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => _coverPlaceholder(),
+                          errorWidget: (_, __, ___) => _coverPlaceholder(),
+                        )
+                      : _coverPlaceholder(),
                 ),
               ),
               const SizedBox(width: 14),
@@ -148,24 +153,44 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           ),
           if (summary.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
-              summary,
-              maxLines: _expanded ? null : 3,
-              overflow: _expanded ? null : TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, height: 1.5, color: _fg),
-            ),
-            GestureDetector(
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(_expanded ? '收起' : '展开',
-                    style: const TextStyle(fontSize: 13, color: _accent)),
-              ),
-            ),
+            LayoutBuilder(builder: (context, constraints) {
+              const style = TextStyle(fontSize: 13, height: 1.5, color: _fg);
+              final overflows =
+                  _summaryOverflows(summary, style, constraints.maxWidth);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(summary,
+                      maxLines: _expanded ? null : 3,
+                      overflow: _expanded ? null : TextOverflow.ellipsis,
+                      style: style),
+                  if (overflows)
+                    GestureDetector(
+                      onTap: () => setState(() => _expanded = !_expanded),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(_expanded ? '收起' : '展开',
+                            style: const TextStyle(fontSize: 13, color: _accent)),
+                      ),
+                    ),
+                ],
+              );
+            }),
           ],
         ],
       ),
     );
+  }
+
+  Widget _coverPlaceholder() => Container(color: const Color(0xFFE8EAF6));
+
+  bool _summaryOverflows(String text, TextStyle style, double maxWidth) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 3,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth);
+    return tp.didExceedMaxLines;
   }
 
   Widget _tag(String text) => Container(
