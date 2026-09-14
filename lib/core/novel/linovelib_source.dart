@@ -1,7 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
 import 'models.dart';
+import 'novel_source.dart';
 
 const String linovelibBaseUrl = 'https://www.linovelib.com';
 const String linovelibUserAgent =
@@ -107,4 +109,78 @@ bool hasNextPage(String html) {
     if (t.contains('下一页') || t.contains('下页')) return true;
   }
   return false;
+}
+
+class LinovelibSource implements NovelSource {
+  LinovelibSource({Dio? dio})
+      : _dio = dio ??
+            Dio(BaseOptions(
+              baseUrl: linovelibBaseUrl,
+              connectTimeout: const Duration(seconds: 20),
+              receiveTimeout: const Duration(seconds: 20),
+              headers: {
+                'User-Agent': linovelibUserAgent,
+                'Referer': '$linovelibBaseUrl/',
+              },
+            ));
+
+  final Dio _dio;
+
+  @override
+  String get id => 'linovelib';
+
+  @override
+  String get name => '哔哩轻小说';
+
+  @override
+  String get baseUrl => linovelibBaseUrl;
+
+  static String rankPath(String key, int page) =>
+      key == 'allvisit' ? '/top.html' : '/top/$key/$page.html';
+
+  static String bunkoPath(String key, int page) => '/wenku/$key/$page.html';
+
+  Future<String> _get(String path) async {
+    final res = await _dio.get<String>(
+      path,
+      options: Options(responseType: ResponseType.plain),
+    );
+    final data = res.data;
+    if (res.statusCode != 200 || data == null) {
+      throw Exception('linovelib 请求失败：$path (${res.statusCode})');
+    }
+    return data;
+  }
+
+  @override
+  Future<NovelHome> home() async {
+    final html = await _get('/');
+    final sections = parseHome(html);
+    if (sections.isEmpty) throw Exception('linovelib 首页解析为空');
+    return NovelHome(sections: sections);
+  }
+
+  @override
+  Future<NovelList> browse(NovelBrowse browse, {int page = 1}) async {
+    final path = browse.kind == NovelBrowseKind.ranking
+        ? rankPath(browse.key, page)
+        : bunkoPath(browse.key, page);
+    final html = await _get(path);
+    final items = browse.kind == NovelBrowseKind.ranking
+        ? parseRankRows(html)
+        : parseBookList(html);
+    return NovelList(
+        items: items, page: page, hasMore: items.isNotEmpty && hasNextPage(html));
+  }
+
+  @override
+  Future<List<Novel>> search(String keyword, {int page = 1}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<NovelDetail> detail(String id) => throw UnimplementedError();
+
+  @override
+  Future<NovelChapter> chapter(String novelId, String chapterId) =>
+      throw UnimplementedError();
 }
