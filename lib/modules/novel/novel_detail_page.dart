@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
@@ -121,6 +122,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                       ? CachedNetworkImage(
                           imageUrl: cover,
                           fit: BoxFit.cover,
+                          httpHeaders: novelImageHeaders,
                           placeholder: (_, __) => _coverPlaceholder(),
                           errorWidget: (_, __, ___) => _coverPlaceholder(),
                         )

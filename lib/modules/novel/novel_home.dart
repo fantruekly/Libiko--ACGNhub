@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_source.dart';
 import '../../core/widgets/empty_state.dart';
@@ -34,6 +35,7 @@ class NovelCard extends StatelessWidget {
                       imageUrl: novel.coverUrl!,
                       fit: BoxFit.cover,
                       memCacheWidth: 400,
+                      httpHeaders: novelImageHeaders,
                       placeholder: (_, __) => _placeholder(),
                       errorWidget: (_, __, ___) => _placeholder(),
                     )

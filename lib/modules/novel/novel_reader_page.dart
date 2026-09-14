@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_reader_settings.dart';
 import '../../core/widgets/empty_state.dart';
@@ -138,6 +139,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                       child: CachedNetworkImage(
                         imageUrl: url,
                         fit: BoxFit.contain,
+                        httpHeaders: novelImageHeaders,
                         placeholder: (_, __) => const SizedBox(
                             height: 180,
                             child: Center(child: CircularProgressIndicator())),
