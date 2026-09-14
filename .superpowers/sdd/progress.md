@@ -251,6 +251,11 @@ Task 7 (illustrations): complete (commit 6f9ba67..6b7dc5b, review clean). `Novel
   Minor (deferred): `_imageUrl` trusts a present-but-empty data-src; no widget test for image rendering/empty state.
 Task 8 (window controls): complete (commit 6b7dc5b..cfeaf12, review clean: Approved). Detail AppBar actions +
   reader `_topBar` now show `WindowControls` (the pushed full-screen routes had covered the shell title bar).
+Task 9 (image hotlink): complete (commit cfeaf12..ea5ba0a, review clean). `novelImageHeaders` (Referer) applied to
+  all 3 novel CachedNetworkImage sites — `img3.readpai.com` images 403 without it.
+Task 10 (detail header/transition): complete (commit ea5ba0a..1eecffa, review clean). Custom 48px DragToMoveArea
+  header (back + title + WindowControls) replacing the Material AppBar; `noTransitionRoute` for the detail push.
+  Note: `_header(novel)` content card renamed `_infoCard(novel)` to avoid the name collision.
   Manual live-site verification owed to the human: selectors (#mlfy_main_text h1, div#TextContent p, div.mlfy_page a),
   relative vs absolute 下一页 hrefs, and that chapter bodies are <p>-wrapped.
   Deferred Minors: rapid-tap still bounded by rebuild timing; partial sheet theme override; duplicated Theme boilerplate;
