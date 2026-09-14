@@ -5,6 +5,8 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
+import '../../core/novel/novel_favorite.dart';
+import '../../core/novel/novel_history.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/shimmer_loader.dart';
@@ -102,10 +104,17 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   Widget _content(NovelDetail detail) {
     final novel = detail.novel;
+    final cover =
+        (novel.coverUrl?.isNotEmpty ?? false) ? novel.coverUrl : widget.cover;
+    final history = _historyEntry();
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _infoCard(novel),
+        if (history != null) ...[
+          const SizedBox(height: 12),
+          _continueReading(history, cover),
+        ],
         const SizedBox(height: 16),
         if (detail.volumes.isEmpty)
           const SizedBox(
@@ -126,7 +135,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               runSpacing: 10,
               children: [
                 for (final ch in vol.chapters)
-                  PillButton(label: ch.title, onTap: () => _openChapter(ch)),
+                  PillButton(label: ch.title, onTap: () => _openChapter(ch, cover)),
               ],
             ),
           ],
@@ -221,9 +230,85 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               );
             }),
           ],
+          const SizedBox(height: 14),
+          _favoriteButton(novel),
         ],
       ),
     );
+  }
+
+  Widget _favoriteButton(Novel novel) {
+    final favorites = ref.watch(novelFavoritesProvider);
+    final isFavorite = favorites.any((f) =>
+        f.sourceKey == widget.sourceKey && f.novelId == widget.novelId);
+    return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        backgroundColor:
+            isFavorite ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
+        foregroundColor: isFavorite ? const Color(0xFF5A5A5F) : Colors.white,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      onPressed: () {
+        ref.read(novelFavoritesProvider.notifier).toggle(NovelFavorite(
+              sourceKey: widget.sourceKey,
+              novelId: widget.novelId,
+              title: novel.title,
+              cover: novel.coverUrl,
+              addedAt: DateTime.now(),
+            ));
+      },
+      icon: Icon(
+          isFavorite
+              ? Icons.bookmark_added_rounded
+              : Icons.bookmark_add_outlined,
+          size: 16),
+      label: Text(isFavorite ? '已收藏' : '收藏',
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+    );
+  }
+
+  Widget _continueReading(NovelHistoryEntry entry, String? cover) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 44),
+          backgroundColor: _accent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        onPressed: () => Navigator.push(
+          context,
+          smoothRoute(NovelReaderPage(
+            sourceKey: widget.sourceKey,
+            novelId: widget.novelId,
+            chapterId: entry.chapterId,
+            title: widget.title,
+            cover: cover,
+          )),
+        ),
+        icon: const Icon(Icons.menu_book_rounded, size: 18),
+        label: const Text('继续阅读',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  NovelHistoryEntry? _historyEntry() {
+    final entries = ref.watch(novelHistoryProvider);
+    for (final entry in entries) {
+      if (entry.sourceKey == widget.sourceKey &&
+          entry.novelId == widget.novelId) {
+        return entry;
+      }
+    }
+    return null;
   }
 
   Widget _coverPlaceholder() => Container(color: const Color(0xFFE8EAF6));
@@ -251,7 +336,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                 fontSize: 11, color: _accent, fontWeight: FontWeight.w500)),
       );
 
-  void _openChapter(NovelChapterRef chapter) {
+  void _openChapter(NovelChapterRef chapter, String? cover) {
     Navigator.push(
       context,
       smoothRoute(NovelReaderPage(
@@ -259,6 +344,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
         novelId: widget.novelId,
         chapterId: chapter.id,
         title: widget.title,
+        cover: cover,
       )),
     );
   }
