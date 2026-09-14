@@ -53,13 +53,6 @@ class NovelCard extends StatelessWidget {
                   fontSize: 13, fontWeight: FontWeight.w500, height: 1.45, color: _fg),
             ),
           ),
-          if (novel.author != null && novel.author!.isNotEmpty)
-            Text(
-              novel.author!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: _muted),
-            ),
         ],
       ),
     );
