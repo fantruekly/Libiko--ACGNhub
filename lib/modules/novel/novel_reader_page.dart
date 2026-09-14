@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
+import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_reader_settings.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/window_controls.dart';
@@ -66,6 +67,24 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
     final async =
         ref.watch(novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)));
     final index = chapters.indexWhere((c) => c.id == _chapterId);
+
+    ref.listen(
+      novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)),
+      (_, next) {
+        next.whenData((chapter) {
+          ref.read(novelHistoryProvider.notifier).record(NovelHistoryEntry(
+                sourceKey: widget.sourceKey,
+                novelId: widget.novelId,
+                title: widget.title,
+                cover: widget.cover,
+                chapterId: _chapterId,
+                chapterTitle:
+                    chapter.title.isEmpty ? '第 $_chapterId 章' : chapter.title,
+                updatedAt: DateTime.now(),
+              ));
+        });
+      },
+    );
 
     return Scaffold(
       backgroundColor: palette.bg,

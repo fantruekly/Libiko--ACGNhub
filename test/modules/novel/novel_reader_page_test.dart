@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:acgnhub/core/novel/models.dart';
+import 'package:acgnhub/core/novel/novel_history.dart';
 import 'package:acgnhub/core/storage/database.dart';
 import 'package:acgnhub/modules/novel/novel_providers.dart';
 import 'package:acgnhub/modules/novel/novel_reader_page.dart';
@@ -71,5 +72,35 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('乙段'), findsOneWidget);
+  });
+
+  testWidgets('opening a chapter records reading history', (tester) async {
+    final container = ProviderContainer(overrides: [
+      novelChapterProvider(('linovelib', '1', 'c1')).overrideWith((ref) async =>
+          const NovelChapter(title: '第一章', blocks: [NovelText('甲段')])),
+      novelDetailProvider(('linovelib', '1')).overrideWith((ref) async =>
+          const NovelDetail(novel: Novel(id: '1', title: '书'), volumes: [])),
+    ]);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(
+        home: NovelReaderPage(
+            sourceKey: 'linovelib',
+            novelId: '1',
+            chapterId: 'c1',
+            title: '书',
+            cover: 'cover.jpg'),
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 50));
+    final history = container.read(novelHistoryProvider);
+    expect(history, hasLength(1));
+    expect(history.first.novelId, '1');
+    expect(history.first.chapterId, 'c1');
+    expect(history.first.chapterTitle, '第一章');
+    expect(history.first.cover, 'cover.jpg');
   });
 }
