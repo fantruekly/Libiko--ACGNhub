@@ -59,3 +59,36 @@ final novelChapterProvider =
   if (source == null) throw StateError('novel source $sourceId not found');
   return source.chapter(novelId, chapterId);
 });
+
+class NovelSearchResult {
+  final Novel novel;
+  final String sourceKey;
+  const NovelSearchResult({required this.novel, required this.sourceKey});
+}
+
+final novelSearchProvider =
+    FutureProvider.family<List<NovelSearchResult>, String>((ref, keyword) async {
+  final k = keyword.trim();
+  if (k.isEmpty) return const [];
+  final sources = ref.watch(novelSourceManagerProvider).sources;
+  final out = <NovelSearchResult>[];
+  final seen = <String>{};
+  Object? lastError;
+  var succeeded = 0;
+  for (final source in sources) {
+    try {
+      for (final novel in await source.search(k)) {
+        if (seen.add(novel.title.trim())) {
+          out.add(NovelSearchResult(novel: novel, sourceKey: source.id));
+        }
+      }
+      succeeded++;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  if (succeeded == 0) {
+    throw StateError('所有轻小说源搜索失败：$lastError');
+  }
+  return out;
+});
