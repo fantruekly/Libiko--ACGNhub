@@ -38,4 +38,8 @@ void main() {
             const NovelBrowse(NovelBrowseKind.bunko, 'dengekibunko')),
         isFalse);
   });
+
+  test('chapterPath builds the chapter url', () {
+    expect(LinovelibSource.chapterPath('5340', '334356'), '/novel/5340/334356.html');
+  });
 }

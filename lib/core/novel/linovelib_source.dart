@@ -345,7 +345,10 @@ class LinovelibSource implements NovelSource {
     );
   }
 
+  static String chapterPath(String novelId, String chapterId) =>
+      '/novel/$novelId/$chapterId.html';
+
   @override
   Future<NovelChapter> chapter(String novelId, String chapterId) =>
-      throw UnimplementedError();
+      fetchChapterPages(novelId: novelId, chapterId: chapterId, fetch: _get);
 }
