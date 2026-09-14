@@ -203,6 +203,58 @@ List<NovelVolume> parseCatalog(String html, String novelId) {
   return volumes;
 }
 
+NovelChapter parseChapter(String html, String fallbackTitle) {
+  final doc = html_parser.parse(html);
+  final title = _textOf(doc.querySelector('#mlfy_main_text h1'));
+  final paragraphs = <String>[];
+  final content = doc.querySelector('div#TextContent');
+  if (content != null) {
+    for (final p in content.querySelectorAll('p')) {
+      final t = p.text.trim();
+      if (t.isNotEmpty) paragraphs.add(t);
+    }
+  }
+  return NovelChapter(
+    title: title.isEmpty ? fallbackTitle : title,
+    content: paragraphs.join('\n\n'),
+  );
+}
+
+String? nextPageHref(String html, String novelId, String chapterId) {
+  final doc = html_parser.parse(html);
+  final prefix = '/novel/$novelId/${chapterId}_';
+  for (final a in doc.querySelectorAll('div.mlfy_page a')) {
+    if (a.text.trim() != '下一页') continue;
+    final href = a.attributes['href'];
+    if (href != null && href.startsWith(prefix) && href.endsWith('.html')) {
+      return href;
+    }
+    return null;
+  }
+  return null;
+}
+
+Future<NovelChapter> fetchChapterPages({
+  required String novelId,
+  required String chapterId,
+  required Future<String> Function(String path) fetch,
+  int maxPages = 50,
+}) async {
+  final firstHtml = await fetch('/novel/$novelId/$chapterId.html');
+  final first = parseChapter(firstHtml, '');
+  final buffer = <String>[if (first.content.isNotEmpty) first.content];
+  var next = nextPageHref(firstHtml, novelId, chapterId);
+  var pages = 1;
+  while (next != null && pages < maxPages) {
+    final html = await fetch(next);
+    final page = parseChapter(html, '');
+    if (page.content.isNotEmpty) buffer.add(page.content);
+    next = nextPageHref(html, novelId, chapterId);
+    pages++;
+  }
+  return NovelChapter(title: first.title, content: buffer.join('\n\n'));
+}
+
 class LinovelibSource implements NovelSource {
   LinovelibSource({Dio? dio})
       : _dio = dio ??
