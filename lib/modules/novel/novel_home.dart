@@ -259,6 +259,12 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
     );
   }
 
+  static final _pagerButtonStyle = OutlinedButton.styleFrom(
+    minimumSize: const Size(84, 40),
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+  );
+
   Widget _pager(bool hasMore) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -266,6 +272,7 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           OutlinedButton(
+            style: _pagerButtonStyle,
             onPressed: _page > 1 ? () => setState(() => _page--) : null,
             child: const Text('上一页'),
           ),
@@ -274,6 +281,7 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
               style: const TextStyle(fontSize: 13, color: _muted)),
           const SizedBox(width: 16),
           OutlinedButton(
+            style: _pagerButtonStyle,
             onPressed: hasMore ? () => setState(() => _page++) : null,
             child: const Text('下一页'),
           ),
