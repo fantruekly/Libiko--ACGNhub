@@ -1,11 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/novel/linovelib_source.dart';
+import '../../core/novel/lknovel_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_source.dart';
 
 final novelSourceManagerProvider = Provider<NovelSourceManager>(
-  (ref) => NovelSourceManager(sources: [LinovelibSource()]),
+  (ref) => NovelSourceManager(sources: [LinovelibSource(), LknovelSource()]),
 );
 
 final novelSourcesProvider =
