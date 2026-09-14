@@ -283,8 +283,17 @@ class LknovelSource implements NovelSource {
   }
 
   @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) =>
-      throw UnimplementedError();
+  Future<List<Novel>> search(String keyword, {int page = 1}) async {
+    final k = keyword.trim();
+    if (k.isEmpty) return const [];
+    final json = await _post('bff/apk-search-result-v1', {
+      'q': k,
+      'page': page,
+      'page_size': 20,
+      'pageSize': 20,
+    });
+    return parseLkList(lkData(json));
+  }
 
   @override
   Future<NovelDetail> detail(String id) async {
@@ -293,7 +302,7 @@ class LknovelSource implements NovelSource {
     final data = lkData(json);
     final novel = parseLkBook(data);
     final metas = parseLkVolumes(data);
-    const batchSize = 6;
+    const batchSize = 12;
     final volumes = <NovelVolume>[];
     for (var i = 0; i < metas.length; i += batchSize) {
       final end = (i + batchSize).clamp(0, metas.length);

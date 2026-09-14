@@ -7,6 +7,7 @@ import '../modules/anime/anime_search.dart';
 import '../modules/comic/comic_home.dart';
 import '../modules/comic/comic_search.dart';
 import '../modules/novel/novel_home.dart';
+import '../modules/novel/novel_search.dart';
 import 'settings_page.dart';
 import 'app_sidebar.dart';
 
@@ -165,7 +166,7 @@ class _MainShellState extends State<MainShell> {
                     height: 1.4),
               ),
               const Spacer(),
-              if (_currentIndex == 0 || _currentIndex == 1)
+              if (_currentIndex >= 0 && _currentIndex <= 2)
                 IconButton(
                   icon: const Icon(Icons.search_rounded, size: 20),
                   color: _muted,
@@ -175,7 +176,9 @@ class _MainShellState extends State<MainShell> {
                       MaterialPageRoute(
                           builder: (_) => _currentIndex == 0
                               ? const AnimeSearchPage()
-                              : const ComicSearchPage())),
+                              : _currentIndex == 1
+                                  ? const ComicSearchPage()
+                                  : const NovelSearchPage())),
                 ),
               const SizedBox(width: 4),
               Padding(

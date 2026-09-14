@@ -26,15 +26,15 @@ void main() {
     );
   });
 
-  test('browsePath routes ranking keys to the ranking path', () {
-    expect(LinovelibSource.browsePath('allvisit', 1), '/top/allvisit/1.html');
-    expect(LinovelibSource.browsePath('allvisit', 2), '/top/allvisit/2.html');
+  test('browsePath routes ranking keys to the www host', () {
+    expect(LinovelibSource.browsePath('allvisit', 1),
+        'https://www.linovelib.com/top/allvisit/1.html');
+    expect(LinovelibSource.browsePath('allvisit', 2),
+        'https://www.linovelib.com/top/allvisit/2.html');
   });
 
-  test('browsePath routes bunko keys to the bunko path', () {
-    expect(
-      LinovelibSource.browsePath('dengekibunko', 2),
-      '/wenku/dengekibunko/2.html',
-    );
+  test('browsePath routes bunko keys to the mobile host', () {
+    expect(LinovelibSource.browsePath('dengekibunko', 2),
+        'https://w.linovelib.com/wenku/dengekibunko/2.html');
   });
 }

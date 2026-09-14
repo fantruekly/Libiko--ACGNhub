@@ -8,8 +8,10 @@ import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_source.dart';
 import '../../core/comic/explore_result.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pill_chip.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/tab_strip.dart';
 import 'comic_detail_page.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
@@ -34,14 +36,9 @@ class _ComicHomePageState extends ConsumerState<ComicHomePage> {
         builder: (context) {
           final controller = DefaultTabController.of(context);
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const TabBar(
-                labelColor: _accent,
-                unselectedLabelColor: _muted,
-                indicatorColor: _accent,
-                dividerColor: Color(0xFFE5E5EA),
-                tabs: [Tab(text: '发现'), Tab(text: '收藏'), Tab(text: '历史')],
-              ),
+              const TabStrip(labels: ['发现', '收藏', '历史']),
               Expanded(
                 child: TabBarView(
                   children: [
@@ -176,7 +173,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                 children: [
                   for (final source in sources)
                     Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 10),
                       child:
                           _sourceChip(source, source.key == selected.key),
                     ),
@@ -195,25 +192,8 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _chip(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      onSelected: (_) => onTap(),
-      selectedColor: _accent,
-      backgroundColor: const Color(0xFFF2F2F7),
-      labelStyle: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: selected ? Colors.white : _muted,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      side: BorderSide.none,
-      visualDensity: VisualDensity.compact,
-    );
-  }
+  Widget _chip(String label, bool selected, VoidCallback onTap) =>
+      PillChip(label: label, selected: selected, onTap: onTap);
 
   Widget _sourceChip(ComicSource source, bool selected) {
     return _chip(source.name, selected, () {
@@ -229,14 +209,14 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
   Widget _sectionChips(ComicSource source, int section) {
     if (source.sections.length <= 1) return const SizedBox.shrink();
     return SizedBox(
-      height: 44,
+      height: 48,
       child: _horizontalScroll(
         padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
         child: Row(
           children: [
             for (var i = 0; i < source.sections.length; i++)
               Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 10),
                 child: _chip(
                   source.sections[i].title.isEmpty
                       ? '分区 ${i + 1}'
@@ -257,14 +237,14 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
 
   Widget _partChips(List<ComicPart> parts, int selected) {
     return SizedBox(
-      height: 44,
+      height: 48,
       child: _horizontalScroll(
         padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
         child: Row(
           children: [
             for (var i = 0; i < parts.length; i++)
               Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 10),
                 child: _chip(
                   parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
                   i == selected,

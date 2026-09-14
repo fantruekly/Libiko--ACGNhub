@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'marquee_text.dart';
+
 /// A pill-shaped action button matching the comic source chips, sized a little
 /// larger for chapter / episode lists.
 class PillButton extends StatelessWidget {
@@ -24,11 +26,10 @@ class PillButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFF2F2F7),
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE5E5EA)),
           ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          child: MarqueeText(
+            text: label,
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,

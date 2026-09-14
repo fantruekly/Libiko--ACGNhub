@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
+import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_reader_settings.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/marquee_text.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 
@@ -33,12 +35,14 @@ class NovelReaderPage extends ConsumerStatefulWidget {
   final String novelId;
   final String chapterId;
   final String title;
+  final String? cover;
   const NovelReaderPage({
     super.key,
     required this.sourceKey,
     required this.novelId,
     required this.chapterId,
     required this.title,
+    this.cover,
   });
 
   @override
@@ -47,6 +51,7 @@ class NovelReaderPage extends ConsumerStatefulWidget {
 
 class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   late String _chapterId = widget.chapterId;
+  String? _lastRecordedChapterId;
   bool _chromeVisible = true;
   final _scroll = ScrollController();
 
@@ -64,6 +69,12 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
     final async =
         ref.watch(novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)));
     final index = chapters.indexWhere((c) => c.id == _chapterId);
+
+    ref.listen(
+      novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)),
+      (_, next) => next.whenData(_recordHistory),
+    );
+    async.whenData(_recordHistory);
 
     return Scaffold(
       backgroundColor: palette.bg,
@@ -91,6 +102,21 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
         ],
       ),
     );
+  }
+
+  void _recordHistory(NovelChapter chapter) {
+    if (_lastRecordedChapterId == _chapterId) return;
+    _lastRecordedChapterId = _chapterId;
+    ref.read(novelHistoryProvider.notifier).record(NovelHistoryEntry(
+          sourceKey: widget.sourceKey,
+          novelId: widget.novelId,
+          title: widget.title,
+          cover: widget.cover,
+          chapterId: _chapterId,
+          chapterTitle:
+              chapter.title.isEmpty ? '第 $_chapterId 章' : chapter.title,
+          updatedAt: DateTime.now(),
+        ));
   }
 
   List<NovelChapterRef> _chapters() {
@@ -277,8 +303,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                 for (final c in v.chapters)
                   ListTile(
                     dense: true,
-                    title: Text(c.title,
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: MarqueeText(text: c.title),
                     trailing: c.id == _chapterId
                         ? const Icon(Icons.check_rounded,
                             size: 18, color: _accent)

@@ -6,6 +6,7 @@ import 'models.dart';
 import 'novel_source.dart';
 
 const String linovelibBaseUrl = 'https://www.linovelib.com';
+const String linovelibMobileBaseUrl = 'https://w.linovelib.com';
 const String linovelibUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -61,6 +62,70 @@ List<Novel> parseBookList(String html) {
     if (n != null) out.add(n);
   }
   return out;
+}
+
+List<Novel> parseMobileBookList(String html) {
+  final doc = html_parser.parse(html);
+  final out = <Novel>[];
+  for (final li in doc.querySelectorAll('ol.book-ol li.book-li')) {
+    final a = li.querySelector('a.book-layout');
+    final id = novelIdFromHref(a?.attributes['href']);
+    if (a == null || id == null) continue;
+    final img = li.querySelector('div.book-cover img');
+    final cover =
+        _absUrl(img?.attributes['data-src'] ?? img?.attributes['src']);
+    final title = _textOf(li.querySelector('h4.book-title'));
+    final authorEl = li.querySelector('span.book-author');
+    authorEl?.querySelector('svg')?.remove();
+    final author = _textOf(authorEl);
+    final tags = <String>[];
+    final tagEl = li.querySelector('em.tag-small.yellow');
+    if (tagEl != null) {
+      tags.addAll(_textOf(tagEl)
+          .split(RegExp(r'\s+'))
+          .where((e) => e.isNotEmpty));
+    }
+    out.add(Novel(
+      id: id,
+      title: title,
+      author: author.isEmpty ? null : author,
+      coverUrl: cover.isEmpty ? null : cover,
+      tags: tags,
+      extra: {'url': '$linovelibBaseUrl/novel/$id.html'},
+    ));
+  }
+  return out;
+}
+
+List<Novel> parseSearchResults(String html) {
+  final doc = html_parser.parse(html);
+  final out = <Novel>[];
+  for (final row in doc.querySelectorAll('div.search-result-list')) {
+    final titleA = row.querySelector('h2.tit a');
+    final id = novelIdFromHref(titleA?.attributes['href']);
+    if (titleA == null || id == null) continue;
+    final img = row.querySelector('div.imgbox img');
+    final cover =
+        _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
+    final author = _textOf(row.querySelector('div.bookinfo a'));
+    final summary = _textOf(row.querySelector('p'));
+    out.add(Novel(
+      id: id,
+      title: _textOf(titleA),
+      author: author.isEmpty ? null : author,
+      coverUrl: cover.isEmpty ? null : cover,
+      summary: summary.isEmpty ? null : summary,
+      extra: {'url': '$linovelibBaseUrl/novel/$id.html'},
+    ));
+  }
+  return out;
+}
+
+bool mobileHasNextPage(String html, int page) {
+  final doc = html_parser.parse(html);
+  final max = int.tryParse(_textOf(doc.querySelector('div.pagelink a.last')));
+  if (max == null) return false;
+  return page < max;
 }
 
 List<NovelSection> parseHome(String html) {
@@ -341,11 +406,12 @@ class LinovelibSource implements NovelSource {
   @override
   Future<NovelList> browse(String optionKey, {int page = 1}) async {
     final isRanking = rankingKeys.contains(optionKey);
-    final path = browsePath(optionKey, page);
-    final html = await _get(path);
-    final items = isRanking ? parseRankRows(html) : parseBookList(html);
-    final hasMore =
-        hasPaginationControl(html) ? hasNextPage(html) : items.length >= 10;
+    final html = await _getUrl(browsePath(optionKey, page));
+    final items =
+        isRanking ? parseRankRows(html) : parseMobileBookList(html);
+    final hasMore = isRanking
+        ? (hasPaginationControl(html) ? hasNextPage(html) : items.length >= 10)
+        : mobileHasNextPage(html, page);
     return NovelList(items: items, page: page, hasMore: hasMore);
   }
 
@@ -355,8 +421,8 @@ class LinovelibSource implements NovelSource {
 
   static String browsePath(String optionKey, int page) =>
       rankingKeys.contains(optionKey)
-          ? rankPath(optionKey, page)
-          : bunkoPath(optionKey, page);
+          ? '$linovelibBaseUrl${rankPath(optionKey, page)}'
+          : '$linovelibMobileBaseUrl/wenku/$optionKey/$page.html';
 
   Future<String> _get(String path) async {
     final res = await _dio.get<String>(
@@ -370,6 +436,18 @@ class LinovelibSource implements NovelSource {
     return data;
   }
 
+  Future<String> _getUrl(String url) async {
+    final res = await _dio.get<String>(
+      url,
+      options: Options(responseType: ResponseType.plain),
+    );
+    final data = res.data;
+    if (res.statusCode != 200 || data == null) {
+      throw Exception('linovelib 请求失败：$url (${res.statusCode})');
+    }
+    return data;
+  }
+
   @override
   Future<NovelHome> home() async {
     final html = await _get('/');
@@ -379,8 +457,23 @@ class LinovelibSource implements NovelSource {
   }
 
   @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) =>
-      throw UnimplementedError();
+  Future<List<Novel>> search(String keyword, {int page = 1}) async {
+    final k = keyword.trim();
+    if (k.isEmpty) return const [];
+    final res = await _dio.post<String>(
+      '/S6/',
+      data: {'searchkey': k},
+      options: Options(
+        responseType: ResponseType.plain,
+        contentType: Headers.formUrlEncodedContentType,
+      ),
+    );
+    final html = res.data;
+    if (res.statusCode != 200 || html == null) {
+      throw Exception('linovelib 搜索失败：$k (${res.statusCode})');
+    }
+    return parseSearchResults(html);
+  }
 
   static String detailPath(String id) => '/novel/$id.html';
 

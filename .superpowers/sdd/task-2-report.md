@@ -1,57 +1,89 @@
-# Task 2 Report: `LknovelSource` 客户端 + 解析器 + 首页/浏览 + 注册
+# Task 2 Report: lknovel 搜索
 
-## Status: DONE
+## Status
+
+DONE
 
 ## Implemented
 
-Followed the brief steps 1–6 exactly.
+Added `LknovelSource.search(String keyword, {int page = 1})` in
+`lib/core/novel/lknovel_source.dart`, replacing the `UnimplementedError`
+stub. It trims the keyword, returns `const []` for empty input, POSTs to
+`bff/apk-search-result-v1` with `{q, page, page_size: 20, pageSize: 20}`,
+and parses the response via `parseLkList(lkData(json))`.
 
-- **Step 1** — Created `test/core/novel/lknovel_source_test.dart` verbatim from the brief (10 tests covering `parseLkBook`, `parseLkList`, `lkHasMore`, `parseLkVolumes`, `parseLkVolumeChapters`, `parseLkChapter`, `home`, `browse` ranking/category, and source identity/browse groups).
-- **Step 2** — Ran the test against the missing implementation; confirmed compile failure (`lknovel_source.dart` not found / `parseLkBook` undefined, etc.).
-- **Step 3** — Created `lib/core/novel/lknovel_source.dart` verbatim from the brief: `lknovelBaseUrl`, `lknovelUserAgent`, `LkPoster`, `lkData`, helpers (`_asInt`, `_asBool`, `_nonEmpty`, `_stringList`), parsers (`parseLkBook`, `parseLkList`, `lkHasMore`, `parseLkVolumes`, `parseLkVolumeChapters`, `parseLkChapter`), and `LknovelSource implements NovelSource` with `rankingKeys`, `feedEndpoints`, `browseGroups`, `home()`, `browse()`. `search`/`detail`/`chapter` are `UnimplementedError` stubs per plan (Task 3).
-- **Step 4** — Registered `LknovelSource()` in `novelSourceManagerProvider` and added the import.
-- **Step 5** — `flutter analyze lib test` → `No issues found!`; target test file → 10/10 pass; full `flutter test` → 225 passed, 1 skipped, 0 failed.
-- **Step 6** — Committed and pushed to `origin/dev`.
+Added the `search posts to apk-search-result-v1` test in
+`test/core/novel/lknovel_source_test.dart`.
 
 ## TDD Evidence
 
-1. **Red** (Step 2): test file added before implementation.
-   ```
-   Error when reading 'lib/core/novel/lknovel_source.dart': 系统找不到指定的文件。
-   Method not found: 'parseLkBook'.
-   ...
-   00:00 +0 -1: Some tests failed.
-   ```
-2. **Green** (Step 5):
-   ```
-   00:00 +10: All tests passed!
-   ```
-3. **Full suite**: `00:11 +225 ~1: All tests passed!`
+### RED
 
-## Test Commands + Results
+Command:
+`$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/lknovel_source_test.dart`
 
-| Command | Result |
-|---|---|
-| `flutter analyze lib test` | `No issues found! (ran in 2.0s)` |
-| `flutter test test/core/novel/lknovel_source_test.dart` | `All tests passed!` (10/10) |
-| `flutter test` | `+225 ~1: All tests passed!` |
+Result (before implementation):
+
+```
+00:00 +17: search posts to apk-search-result-v1
+00:00 +17 -1: search posts to apk-search-result-v1 [E]
+  UnimplementedError
+  package:acgnhub/core/novel/lknovel_source.dart 287:7  LknovelSource.search
+00:00 +17 -1: Some tests failed.
+```
+
+### GREEN
+
+Same command after implementation:
+
+```
+00:00 +18: All tests passed!
+```
+
+### Analyze
+
+Command:
+`$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+
+Result:
+
+```
+Analyzing 2 items...
+No issues found! (ran in 2.2s)
+```
+
+### Full suite
+
+Command:
+`$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+
+Result:
+
+```
+00:12 +254 ~1: All tests passed!
+```
 
 ## Files Changed
 
-- **Created** `lib/core/novel/lknovel_source.dart` (429 lines added total across commit)
-- **Modified** `lib/modules/novel/novel_providers.dart` (import + provider registration)
-- **Created** `test/core/novel/lknovel_source_test.dart`
+- `lib/core/novel/lknovel_source.dart` — implemented `search`.
+- `test/core/novel/lknovel_source_test.dart` — added search test.
 
-Commit: `79289b1 feat(novel): add lknovel source with home and browse` (pushed to `origin/dev`).
+## Commit
+
+- `2433e0f` `feat(novel): lknovel search`
+- Pushed to `origin/dev` (`2a0aabe..2433e0f`).
 
 ## Self-Review
 
-- `LknovelSource` satisfies the full `NovelSource` interface: `id`, `name`, `baseUrl`, `home()`, `browseGroups`, `browse()`, plus `search`/`detail`/`chapter` stubs throwing `UnimplementedError`. `flutter analyze` clean confirms no unimplemented members.
-- All parser tests pass; full suite green.
-- No new dependencies; `pubspec.yaml` untouched.
-- Chinese UI copy preserved; no comments added.
+- New `search` test passes (18/18 in the file). ✔
+- `flutter analyze lib test` clean (`No issues found!`). ✔
+- `flutter test` fully green (254 passed, 1 skipped). ✔
+- Code transcribed verbatim from brief. ✔
+- No new dependencies; `pubspec.yaml` untouched. ✔
+- No new comments. ✔
+- Only the two allowed files committed. ✔
 
 ## Concerns
 
-- `search`/`detail`/`chapter` intentionally throw `UnimplementedError` (Task 3 scope). Any UI path invoking them for lknovel before Task 3 will error at runtime.
-- Step 6 pushed to `origin/dev` as the brief instructed.
+- None. Empty-keyword guard returns `const []` without a network call; this
+  behavior is not covered by a dedicated test (brief did not request one).

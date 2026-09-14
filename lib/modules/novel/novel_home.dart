@@ -4,12 +4,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
+import '../../core/novel/novel_favorite.dart';
+import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_source.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pill_chip.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/tab_strip.dart';
 import 'novel_detail_page.dart';
 import 'novel_providers.dart';
+import 'novel_reader_page.dart';
 
 const _accent = Color(0xFF007AFF);
 const _muted = Color(0xFF5A5A5F);
@@ -74,24 +79,53 @@ class NovelCard extends StatelessWidget {
   }
 }
 
-class NovelHomePage extends ConsumerStatefulWidget {
+class NovelHomePage extends ConsumerWidget {
   const NovelHomePage({super.key});
+
   @override
-  ConsumerState<NovelHomePage> createState() => _NovelHomePageState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    return const DefaultTabController(
+      length: 3,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TabStrip(labels: ['探索', '收藏', '历史']),
+          Expanded(
+            child: TabBarView(
+              children: [_ExploreTab(), _FavoritesTab(), _HistoryTab()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _NovelHomePageState extends ConsumerState<NovelHomePage> {
+class _ExploreTab extends ConsumerStatefulWidget {
+  const _ExploreTab();
+
+  @override
+  ConsumerState<_ExploreTab> createState() => _ExploreTabState();
+}
+
+class _ExploreTabState extends ConsumerState<_ExploreTab>
+    with AutomaticKeepAliveClientMixin {
   String _sourceId = 'linovelib';
   int _groupIndex = -1;
   int _optionIndex = 0;
   int _page = 1;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     final sources = ref.watch(novelSourcesProvider);
     final source = ref.watch(novelSourceManagerProvider).byId(_sourceId);
     final groups = source?.browseGroups ?? const <NovelBrowseGroup>[];
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
         _sourceChips(sources),
@@ -105,90 +139,82 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
 
   Widget _sourceChips(List<NovelSource> sources) {
     return SizedBox(
-      height: 44,
-      child: ListView(
+      height: 48,
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          for (final s in sources)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _chip(s.name, s.id == _sourceId, () => setState(() {
-                _sourceId = s.id;
-                _groupIndex = -1;
-                _optionIndex = 0;
-                _page = 1;
-              })),
-            ),
-        ],
+        child: Row(
+          children: [
+            for (final s in sources)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _chip(s.name, s.id == _sourceId, () => setState(() {
+                  _sourceId = s.id;
+                  _groupIndex = -1;
+                  _optionIndex = 0;
+                  _page = 1;
+                })),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _sectionChips(List<NovelBrowseGroup> groups) {
     return SizedBox(
-      height: 44,
-      child: ListView(
+      height: 48,
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _chip('推荐', _groupIndex < 0, () => setState(() {
-              _groupIndex = -1;
-              _page = 1;
-            })),
-          ),
-          for (var i = 0; i < groups.length; i++)
+        child: Row(
+          children: [
             Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _chip(groups[i].label, _groupIndex == i, () => setState(() {
-                _groupIndex = i;
-                _optionIndex = 0;
+              padding: const EdgeInsets.only(right: 10),
+              child: _chip('推荐', _groupIndex < 0, () => setState(() {
+                _groupIndex = -1;
                 _page = 1;
               })),
             ),
-        ],
+            for (var i = 0; i < groups.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _chip(groups[i].label, _groupIndex == i, () => setState(() {
+                  _groupIndex = i;
+                  _optionIndex = 0;
+                  _page = 1;
+                })),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _optionChips(NovelBrowseGroup group) {
     return SizedBox(
-      height: 44,
-      child: ListView(
+      height: 48,
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: [
-          for (var i = 0; i < group.options.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _chip(group.options[i].label, _optionIndex == i, () => setState(() {
-                _optionIndex = i;
-                _page = 1;
-              })),
-            ),
-        ],
+        child: Row(
+          children: [
+            for (var i = 0; i < group.options.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _chip(group.options[i].label, _optionIndex == i, () => setState(() {
+                  _optionIndex = i;
+                  _page = 1;
+                })),
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _chip(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      onSelected: (_) => onTap(),
-      selectedColor: _accent,
-      backgroundColor: const Color(0xFFF2F2F7),
-      labelStyle: TextStyle(
-          fontSize: 12, fontWeight: FontWeight.w500, color: selected ? Colors.white : _muted),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      side: BorderSide.none,
-      visualDensity: VisualDensity.compact,
-    );
-  }
+  Widget _chip(String label, bool selected, VoidCallback onTap) =>
+      PillChip(label: label, selected: selected, onTap: onTap);
 
   Widget _body(List<NovelBrowseGroup> groups) {
     if (_groupIndex < 0 || _groupIndex >= groups.length) {
@@ -236,31 +262,29 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
     );
   }
 
-  static final _pagerButtonStyle = OutlinedButton.styleFrom(
-    minimumSize: const Size(84, 40),
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-  );
-
   Widget _pager(bool hasMore) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          OutlinedButton(
-            style: _pagerButtonStyle,
+          IconButton(
+            tooltip: '上一页',
+            icon: const Icon(Icons.chevron_left_rounded),
             onPressed: _page > 1 ? () => setState(() => _page--) : null,
-            child: const Text('上一页'),
           ),
           const SizedBox(width: 16),
           Text('第 $_page 页',
               style: const TextStyle(fontSize: 13, color: _muted)),
           const SizedBox(width: 16),
-          OutlinedButton(
-            style: _pagerButtonStyle,
+          IconButton(
+            tooltip: '下一页',
+            icon: const Icon(Icons.chevron_right_rounded),
             onPressed: hasMore ? () => setState(() => _page++) : null,
-            child: const Text('下一页'),
           ),
         ],
       ),
@@ -290,4 +314,185 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
       ),
     );
   }
+}
+
+class _FavoritesTab extends ConsumerWidget {
+  const _FavoritesTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favorites = ref.watch(novelFavoritesProvider);
+    if (favorites.isEmpty) {
+      return const EmptyState(
+          icon: Icons.favorite_border_rounded, message: '还没有收藏');
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6, mainAxisSpacing: 20, crossAxisSpacing: 16, childAspectRatio: 0.58),
+      itemCount: favorites.length,
+      itemBuilder: (_, i) => NovelCard(
+        novel: Novel(
+          id: favorites[i].novelId,
+          title: favorites[i].title,
+          coverUrl: favorites[i].cover,
+        ),
+        onTap: () => Navigator.push(
+          context,
+          noTransitionRoute(NovelDetailPage(
+            sourceKey: favorites[i].sourceKey,
+            novelId: favorites[i].novelId,
+            title: favorites[i].title,
+            cover: favorites[i].cover,
+          )),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryTab extends ConsumerWidget {
+  const _HistoryTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final records = ref.watch(novelHistoryProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Row(
+            children: [
+              const Text('历史记录',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: _fg,
+                      height: 1.4)),
+              const Spacer(),
+              TextButton(
+                onPressed:
+                    records.isEmpty ? null : () => _confirmClear(context, ref),
+                child: const Text('清空历史'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: records.isEmpty
+              ? const EmptyState(
+                  icon: Icons.history_rounded, message: '还没有阅读记录')
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: records.length,
+                  itemBuilder: (_, i) => _historyRow(context, records[i]),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
+  return InkWell(
+    borderRadius: BorderRadius.circular(10),
+    onTap: () => Navigator.push(
+      context,
+      smoothRoute(NovelReaderPage(
+        sourceKey: entry.sourceKey,
+        novelId: entry.novelId,
+        chapterId: entry.chapterId,
+        title: entry.title,
+        cover: entry.cover,
+      )),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 56,
+              height: 76,
+              child: _cover(entry.cover),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w500, color: _fg),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '读到 ${entry.chapterTitle}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: _muted),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _relativeTime(entry.updatedAt),
+                  style: const TextStyle(fontSize: 12, color: _muted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _cover(String? url) {
+  if (url == null || url.isEmpty) {
+    return Container(color: const Color(0xFFE5E5EA));
+  }
+  return CachedNetworkImage(
+    imageUrl: url,
+    fit: BoxFit.cover,
+    memCacheWidth: 200,
+    httpHeaders: novelImageHeaders,
+    placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
+    errorWidget: (_, __, ___) => Container(color: const Color(0xFFE5E5EA)),
+  );
+}
+
+Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('清空历史记录？'),
+      content: const Text('将删除全部阅读记录，且不可恢复。'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消')),
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('清空')),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  await ref.read(novelHistoryProvider.notifier).clear();
+}
+
+String _relativeTime(DateTime time) {
+  final diff = DateTime.now().difference(time);
+  if (diff.inMinutes < 1) return '刚刚';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟前';
+  if (diff.inHours < 24) return '${diff.inHours} 小时前';
+  if (diff.inDays < 30) return '${diff.inDays} 天前';
+  final local = time.toLocal();
+  return '${local.year}-${local.month.toString().padLeft(2, '0')}-'
+      '${local.day.toString().padLeft(2, '0')}';
 }
