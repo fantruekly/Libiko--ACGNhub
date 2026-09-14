@@ -278,9 +278,54 @@ class LknovelSource implements NovelSource {
       throw UnimplementedError();
 
   @override
-  Future<NovelDetail> detail(String id) => throw UnimplementedError();
+  Future<NovelDetail> detail(String id) async {
+    final json = await _post(
+        'new-content-read/get-book-detail', {'book_id': id, 'with_volumes': 1});
+    final data = lkData(json);
+    final novel = parseLkBook(data);
+    final metas = parseLkVolumes(data);
+    const batchSize = 6;
+    final volumes = <NovelVolume>[];
+    for (var i = 0; i < metas.length; i += batchSize) {
+      final end = (i + batchSize).clamp(0, metas.length);
+      final batch = metas.sublist(i, end);
+      final loaded = await Future.wait(batch.map((v) async {
+        try {
+          final chapters = await _volumeChapters(id, v.id ?? '');
+          return NovelVolume(id: v.id, title: v.title, chapters: chapters);
+        } catch (_) {
+          return NovelVolume(id: v.id, title: v.title, chapters: const []);
+        }
+      }));
+      volumes.addAll(loaded);
+    }
+    return NovelDetail(novel: novel, volumes: volumes);
+  }
+
+  Future<List<NovelChapterRef>> _volumeChapters(
+      String bookId, String volumeId) async {
+    final out = <NovelChapterRef>[];
+    var page = 1;
+    while (true) {
+      final json = await _post('new-content-read/get-volume-chapters', {
+        'book_id': bookId,
+        'volume_id': volumeId,
+        'page': page,
+        'page_size': 50,
+        'pageSize': 50,
+      });
+      final data = lkData(json);
+      out.addAll(parseLkVolumeChapters(data));
+      if (!lkHasMore(data, page) || page >= 100) break;
+      page++;
+    }
+    return out;
+  }
 
   @override
-  Future<NovelChapter> chapter(String novelId, String chapterId) =>
-      throw UnimplementedError();
+  Future<NovelChapter> chapter(String novelId, String chapterId) async {
+    final json = await _post('new-content-read/get-chapter-detail',
+        {'book_id': novelId, 'chapter_id': chapterId});
+    return parseLkChapter(lkData(json), '');
+  }
 }

@@ -138,4 +138,49 @@ void main() {
     expect(s.baseUrl, lknovelBaseUrl);
     expect(s.browseGroups.map((g) => g.label), ['排行', '分类']);
   });
+
+  test('detail loads every volume and its chapters', () async {
+    final source = LknovelSource(poster: (endpoint, body) async {
+      switch (endpoint) {
+        case 'new-content-read/get-book-detail':
+          return {'code': 0, 'data': _detailData};
+        case 'new-content-read/get-volume-chapters':
+          final vid = body['volume_id'].toString();
+          return {
+            'code': 0,
+            'data': {
+              'volume_id': vid,
+              'list': vid == '36754'
+                  ? [
+                      {'chapter_id': 276838, 'title': '一败目'},
+                      {'chapter_id': 276839, 'title': '间章'},
+                    ]
+                  : [
+                      {'chapter_id': 276788, 'title': '特典'},
+                    ],
+            },
+          };
+      }
+      throw Exception('unexpected endpoint: $endpoint');
+    });
+    final detail = await source.detail('1338');
+    expect(detail.novel.title, '败犬女主太多了！');
+    expect(detail.volumes.map((v) => v.title), ['1卷', '1卷特典']);
+    expect(detail.volumes.first.chapters.map((c) => c.id), ['276838', '276839']);
+    expect(detail.volumes.last.chapters.single.title, '特典');
+  });
+
+  test('chapter fetches and parses chapter detail', () async {
+    final source = LknovelSource(poster: (endpoint, body) async {
+      expect(endpoint, 'new-content-read/get-chapter-detail');
+      expect(body['book_id'], '1338');
+      expect(body['chapter_id'], '276838');
+      return {'code': 0, 'data': _chapterData};
+    });
+    final chapter = await source.chapter('1338', '276838');
+    expect(chapter.title, '一败目 专业青梅竹马');
+    expect(chapter.blocks.whereType<NovelText>().length, 2);
+    expect(chapter.blocks.whereType<NovelImage>().single.url,
+        'https://api.lightnovel.fun/a.jpg');
+  });
 }
