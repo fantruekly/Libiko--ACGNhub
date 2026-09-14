@@ -11,4 +11,20 @@ void main() {
     final flat = flattenHome(home);
     expect(flat.map((n) => n.id), ['1', '2', '3']);
   });
+
+  test('flattenChapters flattens volumes in order', () {
+    const detail = NovelDetail(
+      novel: Novel(id: '1', title: 'T'),
+      volumes: [
+        NovelVolume(title: 'v1', chapters: [
+          NovelChapterRef(id: 'a', title: 'A'),
+          NovelChapterRef(id: 'b', title: 'B'),
+        ]),
+        NovelVolume(title: 'v2', chapters: [
+          NovelChapterRef(id: 'c', title: 'C'),
+        ]),
+      ],
+    );
+    expect(flattenChapters(detail).map((c) => c.id), ['a', 'b', 'c']);
+  });
 }

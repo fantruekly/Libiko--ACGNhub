@@ -46,3 +46,16 @@ final novelDetailProvider =
   if (source == null) throw StateError('novel source $sourceId not found');
   return source.detail(novelId);
 });
+
+/// 按分卷顺序扁平化章节（供阅读器上一/下一章与目录使用）。
+List<NovelChapterRef> flattenChapters(NovelDetail detail) =>
+    [for (final volume in detail.volumes) ...volume.chapters];
+
+final novelChapterProvider =
+    FutureProvider.family<NovelChapter, (String, String, String)>(
+        (ref, key) async {
+  final (sourceId, novelId, chapterId) = key;
+  final source = ref.watch(novelSourceManagerProvider).byId(sourceId);
+  if (source == null) throw StateError('novel source $sourceId not found');
+  return source.chapter(novelId, chapterId);
+});
