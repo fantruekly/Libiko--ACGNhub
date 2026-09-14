@@ -41,6 +41,10 @@ class _ComicHomePageState extends ConsumerState<ComicHomePage> {
                 unselectedLabelColor: _muted,
                 indicatorColor: _accent,
                 dividerColor: Color(0xFFE5E5EA),
+                labelStyle:
+                    TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                unselectedLabelStyle:
+                    TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                 tabs: [Tab(text: '发现'), Tab(text: '收藏'), Tab(text: '历史')],
               ),
               Expanded(

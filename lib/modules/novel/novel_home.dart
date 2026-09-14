@@ -92,6 +92,9 @@ class NovelHomePage extends ConsumerWidget {
             unselectedLabelColor: _muted,
             indicatorColor: _accent,
             dividerColor: Color(0xFFE5E5EA),
+            labelStyle: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            unselectedLabelStyle:
+                TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             tabs: [Tab(text: '探索'), Tab(text: '收藏'), Tab(text: '历史')],
           ),
           Expanded(
@@ -129,6 +132,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     final source = ref.watch(novelSourceManagerProvider).byId(_sourceId);
     final groups = source?.browseGroups ?? const <NovelBrowseGroup>[];
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
         _sourceChips(sources),
