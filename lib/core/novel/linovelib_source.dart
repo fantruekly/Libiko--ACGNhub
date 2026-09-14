@@ -97,6 +97,30 @@ List<Novel> parseMobileBookList(String html) {
   return out;
 }
 
+List<Novel> parseSearchResults(String html) {
+  final doc = html_parser.parse(html);
+  final out = <Novel>[];
+  for (final row in doc.querySelectorAll('div.search-result-list')) {
+    final titleA = row.querySelector('h2.tit a');
+    final id = novelIdFromHref(titleA?.attributes['href']);
+    if (titleA == null || id == null) continue;
+    final img = row.querySelector('div.imgbox img');
+    final cover =
+        _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
+    final author = _textOf(row.querySelector('div.bookinfo a'));
+    final summary = _textOf(row.querySelector('p'));
+    out.add(Novel(
+      id: id,
+      title: _textOf(titleA),
+      author: author.isEmpty ? null : author,
+      coverUrl: cover.isEmpty ? null : cover,
+      summary: summary.isEmpty ? null : summary,
+      extra: {'url': '$linovelibBaseUrl/novel/$id.html'},
+    ));
+  }
+  return out;
+}
+
 bool mobileHasNextPage(String html, int page) {
   final doc = html_parser.parse(html);
   final max = int.tryParse(_textOf(doc.querySelector('div.pagelink a.last')));
@@ -433,8 +457,23 @@ class LinovelibSource implements NovelSource {
   }
 
   @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) =>
-      throw UnimplementedError();
+  Future<List<Novel>> search(String keyword, {int page = 1}) async {
+    final k = keyword.trim();
+    if (k.isEmpty) return const [];
+    final res = await _dio.post<String>(
+      '/S6/',
+      data: {'searchkey': k},
+      options: Options(
+        responseType: ResponseType.plain,
+        contentType: Headers.formUrlEncodedContentType,
+      ),
+    );
+    final html = res.data;
+    if (res.statusCode != 200 || html == null) {
+      throw Exception('linovelib 搜索失败：$k (${res.statusCode})');
+    }
+    return parseSearchResults(html);
+  }
 
   static String detailPath(String id) => '/novel/$id.html';
 
