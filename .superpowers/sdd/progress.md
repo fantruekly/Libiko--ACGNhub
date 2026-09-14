@@ -256,6 +256,10 @@ Task 9 (image hotlink): complete (commit cfeaf12..ea5ba0a, review clean). `novel
 Task 10 (detail header/transition): complete (commit ea5ba0a..1eecffa, review clean). Custom 48px DragToMoveArea
   header (back + title + WindowControls) replacing the Material AppBar; `noTransitionRoute` for the detail push.
   Note: `_header(novel)` content card renamed `_infoCard(novel)` to avoid the name collision.
+Task 11 (uniform cards): complete (commit ea1bc47..64df555, review clean). Author line removed from `NovelCard`
+  (explore grid) so all covers are the same height; card test now asserts author is absent.
+Task 12 (illustration sizing): complete (commit 64df555..3d79ee1, review clean). Reader `NovelImage` wrapped in a
+  fixed `SizedBox(height: _illustrationHeight(context))` with `BoxFit.contain` — fills the page vertically, blank sides.
   Manual live-site verification owed to the human: selectors (#mlfy_main_text h1, div#TextContent p, div.mlfy_page a),
   relative vs absolute 下一页 hrefs, and that chapter bodies are <p>-wrapped.
   Deferred Minors: rapid-tap still bounded by rebuild timing; partial sheet theme override; duplicated Theme boilerplate;
