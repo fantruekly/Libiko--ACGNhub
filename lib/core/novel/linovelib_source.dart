@@ -105,6 +105,27 @@ List<Novel> parseRankRows(String html) {
       },
     ));
   }
+  for (final row in doc.querySelectorAll('div.rank_d_list')) {
+    final bookA = row.querySelector('div.rank_d_b_name a[href*="/novel/"]') ??
+        row.querySelector('a[href*="/novel/"]');
+    final id = novelIdFromHref(bookA?.attributes['href']);
+    if (bookA == null || id == null) continue;
+    final img = row.querySelector('div.rank_d_book_img img');
+    final cover =
+        _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
+    final author = _textOf(row.querySelector('div.rank_d_b_cate a'));
+    final rank = int.tryParse(_textOf(row.querySelector('div.rank_d_b_num')));
+    out.add(Novel(
+      id: id,
+      title: _textOf(bookA),
+      author: author.isEmpty ? null : author,
+      coverUrl: cover.isEmpty ? null : cover,
+      extra: {
+        'url': '$linovelibBaseUrl/novel/$id.html',
+        if (rank != null) 'rank': rank,
+      },
+    ));
+  }
   return out;
 }
 

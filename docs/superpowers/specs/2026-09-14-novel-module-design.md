@@ -111,8 +111,9 @@ novelBrowseProvider((String sourceId, NovelBrowseKind kind, String key, int page
   - 区块：`div.tab-lists`；区块标题 `div.top-title .title`。
   - 条目 `div.lists ul li`：封面 `div.imgbox img[data-original]`（回退 `src`）、书名 `a.title[href=/novel/<id>.html]`、作者 `a.author`、文库 `a.cate`。
   - 注意：部分 `li` 是纯文本条目（`a.author2` + 无名 `a[title]`），需按有无 `a.title` 过滤。
-- **排行** `GET /top/<key>/<page>.html`（如 `/top/monthvote/1.html`）；人气榜为 `/top.html`：
-  - 行 `div.rank_i_li`：名次 `div.rank_i_num`、书名 `div.rank_i_bname a.rank_i_l_a_book`（或首个 `a[href=/novel/<id>.html]`）、作者 `a.rank_i_l_a_author`、文库 `a.rank_i_l_a_category`、封面 `div.rank_i_bcount img[data-original]`。
+- **排行**：`/top.html`（人气榜）行结构为 `div.rank_i_li`；`/top/<key>/<page>.html`（其余排行，如 `/top/monthvote/1.html`）行结构为 `div.rank_d_list`：
+  - `div.rank_i_li`（人气榜）：名次 `div.rank_i_num`、书名 `div.rank_i_bname a.rank_i_l_a_book`（或首个 `a[href=/novel/<id>.html]`）、作者 `a.rank_i_l_a_author`、文库 `a.rank_i_l_a_category`、封面 `div.rank_i_bcount img[data-original]`。
+  - `div.rank_d_list`（其余排行）：名次 `div.rank_d_b_num`、书名 `div.rank_d_b_name a`、封面 `div.rank_d_book_img img`（`data-original` 回退 `src`）、作者 `div.rank_d_b_cate a`（首个）。
 - **文库** `GET /wenku/<key>/<page>.html`：与首页 `div.lists ul li` 同构。
 - id 提取：从 `/novel/<id>.html` 取数字。
 

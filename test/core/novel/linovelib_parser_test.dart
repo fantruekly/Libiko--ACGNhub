@@ -75,6 +75,7 @@ void main() {
   });
 
   _paginationTests();
+  _rankDListTests();
 }
 
 const _pagerNextHtml =
@@ -95,5 +96,35 @@ void _paginationTests() {
     expect(hasNextPage(_pagerNoNextHtml), isFalse);
     expect(hasNextPage(_pagerLastHtml), isFalse); // <span>, not a link
     expect(hasNextPage(_bookListHtml), isFalse); // no pagination control
+  });
+}
+
+const _rankDListHtml = '''
+<div class="rankpage_box">
+  <div class="rank_d_list borderB_c_dsh clearfix">
+    <div class="rank_d_book_img fl" title="玩乐关系">
+      <a href="/novel/4649.html"><img src="x.svg" data-original="https://www.linovelib.com/files/article/image/4/4649/4649s.jpg"></a>
+    </div>
+    <div class="rank_d_book_intro fl">
+      <div class="rank_d_b_name" title="玩乐关系"><a href="/novel/4649.html">玩乐关系</a></div>
+      <div class="rank_d_b_cate"><a href="/authorarticle/x.html">葵关南</a>|<a>富士见文库</a>|<a>连载</a></div>
+    </div>
+    <div class="rank_d_book_manage fr">
+      <div class="rank_d_b_rank"><div class="rank_d_icon rank_d_b_num rank_d_b_num1 fr">1</div></div>
+    </div>
+  </div>
+</div>
+''';
+
+void _rankDListTests() {
+  test('parseRankRows parses div.rank_d_list (sub-ranking pages)', () {
+    final items = parseRankRows(_rankDListHtml);
+    expect(items, hasLength(1));
+    expect(items.first.id, '4649');
+    expect(items.first.title, '玩乐关系');
+    expect(items.first.author, '葵关南');
+    expect(items.first.coverUrl,
+        'https://www.linovelib.com/files/article/image/4/4649/4649s.jpg');
+    expect(items.first.extra['rank'], 1);
   });
 }
