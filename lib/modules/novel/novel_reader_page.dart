@@ -7,6 +7,7 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_reader_settings.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/marquee_text.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 
@@ -302,8 +303,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                 for (final c in v.chapters)
                   ListTile(
                     dense: true,
-                    title: Text(c.title,
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: MarqueeText(text: c.title),
                     trailing: c.id == _chapterId
                         ? const Icon(Icons.check_rounded,
                             size: 18, color: _accent)
