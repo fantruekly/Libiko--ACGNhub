@@ -84,18 +84,19 @@ abstract class NovelSource {
 - 第 1 行：**源 chip**（当前仅「哔哩轻小说」）。
 - 第 2 行：**分区 chip**：`推荐` / `排行` / `文库`。
 - 第 3 行（条件出现）：
-  - 「排行」→ 子 chip：`人气榜`/`月点击`/`周点击`/`月推荐`/`周推荐`/`月鲜花`/`周鲜花`/`月鸡蛋`/`周鸡蛋`/`最近更新`/`最新入库`/`收藏榜`/`新书榜`。
+  - 「排行」→ 子 chip：`人气榜`/`月点击`/`周点击`/`月推荐`/`周推荐`/`月鲜花`/`周鲜花`/`月鸡蛋`/`周鸡蛋`/`最近更新`/`最新入库`/`收藏榜`/`新书榜`。其中 `人气榜`（`allvisit`，`/top.html`）为**单页**，不显示分页。
   - 「文库」→ 子 chip：`电击`/`富士见`/`角川`/`MF文库J`/`Fami通`/`GA`/`HJ`/`一迅社`/`集英社`/`小学馆`/`讲谈社`/`少女文库`/`其他文库`/`华文轻小说`。
-- 下方：**网格**（`NovelCard`：封面 + 书名 + 作者），触底加载下一页。
+- 下方：**网格**（`NovelCard`：封面 + 书名 + 作者）。
+- 「排行」/「文库」在网格底部提供「上一页 / 第 N 页 / 下一页」**手动换页**按钮（不做自动触底加载）。
 
 - 「推荐」= 把 `home()` 的多个书单**合并去重**成一个网格（不做横向书单，保持网格一致性）；一次性加载，不分页。
-- 「排行」/「文库」按页取；`hasMore` 优先看分页控件是否有「下一页」链接，若无分页控件则按「本页条目数 >= 10」判定。
+- 「排行」/「文库」按页取；`hasMore` 优先看分页控件（`div.pagination`）是否有「下一页」链接，若无分页控件则按「本页条目数 >= 10」判定。分页按钮的「下一页」按 `hasMore` 启用/禁用。
 
 ## Providers
 
 ```dart
 novelSourceManagerProvider                              // Provider<NovelSourceManager>
-novelSourcesProvider                                    // FutureProvider<List<NovelSource>>
+novelSourcesProvider                                    // Provider<List<NovelSource>>
 novelHomeProvider(String sourceId)                      // FutureProvider<NovelHome>（推荐）
 novelBrowseProvider((String sourceId, NovelBrowseKind kind, String key, int page)) // FutureProvider<NovelList>
 ```
@@ -105,7 +106,7 @@ novelBrowseProvider((String sourceId, NovelBrowseKind kind, String key, int page
 
 ## 抓取细节（`LinovelibSource`）
 
-- HTTP：`dio`，UA 用桌面 Chrome，`Referer: https://www.linovelib.com/`，超时 20s。响应按 UTF-8 解码。
+- HTTP：`dio`，UA 用桌面 Chrome，并带 `Accept` / `Accept-Language` / `Referer: https://www.linovelib.com/`，超时 20s。响应按 UTF-8 解码。（缺 `Accept`/`Accept-Language` 会被 Cloudflare 挑战。）
 - **首页** `GET /`：
   - 区块：`div.tab-lists`；区块标题 `div.top-title .title`。
   - 条目 `div.lists ul li`：封面 `div.imgbox img[data-original]`（回退 `src`）、书名 `a.title[href=/novel/<id>.html]`、作者 `a.author`、文库 `a.cate`。

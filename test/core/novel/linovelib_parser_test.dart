@@ -66,6 +66,7 @@ void main() {
     expect(items.first.author, '이만두');
     expect(items.first.coverUrl, 'https://www.linovelib.com/files/article/image/5/5340/5340s.jpg');
     expect(items.first.extra['rank'], 1);
+    expect(items.first.tags, ['novelpia']);
   });
 
   test('hasNextPage detects the next link', () {
