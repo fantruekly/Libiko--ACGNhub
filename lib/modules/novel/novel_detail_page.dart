@@ -6,7 +6,9 @@ import '../../core/novel/models.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/smooth_route.dart';
 import 'novel_providers.dart';
+import 'novel_reader_page.dart';
 
 const _accent = Color(0xFF007AFF);
 const _muted = Color(0xFF5A5A5F);
@@ -84,7 +86,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               runSpacing: 10,
               children: [
                 for (final ch in vol.chapters)
-                  PillButton(label: ch.title, onTap: () => _openChapter()),
+                  PillButton(label: ch.title, onTap: () => _openChapter(ch)),
               ],
             ),
           ],
@@ -208,8 +210,15 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                 fontSize: 11, color: _accent, fontWeight: FontWeight.w500)),
       );
 
-  void _openChapter() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('阅读器开发中')));
+  void _openChapter(NovelChapterRef chapter) {
+    Navigator.push(
+      context,
+      smoothRoute(NovelReaderPage(
+        sourceKey: widget.sourceKey,
+        novelId: widget.novelId,
+        chapterId: chapter.id,
+        title: widget.title,
+      )),
+    );
   }
 }
