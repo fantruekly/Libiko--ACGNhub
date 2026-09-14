@@ -293,7 +293,7 @@ class LknovelSource implements NovelSource {
     final data = lkData(json);
     final novel = parseLkBook(data);
     final metas = parseLkVolumes(data);
-    const batchSize = 6;
+    const batchSize = 12;
     final volumes = <NovelVolume>[];
     for (var i = 0; i < metas.length; i += batchSize) {
       final end = (i + batchSize).clamp(0, metas.length);
