@@ -155,8 +155,9 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             const SizedBox(height: 14),
             LayoutBuilder(builder: (context, constraints) {
               const style = TextStyle(fontSize: 13, height: 1.5, color: _fg);
-              final overflows =
-                  _summaryOverflows(summary, style, constraints.maxWidth);
+              final overflows = _summaryOverflows(
+                  summary, style, constraints.maxWidth,
+                  MediaQuery.textScalerOf(context));
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -184,13 +185,17 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   Widget _coverPlaceholder() => Container(color: const Color(0xFFE8EAF6));
 
-  bool _summaryOverflows(String text, TextStyle style, double maxWidth) {
+  bool _summaryOverflows(
+      String text, TextStyle style, double maxWidth, TextScaler textScaler) {
     final tp = TextPainter(
       text: TextSpan(text: text, style: style),
       maxLines: 3,
+      textScaler: textScaler,
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: maxWidth);
-    return tp.didExceedMaxLines;
+    final overflows = tp.didExceedMaxLines;
+    tp.dispose();
+    return overflows;
   }
 
   Widget _tag(String text) => Container(
