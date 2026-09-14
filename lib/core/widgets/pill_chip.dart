@@ -14,12 +14,12 @@ class PillChip extends StatelessWidget {
 
   static const _accent = Color(0xFF007AFF);
   static const _muted = Color(0xFF5A5A5F);
-  static const _hPad = 12.0;
+  static const _hPad = 15.0;
 
   @override
   Widget build(BuildContext context) {
     final style = TextStyle(
-      fontSize: 14,
+      fontSize: 15,
       fontWeight: FontWeight.w500,
       color: selected ? Colors.white : _muted,
     );
@@ -39,7 +39,7 @@ class PillChip extends StatelessWidget {
         onTap: onTap,
         child: Container(
           width: width,
-          height: 32,
+          height: 36,
           padding: const EdgeInsets.only(left: _hPad),
           alignment: Alignment.centerLeft,
           child: Text(label, maxLines: 1, softWrap: false, style: style),

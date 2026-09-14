@@ -177,7 +177,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                 children: [
                   for (final source in sources)
                     Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 10),
                       child:
                           _sourceChip(source, source.key == selected.key),
                     ),
@@ -213,14 +213,14 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
   Widget _sectionChips(ComicSource source, int section) {
     if (source.sections.length <= 1) return const SizedBox.shrink();
     return SizedBox(
-      height: 44,
+      height: 48,
       child: _horizontalScroll(
         padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
         child: Row(
           children: [
             for (var i = 0; i < source.sections.length; i++)
               Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 10),
                 child: _chip(
                   source.sections[i].title.isEmpty
                       ? '分区 ${i + 1}'
@@ -241,14 +241,14 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
 
   Widget _partChips(List<ComicPart> parts, int selected) {
     return SizedBox(
-      height: 44,
+      height: 48,
       child: _horizontalScroll(
         padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
         child: Row(
           children: [
             for (var i = 0; i < parts.length; i++)
               Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 10),
                 child: _chip(
                   parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
                   i == selected,

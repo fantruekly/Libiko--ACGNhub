@@ -142,14 +142,14 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
 
   Widget _sourceChips(List<NovelSource> sources) {
     return SizedBox(
-      height: 44,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           for (final s in sources)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 10),
               child: _chip(s.name, s.id == _sourceId, () => setState(() {
                 _sourceId = s.id;
                 _groupIndex = -1;
@@ -164,13 +164,13 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
 
   Widget _sectionChips(List<NovelBrowseGroup> groups) {
     return SizedBox(
-      height: 44,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: 10),
             child: _chip('推荐', _groupIndex < 0, () => setState(() {
               _groupIndex = -1;
               _page = 1;
@@ -178,7 +178,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
           ),
           for (var i = 0; i < groups.length; i++)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 10),
               child: _chip(groups[i].label, _groupIndex == i, () => setState(() {
                 _groupIndex = i;
                 _optionIndex = 0;
@@ -192,14 +192,14 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
 
   Widget _optionChips(NovelBrowseGroup group) {
     return SizedBox(
-      height: 44,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           for (var i = 0; i < group.options.length; i++)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 10),
               child: _chip(group.options[i].label, _optionIndex == i, () => setState(() {
                 _optionIndex = i;
                 _page = 1;
