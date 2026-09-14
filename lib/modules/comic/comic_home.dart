@@ -204,7 +204,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
       selectedColor: _accent,
       backgroundColor: const Color(0xFFF2F2F7),
       labelStyle: TextStyle(
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: FontWeight.w500,
         color: selected ? Colors.white : _muted,
       ),

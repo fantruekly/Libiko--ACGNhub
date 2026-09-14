@@ -218,7 +218,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       selectedColor: _accent,
       backgroundColor: const Color(0xFFF2F2F7),
       labelStyle: TextStyle(
-          fontSize: 12, fontWeight: FontWeight.w500, color: selected ? Colors.white : _muted),
+          fontSize: 13, fontWeight: FontWeight.w500, color: selected ? Colors.white : _muted),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       side: BorderSide.none,
