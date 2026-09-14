@@ -68,7 +68,13 @@ class TabStrip extends StatelessWidget {
                                 softWrap: false,
                                 style: TextStyle(
                                   fontSize: 15,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.lerp(
+                                      FontWeight.w500,
+                                      FontWeight.w400,
+                                      (t - k)
+                                          .abs()
+                                          .clamp(0.0, 1.0)
+                                          .toDouble()),
                                   color: Color.lerp(_accent, _muted,
                                       (t - k).abs().clamp(0.0, 1.0).toDouble()),
                                 ),
