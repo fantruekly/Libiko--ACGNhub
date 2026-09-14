@@ -19,6 +19,11 @@ void main() {
     expect(s.baseUrl, linovelibBaseUrl);
   });
 
+  test('detail/catalog paths', () {
+    expect(LinovelibSource.detailPath('5340'), '/novel/5340.html');
+    expect(LinovelibSource.catalogPath('5340'), '/novel/5340/catalog');
+  });
+
   test('allvisit is a single-page ranking', () {
     expect(
         LinovelibSource.isSinglePageRanking(

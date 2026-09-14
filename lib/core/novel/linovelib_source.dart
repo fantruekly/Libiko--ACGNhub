@@ -256,8 +256,19 @@ class LinovelibSource implements NovelSource {
   Future<List<Novel>> search(String keyword, {int page = 1}) =>
       throw UnimplementedError();
 
+  static String detailPath(String id) => '/novel/$id.html';
+
+  static String catalogPath(String id) => '/novel/$id/catalog';
+
   @override
-  Future<NovelDetail> detail(String id) => throw UnimplementedError();
+  Future<NovelDetail> detail(String id) async {
+    final detailHtml = await _get(detailPath(id));
+    final catalogHtml = await _get(catalogPath(id));
+    return NovelDetail(
+      novel: parseNovelDetailHeader(detailHtml, id),
+      volumes: parseCatalog(catalogHtml, id),
+    );
+  }
 
   @override
   Future<NovelChapter> chapter(String novelId, String chapterId) =>
