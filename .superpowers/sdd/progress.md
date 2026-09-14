@@ -242,6 +242,15 @@ Task 6 (review fixes): complete (commit 23fad20..6f9ba67, re-review clean: "Read
   state synced before write; chapterPath wired into fetchChapterPages; volume-grouped + palette-themed sheets;
   _topBar params dropped; next-chapter navigation test added.
 Novel reader increment: COMPLETE (98c8c85..6f9ba67). Pushed to origin/dev.
+
+## Novel reader follow-up fixes (ad hoc)
+
+Task 7 (illustrations): complete (commit 6f9ba67..6b7dc5b, review clean). `NovelChapter` now holds ordered
+  `List<NovelBlock>` (`NovelText`/`NovelImage`); `parseChapter` reads `#TextContent` children, images from
+  `data-src` (skipping sloading/.svg); reader renders `CachedNetworkImage`. Ripple test files also updated.
+  Minor (deferred): `_imageUrl` trusts a present-but-empty data-src; no widget test for image rendering/empty state.
+Task 8 (window controls): complete (commit 6b7dc5b..cfeaf12, review clean: Approved). Detail AppBar actions +
+  reader `_topBar` now show `WindowControls` (the pushed full-screen routes had covered the shell title bar).
   Manual live-site verification owed to the human: selectors (#mlfy_main_text h1, div#TextContent p, div.mlfy_page a),
   relative vs absolute 下一页 hrefs, and that chapter bodies are <p>-wrapped.
   Deferred Minors: rapid-tap still bounded by rebuild timing; partial sheet theme override; duplicated Theme boilerplate;
