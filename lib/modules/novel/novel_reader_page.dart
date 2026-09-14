@@ -134,19 +134,17 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                   ),
                 NovelImage(:final url) => Padding(
                     padding: const EdgeInsets.only(bottom: 14),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      height: _illustrationHeight(context),
+                      width: double.infinity,
                       child: CachedNetworkImage(
                         imageUrl: url,
                         fit: BoxFit.contain,
                         httpHeaders: novelImageHeaders,
-                        placeholder: (_, __) => const SizedBox(
-                            height: 180,
-                            child: Center(child: CircularProgressIndicator())),
-                        errorWidget: (_, __, ___) => const SizedBox(
-                            height: 80,
-                            child: Center(
-                                child: Icon(Icons.broken_image_outlined))),
+                        placeholder: (_, __) => const Center(
+                            child: CircularProgressIndicator()),
+                        errorWidget: (_, __, ___) => const Center(
+                            child: Icon(Icons.broken_image_outlined)),
                       ),
                     ),
                   ),
@@ -154,6 +152,14 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
         ],
       ),
     );
+  }
+
+  /// The height of the content viewport (between the 56px top bar and the
+  /// 64px bottom bar), so an illustration fills the page vertically with the
+  /// sides left blank, like a comic page.
+  double _illustrationHeight(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height - 56 - 64 - 24;
+    return h.clamp(200, 4000).toDouble();
   }
 
   Widget _topBar(_Palette palette) {
