@@ -215,3 +215,34 @@ Reproduced via `flutter run` log (9931 lines of repeating exceptions) with the a
 temporarily starting on 排行. Fix: explicit bounded pager button style (Size(84,40)).
 Task 10: complete (commit bf93a6b..0d08559) + regression test `novel_home_pager_test.dart`
   (fails without the fix, passes with it). Verified: 0 exceptions, allvisit→60, monthvisit/weekvisit→30.
+
+## Novel reader ledger — 阅读器
+
+Plan: docs/superpowers/plans/2026-09-14-novel-reader.md
+Spec: docs/superpowers/specs/2026-09-14-novel-reader-design.md
+Base commit: 98c8c85 (before Task 1)
+
+Task 1: complete (commit 98c8c85..9d9cf5b, review clean)
+  Minor (deferred): maxPages cap / self-referential link untested; fetchChapterPages passes '' as fallback title.
+Task 2: complete (commit 9d9cf5b..79c4d7c, review clean)
+  Minor (deferred): chapter path string duplicated between chapterPath and fetchChapterPages; chapter() has no direct behavioral test.
+Task 3: complete (commit 79c4d7c..a00f8a0, review clean)
+  Important (plan-mandated, deferred to final review): `write()` discards AppDatabase.setString's bool, then
+  `_update` sets `state` unconditionally → a failed write desyncs state from storage. Same as comic_reader_settings.
+  Minor (deferred): concurrent setter lost-updates; setter clamp untested.
+Task 4: complete (commit a00f8a0..0103699, review clean)
+  Minor (deferred): novelChapterProvider has no direct test (only flattenChapters).
+Task 5: complete (commit 0103699..23fad20, review clean). 3 justified deviations from the brief's verbatim
+  code (brief was internally inconsistent): test setUp needs AppDatabase.init(); added chapter-title heading
+  the test asserts; wrapped content in Positioned.fill (Stack shrink-wrap → bottom-bar RenderFlex overflow).
+  Minor (deferred): _topBar unused chapters/index params; sheets don't use the reading palette; happy-path test only.
+Final whole-branch review: 98c8c85..23fad20 → "merge with fixes" (3 Important: settings lost-update/persist desync,
+  missing next-chapter nav test, dead chapterPath; ~7 Minor).
+Task 6 (review fixes): complete (commit 23fad20..6f9ba67, re-review clean: "Ready to merge? Yes")
+  state synced before write; chapterPath wired into fetchChapterPages; volume-grouped + palette-themed sheets;
+  _topBar params dropped; next-chapter navigation test added.
+Novel reader increment: COMPLETE (98c8c85..6f9ba67). Pushed to origin/dev.
+  Manual live-site verification owed to the human: selectors (#mlfy_main_text h1, div#TextContent p, div.mlfy_page a),
+  relative vs absolute 下一页 hrefs, and that chapter bodies are <p>-wrapped.
+  Deferred Minors: rapid-tap still bounded by rebuild timing; partial sheet theme override; duplicated Theme boilerplate;
+  novelChapterProvider untested directly; maxPages cap untested.
