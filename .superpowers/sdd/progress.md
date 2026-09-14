@@ -174,3 +174,27 @@ Novel module v1: COMPLETE (a4691b5..c4519db + spec doc fix). Pushed to origin/de
   Manual live-site verification (源 chip / 网格 / 排行子chip / 手动换页 / 文库) still owed to the human.
   Deferred Minors: hasMore `>=10` fallback can show one extra empty page; browse hasMore not unit-tested;
   double HTML parse in hasPaginationControl+hasNextPage; Novel.fromJson extra cast is lazy.
+
+## Novel detail ledger — 书籍详情 + 分卷目录
+
+Plan: docs/superpowers/plans/2026-09-14-novel-detail.md
+Spec: docs/superpowers/specs/2026-09-14-novel-detail-design.md
+Base commit: 9b96e56 (before Task 1)
+
+Task 1: complete (commit 9b96e56..a52210b, review clean)
+  Minor (deferred): no coverage for NovelVolume url==null / chapters==[] defaults; NovelChapterRef has no equality.
+Task 2: complete (commit a52210b..a4e5064, review clean)
+  Minor (deferred): parseCatalog non-chapter-href skip untested; missing-element fallbacks untested; cover src/data-original precedence asymmetry vs list parsers.
+Task 3: complete (commit a4e5064..03cafdf, review clean)
+  Minor (deferred): detail fetches the two pages sequentially; detail merge not unit-tested (network).
+Task 4: complete (commit 03cafdf..e018ea5, review clean; no issues)
+Task 5: complete (commit e018ea5..7d02e87, review clean)
+  Minor (deferred): 展开/收起 shows even when the summary fits 3 lines; some surface colors outside tokens; no test for error/empty/SnackBar states.
+  Visual verification deferred to human.
+Final whole-branch review: 9b96e56..7d02e87 → "merge with fixes" (Critical: cover precedence; Important: cover placeholder, summary fallback; ~9 Minor).
+Task 6 (review fixes): complete (commit 7d02e87..87710ee + 584df15, re-review clean: "Ready to merge? Yes")
+  data-original-first cover; meta-description summary fallback; cover placeholder/errorWidget; overflow-gated 展开 (honors textScaler, painter disposed); Future.wait; spec sync.
+Novel detail increment: COMPLETE (9b96e56..584df15). Pushed to origin/dev.
+  Manual live-site verification (卡片→详情页：封面/作者/标签/简介/分卷目录/点章节提示) still owed to the human.
+  Deferred Minors: no regression test for textScaler overflow; hardcoded TextDirection.ltr; `data-original=""` doesn't fall through to src;
+  parseCatalog's unused novelId; eager Wrap of all chapters; some surface colors outside tokens.
