@@ -8,6 +8,7 @@ import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_source.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pill_chip.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import 'novel_detail_page.dart';
@@ -209,22 +210,8 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     );
   }
 
-  Widget _chip(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      onSelected: (_) => onTap(),
-      selectedColor: _accent,
-      backgroundColor: const Color(0xFFF2F2F7),
-      labelStyle: TextStyle(
-          fontSize: 13, fontWeight: FontWeight.w500, color: selected ? Colors.white : _muted),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      side: BorderSide.none,
-      visualDensity: VisualDensity.compact,
-    );
-  }
+  Widget _chip(String label, bool selected, VoidCallback onTap) =>
+      PillChip(label: label, selected: selected, onTap: onTap);
 
   Widget _body(List<NovelBrowseGroup> groups) {
     if (_groupIndex < 0 || _groupIndex >= groups.length) {

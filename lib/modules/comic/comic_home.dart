@@ -8,6 +8,7 @@ import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_source.dart';
 import '../../core/comic/explore_result.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pill_chip.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import 'comic_detail_page.dart';
@@ -195,25 +196,8 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _chip(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      onSelected: (_) => onTap(),
-      selectedColor: _accent,
-      backgroundColor: const Color(0xFFF2F2F7),
-      labelStyle: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: selected ? Colors.white : _muted,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      side: BorderSide.none,
-      visualDensity: VisualDensity.compact,
-    );
-  }
+  Widget _chip(String label, bool selected, VoidCallback onTap) =>
+      PillChip(label: label, selected: selected, onTap: onTap);
 
   Widget _sourceChip(ComicSource source, bool selected) {
     return _chip(source.name, selected, () {
