@@ -74,8 +74,9 @@ void main() {
     await tester.tap(find.text('排行'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('上一页'), findsOneWidget);
-    expect(find.text('下一页'), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+    expect(find.text('第 1 页'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

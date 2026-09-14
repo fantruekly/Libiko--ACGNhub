@@ -272,31 +272,29 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     );
   }
 
-  static final _pagerButtonStyle = OutlinedButton.styleFrom(
-    minimumSize: const Size(84, 40),
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-  );
-
   Widget _pager(bool hasMore) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          OutlinedButton(
-            style: _pagerButtonStyle,
+          IconButton(
+            tooltip: '上一页',
+            icon: const Icon(Icons.chevron_left_rounded),
             onPressed: _page > 1 ? () => setState(() => _page--) : null,
-            child: const Text('上一页'),
           ),
           const SizedBox(width: 16),
           Text('第 $_page 页',
               style: const TextStyle(fontSize: 13, color: _muted)),
           const SizedBox(width: 16),
-          OutlinedButton(
-            style: _pagerButtonStyle,
+          IconButton(
+            tooltip: '下一页',
+            icon: const Icon(Icons.chevron_right_rounded),
             onPressed: hasMore ? () => setState(() => _page++) : null,
-            child: const Text('下一页'),
           ),
         ],
       ),
