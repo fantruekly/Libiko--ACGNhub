@@ -62,6 +62,7 @@ class _MarqueeTextState extends State<MarqueeText>
           textScaler: MediaQuery.textScalerOf(context),
         )..layout();
         final overflow = painter.width - maxWidth;
+        painter.dispose();
         if (!maxWidth.isFinite || overflow <= 0) {
           return Text(
             widget.text,
@@ -79,11 +80,16 @@ class _MarqueeTextState extends State<MarqueeText>
               builder: (context, _) => Transform.translate(
                 offset:
                     Offset(-_controller.value * (overflow + widget.gap), 0),
-                child: Text(
-                  widget.text,
-                  maxLines: 1,
-                  softWrap: false,
-                  style: style,
+                child: OverflowBox(
+                  alignment: Alignment.centerLeft,
+                  maxWidth: double.infinity,
+                  child: Text(
+                    widget.text,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
+                    style: style,
+                  ),
                 ),
               ),
             ),

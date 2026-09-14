@@ -36,6 +36,13 @@ void main() {
           of: find.byType(MarqueeText), matching: find.byType(MouseRegion)),
       findsOneWidget,
     );
+    expect(
+      tester
+          .getSize(find.descendant(
+              of: find.byType(MarqueeText), matching: find.byType(Text)))
+          .width,
+      greaterThan(80),
+    );
 
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: Offset.zero);
