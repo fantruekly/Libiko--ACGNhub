@@ -268,3 +268,32 @@ Task 13 (人气榜 covers): complete (commit 7227414..9277f9b, review clean). `r
   relative vs absolute 下一页 hrefs, and that chapter bodies are <p>-wrapped.
   Deferred Minors: rapid-tap still bounded by rebuild timing; partial sheet theme override; duplicated Theme boilerplate;
   novelChapterProvider untested directly; maxPages cap untested.
+
+## lknovel source plan (2026-09-14-lknovel-source.md)
+
+Task 1: complete (commits 7ce8641..3fe3bb4, re-review clean: Approved). Browse model generalized:
+  NovelBrowseOption/NovelBrowseGroup; NovelSource.browseGroups + browse(String optionKey); NovelBrowse(Kind) removed;
+  NovelVolume.id optional; novelBrowseProvider key (sourceId,optionKey,page); novel_home renders source-declared groups.
+  Fix 3fe3bb4 added LinovelibSource.browsePath + test/core/novel/linovelib_browse_test.dart.
+  Minor (deferred to final review): parser dispatch (parseRankRows/parseBookList) not independently asserted; option-chip index cosmetic.
+Task 2: complete (commits 3fe3bb4..79289b1, review clean: Approved). New lib/core/novel/lknovel_source.dart:
+  LknovelSource (id lknovel, name 轻之国度) + LkPoster seam + pure parsers (lkData/parseLkBook/parseLkList/
+  lkHasMore/parseLkVolumes/parseLkVolumeChapters/parseLkChapter); home() 4 feeds w/ per-feed resilience;
+  browseGroups 排行/分类; browse() rank_scene vs feed endpoints; registered in novel_providers.dart.
+  detail/chapter are intentional UnimplementedError stubs (Task 3).
+  Confirmed live: bff/home-feed-v1 works (code 0) for new_books.
+  Minor (deferred to final review): home partial-failure/all-empty untested; code string '0' not handled;
+  lkHasMore 30-item fallback heuristic; _stringList duplicated from models.dart.
+Task 3: complete (commits 79289b1..8e1159a, review clean: Approved). LknovelSource.detail (get-book-detail
+  with_volumes:1 + per-volume get-volume-chapters, batch 6, page>=100 cap, per-volume try/catch -> empty) and
+  chapter (get-chapter-detail -> parseLkChapter) implemented; 2 tests appended (RED->GREEN).
+  Minor (deferred to final review): catch(_) swallows all errors (no debug log); failure isolation & pagination
+  cap covered by construction only.
+ALL 3 TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (7ce8641..8e1159a): 'With fixes'. 2 Important (illustration URL normalization;
+  prefer full summary over summary_short) + minors. Fix commit 86d4faa resolved Important #1/#2 and minors
+  #3 (code via _asInt), #4 (rankingKeys Set), #5 (5 new tests). Re-review 8e1159a..86d4faa: Approved.
+  Remaining Minors (recorded, not fixed): code!=0 test doesn't guard the _asInt change (needs a {"code":"0"} non-throw case);
+  _imageUrl treats data-src="" as present and drops a valid src; non-http schemes (data:) mangled.
+lknovel source feature: COMPLETE (7ce8641..86d4faa). Pushed to origin/dev.
+  Live manual verification still owed: open a lknovel chapter with an illustration + a long-series detail.

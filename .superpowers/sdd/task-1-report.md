@@ -1,65 +1,120 @@
-# Task 1 Report: 轻小说章节解析函数
+# Task 1 Report: 浏览分组通用化（模型 / 接口 / linovelib / 首页 UI）
 
-## Status: DONE
+## Status
+
+DONE
 
 ## What I implemented
-Added three top-level pure functions to `lib/core/novel/linovelib_source.dart` (appended after `parseCatalog`, before `class LinovelibSource`), exactly as specified in the brief:
 
-- `NovelChapter parseChapter(String html, String fallbackTitle)` — reads title from `#mlfy_main_text h1` (falls back to `fallbackTitle` when empty) and collects non-empty `<p>` texts under `div#TextContent`, joined with `\n\n`.
-- `String? nextPageHref(String html, String novelId, String chapterId)` — finds the `下一页` `<a>` in `div.mlfy_page` and returns its href only when it matches `/novel/<novelId>/<chapterId>_<n>.html`; otherwise `null`.
-- `Future<NovelChapter> fetchChapterPages({required String novelId, required String chapterId, required Future<String> Function(String path) fetch, int maxPages = 50})` — fetches the first page, then follows same-chapter page links, concatenating non-empty content with `\n\n`, bounded by `maxPages`.
+Replaced the hardcoded `NovelBrowseKind {ranking, bunko}` enum + `NovelBrowse` class with
+source-declared browse groups/options, so each source can declare its own browse taxonomy.
 
-No new dependency added; `html` package already imported. `NovelChapter` reused from `models.dart`, not redefined.
+- **models.dart**: Removed `NovelBrowseKind`/`NovelBrowse`; added `NovelBrowseOption`
+  (`key`, `label`) and `NovelBrowseGroup` (`label`, `options`). Added optional `id` field to
+  `NovelVolume` (for future lknovel per-volume chapter fetching), preserving `title`/`url`/
+  `chapters` and the existing default for `chapters`.
+- **novel_source.dart**: Replaced `browse(NovelBrowse, {page})` with
+  `List<NovelBrowseGroup> get browseGroups` and `browse(String optionKey, {int page = 1})`.
+  `NovelSourceManager` untouched.
+- **linovelib_source.dart**: Added `static const Set<String> rankingKeys`; added
+  `browseGroups` declaring 排行 (13 options) and 文库 (14 options) — exactly the option
+  key/label pairs that previously lived in `novel_home.dart`; rewrote `browse` to dispatch
+  ranking vs. bunko via `rankingKeys` and call `rankPath`/`bunkoPath` + `parseRankRows`/
+  `parseBookList` as before. `rankPath`/`bunkoPath` remain.
+- **novel_providers.dart**: `novelBrowseProvider` family key changed from
+  `(String, NovelBrowseKind, String, int)` to `(String, String, int)`
+  `(sourceId, optionKey, page)`.
+- **novel_home.dart**: Full rewrite to render source chips, then group chips (推荐 + one chip
+  per `source.browseGroups` group), then option chips for the selected group, then the body
+  (home feed for 推荐, paged browse list for a group). Removed `_NovelSection`,
+  `_rankingOptions`, `_bunkoOptions`. `NovelCard`, `_pager`, `_grid`, `_chip` kept unchanged.
+- **Tests**: Updated `models_test.dart` (group/option test), `novel_source_test.dart`
+  (`_FakeSource` now overrides `browseGroups` + new `browse`), and
+  `novel_home_pager_test.dart` (`_FakeSource` declares a 排行 group and new `browse`).
 
-## What I tested and results
-- `flutter test test/core/novel/linovelib_chapter_parser_test.dart` → `+4: All tests passed!` (4 tests).
-- `flutter analyze lib test` → `No issues found! (ran in 2.7s)`.
-- `flutter test` → `+202 ~1: All tests passed!` (202 passed; 1 skip is the pre-existing `js_engine_smoke_test.dart` flutter_qjs native-library skip, unrelated to this task).
+## Commands run and results
 
-## TDD Evidence
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+=> No issues found! (ran in 4.3s)
 
-### RED
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart
-```
-Output (relevant):
-```
-test/core/novel/linovelib_chapter_parser_test.dart:18:16: Error: Method not found: 'parseChapter'.
-test/core/novel/linovelib_chapter_parser_test.dart:30:12: Error: Method not found: 'nextPageHref'.
-test/core/novel/linovelib_chapter_parser_test.dart:41:22: Error: Method not found: 'fetchChapterPages'.
-Failed to load "test/core/novel/linovelib_chapter_parser_test.dart": Compilation failed
-00:00 +0 -1: Some tests failed.
-```
-Why expected: the three functions did not exist in `linovelib_source.dart` yet, so the new test could not compile — the failure mode the brief predicted (`parseChapter` 未定义).
-
-### GREEN
-Command:
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart
-```
-Output:
-```
-00:00 +0: parseChapter reads title and paragraphs
-00:00 +1: parseChapter falls back to the given title
-00:00 +2: nextPageHref returns same-chapter page links only
-00:00 +3: fetchChapterPages concatenates same-chapter pages
-00:00 +4: All tests passed!
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+=> 00:08 +210 ~1: All tests passed!
+   (1 pre-existing skip: js_engine_smoke_test — flutter_qjs native lib unavailable under test)
 ```
 
-## Files changed
-- `lib/core/novel/linovelib_source.dart` (modified)
-- `test/core/novel/linovelib_chapter_parser_test.dart` (new)
+## Commit
 
-Commit: `9d9cf5b feat(novel): add chapter parsers (paragraphs + same-chapter paging)` (pushed to `dev`).
+- `683433e` refactor(novel): source-declared browse groups
+- Pushed to `origin/dev` (`7ce8641..683433e`).
+
+## Files changed (all 8 from the brief)
+
+1. lib/core/novel/models.dart
+2. lib/core/novel/novel_source.dart
+3. lib/core/novel/linovelib_source.dart
+4. lib/modules/novel/novel_providers.dart
+5. lib/modules/novel/novel_home.dart
+6. test/core/novel/models_test.dart
+7. test/core/novel/novel_source_test.dart
+8. test/modules/novel/novel_home_pager_test.dart
 
 ## Self-review findings
-- `parseChapter` filters blank `<p>` nodes, so `<br>` separators and empty paragraphs do not produce stray `\n\n`.
-- `nextPageHref` deliberately returns `null` when the `下一页` link exists but is the next *chapter* (does not match the `_<n>` prefix), which is what keeps `fetchChapterPages` from spilling into the next chapter.
-- `fetchChapterPages` guards against runaway/looping pagination with `maxPages` (default 50) and does not re-add empty content.
-- Implementation matches the brief verbatim; signatures match the names/signatures later tasks depend on.
-- `flutter analyze lib test` and the full `flutter test` suite are clean.
+
+- All 8 files in the brief's `Files:` list were updated and staged/committed.
+- The three test files compile against the new signatures; `flutter analyze lib test` is clean.
+- `flutter test` is fully green (210 passed, 1 pre-existing skip unrelated to this task).
+- `NovelBrowseKind` / `NovelBrowse` have no remaining references in `lib/` or `test/`.
+  A pre-existing dev probe `.superpowers/sdd/novel_rank_probe.dart` still uses the old API,
+  but it is outside `lib`/`test` (not analyzed by the required command) and is a scratch probe,
+  not shipped code. Left untouched per the brief.
+- The brief file itself (`.superpowers/sdd/task-1-brief.md`) showed as modified in the working
+  tree but was NOT touched by me; it was not staged or committed.
 
 ## Concerns
-- `nextPageHref` matches the link text exactly (`下一页`); real linovelib pages could include surrounding whitespace, but `.trim()` handles that. If the site ever changes the label (e.g. `下一页 »`), this would need widening — out of scope here.
-- `.superpowers/sdd/task-1-brief.md` and other `.superpowers/` / `docs/` files were already modified in the working tree before this task (orchestrator updates) and were intentionally NOT staged; only the two brief-listed files were committed.
+
+- None blocking. Minor: `.superpowers/sdd/novel_rank_probe.dart` is now stale against the new
+  interface. If a future task runs `flutter analyze` over the whole repo (including
+  `.superpowers`), it would flag that probe. Not part of this task's required scope.
+
+---
+
+# Fix Report: cover linovelib browse path routing
+
+## Finding addressed
+
+The spec (`docs/superpowers/specs/2026-09-14-lknovel-source-design.md`, ����) requires
+`test/core/novel/linovelib_browse_test.dart` to assert `browseGroups` shape and the
+ranking-vs-bunko `browse` dispatch. Task 1 omitted it, leaving the new dispatch untested.
+The spec permits verifying routing by asserting a path-mapping function.
+
+## Files changed
+
+1. `lib/core/novel/linovelib_source.dart`
+   - Extracted the path choice from `browse` into public
+     `static String browsePath(String optionKey, int page)` and call it from `browse`.
+2. `test/core/novel/linovelib_browse_test.dart` (new)
+   - Asserts exactly 2 groups labelled `['����', '�Ŀ�']`; ���� keys include
+     `allvisit`/`monthvote`/`newhot`; �Ŀ� keys include
+     `dengekibunko`/`chineselightnovel`/`other`;
+     `browsePath('allvisit', 1) == '/top/allvisit/1.html'`,
+     `browsePath('allvisit', 2) == '/top/allvisit/2.html'`,
+     `browsePath('dengekibunko', 2) == '/wenku/dengekibunko/2.html'`.
+
+## Commands run and results
+
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+=> No issues found! (ran in 2.0s)
+
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_browse_test.dart test/core/novel/linovelib_source_test.dart
+=> 00:00 +10: All tests passed!
+
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+=> 00:11 +215 ~1: All tests passed!
+   (1 pre-existing skip: js_engine_smoke_test)
+```
+
+## Concerns
+
+- None.
