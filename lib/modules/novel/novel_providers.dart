@@ -38,3 +38,11 @@ final novelBrowseProvider =
   if (source == null) throw StateError('novel source $sourceId not found');
   return source.browse(NovelBrowse(kind, browseKey), page: page);
 });
+
+final novelDetailProvider =
+    FutureProvider.family<NovelDetail, (String, String)>((ref, key) async {
+  final (sourceId, novelId) = key;
+  final source = ref.watch(novelSourceManagerProvider).byId(sourceId);
+  if (source == null) throw StateError('novel source $sourceId not found');
+  return source.detail(novelId);
+});
