@@ -71,10 +71,23 @@ class NovelBrowse {
   const NovelBrowse(this.kind, this.key);
 }
 
+class NovelChapterRef {
+  final String id;
+  final String title;
+  const NovelChapterRef({required this.id, required this.title});
+}
+
+class NovelVolume {
+  final String title;
+  final String? url;
+  final List<NovelChapterRef> chapters;
+  const NovelVolume({required this.title, this.url, this.chapters = const []});
+}
+
 class NovelDetail {
   final Novel novel;
-  final Map<String, String> chapters;
-  const NovelDetail({required this.novel, required this.chapters});
+  final List<NovelVolume> volumes;
+  const NovelDetail({required this.novel, required this.volumes});
 }
 
 class NovelChapter {

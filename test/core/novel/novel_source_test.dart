@@ -18,7 +18,7 @@ class _FakeSource extends NovelSource {
   Future<List<Novel>> search(String keyword, {int page = 1}) async => const [];
   @override
   Future<NovelDetail> detail(String id) async =>
-      const NovelDetail(novel: Novel(id: 'x', title: 'x'), chapters: {});
+      const NovelDetail(novel: Novel(id: 'x', title: 'x'), volumes: []);
   @override
   Future<NovelChapter> chapter(String novelId, String chapterId) async =>
       const NovelChapter(title: 't', content: 'c');

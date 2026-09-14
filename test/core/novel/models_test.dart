@@ -39,4 +39,18 @@ void main() {
     expect(b.kind, NovelBrowseKind.bunko);
     expect(b.key, 'dengekibunko');
   });
+
+  test('NovelDetail holds volumes with chapter refs', () {
+    const detail = NovelDetail(
+      novel: Novel(id: '5340', title: 'T'),
+      volumes: [
+        NovelVolume(title: '正文', url: 'https://x/vol_1.html', chapters: [
+          NovelChapterRef(id: '333607', title: '封面'),
+        ]),
+      ],
+    );
+    expect(detail.volumes.single.title, '正文');
+    expect(detail.volumes.single.chapters.single.id, '333607');
+    expect(detail.volumes.single.chapters.single.title, '封面');
+  });
 }
