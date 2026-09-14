@@ -11,6 +11,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_chip.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/tab_strip.dart';
 import 'comic_detail_page.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
@@ -35,18 +36,9 @@ class _ComicHomePageState extends ConsumerState<ComicHomePage> {
         builder: (context) {
           final controller = DefaultTabController.of(context);
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const TabBar(
-                labelColor: _accent,
-                unselectedLabelColor: _muted,
-                indicatorColor: _accent,
-                dividerColor: Color(0xFFE5E5EA),
-                labelStyle:
-                    TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                unselectedLabelStyle:
-                    TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                tabs: [Tab(text: '发现'), Tab(text: '收藏'), Tab(text: '历史')],
-              ),
+              const TabStrip(labels: ['发现', '收藏', '历史']),
               Expanded(
                 child: TabBarView(
                   children: [
