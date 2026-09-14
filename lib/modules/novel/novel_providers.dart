@@ -8,9 +8,8 @@ final novelSourceManagerProvider = Provider<NovelSourceManager>(
   (ref) => NovelSourceManager(sources: [LinovelibSource()]),
 );
 
-final novelSourcesProvider = FutureProvider<List<NovelSource>>(
-  (ref) async => ref.watch(novelSourceManagerProvider).sources,
-);
+final novelSourcesProvider =
+    Provider<List<NovelSource>>((ref) => ref.watch(novelSourceManagerProvider).sources);
 
 /// 合并首页各书单并按 id 去重。
 List<Novel> flattenHome(NovelHome home) {

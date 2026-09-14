@@ -131,7 +131,7 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
     return Column(
       children: [
         const SizedBox(height: 8),
-        _sourceChips(sources.valueOrNull ?? const []),
+        _sourceChips(sources),
         _sectionChips(),
         if (_section == _NovelSection.ranking) _optionChips(_rankingOptions, _rankingKey, (k) => setState(() { _rankingKey = k; _page = 1; })),
         if (_section == _NovelSection.bunko) _optionChips(_bunkoOptions, _bunkoKey, (k) => setState(() { _bunkoKey = k; _page = 1; })),
@@ -219,50 +219,77 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
     if (_section == _NovelSection.recommend) {
       final async = ref.watch(novelHomeProvider(_sourceId));
       return async.when(
-        loading: () => const ShimmerLoader(crossAxisCount: 6, itemCount: 12),
+        loading: () => const ShimmerLoader(
+            crossAxisCount: 6,
+            itemCount: 12,
+            aspectRatio: 0.58,
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
         error: (_, __) => EmptyState(
           icon: Icons.cloud_off_rounded,
           message: '加载失败',
           actionLabel: '重试',
           onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
         ),
-        data: (home) => _grid(flattenHome(home), null),
+        data: (home) => _grid(flattenHome(home)),
       );
     }
     final kind = _section == _NovelSection.ranking ? NovelBrowseKind.ranking : NovelBrowseKind.bunko;
     final key = _section == _NovelSection.ranking ? _rankingKey : _bunkoKey;
     final async = ref.watch(novelBrowseProvider((_sourceId, kind, key, _page)));
     return async.when(
-      loading: () => const ShimmerLoader(crossAxisCount: 6, itemCount: 12),
+      loading: () => const ShimmerLoader(
+          crossAxisCount: 6,
+          itemCount: 12,
+          aspectRatio: 0.58,
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
         actionLabel: '重试',
         onAction: () => ref.invalidate(novelBrowseProvider((_sourceId, kind, key, _page))),
       ),
-      data: (list) => _grid(list.items, list.hasMore ? () => setState(() => _page++) : null),
+      data: (list) => Column(
+        children: [
+          Expanded(child: _grid(list.items)),
+          _pager(list.hasMore),
+        ],
+      ),
     );
   }
 
-  Widget _grid(List<Novel> items, VoidCallback? onLoadMore) {
+  Widget _pager(bool hasMore) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          OutlinedButton(
+            onPressed: _page > 1 ? () => setState(() => _page--) : null,
+            child: const Text('上一页'),
+          ),
+          const SizedBox(width: 16),
+          Text('第 $_page 页',
+              style: const TextStyle(fontSize: 13, color: _muted)),
+          const SizedBox(width: 16),
+          OutlinedButton(
+            onPressed: hasMore ? () => setState(() => _page++) : null,
+            child: const Text('下一页'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _grid(List<Novel> items) {
     if (items.isEmpty) {
       return const EmptyState(icon: Icons.menu_book_rounded, message: '暂无内容');
     }
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        if (onLoadMore != null &&
-            n.metrics.pixels >= n.metrics.maxScrollExtent - 400) {
-          onLoadMore();
-        }
-        return false;
-      },
-      child: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 6, mainAxisSpacing: 20, crossAxisSpacing: 16, childAspectRatio: 0.58),
-        itemCount: items.length,
-        itemBuilder: (_, i) => NovelCard(novel: items[i]),
-      ),
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6, mainAxisSpacing: 20, crossAxisSpacing: 16, childAspectRatio: 0.58),
+      itemCount: items.length,
+      itemBuilder: (_, i) => NovelCard(novel: items[i]),
     );
   }
 }

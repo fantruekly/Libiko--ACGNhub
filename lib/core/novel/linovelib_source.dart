@@ -88,11 +88,17 @@ List<Novel> parseRankRows(String html) {
     final cover = _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
     final author = _textOf(row.querySelector('a.rank_i_l_a_author'));
     final rank = int.tryParse(_textOf(row.querySelector('div.rank_i_num')));
+    final cate = _textOf(row.querySelector('a.rank_i_l_a_category'));
+    final tags = <String>[];
+    if (cate.isNotEmpty) {
+      tags.add(cate.replaceAll('[', '').replaceAll(']', ''));
+    }
     out.add(Novel(
       id: id,
       title: _textOf(bookA),
       author: author.isEmpty ? null : author,
       coverUrl: cover.isEmpty ? null : cover,
+      tags: tags,
       extra: {
         'url': '$linovelibBaseUrl/novel/$id.html',
         if (rank != null) 'rank': rank,
@@ -102,9 +108,13 @@ List<Novel> parseRankRows(String html) {
   return out;
 }
 
+bool hasPaginationControl(String html) =>
+    html_parser.parse(html).querySelector('div.pagination') != null;
+
 bool hasNextPage(String html) {
-  final doc = html_parser.parse(html);
-  for (final a in doc.querySelectorAll('a')) {
+  final container = html_parser.parse(html).querySelector('div.pagination');
+  if (container == null) return false;
+  for (final a in container.querySelectorAll('a')) {
     final t = a.text.trim();
     if (t.contains('下一页') || t.contains('下页')) return true;
   }
@@ -120,6 +130,9 @@ class LinovelibSource implements NovelSource {
               receiveTimeout: const Duration(seconds: 20),
               headers: {
                 'User-Agent': linovelibUserAgent,
+                'Accept':
+                    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
                 'Referer': '$linovelibBaseUrl/',
               },
             ));
@@ -169,8 +182,10 @@ class LinovelibSource implements NovelSource {
     final items = browse.kind == NovelBrowseKind.ranking
         ? parseRankRows(html)
         : parseBookList(html);
-    return NovelList(
-        items: items, page: page, hasMore: items.isNotEmpty && hasNextPage(html));
+    final hasMore = hasPaginationControl(html)
+        ? hasNextPage(html)
+        : items.length >= 10;
+    return NovelList(items: items, page: page, hasMore: hasMore);
   }
 
   @override

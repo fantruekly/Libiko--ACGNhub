@@ -72,4 +72,27 @@ void main() {
     expect(hasNextPage(_nextPageHtml), isTrue);
     expect(hasNextPage(_bookListHtml), isFalse);
   });
+
+  _paginationTests();
+}
+
+const _pagerNextHtml =
+    '<div class="pagination"><a href="/top/monthvote/2.html">下一页</a></div>';
+const _pagerNoNextHtml =
+    '<div class="pagination"><a href="/top/monthvote/1.html">上一页</a></div>';
+const _pagerLastHtml =
+    '<div class="pagination"><span>下一页</span></div>';
+
+void _paginationTests() {
+  test('hasPaginationControl detects the container', () {
+    expect(hasPaginationControl(_pagerNextHtml), isTrue);
+    expect(hasPaginationControl(_bookListHtml), isFalse);
+  });
+
+  test('hasNextPage only trusts a next link inside div.pagination', () {
+    expect(hasNextPage(_pagerNextHtml), isTrue);
+    expect(hasNextPage(_pagerNoNextHtml), isFalse);
+    expect(hasNextPage(_pagerLastHtml), isFalse); // <span>, not a link
+    expect(hasNextPage(_bookListHtml), isFalse); // no pagination control
+  });
 }
