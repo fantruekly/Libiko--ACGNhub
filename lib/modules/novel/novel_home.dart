@@ -305,7 +305,7 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
         novel: items[i],
         onTap: () => Navigator.push(
           context,
-          smoothRoute(NovelDetailPage(
+          noTransitionRoute(NovelDetailPage(
             sourceKey: _sourceId,
             novelId: items[i].id,
             title: items[i].title,

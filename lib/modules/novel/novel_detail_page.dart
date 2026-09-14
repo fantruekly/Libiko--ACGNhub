@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
@@ -42,23 +43,59 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     final async = ref.watch(novelDetailProvider(key));
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
-      appBar: AppBar(
-        title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        actions: const [WindowControls()],
+      body: Column(
+        children: [
+          _header(),
+          Expanded(
+            child: async.when(
+              loading: () => const ShimmerLoader(
+                  crossAxisCount: 6,
+                  itemCount: 12,
+                  aspectRatio: 0.58,
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+              error: (_, __) => EmptyState(
+                icon: Icons.cloud_off_rounded,
+                message: '加载失败',
+                actionLabel: '重试',
+                onAction: () => ref.invalidate(novelDetailProvider(key)),
+              ),
+              data: (detail) => _content(detail),
+            ),
+          ),
+        ],
       ),
-      body: async.when(
-        loading: () => const ShimmerLoader(
-            crossAxisCount: 6,
-            itemCount: 12,
-            aspectRatio: 0.58,
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-        error: (_, __) => EmptyState(
-          icon: Icons.cloud_off_rounded,
-          message: '加载失败',
-          actionLabel: '重试',
-          onAction: () => ref.invalidate(novelDetailProvider(key)),
+    );
+  }
+
+  Widget _header() {
+    return DragToMoveArea(
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.only(left: 4),
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFFFFF),
+          border:
+              Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
         ),
-        data: (detail) => _content(detail),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              color: _fg,
+              onPressed: () => Navigator.pop(context),
+            ),
+            Expanded(
+              child: Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600, color: _fg),
+              ),
+            ),
+            const WindowControls(),
+          ],
+        ),
       ),
     );
   }
@@ -68,7 +105,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _header(novel),
+        _infoCard(novel),
         const SizedBox(height: 16),
         if (detail.volumes.isEmpty)
           const SizedBox(
@@ -97,7 +134,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     );
   }
 
-  Widget _header(Novel novel) {
+  Widget _infoCard(Novel novel) {
     final summary = novel.summary ?? '';
     final cover = (novel.coverUrl?.isNotEmpty ?? false)
         ? novel.coverUrl
