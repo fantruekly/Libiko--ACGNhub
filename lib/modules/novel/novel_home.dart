@@ -6,6 +6,8 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_source.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/smooth_route.dart';
+import 'novel_detail_page.dart';
 import 'novel_providers.dart';
 
 const _accent = Color(0xFF007AFF);
@@ -289,7 +291,18 @@ class _NovelHomePageState extends ConsumerState<NovelHomePage> {
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 6, mainAxisSpacing: 20, crossAxisSpacing: 16, childAspectRatio: 0.58),
       itemCount: items.length,
-      itemBuilder: (_, i) => NovelCard(novel: items[i]),
+      itemBuilder: (_, i) => NovelCard(
+        novel: items[i],
+        onTap: () => Navigator.push(
+          context,
+          smoothRoute(NovelDetailPage(
+            sourceKey: _sourceId,
+            novelId: items[i].id,
+            title: items[i].title,
+            cover: items[i].coverUrl,
+          )),
+        ),
+      ),
     );
   }
 }
