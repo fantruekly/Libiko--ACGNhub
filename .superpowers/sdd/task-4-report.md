@@ -1,86 +1,72 @@
-# Task 4 Report: `LinovelibSource`（HTTP + URL 拼接）
+# Task 4 Report: `novelChapterProvider` + `flattenChapters`
 
-## What I implemented
+## Status: DONE
 
-Appended `class LinovelibSource implements NovelSource` to
-`lib/core/novel/linovelib_source.dart`, after the Task 3 parsers (constants + pure
-parsing functions kept untouched).
+## What I Implemented
 
-- Added imports `package:dio/dio.dart` and `novel_source.dart`; existing
-  `html/dom.dart`, `html/parser.dart`, `models.dart` imports preserved.
-- `LinovelibSource({Dio? dio})` — injectable Dio; default `BaseOptions` with
-  `baseUrl: linovelibBaseUrl`, 20s connect/receive timeouts, and headers
-  `User-Agent: linovelibUserAgent`, `Referer: https://www.linovelib.com/`.
-- `id == 'linovelib'`, `name == '哔哩轻小说'`, `baseUrl == linovelibBaseUrl`.
-- `static rankPath(key, page)` → `/top.html` when `key == 'allvisit'`, else
-  `/top/<key>/<page>.html`.
-- `static bunkoPath(key, page)` → `/wenku/<key>/<page>.html`.
-- `_get(path)` — GET with `ResponseType.plain`, throws on non-200 / null body.
-- `home()` — GET `/`, `parseHome`, throws if no sections.
-- `browse(browse, {page})` — ranking → `rankPath` + `parseRankRows`, bunko →
-  `bunkoPath` + `parseBookList`; `hasMore = items.isNotEmpty && hasNextPage(html)`.
-- `search/detail/chapter` throw `UnimplementedError`.
+Appended to `lib/modules/novel/novel_providers.dart` (verbatim from the brief):
 
-## What I tested and results
+- `List<NovelChapterRef> flattenChapters(NovelDetail detail)` — flattens volumes in order.
+- `final novelChapterProvider = FutureProvider.family<NovelChapter, (String, String, String)>((ref, key) async { ... })` — key `(sourceId, novelId, chapterId)`; looks up the source via `novelSourceManagerProvider.byId(sourceId)`; throws `StateError('novel source $sourceId not found')` when unknown; delegates to `source.chapter(novelId, chapterId)`.
 
-- `test/core/novel/linovelib_source_test.dart` (3 tests): rankPath (monthvote +
-  allvisit), bunkoPath, source identity — all pass.
-- `flutter analyze lib test` — No issues found.
-- `flutter test` — All tests passed (183 passed, 1 skipped pre-existing qjs
-  native-library skip).
-- No real network calls are made by the tests (only pure static methods and
-  identity getters).
+Added the brief's `flattenChapters` test to `test/modules/novel/novel_providers_test.dart`.
+
+## What I Tested and Results
+
+- Targeted test: `flutter test test/modules/novel/novel_providers_test.dart` → **2 passed** (existing `flattenHome` + new `flattenChapters`).
+- Full suite: `flutter test` → **208 passed, 1 skipped** (pre-existing skip: flutter_qjs native lib under flutter test; unrelated to this task).
+- Static analysis: `flutter analyze lib test` → **No issues found**.
 
 ## TDD Evidence
 
 ### RED
-Command: `flutter test test/core/novel/linovelib_source_test.dart`
 
-Output (excerpt):
+Command:
 ```
-Error: Undefined name 'LinovelibSource'.
-    expect(LinovelibSource.rankPath('monthvote', 1), '/top/monthvote/1.html');
-Error: Method not found: 'LinovelibSource'.
-    final s = LinovelibSource();
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_providers_test.dart
+```
+
+Failing output (excerpt):
+```
+test/modules/novel/novel_providers_test.dart:28:12: Error: Method not found: 'flattenChapters'.
+    expect(flattenChapters(detail).map((c) => c.id), ['a', 'b', 'c']);
+           ^^^^^^^^^^^^^^^
+00:00 +0 -1: loading .../novel_providers_test.dart [E]
+  Failed to load ...: Compilation failed ...: Method not found: 'flattenChapters'.
 00:00 +0 -1: Some tests failed.
 ```
-Why expected: the test file references `LinovelibSource` before it exists, so the
-suite fails to compile — a genuine red state proving the test exercises the
-not-yet-written API.
+
+Why expected: `flattenChapters` did not yet exist, so the test file fails to compile — exactly the intended RED for a not-yet-defined API.
 
 ### GREEN
-Command: `flutter test test/core/novel/linovelib_source_test.dart`
 
-Output (excerpt):
+Command:
 ```
-00:00 +0: rankPath builds the ranking url
-00:00 +1: bunkoPath builds the bunko url
-00:00 +2: source identity
-00:00 +3: All tests passed!
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_providers_test.dart
 ```
 
-## Files changed
+Passing output (excerpt):
+```
+00:00 +0: flattenHome merges sections and dedupes by id
+00:00 +1: flattenChapters flattens volumes in order
+00:00 +2: All tests passed!
+```
 
-- `lib/core/novel/linovelib_source.dart` (modified, appended class + 2 imports)
-- `test/core/novel/linovelib_source_test.dart` (new)
+## Files Changed
 
-## Self-review findings
+- `lib/modules/novel/novel_providers.dart` (modified; +12 lines)
+- `test/modules/novel/novel_providers_test.dart` (modified; +17 lines)
 
-- Removed the brief's unused `import 'package:acgnhub/core/novel/models.dart';`
-  from the test file. The brief supplied it, but the test never references
-  `models.dart` symbols, and `flutter analyze lib test` reported
-  `unused_import`, conflicting with the global "analyze clean" constraint. The
-  test semantics are unchanged.
-- `home()` uses path `'/'` against `baseUrl https://www.linovelib.com`; Dio
-  resolves this to `https://www.linovelib.com/`. Correct.
-- `browse` ranking with `key == 'allvisit'` ignores `page` (`/top.html`), as
-  specified by the brief.
-- No new dependencies added; `dio`/`html` were already present.
+Commit: `0103699 feat(novel): add novelChapterProvider and flattenChapters` — pushed to `dev` (`a00f8a0..0103699`).
+
+## Self-Review Findings
+
+- Implementation matches the brief exactly (signatures, key tuple order, `StateError` message).
+- `flattenChapters` preserves volume order and chapter order (uses an ordered collection-for over `detail.volumes`).
+- Provider follows the same source-lookup/`StateError` pattern as the existing `novelHomeProvider`/`novelBrowseProvider`/`novelDetailProvider` in the same file — consistent with conventions.
+- No new dependencies added; only `flutter_riverpod` + existing imports.
+- Only the two intended files were staged/committed (the other modified `.superpowers`/`docs` files in the worktree were left untouched).
 
 ## Concerns
 
-- `home()`/`browse()` parse live linovelib HTML and cannot be unit-tested
-  offline; selectors are only validated indirectly by Task 3 parser tests. If
-  linovelib changes `div.tab-lists`, `home()` will throw "首页解析为空".
-- `browse`'s `hasMore` combines `items.isNotEmpty` with `hasNextPage`; an empty
-  page that still shows a next-page link reports `hasMore == false`.
+- None blocking. The `novelChapterProvider` itself is not directly exercised by a unit test in this task (the brief only specified the `flattenChapters` test). It is a thin delegation mirroring already-tested sibling providers; Task 5 will consume it. If desired, a provider-override test could be added later.

@@ -698,6 +698,152 @@ git push
 
 ---
 
+### Task 6: 最终审查修复（封面/简介回退/占位/展开）
+
+> 来自最终整支审查。
+
+**Files:**
+- Modify: `lib/core/novel/linovelib_source.dart`
+- Modify: `lib/modules/novel/novel_detail_page.dart`
+- Modify: `test/core/novel/linovelib_detail_parser_test.dart`
+- Modify: `docs/superpowers/specs/2026-09-14-novel-detail-design.md`
+
+- [ ] **Step 1: 写失败测试（封面优先级 + 简介回退）**
+
+在 `test/core/novel/linovelib_detail_parser_test.dart` 追加：
+
+```dart
+  test('parseNovelDetailHeader prefers data-original cover and meta summary',
+      () {
+    const html = '''
+<meta property="og:novel:author" content="A" />
+<meta name="description" content="META简介" />
+<div class="book-img"><img src="x.svg" data-original="https://x/real.jpg"></div>
+<h1 class="book-name">书名</h1>''';
+    final novel = parseNovelDetailHeader(html, '1');
+    expect(novel.coverUrl, 'https://x/real.jpg');
+    expect(novel.summary, 'META简介');
+  });
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_detail_parser_test.dart`
+Expected: FAIL（封面得到 `x.svg` / 简介为 null）
+
+- [ ] **Step 3: 改 `linovelib_source.dart`**
+
+`parseNovelDetailHeader` 里：
+- 封面改为优先 `data-original`（与列表解析器一致）：
+```dart
+  final cover =
+      _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
+```
+- 简介加 `meta[name=description]` 回退：
+```dart
+  var summary = _textOf(doc.querySelector('div.book-dec'));
+  if (summary.isEmpty) summary = _metaContent(doc, 'description');
+```
+- `detail` 两页并发：
+```dart
+  @override
+  Future<NovelDetail> detail(String id) async {
+    final pages =
+        await Future.wait([_get(detailPath(id)), _get(catalogPath(id))]);
+    return NovelDetail(
+      novel: parseNovelDetailHeader(pages[0], id),
+      volumes: parseCatalog(pages[1], id),
+    );
+  }
+```
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_detail_parser_test.dart`
+Expected: PASS
+
+- [ ] **Step 5: 详情页封面加占位 + 展开仅在有溢出时显示**
+
+在 `lib/modules/novel/novel_detail_page.dart`：
+- 封面加 `placeholder`/`errorWidget`：
+```dart
+                  child: cover != null
+                      ? CachedNetworkImage(
+                          imageUrl: cover,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => _coverPlaceholder(),
+                          errorWidget: (_, __, ___) => _coverPlaceholder(),
+                        )
+                      : _coverPlaceholder(),
+```
+并加方法：
+```dart
+  Widget _coverPlaceholder() => Container(color: const Color(0xFFE8EAF6));
+```
+- 简介区改为「仅在溢出 3 行时显示展开/收起」：
+```dart
+          if (summary.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            LayoutBuilder(builder: (context, constraints) {
+              const style = TextStyle(fontSize: 13, height: 1.5, color: _fg);
+              final overflows =
+                  _summaryOverflows(summary, style, constraints.maxWidth);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(summary,
+                      maxLines: _expanded ? null : 3,
+                      overflow: _expanded ? null : TextOverflow.ellipsis,
+                      style: style),
+                  if (overflows)
+                    GestureDetector(
+                      onTap: () => setState(() => _expanded = !_expanded),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(_expanded ? '收起' : '展开',
+                            style: const TextStyle(fontSize: 13, color: _accent)),
+                      ),
+                    ),
+                ],
+              );
+            }),
+          ],
+```
+并加方法：
+```dart
+  bool _summaryOverflows(String text, TextStyle style, double maxWidth) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 3,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth);
+    return tp.didExceedMaxLines;
+  }
+```
+
+- [ ] **Step 6: 修正 spec 文案**
+
+`docs/superpowers/specs/2026-09-14-novel-detail-design.md`：把封面那行改为
+`封面：div.book-img img 的 data-original（回退 src）`。
+
+- [ ] **Step 7: 全量校验**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+Expected: `No issues found!`
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+Expected: 全部通过
+
+- [ ] **Step 8: 提交**
+
+```bash
+git add lib/core/novel/linovelib_source.dart lib/modules/novel/novel_detail_page.dart test/core/novel/linovelib_detail_parser_test.dart docs/superpowers/specs/2026-09-14-novel-detail-design.md
+git commit -m "fix(novel): robust cover precedence, summary fallback, cover placeholder, overflow-gated expand"
+git push
+```
+
+---
+
 ## Self-Review
 
 **Spec coverage:**

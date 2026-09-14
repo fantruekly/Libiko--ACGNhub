@@ -1,125 +1,53 @@
-### Task 2: `NovelSource` 抽象与 `NovelSourceManager`
+### Task 2: `LinovelibSource.chapter`
 
 **Files:**
-- Create: `lib/core/novel/novel_source.dart`
-- Test: `test/core/novel/novel_source_test.dart`
+- Modify: `lib/core/novel/linovelib_source.dart`
+- Test: `test/core/novel/linovelib_source_test.dart`
 
 **Interfaces:**
-- Consumes: `lib/core/novel/models.dart`（Task 1）。
-- Produces:
-  - `abstract class NovelSource { String get id; String get name; String get baseUrl; Future<NovelHome> home(); Future<NovelList> browse(NovelBrowse browse, {int page = 1}); Future<List<Novel>> search(String keyword, {int page = 1}); Future<NovelDetail> detail(String id); Future<NovelChapter> chapter(String novelId, String chapterId); }`
-  - `class NovelSourceManager { NovelSourceManager({List<NovelSource>? sources}); List<NovelSource> get sources; void register(NovelSource s); NovelSource? byId(String id); }`（`register` 对重复 id 抛 `ArgumentError`）
+- Consumes: Task 1 的 `fetchChapterPages`。
+- Produces: `Future<NovelChapter> LinovelibSource.chapter(String novelId, String chapterId)`（替换现有 `UnimplementedError`），内部调用 `fetchChapterPages(fetch: _get)`。
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: 写失败测试（路径助手）**
 
-`test/core/novel/novel_source_test.dart`:
+在 `test/core/novel/linovelib_source_test.dart` 追加：
 
 ```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/models.dart';
-import 'package:acgnhub/core/novel/novel_source.dart';
-
-class _FakeSource extends NovelSource {
-  @override
-  String get id => 'fake';
-  @override
-  String get name => 'Fake';
-  @override
-  String get baseUrl => 'https://fake';
-  @override
-  Future<NovelHome> home() async => const NovelHome(sections: []);
-  @override
-  Future<NovelList> browse(NovelBrowse browse, {int page = 1}) async =>
-      NovelList(items: const [], page: page, hasMore: false);
-  @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) async => const [];
-  @override
-  Future<NovelDetail> detail(String id) async =>
-      const NovelDetail(novel: Novel(id: 'x', title: 'x'), chapters: {});
-  @override
-  Future<NovelChapter> chapter(String novelId, String chapterId) async =>
-      const NovelChapter(title: 't', content: 'c');
-}
-
-void main() {
-  test('manager exposes registered sources', () {
-    final m = NovelSourceManager(sources: [_FakeSource()]);
-    expect(m.sources.map((s) => s.id), ['fake']);
-    expect(m.byId('fake')!.name, 'Fake');
-    expect(m.byId('nope'), isNull);
+  test('chapterPath builds the chapter url', () {
+    expect(LinovelibSource.chapterPath('5340', '334356'), '/novel/5340/334356.html');
   });
-
-  test('manager rejects duplicate ids', () {
-    final m = NovelSourceManager(sources: [_FakeSource()]);
-    expect(() => m.register(_FakeSource()), throwsArgumentError);
-  });
-}
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [ ] **Step 2: 运行确认失败**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/novel_source_test.dart`
-Expected: FAIL（`novel_source.dart` 不存在）
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_source_test.dart`
+Expected: FAIL（`chapterPath` 未定义）
 
-- [ ] **Step 3: 实现 `lib/core/novel/novel_source.dart`**
+- [ ] **Step 3: 实现**
+
+在 `LinovelibSource` 里，把 `chapter` 的 `throw UnimplementedError()` 替换为：
 
 ```dart
-import 'models.dart';
+  static String chapterPath(String novelId, String chapterId) =>
+      '/novel/$novelId/$chapterId.html';
 
-abstract class NovelSource {
-  String get id;
-  String get name;
-  String get baseUrl;
-
-  /// 首页：若干带标题的书单。
-  Future<NovelHome> home();
-
-  /// 排行 / 文库分类，分页。
-  Future<NovelList> browse(NovelBrowse browse, {int page = 1});
-
-  // v1 仅声明，后续实现：
-  Future<List<Novel>> search(String keyword, {int page = 1});
-  Future<NovelDetail> detail(String id);
-  Future<NovelChapter> chapter(String novelId, String chapterId);
-}
-
-class NovelSourceManager {
-  NovelSourceManager({List<NovelSource>? sources}) {
-    for (final s in sources ?? const <NovelSource>[]) {
-      register(s);
-    }
-  }
-
-  final List<NovelSource> _sources = [];
-
-  List<NovelSource> get sources => List.unmodifiable(_sources);
-
-  void register(NovelSource source) {
-    if (_sources.any((s) => s.id == source.id)) {
-      throw ArgumentError('duplicate novel source id: ${source.id}');
-    }
-    _sources.add(source);
-  }
-
-  NovelSource? byId(String id) {
-    for (final s in _sources) {
-      if (s.id == id) return s;
-    }
-    return null;
-  }
-}
+  @override
+  Future<NovelChapter> chapter(String novelId, String chapterId) =>
+      fetchChapterPages(novelId: novelId, chapterId: chapterId, fetch: _get);
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+（`_get` 接收一个 path 字符串，签名与 `fetch` 参数一致。）
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/novel_source_test.dart`
-Expected: PASS（2 tests）
+- [ ] **Step 4: 运行确认通过**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_source_test.dart`
+Expected: PASS
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add lib/core/novel/novel_source.dart test/core/novel/novel_source_test.dart
-git commit -m "feat(novel): add NovelSource interface and manager"
+git add lib/core/novel/linovelib_source.dart test/core/novel/linovelib_source_test.dart
+git commit -m "feat(novel): implement LinovelibSource.chapter"
 git push
 ```
 

@@ -1,173 +1,148 @@
-### Task 1: 模型 `models.dart`
+### Task 1: 章节解析函数
 
 **Files:**
-- Create: `lib/core/novel/models.dart`
-- Test: `test/core/novel/models_test.dart`
+- Modify: `lib/core/novel/linovelib_source.dart`
+- Test: `test/core/novel/linovelib_chapter_parser_test.dart`
 
 **Interfaces:**
-- Produces:
-  - `Novel { String id; String title; String? author; String? coverUrl; List<String> tags; String? summary; Map<String,dynamic> extra; }`，构造 `const Novel({required id, required title, author, coverUrl, tags = const [], summary, extra = const {}})`；`Novel.fromJson(Map<String,dynamic>)` / `Map<String,dynamic> toJson()`。
-  - `NovelSection { String title; List<Novel> items; }`，`const NovelSection({required title, required items})`。
-  - `NovelHome { List<NovelSection> sections; }`，`const NovelHome({required sections})`。
-  - `NovelList { List<Novel> items; int page; bool hasMore; }`，`const NovelList({required items, required page, required hasMore})`。
-  - `enum NovelBrowseKind { ranking, bunko }`。
-  - `NovelBrowse { NovelBrowseKind kind; String key; }`，`const NovelBrowse(this.kind, this.key)`。
-  - `NovelDetail { Novel novel; Map<String,String> chapters; }`，`const NovelDetail({required novel, required chapters})`。
-  - `NovelChapter { String title; String content; }`，`const NovelChapter({required title, required content})`。
+- Consumes: `models.dart` 的 `NovelChapter { String title; String content; }`（已存在）。
+- Produces（`linovelib_source.dart` 顶层函数）：
+  - `NovelChapter parseChapter(String html, String fallbackTitle)` — 标题 `#mlfy_main_text h1`（回退 `fallbackTitle`）；正文取 `div#TextContent` 的 `<p>`，按 `\n\n` 连接。
+  - `String? nextPageHref(String html, String novelId, String chapterId)` — `div.mlfy_page` 里「下一页」`<a>` 的 href，仅当形如 `/novel/<novelId>/<chapterId>_<n>.html` 时返回，否则 `null`。
+  - `Future<NovelChapter> fetchChapterPages({required String novelId, required String chapterId, required Future<String> Function(String path) fetch, int maxPages = 50})` — 抓首页 + 循环拼接同章分页。
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: 写失败测试（含 fixture）**
 
-`test/core/novel/models_test.dart`:
+`test/core/novel/linovelib_chapter_parser_test.dart`:
 
 ```dart
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/models.dart';
+import 'package:acgnhub/core/novel/linovelib_source.dart';
+
+const _pagedHtml = '''
+<div id="mlfy_main_text"><h1>第60話 規則（2）</h1>
+<div id="TextContent" class="TextContent"><p>第一段。</p><br><p>第二段。</p><br><p>第三段。</p></div></div>
+<div class="mlfy_page"><a href="/novel/5340/334299.html">上一页</a><a href="/novel/5340/catalog">目录</a><a href="/novel/5340/334356_2.html">下一页</a></div>
+''';
+
+const _lastPageHtml = '''
+<div id="mlfy_main_text"><h1>第60話 規則（2）</h1>
+<div id="TextContent"><p>末段。</p></div></div>
+<div class="mlfy_page"><a href="/novel/5340/334356_1.html">上一页</a><a href="/novel/5340/334357.html">下一页</a></div>
+''';
 
 void main() {
-  test('Novel round-trips through JSON', () {
-    const novel = Novel(
-      id: '2059',
-      title: '安达与岛村',
-      author: '入间人间',
-      coverUrl: 'https://x/2059s.jpg',
-      tags: ['电击文库'],
-      summary: '简介',
-      extra: {'url': '/novel/2059.html'},
-    );
-    final restored = Novel.fromJson(
-      json.decode(json.encode(novel.toJson())) as Map<String, dynamic>,
-    );
-    expect(restored.id, '2059');
-    expect(restored.title, '安达与岛村');
-    expect(restored.author, '入间人间');
-    expect(restored.coverUrl, 'https://x/2059s.jpg');
-    expect(restored.tags, ['电击文库']);
-    expect(restored.summary, '简介');
-    expect(restored.extra['url'], '/novel/2059.html');
+  test('parseChapter reads title and paragraphs', () {
+    final ch = parseChapter(_pagedHtml, 'FB');
+    expect(ch.title, '第60話 規則（2）');
+    expect(ch.content, '第一段。\n\n第二段。\n\n第三段。');
   });
 
-  test('Novel.fromJson tolerates missing optional fields', () {
-    final n = Novel.fromJson(const {'id': '1', 'title': 'T'});
-    expect(n.author, isNull);
-    expect(n.coverUrl, isNull);
-    expect(n.tags, isEmpty);
-    expect(n.extra, isEmpty);
+  test('parseChapter falls back to the given title', () {
+    final ch = parseChapter('<div id="TextContent"><p>只有正文</p></div>', '备用标题');
+    expect(ch.title, '备用标题');
+    expect(ch.content, '只有正文');
   });
 
-  test('NovelBrowse holds kind and key', () {
-    const b = NovelBrowse(NovelBrowseKind.bunko, 'dengekibunko');
-    expect(b.kind, NovelBrowseKind.bunko);
-    expect(b.key, 'dengekibunko');
+  test('nextPageHref returns same-chapter page links only', () {
+    expect(nextPageHref(_pagedHtml, '5340', '334356'), '/novel/5340/334356_2.html');
+    expect(nextPageHref(_lastPageHtml, '5340', '334356'), isNull); // next chapter
+    expect(nextPageHref('<div class="mlfy_page"></div>', '5340', '334356'), isNull);
+  });
+
+  test('fetchChapterPages concatenates same-chapter pages', () async {
+    final pages = {
+      '/novel/5340/334356.html': _pagedHtml,
+      '/novel/5340/334356_2.html': _lastPageHtml,
+    };
+    var calls = 0;
+    final ch = await fetchChapterPages(
+      novelId: '5340',
+      chapterId: '334356',
+      fetch: (path) async {
+        calls++;
+        return pages[path]!;
+      },
+    );
+    expect(calls, 2);
+    expect(ch.content, '第一段。\n\n第二段。\n\n第三段。\n\n末段。');
   });
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [ ] **Step 2: 运行确认失败**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/models_test.dart`
-Expected: FAIL（`models.dart` 不存在 / 类未定义）
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart`
+Expected: FAIL（`parseChapter` 未定义）
 
-- [ ] **Step 3: 实现 `lib/core/novel/models.dart`**
+- [ ] **Step 3: 实现**
+
+在 `linovelib_source.dart` 的 `parseCatalog` 之后追加：
 
 ```dart
-List<String> _stringList(dynamic raw) {
-  if (raw is List) {
-    return raw.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+NovelChapter parseChapter(String html, String fallbackTitle) {
+  final doc = html_parser.parse(html);
+  final title = _textOf(doc.querySelector('#mlfy_main_text h1'));
+  final paragraphs = <String>[];
+  final content = doc.querySelector('div#TextContent');
+  if (content != null) {
+    for (final p in content.querySelectorAll('p')) {
+      final t = p.text.trim();
+      if (t.isNotEmpty) paragraphs.add(t);
+    }
   }
-  return const [];
+  return NovelChapter(
+    title: title.isEmpty ? fallbackTitle : title,
+    content: paragraphs.join('\n\n'),
+  );
 }
 
-class Novel {
-  final String id;
-  final String title;
-  final String? author;
-  final String? coverUrl;
-  final List<String> tags;
-  final String? summary;
-  final Map<String, dynamic> extra;
-
-  const Novel({
-    required this.id,
-    required this.title,
-    this.author,
-    this.coverUrl,
-    this.tags = const [],
-    this.summary,
-    this.extra = const {},
-  });
-
-  factory Novel.fromJson(Map<String, dynamic> json) => Novel(
-        id: json['id']?.toString() ?? '',
-        title: json['title']?.toString() ?? '',
-        author: json['author']?.toString(),
-        coverUrl: json['coverUrl']?.toString(),
-        tags: _stringList(json['tags']),
-        summary: json['summary']?.toString(),
-        extra: (json['extra'] as Map?)?.cast<String, dynamic>() ?? const {},
-      );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        if (author != null) 'author': author,
-        if (coverUrl != null) 'coverUrl': coverUrl,
-        if (tags.isNotEmpty) 'tags': tags,
-        if (summary != null) 'summary': summary,
-        if (extra.isNotEmpty) 'extra': extra,
-      };
+String? nextPageHref(String html, String novelId, String chapterId) {
+  final doc = html_parser.parse(html);
+  final prefix = '/novel/$novelId/${chapterId}_';
+  for (final a in doc.querySelectorAll('div.mlfy_page a')) {
+    if (a.text.trim() != '下一页') continue;
+    final href = a.attributes['href'];
+    if (href != null && href.startsWith(prefix) && href.endsWith('.html')) {
+      return href;
+    }
+    return null;
+  }
+  return null;
 }
 
-class NovelSection {
-  final String title;
-  final List<Novel> items;
-  const NovelSection({required this.title, required this.items});
-}
-
-class NovelHome {
-  final List<NovelSection> sections;
-  const NovelHome({required this.sections});
-}
-
-class NovelList {
-  final List<Novel> items;
-  final int page;
-  final bool hasMore;
-  const NovelList({required this.items, required this.page, required this.hasMore});
-}
-
-enum NovelBrowseKind { ranking, bunko }
-
-class NovelBrowse {
-  final NovelBrowseKind kind;
-  final String key;
-  const NovelBrowse(this.kind, this.key);
-}
-
-class NovelDetail {
-  final Novel novel;
-  final Map<String, String> chapters;
-  const NovelDetail({required this.novel, required this.chapters});
-}
-
-class NovelChapter {
-  final String title;
-  final String content;
-  const NovelChapter({required this.title, required this.content});
+Future<NovelChapter> fetchChapterPages({
+  required String novelId,
+  required String chapterId,
+  required Future<String> Function(String path) fetch,
+  int maxPages = 50,
+}) async {
+  final firstHtml = await fetch('/novel/$novelId/$chapterId.html');
+  final first = parseChapter(firstHtml, '');
+  final buffer = <String>[if (first.content.isNotEmpty) first.content];
+  var next = nextPageHref(firstHtml, novelId, chapterId);
+  var pages = 1;
+  while (next != null && pages < maxPages) {
+    final html = await fetch(next);
+    final page = parseChapter(html, '');
+    if (page.content.isNotEmpty) buffer.add(page.content);
+    next = nextPageHref(html, novelId, chapterId);
+    pages++;
+  }
+  return NovelChapter(title: first.title, content: buffer.join('\n\n'));
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [ ] **Step 4: 运行确认通过**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/models_test.dart`
-Expected: PASS（3 tests）
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart`
+Expected: PASS（4 tests）
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add lib/core/novel/models.dart test/core/novel/models_test.dart
-git commit -m "feat(novel): add novel models"
+git add lib/core/novel/linovelib_source.dart test/core/novel/linovelib_chapter_parser_test.dart
+git commit -m "feat(novel): add chapter parsers (paragraphs + same-chapter paging)"
 git push
 ```
 

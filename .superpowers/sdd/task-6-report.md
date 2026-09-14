@@ -1,65 +1,78 @@
-# Task 6 Report: 轻小说首页 UI（`NovelCard` + `NovelHomePage`）并接入 shell
+# Task 6 报告：轻小说阅读器最终审查修复
+
+## 状态
+
+DONE
 
 ## 实现内容
 
-1. 新建 `lib/modules/novel/novel_home.dart`（按 brief 逐字实现）：
-   - `NovelCard`：封面（`CachedNetworkImage`，无封面时按书名 hash 生成占位色块 + 首字）、书名（2 行省略）、作者（1 行省略）。
-   - `NovelHomePage`（`ConsumerStatefulWidget`）：
-     - 源 chips（来自 `novelSourcesProvider`，默认 `linovelib`）。
-     - 分区 chips：推荐 / 排行 / 文库。
-     - 排行子 chips（`_rankingOptions` 13 项）、文库子 chips（`_bunkoOptions` 14 项）。
-     - 推荐分区走 `novelHomeProvider` + `flattenHome`；排行/文库走 `novelBrowseProvider((sourceId, kind, key, page))`。
-     - 加载态 `ShimmerLoader(crossAxisCount: 6)`；错误态 `EmptyState` + 「重试」（`ref.invalidate`）；空数据 `EmptyState('暂无内容')`。
-     - 网格 `GridView.builder`（6 列，`childAspectRatio: 0.58`），滚动到底部 400px 内触发下一页。
-2. 修改 `lib/shell/main_shell.dart`：
-   - 新增 `import '../modules/novel/novel_home.dart';`。
-   - `_pages` 第 3 项由 `_buildModulePlaceholder('轻小说', ...)` 改为 `const NovelHomePage()`；游戏占位与其余部分未改动。
+按 brief 的四个修复逐一落地：
+
+1. **设置先同步更新 state，再持久化（修 lost-update）**
+   `NovelReaderSettingsNotifier._update` 改为 `state = next;` 后再 `await _manager.write(next);`。
+   原因：原实现先 await 写入、后赋值 state，快速连续点击「+」时两次调用都基于同一份旧 state 计算 `copyWith`，导致 +2 变成 +1。同步赋值后第二次点击读到的是第一次的新 state。
+
+2. **`fetchChapterPages` 复用 `LinovelibSource.chapterPath`**
+   将内联字面量 `'/novel/$novelId/$chapterId.html'` 改为 `LinovelibSource.chapterPath(novelId, chapterId)`，使 Task 2 已测试的 helper 不再是被绕过的死代码（顶层函数前向引用类，Dart 允许）。
+
+3. **阅读器 UI 小项**
+   - `_topBar` 去掉未使用的 `chapters`/`index` 参数，签名改为 `Widget _topBar(_Palette palette)`，调用处改为 `_topBar(palette)`。
+   - `_openCatalog` 改为接收 `NovelDetail?`，按 `detail.volumes` 分卷分组渲染（卷标题 + 章节项，当前章打勾）；`detail` 为 null 或卷为空时显示「暂无目录」。调用处改为 `_openCatalog(detail)`，`detail` 在 `_bottomBar`（build 期间执行）内用 `ref.watch(novelDetailProvider(...)).valueOrNull` 取得，避免在 onTap 回调里 watch。
+   - `_openCatalog` / `_openSettings` 均传入 `backgroundColor: palette.bg` 并用 `Theme`（覆盖 `colorScheme.surface`/`onSurface` 为阅读配色）包裹弹层内容。
+
+4. **补「下一章」导航 widget 测试**
+   在 `test/modules/novel/novel_reader_page_test.dart` 追加 `tapping 下一章 loads the next chapter`，override c1/c2 两个章节与含两章的 `novelDetailProvider`，断言初始显示「甲段」，点击「下一章」后显示「乙段」。
 
 ## 测试与结果
 
-- 新增 `test/modules/novel/novel_card_test.dart`（brief 逐字）：断言 `NovelCard` 渲染书名与作者。
-- `flutter analyze lib test` → `No issues found! (ran in 2.0s)`。
-- `flutter test` → `+185 ~1: All tests passed!`（1 个 skip 为既有的 `js_engine_smoke_test` flutter_qjs 原生库在 flutter test 下不可加载，非本任务引入）。
-- `flutter build windows --debug` → 成功，产出 `build\windows\x64\runner\Debug\acgnhub.exe`。
-- 冒烟启动：`Start-Process` 启动 exe，8 秒后进程仍存活（pid=30672），随后手动结束。**视觉验证未做（无法看到 UI），留给人工。**
+- `flutter analyze lib test` → `No issues found! (ran in 2.1s)`
+- `flutter test` → `All tests passed!`（+210 通过，1 跳过：flutter_qjs 原生库在 flutter test 下不可加载，与本任务无关）
 
 ## TDD Evidence
 
 ### RED
-命令：`flutter test test/modules/novel/novel_card_test.dart`
-输出（关键）：
+
+本任务新增的测试针对「下一章」导航，而该导航在 Task 5 已实现（`_bottomBar` 的 `hasNext` + `_goChapter`）。先加测试、在改任何生产代码前运行，结果即为 GREEN，没有可复现的 RED 阶段：
+
+命令：
 ```
-test/modules/novel/novel_card_test.dart:4:8: Error: Error when reading 'lib/modules/novel/novel_home.dart': 系统找不到指定的文件
-import 'package:acgnhub/modules/novel/novel_home.dart';
-test/modules/novel/novel_card_test.dart:13:18: Error: Method not found: 'NovelCard'.
-00:00 +0 -1: Some tests failed.
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_reader_page_test.dart
 ```
-为何符合预期：实现文件 `novel_home.dart` 尚未创建，`NovelCard` 不存在，编译失败即测试失败——正是「先失败」状态。
+输出（节选）：
+```
+00:00 +0: loading D:/ACGNhub/test/modules/novel/novel_reader_page_test.dart
+00:00 +0: NovelReaderPage renders the chapter title and paragraphs
+00:00 +1: tapping 下一章 loads the next chapter
+00:00 +2: All tests passed!
+```
+（其余三个修复为重构/持久化顺序修正，brief 未要求新增测试；`chapterPath` 复用由 Task 2 已有测试覆盖。）
 
 ### GREEN
-命令：`flutter test test/modules/novel/novel_card_test.dart`
-输出：
+
+最终全量校验：
 ```
-00:00 +0: NovelCard shows title and author
-00:00 +1: All tests passed!
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+Analyzing 2 items...
+No issues found! (ran in 2.1s)
+
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+00:08 +210 ~1: All tests passed!
 ```
 
-## 变更文件
+## 文件变更
 
-- 新增 `lib/modules/novel/novel_home.dart`
-- 修改 `lib/shell/main_shell.dart`
-- 新增 `test/modules/novel/novel_card_test.dart`
+- `lib/core/novel/novel_reader_settings.dart`：`_update` 同步 state 顺序。
+- `lib/core/novel/linovelib_source.dart`：`fetchChapterPages` 复用 `chapterPath`。
+- `lib/modules/novel/novel_reader_page.dart`：`_topBar` 去参、目录分卷分组、弹层配色。
+- `test/modules/novel/novel_reader_page_test.dart`：新增下一章导航测试。
 
-## 自审发现
+## Self-Review 发现
 
-- `novel_home.dart` 与 brief 代码逐字一致，无偏离。
-- `main_shell.dart` diff 仅包含 1 行 import + 3 行替换，游戏占位未动。
-- `String.characters` 无需额外 import（`material.dart` 间接导出），`flutter analyze` 确认无报错。
-- `_page` 在切换源/分区/子选项时重置为 1，逻辑正确。
-- 未引入任何新依赖，未设置 `fontFamily`。
+1. **brief 正文与代码存在轻微不一致**：Step 3 的说明文字写「为空则用 `flattenChapters` 的扁平列表降级」，但给出的逐字代码在 `detail == null || detail.volumes.isEmpty` 时显示 `'暂无目录'`，并未调用 `flattenChapters`。按要求「以 brief 的精确代码为准」，我采用了代码版本（`暂无目录`）。`_chapters()` 仍用 `flattenChapters` 为底栏上一/下一章提供扁平列表，功能不受影响。
+2. **`ref.watch` 的位置**：brief 示意在 `build` 调用处 watch。实际目录按钮的 `onTap` 是延迟回调，若在其中 watch 会在 build 之外触发 Riverpod 报错。故把 watch 放在 build 期间执行的 `_bottomBar` 体内，再捕获到闭包，行为与语义一致且安全。
+3. **无 `fontFamily`**：新增/改动的 `TextStyle` 均未设置 `fontFamily`，符合全局约束。
+4. **未新增依赖**，`environment.sdk >=3.6.0` 未改动。
 
-## 关注点 / 遗留
+## Concerns
 
-- **视觉验证未完成**：本环境无法看到 UI，需人工在「轻小说」标签确认源 chip、网格、排行/文库子 chip 与滚动翻页效果。
-- 滚动触底翻页使用 `NotificationListener`，极端快速滚动可能重复触发 `_page++`；此为 brief 指定实现，v1 可接受。
-- `.superpowers/sdd/*` 中的 brief/report/progress 变更未纳入本次提交（brief 的 `git add` 仅指定 3 个源码/测试文件）。
+- 无阻塞项。唯一需知悉的是上述 brief 说明与代码的措辞差异，已按逐字代码实现。

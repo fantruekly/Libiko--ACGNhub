@@ -200,8 +200,118 @@ Expected: PASS（3 tests）
 - [ ] **Step 5: 提交**
 
 ```bash
-git add lib/core/novel/models.dart test/core/novel/models_test.dart
-git commit -m "feat(novel): add novel models"
+git add lib/core/novel/linovelib_source.dart test/core/novel/linovelib_source_test.dart test/core/novel/linovelib_parser_test.dart docs/superpowers/specs/2026-09-14-novel-module-design.md
+git commit -m "fix(novel): treat 人气榜 as a single page; test rank tags; sync spec"
+git push
+```
+
+---
+
+### Task 9: 排行子页解析（`div.rank_d_list`）
+
+> 用户反馈：点「排行」页加载不出来。根因：`/top.html`（人气榜）用 `div.rank_i_li`，而 `/top/<key>/<page>.html`（月推荐/周推荐/收藏榜/最近更新…）用**另一套结构** `div.rank_d_list`，`parseRankRows` 只认前者 → 子排行解析为 0 条。
+
+**Files:**
+- Modify: `lib/core/novel/linovelib_source.dart`
+- Modify: `test/core/novel/linovelib_parser_test.dart`
+- Modify: `docs/superpowers/specs/2026-09-14-novel-module-design.md`
+
+**Interfaces:**
+- `parseRankRows(String html)` 同时支持两种行结构；`div.rank_d_list` 行取：名次 `div.rank_d_b_num`、书名 `div.rank_d_b_name a[href*="/novel/"]`、封面 `div.rank_d_book_img img`（`data-original` 回退 `src`）、作者 `div.rank_d_b_cate a`（首个）。
+
+- [ ] **Step 1: 写失败测试**
+
+在 `test/core/novel/linovelib_parser_test.dart` 追加：
+
+```dart
+const _rankDListHtml = '''
+<div class="rankpage_box">
+  <div class="rank_d_list borderB_c_dsh clearfix">
+    <div class="rank_d_book_img fl" title="玩乐关系">
+      <a href="/novel/4649.html"><img src="x.svg" data-original="https://www.linovelib.com/files/article/image/4/4649/4649s.jpg"></a>
+    </div>
+    <div class="rank_d_book_intro fl">
+      <div class="rank_d_b_name" title="玩乐关系"><a href="/novel/4649.html">玩乐关系</a></div>
+      <div class="rank_d_b_cate"><a href="/authorarticle/x.html">葵关南</a>|<a>富士见文库</a>|<a>连载</a></div>
+    </div>
+    <div class="rank_d_book_manage fr">
+      <div class="rank_d_b_rank"><div class="rank_d_icon rank_d_b_num rank_d_b_num1 fr">1</div></div>
+    </div>
+  </div>
+</div>
+''';
+
+void _rankDListTests() {
+  test('parseRankRows parses div.rank_d_list (sub-ranking pages)', () {
+    final items = parseRankRows(_rankDListHtml);
+    expect(items, hasLength(1));
+    expect(items.first.id, '4649');
+    expect(items.first.title, '玩乐关系');
+    expect(items.first.author, '葵关南');
+    expect(items.first.coverUrl,
+        'https://www.linovelib.com/files/article/image/4/4649/4649s.jpg');
+    expect(items.first.extra['rank'], 1);
+  });
+}
+```
+
+并在 `main()` 末尾调用 `_rankDListTests();`。
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart`
+Expected: FAIL（`items` 为空）
+
+- [ ] **Step 3: 改 `parseRankRows`**
+
+在现有 `div.rank_i_li` 循环**之后**、`return out;` 之前追加第二个循环：
+
+```dart
+  for (final row in doc.querySelectorAll('div.rank_d_list')) {
+    final bookA = row.querySelector('div.rank_d_b_name a[href*="/novel/"]') ??
+        row.querySelector('a[href*="/novel/"]');
+    final id = novelIdFromHref(bookA?.attributes['href']);
+    if (bookA == null || id == null) continue;
+    final img = row.querySelector('div.rank_d_book_img img');
+    final cover =
+        _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
+    final author = _textOf(row.querySelector('div.rank_d_b_cate a'));
+    final rank = int.tryParse(_textOf(row.querySelector('div.rank_d_b_num')));
+    out.add(Novel(
+      id: id,
+      title: _textOf(bookA),
+      author: author.isEmpty ? null : author,
+      coverUrl: cover.isEmpty ? null : cover,
+      extra: {
+        'url': '$linovelibBaseUrl/novel/$id.html',
+        if (rank != null) 'rank': rank,
+      },
+    ));
+  }
+```
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart`
+Expected: PASS
+
+- [ ] **Step 5: 修正 spec 文案**
+
+`docs/superpowers/specs/2026-09-14-novel-module-design.md` 的「排行」抓取说明补一句：`/top.html`（人气榜）行为 `div.rank_i_li`；`/top/<key>/<page>.html`（其余排行）行为 `div.rank_d_list`（名次 `rank_d_b_num`、书名 `rank_d_b_name a`、封面 `rank_d_book_img img`、作者 `rank_d_b_cate a`）。
+
+- [ ] **Step 6: 全量校验**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
+Expected: `No issues found!`
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+Expected: 全部通过
+
+- [ ] **Step 7: 提交**
+
+```bash
+git add lib/core/novel/linovelib_source.dart test/core/novel/linovelib_parser_test.dart docs/superpowers/specs/2026-09-14-novel-module-design.md
+git commit -m "fix(novel): parse sub-ranking pages (div.rank_d_list)"
 git push
 ```
 
