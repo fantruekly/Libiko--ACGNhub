@@ -27,4 +27,16 @@ void main() {
     ));
     expect(find.text('输入关键词搜索轻小说'), findsOneWidget);
   });
+
+  testWidgets('shows empty message when there are no results', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        novelSearchProvider('关键词').overrideWith((ref) async => const []),
+      ],
+      child: const MaterialApp(home: NovelSearchPage(initialKeyword: '关键词')),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('没有找到轻小说'), findsOneWidget);
+  });
 }

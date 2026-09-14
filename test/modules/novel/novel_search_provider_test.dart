@@ -69,4 +69,14 @@ void main() {
     final c = _container([_SearchSource('a', const [], throws: true)]);
     await expectLater(c.read(novelSearchProvider('k').future), throwsA(isA<StateError>()));
   });
+
+  test('empty keyword returns no results', () async {
+    final c = _container([_SearchSource('a', const [Novel(id: '1', title: 'X')])]);
+    expect(await c.read(novelSearchProvider('  ').future), isEmpty);
+  });
+
+  test('no sources returns empty', () async {
+    final c = _container([]);
+    expect(await c.read(novelSearchProvider('k').future), isEmpty);
+  });
 }

@@ -267,4 +267,14 @@ void main() {
     expect(seen!['page'], 2);
     expect(list.single.id, '1338');
   });
+
+  test('search returns empty for a blank keyword', () async {
+    var called = false;
+    final source = LknovelSource(poster: (endpoint, body) async {
+      called = true;
+      return {'code': 0, 'data': _feedData};
+    });
+    expect(await source.search('  '), isEmpty);
+    expect(called, isFalse);
+  });
 }

@@ -71,6 +71,7 @@ final novelSearchProvider =
   final k = keyword.trim();
   if (k.isEmpty) return const [];
   final sources = ref.watch(novelSourceManagerProvider).sources;
+  if (sources.isEmpty) return const [];
   final out = <NovelSearchResult>[];
   final seen = <String>{};
   Object? lastError;

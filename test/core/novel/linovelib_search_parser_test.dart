@@ -28,4 +28,14 @@ void main() {
   test('parseSearchResults returns empty when no results', () {
     expect(parseSearchResults('<div></div>'), isEmpty);
   });
+
+  test('parseSearchResults falls back to img src when data-original missing',
+      () {
+    final items = parseSearchResults('''
+<div class="search-result-list">
+  <div class="imgbox"><a href="/novel/1.html"><img src="https://www.linovelib.com/files/a.jpg"></a></div>
+  <div class="se-result-infos"><h2 class="tit"><a href="/novel/1.html">书</a></h2></div>
+</div>''');
+    expect(items.single.coverUrl, 'https://www.linovelib.com/files/a.jpg');
+  });
 }
