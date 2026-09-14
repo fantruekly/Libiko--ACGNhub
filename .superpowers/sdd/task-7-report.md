@@ -1,86 +1,104 @@
-# Task 7 Report: Shell wiring + final verification
+# Task 7 Report: 轻小说模块最终审查修复
 
-## Status: DONE_WITH_CONCERNS
+## 概述
 
-The only concern is that the brief's Step 3 manual in-app smoke test was not run (cannot drive a GUI); it is left to the human. All automated verification passed.
+按最终整支审查结论修复 3 个 Important 问题及若干小项：去掉自动触底加载、改为底部手动「上一页 / 第 N 页 / 下一页」换页；`hasMore` 按 spec 判定；请求头补 `Accept`/`Accept-Language`；`novelSourcesProvider` 改同步；排行行补文库标签；补 `NovelCard` 占位测试。
 
-## What I implemented
+## 实现内容
 
-Modified only `lib/shell/main_shell.dart`:
+### 1. `lib/core/novel/linovelib_source.dart`
+- 新增 `bool hasPaginationControl(String html)`：`div.pagination` 是否存在。
+- 重写 `hasNextPage(String html)`：只在 `div.pagination` 容器内查找文本含「下一页 / 下页」的 `<a>`；`<span>` 不算。
+- `LinovelibSource` 的 Dio 默认 headers 补 `Accept` 与 `Accept-Language`。
+- `browse()` 的 `hasMore` 改为：有分页控件时按 `hasNextPage`，否则按 `items.length >= 10`。
+- `parseRankRows` 补 `a.rank_i_l_a_category` 文库标签解析（去掉 `[` `]`），与 `_novelFromBookLi` 一致。
 
-1. Added imports:
-   - `import '../modules/comic/comic_home.dart';`
-   - `import '../modules/comic/comic_search.dart';`
-2. Replaced the 漫画 `_buildModulePlaceholder(...)` entry at `_pages[1]` with `const ComicHomePage()`.
-3. Made the title-bar search `IconButton` render for `_currentIndex == 0 || _currentIndex == 1`, and the `MaterialPageRoute` builder now picks `const AnimeSearchPage()` for index 0 and `const ComicSearchPage()` for index 1. The existing push style and icon/colour/splashRadius were preserved.
-4. Left `_buildModulePlaceholder` in place because the 轻小说 and 游戏 entries still use it.
+### 2. `lib/modules/novel/novel_providers.dart`
+- `novelSourcesProvider` 由 `FutureProvider<List<NovelSource>>` 改为同步 `Provider<List<NovelSource>>`（无 loading 帧）。
 
-No comments were added. Style matches the surrounding code.
+### 3. `lib/modules/novel/novel_home.dart`
+- `build()` 直接 `_sourceChips(sources)`（不再是 AsyncValue）。
+- 删除 `_grid` 的 `onLoadMore` 参数与 `NotificationListener` 自动触底逻辑。
+- 加载分支统一为 `ShimmerLoader(crossAxisCount: 6, itemCount: 12, aspectRatio: 0.58, padding: EdgeInsets.fromLTRB(16, 8, 16, 24))`。
+- 排行/文库 data 分支改为 `Column(Expanded(_grid), _pager(hasMore))`。
+- 新增 `_pager`：上一页（`_page > 1` 才可点）/「第 N 页」/ 下一页（`hasMore` 才可点）。
+- `_grid` 签名简化为 `Widget _grid(List<Novel> items)`。
 
-## Exact verification commands and observed results
+### 4. 测试
+- `test/core/novel/linovelib_parser_test.dart`：新增 `_paginationTests()`（`hasPaginationControl` + 新的 `hasNextPage` 语义）。
+- `test/modules/novel/novel_card_test.dart`：新增无封面占位测试（期望显示标题首字「安」）。
 
-1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-   - Observed: `Analyzing 2 items...` then `No issues found! (ran in 1.6s)`
-2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-   - Observed: `00:06 +136 ~1: All tests passed!`
-   - (`~1` is the pre-existing intentional skip in `test/core/comic/js_engine_smoke_test.dart`, documented in that test: flutter_qjs native lib is not loadable under `flutter test`.)
-3. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
-   - Observed: `√ Built build\windows\x64\runner\Debug\acgnhub.exe`
-   - One unrelated CMake dev warning from the `webview_windows` plugin (`CMP0175` / DEPENDS); non-fatal and pre-existing.
+## 测试结果
 
-## Files changed and commit
+- `flutter analyze lib test`：`No issues found!`
+- `flutter test`：`All tests passed!`（188 passed，1 skipped —— 该 skip 为既有的 `js_engine_smoke_test`，非本任务引入）。
 
-- `lib/shell/main_shell.dart` (1 file changed, 7 insertions(+), 4 deletions(-))
-- Commit: `763add6` — `feat(comic): wire the comic module into the shell`
-- Command used: `git add lib/shell/main_shell.dart` then `git commit -m "feat(comic): wire the comic module into the shell"`.
-- Only the shell file was staged. The working tree also contains pre-existing unrelated modifications (`.superpowers/sdd/*`, generated plugin registrants, etc.) which were intentionally not staged.
+## TDD Evidence
 
-## Self-review findings
+### RED
+命令：
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart
+```
+输出（节选）：
+```
+test/core/novel/linovelib_parser_test.dart:88:12: Error: Method not found: 'hasPaginationControl'.
+    expect(hasPaginationControl(_pagerNextHtml), isTrue);
+           ^^^^^^^^^^^^^^^^^^^^
+test/core/novel/linovelib_parser_test.dart:89:12: Error: Method not found: 'hasPaginationControl'.
+    expect(hasPaginationControl(_bookListHtml), isFalse);
+           ^^^^^^^^^^^^^^^^^^^^
+00:00 +0 -1: loading ... [E]
+  Failed to load ".../linovelib_parser_test.dart":
+  Compilation failed ...: Method not found: 'hasPaginationControl'.
+00:00 +0 -1: Some tests failed.
+```
+预期失败原因：测试先于实现编写，`hasPaginationControl` 尚不存在，编译失败即 RED。
 
-- Confirmed `ComicHomePage` and `ComicSearchPage` both have `const` constructors (`comic_home.dart:19`, `comic_search.dart:15`), so `const ComicHomePage()` / `const ComicSearchPage()` are valid.
-- The `_pages` list remains a `final` instance field; `const ComicHomePage()` fits the existing `const AnimeHomePage()` pattern.
-- `IndexedStack` still indexes `_pages` by `_currentIndex`; index 1 now correctly shows the comic home.
-- `_buildModulePlaceholder` is still referenced twice (轻小说, 游戏), so no unused-element analyzer warning.
-- Title `_titles[1]` is already `'漫画'`, matching the new page.
-- The diff contains no comments and no unrelated changes.
-- `git show HEAD` verified the commit contains exactly the three intended edits.
+### GREEN
+命令：
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_parser_test.dart
+```
+输出（节选）：
+```
+00:00 +0: novelIdFromHref extracts id
+00:00 +1: parseBookList keeps only book entries with a.title
+00:00 +2: parseHome returns titled sections
+00:00 +3: parseRankRows parses rank rows
+00:00 +4: hasNextPage detects the next link
+00:00 +5: hasPaginationControl detects the container
+00:00 +6: hasNextPage only trusts a next link inside div.pagination
+00:00 +7: All tests passed!
+```
+原 5 + 新 2 全部通过。
 
-## Concerns
+全量：
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+No issues found! (ran in 2.1s)
 
-- **Manual smoke test not run.** Brief Step 3 (launch GUI, import `assets/comic_source/test_source.js`, verify capability chips, search two fixture results, open detail, toggle 收藏, check 收藏/历史 tabs) requires driving a GUI, which this environment cannot do. Left to the human.
-- The `flutter analyze`/`flutter test`/`flutter build` runs re-resolved dependencies and may have touched generated files, but none of those were staged; the commit is limited to `lib/shell/main_shell.dart`.
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+00:10 +188 ~1: All tests passed!
+```
 
-## Final-review fix
+## 变更文件
 
-### What changed
+- `lib/core/novel/linovelib_source.dart`
+- `lib/modules/novel/novel_home.dart`
+- `lib/modules/novel/novel_providers.dart`
+- `test/core/novel/linovelib_parser_test.dart`
+- `test/modules/novel/novel_card_test.dart`
 
-Fix 1 — serialized the comic local-store writes to close the double-toggle race:
+## 自查发现
 
-- `lib/core/comic/comic_favorite.dart`: added the `_pending`/`_enqueue` serialization pattern from `FollowManager`. `toggle`, `remove`, and `clear` now route through `_enqueue`. `toggle`'s "exists" branch inlines the removal logic instead of calling `remove` (avoids nesting enqueues and deadlocking on `_pending`). Public signatures, `all()`/`isFavorite()`/`upsert()`, dedupe, newest-first ordering, and malformed-entry skipping are unchanged.
-- `lib/core/comic/comic_history.dart`: same `_pending`/`_enqueue` pattern; `record` and `clear` route through it. `all()`/`forComic()`/`upsert()` unchanged.
+- 未新增任何依赖；未在任何 `TextStyle` 设置 `fontFamily`（`_pager` 仅 fontSize/color）。
+- 颜色沿用 accent `0xFF007AFF`、fg `0xFF1C1C1E`、muted `0xFF5A5A5F`。
+- `novelSourcesProvider` 改为同步后，唯一使用点 `novel_home.dart` 已同步更新，analyze 无残留错误。
+- 分页 `hasMore` 无分页控件时按 `items.length >= 10` 判定，属 brief/spec 规定行为：若某页恰好 ≥10 条但实为末页，会多一次空页翻页。保留 spec 行为，未擅自改动。
+- 测试均不发起真实网络请求（解析测试用内联 HTML，Widget 测试用 `Novel` 常量）。
 
-Fix 2 — surfaced total search failure instead of a false empty result:
+## 关注点
 
-- `lib/modules/comic/comic_providers.dart`: `comicSearchProvider` now collects the searchable (`canSearch`) sources, isolates per-source failures, and returns partial results when at least one source succeeded. If there is at least one searchable source and every searchable source threw, it throws `StateError('所有漫画源搜索失败：$lastError')`, which the search page's existing `.when(error:)` branch renders with the 重试 button. With no searchable sources it returns `const []`. Other providers were not touched.
-
-No code comments were added.
-
-### Exact verification commands and observed results
-
-1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-   - Observed: `Analyzing 2 items...` then `No issues found! (ran in 2.0s)`
-2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/comic/comic_favorite_test.dart test/core/comic/comic_history_test.dart`
-   - Observed: `00:00 +7: All tests passed!`
-3. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-   - Observed: `00:08 +136 ~1: All tests passed!`
-   - (`~1` is the pre-existing intentional skip in `test/core/comic/js_engine_smoke_test.dart`.)
-4. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
-   - Observed: `√ Built build\windows\x64\runner\Debug\acgnhub.exe`
-   - One unrelated CMake dev warning from the `webview_windows` plugin (`CMP0175` / `DEPENDS`); non-fatal and pre-existing.
-
-### Commit
-
-- `git add lib/core/comic/comic_favorite.dart lib/core/comic/comic_history.dart lib/modules/comic/comic_providers.dart`
-- `git commit -m "fix(comic): serialize store writes and surface search failures"`
-- Commit: `51791fd` — `fix(comic): serialize store writes and surface search failures` (3 files changed, 51 insertions(+), 22 deletions(-)).
-- Only the three intended files were staged; the pre-existing unrelated working-tree modifications (`.superpowers/sdd/*`, generated plugin registrants) were left unstaged.
+- `hasMore` 的 `items.length >= 10` 启发式在「末页恰好满 10 条且无分页控件」时可能给出一次多余的可翻页提示；这是 brief 明确规定，如需更严格可后续以真实站点结构再校验。
+- 未在真实 linovelib 站点做联网冒烟验证（约束禁止测试联网）。

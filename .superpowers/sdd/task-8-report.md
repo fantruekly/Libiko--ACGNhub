@@ -1,90 +1,114 @@
-# Task 8 Report: Rename and rewrite the detail page
+# Task 8 Report: 复审修复（人气榜单页 + 小项）
 
-## Summary
-Implemented exactly per the brief. Created `lib/modules/anime/anime_detail_page.dart`
-with `class AnimeDetailPage extends ConsumerStatefulWidget`, deleted the old
-`bangumi_detail_page.dart`, and updated `anime_home.dart` / `anime_search.dart` to
-import and use `AnimeDetailPage`. The new page enriches the passed `Work` via
-`metadataServiceProvider.detail(work)` on init, shows a banner/cover hero with gradient,
-cover + meta chips (score/episodes/seasonYear), tags wrap, expandable summary, a
-详细信息 card, and a bottom CTA to AniList or MyAnimeList depending on `anilistId`/`malId`.
+## 状态
 
-## Deviations from brief (required to compile / keep analyze clean)
-The brief's "verbatim" code produced 1 error and 1 warning under `flutter analyze lib`:
+DONE
 
-1. **Error** `not_initialized_non_nullable_instance_field` at
-   `anime_detail_page.dart:18` — `Work _work;` is non-nullable and assigned in
-   `initState`, which the analyzer does not treat as initialization.
-   **Fix:** changed to `late Work _work;` (minimal, behavior-preserving).
-2. **Warning** `unused_import` for `import 'anime_search.dart';` — the verbatim code
-   never references `AnimeSearchPage`.
-   **Fix:** removed the unused import.
+## 实现内容
 
-No other changes; all logic matches the brief.
+### 1. `lib/core/novel/linovelib_source.dart`
+- 新增 `static bool isSinglePageRanking(NovelBrowse browse)`：
+  `browse.kind == NovelBrowseKind.ranking && browse.key == 'allvisit'`。
+- `browse()` 的 `hasMore` 改为优先判定单页排行：
+  ```dart
+  final hasMore = isSinglePageRanking(browse)
+      ? false
+      : (hasPaginationControl(html)
+          ? hasNextPage(html)
+          : items.length >= 10);
+  ```
+  修复了 `人气榜`（`allvisit` → `/top.html`，单页）因 `rankPath` 忽略 `page` 且 `items.length >= 10` 回退恒为 true，导致默认排行 tab「下一页」无限循环重复的问题。
 
-## Verification
-Command (workdir `D:\ACGNhub`):
+### 2. `test/core/novel/linovelib_source_test.dart`
+- 补 `import 'package:acgnhub/core/novel/models.dart';`。
+- 新增测试 `allvisit is a single-page ranking`（ranking+allvisit 为 true；ranking+monthvote、bunko+dengekibunko 为 false）。
 
+### 3. `test/core/novel/linovelib_parser_test.dart`
+- 在 `parseRankRows parses rank rows` 里补 `expect(items.first.tags, ['novelpia']);`，覆盖排行行的文库标签解析。
+
+### 4. `docs/superpowers/specs/2026-09-14-novel-module-design.md`
+- `novelSourcesProvider` 注释由 `FutureProvider<List<NovelSource>>` 改为 `Provider<List<NovelSource>>`。
+- 在「排行」子 chip 说明后补：`其中 人气榜（allvisit，/top.html）为单页，不显示分页。`
+
+## 测试结果
+
+- `flutter analyze lib test`：`No issues found! (ran in 2.1s)`
+- `flutter test`：`00:10 +189 ~1: All tests passed!`（189 passed，1 skipped）
+  - `~1` 为既有 skip：`test/core/comic/js_engine_smoke_test.dart`（flutter_qjs 原生库在 `flutter test` 下不可加载），非本任务引入。
+- 未发起任何真实网络请求（均为纯 Dart 解析/静态方法测试）。
+
+## TDD Evidence
+
+### RED
+命令：
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_source_test.dart
+```
+输出（节选）：
+```
+test/core/novel/linovelib_source_test.dart:24:25: Error: Member not found: 'LinovelibSource.isSinglePageRanking'.
+        LinovelibSource.isSinglePageRanking(
+                        ^^^^^^^^^^^^^^^^^^^
+test/core/novel/linovelib_source_test.dart:28:25: Error: Member not found: 'LinovelibSource.isSinglePageRanking'.
+        LinovelibSource.isSinglePageRanking(
+                        ^^^^^^^^^^^^^^^^^^^
+test/core/novel/linovelib_source_test.dart:32:25: Error: Member not found: 'LinovelibSource.isSinglePageRanking'.
+        LinovelibSource.isSinglePageRanking(
+                        ^^^^^^^^^^^^^^^^^^^
+00:00 +0 -1: loading D:/ACGNhub/test/core/novel/linovelib_source_test.dart [E]
+  Failed to load "D:/ACGNhub/test/core/novel/linovelib_source_test.dart":
+  Compilation failed for testPath=D:/ACGNhub/test/core/novel/linovelib_source_test.dart: ...
+00:00 +0 -1: Some tests failed.
+```
+预期失败原因：测试先于实现编写，`isSinglePageRanking` 尚未定义，编译失败即 RED。
+
+### GREEN
+命令：
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_source_test.dart
+```
+输出（节选）：
+```
+00:00 +0: rankPath builds the ranking url
+00:00 +1: bunkoPath builds the bunko url
+00:00 +2: source identity
+00:00 +3: allvisit is a single-page ranking
+00:00 +4: All tests passed!
+```
+原 3 + 新 1 全部通过。
+
+全量校验：
+```
+$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
+No issues found! (ran in 2.1s)
+
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test
+00:10 +189 ~1: All tests passed!
 ```
 
-Result (final):
+## 变更文件
 
-```
-Analyzing lib...
-No issues found! (ran in 1.2s)
-```
+- `lib/core/novel/linovelib_source.dart`
+- `test/core/novel/linovelib_source_test.dart`
+- `test/core/novel/linovelib_parser_test.dart`
+- `docs/superpowers/specs/2026-09-14-novel-module-design.md`
 
-The first run before the two fixes reported:
-- `warning - Unused import: 'anime_search.dart' ... unused_import`
-- `error - Non-nullable instance field '_work' must be initialized ... not_initialized_non_nullable_instance_field`
+## 提交
 
-## Files changed
-- Added: `lib/modules/anime/anime_detail_page.dart`
-- Deleted: `lib/modules/anime/bangumi_detail_page.dart`
-- Modified: `lib/modules/anime/anime_home.dart` (import + 3 × `BangumiDetailPage(` → `AnimeDetailPage(`)
-- Modified: `lib/modules/anime/anime_search.dart` (import + 1 × `BangumiDetailPage(` → `AnimeDetailPage(`)
+- `git add lib/core/novel/linovelib_source.dart test/core/novel/linovelib_source_test.dart test/core/novel/linovelib_parser_test.dart docs/superpowers/specs/2026-09-14-novel-module-design.md`
+- `git commit -m "fix(novel): treat 人气榜 as a single page; test rank tags; sync spec"`
+- `git push`
+- Commit SHA：见下方回复。
 
-Git rename detection recorded it as
-`lib/modules/anime/{bangumi_detail_page.dart => anime_detail_page.dart}` (69% similarity).
+## 自查发现
 
-## Commit
-- `0075ea3` feat(anime): rename detail page and drive it from metadata service
-  - 3 files changed, 83 insertions(+), 73 deletions(-)
+- `isSinglePageRanking` 用 `browse.key == 'allvisit'` 精确匹配，且同时要求 `kind == ranking`，因此 `bunko` 下同名 key 不会被误判（测试已覆盖）。
+- `browse()` 仅在 `hasMore` 判定处使用该守卫，不影响请求路径与解析；`rankPath` 对 `allvisit` 依旧返回 `/top.html`，与单页语义一致。
+- 未新增任何依赖；未添加任何代码注释。
+- 测试文件新增的 `models.dart` import 是 `NovelBrowse`/`NovelBrowseKind` 所需（`linovelib_source.dart` 只 import 未 export）。
+- 仅暂存了 brief 指定的 4 个文件；工作区其余既有未提交改动（`.superpowers/sdd/*`、plan 文档等）保持不动。
 
-## Self-review
-- Confirmed no remaining `BangumiDetailPage` / `bangumi_detail_page` references under
-  `lib/` (grep clean). Remaining matches are only in `docs/` planning artifacts, out of scope.
-- `metadataServiceProvider` is defined in `anime_providers.dart` and is a
-  `Provider<MetadataService>`; `MetadataService.detail(Work)` returns `Future<Work>` — matches usage.
-- `Work.anilistId`, `Work.malId`, `Work.bannerUrl` getters exist in `core/models/work.dart`.
-- `anime_providers.dart` still imports `bangumi_service.dart` (Task 9); left untouched as instructed.
-- Only the four intended files were staged; `.superpowers/*` and `docs/*` changes were left uncommitted.
+## 关注点
 
-## Concerns
-- None blocking. The two brief deviations are documented above and were necessary for a clean analyze.
-- The brief's interface note listed `AnimeSearchPage` as consumed, but the provided code does not use it;
-  the unused import was removed rather than inventing a feature. If a "search playback resources" entry
-  point is intended here, it belongs to the future video spec.
-
-## Fix: restore play-resources button
-Re-added the spec-required "搜索播放资源" placeholder entry point that the brief omitted:
-- Added `import 'anime_search.dart';` to `lib/modules/anime/anime_detail_page.dart`.
-- Added `_playSection(w, cs)` between `_summarySection(...)` and `_metaSection(...)` in the
-  `CustomScrollView` slivers list.
-- Added the `_playSection` method before `_metaSection`, rendering a 播放 card with an
-  `OutlinedButton.icon` that pushes `AnimeSearchPage(initialKeyword: w.extra['keyword'] as String? ?? w.title)`.
-
-Verification command (workdir `D:\ACGNhub`):
-
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib
-```
-
-Output:
-
-```
-Analyzing lib...
-No issues found! (ran in 1.2s)
-```
+- 本次提交的 spec 文档同时包含了 Task 7 遗留的未提交文案改动（手动换页、Accept/Accept-Language 等），因为 Task 7 的提交未包含该文档。这符合 Task 8 brief「修改并提交该 spec 文件」的要求，但会让该 commit 的 spec diff 大于纯 Task 8 文案范围。
+- `hasMore` 的 `items.length >= 10` 启发式仍适用于非 `allvisit` 排行与文库；若站点某末页恰好满 10 条且无分页控件，仍可能多提示一次可翻页。这是 spec 规定行为，未擅自改动。

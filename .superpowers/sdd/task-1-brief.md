@@ -1,223 +1,173 @@
-### Task 1: Engine account support
+### Task 1: 模型 `models.dart`
 
 **Files:**
-- Modify: `assets/comic_source/init.js`
-- Modify: `lib/core/comic/js_engine.dart`
-- Modify: `lib/core/comic/comic_source.dart`
+- Create: `lib/core/novel/models.dart`
+- Test: `test/core/novel/models_test.dart`
 
 **Interfaces:**
-- Produces: JS `Cookie` global and `ComicSource.isLogged`; `ComicSource` gains `bool hasLogin`, `bool hasCookieLogin`, `List<String> cookieFields`; `ComicSourceManager.login(source, username, password) → Future<bool>`, `loginWithCookies(source, values) → Future<bool>`, `logout(source) → Future<void>`, `isLogged(source) → Future<bool>`.
+- Produces:
+  - `Novel { String id; String title; String? author; String? coverUrl; List<String> tags; String? summary; Map<String,dynamic> extra; }`，构造 `const Novel({required id, required title, author, coverUrl, tags = const [], summary, extra = const {}})`；`Novel.fromJson(Map<String,dynamic>)` / `Map<String,dynamic> toJson()`。
+  - `NovelSection { String title; List<Novel> items; }`，`const NovelSection({required title, required items})`。
+  - `NovelHome { List<NovelSection> sections; }`，`const NovelHome({required sections})`。
+  - `NovelList { List<Novel> items; int page; bool hasMore; }`，`const NovelList({required items, required page, required hasMore})`。
+  - `enum NovelBrowseKind { ranking, bunko }`。
+  - `NovelBrowse { NovelBrowseKind kind; String key; }`，`const NovelBrowse(this.kind, this.key)`。
+  - `NovelDetail { Novel novel; Map<String,String> chapters; }`，`const NovelDetail({required novel, required chapters})`。
+  - `NovelChapter { String title; String content; }`，`const NovelChapter({required title, required content})`。
 
-- [ ] **Step 1: Add the `Cookie` global and `isLogged` to `init.js`**
+- [ ] **Step 1: 写失败测试**
 
-In `assets/comic_source/init.js`, add a `Cookie` class near the other globals (e.g. after `class Convert { ... }`):
-
-```js
-  class Cookie {
-    constructor({ name, value, domain, path } = {}) {
-      this.name = name || '';
-      this.value = value || '';
-      this.domain = domain || '';
-      this.path = path || '/';
-    }
-  }
-```
-
-and register it before `globalThis.ComicSource = ComicSource;`:
-
-```js
-  globalThis.Cookie = Cookie;
-```
-
-Inside `class ComicSource`, add after `saveSetting(key, value)`:
-
-```js
-    get isLogged() {
-      const token = this.loadData('token');
-      const account = this.loadData('account');
-      return (token !== null && token !== undefined && token !== '') ||
-             (account !== null && account !== undefined);
-    }
-```
-
-- [ ] **Step 2: Serialize cookie objects in `js_engine.dart`**
-
-In `lib/core/comic/js_engine.dart`, replace the loop body of `_cookieHeaderFor` so a list of cookie objects becomes `name=value` pairs:
+`test/core/novel/models_test.dart`:
 
 ```dart
-  String? _cookieHeaderFor(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null || uri.host.isEmpty) return null;
-    final values = <String>[];
-    for (final entry in _cookieJar.entries) {
-      final key = Uri.tryParse(entry.key.toString());
-      if (key == null || key.host != uri.host) continue;
-      final value = entry.value;
-      if (value is List) {
-        for (final cookie in value) {
-          if (cookie is Map) {
-            final name = cookie['name']?.toString() ?? '';
-            final cookieValue = cookie['value']?.toString() ?? '';
-            if (name.isNotEmpty) values.add('$name=$cookieValue');
-          }
-        }
-      } else {
-        final text = value?.toString();
-        if (text != null && text.isNotEmpty) values.add(text);
-      }
-    }
-    return values.isEmpty ? null : values.join('; ');
-  }
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/novel/models.dart';
+
+void main() {
+  test('Novel round-trips through JSON', () {
+    const novel = Novel(
+      id: '2059',
+      title: '安达与岛村',
+      author: '入间人间',
+      coverUrl: 'https://x/2059s.jpg',
+      tags: ['电击文库'],
+      summary: '简介',
+      extra: {'url': '/novel/2059.html'},
+    );
+    final restored = Novel.fromJson(
+      json.decode(json.encode(novel.toJson())) as Map<String, dynamic>,
+    );
+    expect(restored.id, '2059');
+    expect(restored.title, '安达与岛村');
+    expect(restored.author, '入间人间');
+    expect(restored.coverUrl, 'https://x/2059s.jpg');
+    expect(restored.tags, ['电击文库']);
+    expect(restored.summary, '简介');
+    expect(restored.extra['url'], '/novel/2059.html');
+  });
+
+  test('Novel.fromJson tolerates missing optional fields', () {
+    final n = Novel.fromJson(const {'id': '1', 'title': 'T'});
+    expect(n.author, isNull);
+    expect(n.coverUrl, isNull);
+    expect(n.tags, isEmpty);
+    expect(n.extra, isEmpty);
+  });
+
+  test('NovelBrowse holds kind and key', () {
+    const b = NovelBrowse(NovelBrowseKind.bunko, 'dengekibunko');
+    expect(b.kind, NovelBrowseKind.bunko);
+    expect(b.key, 'dengekibunko');
+  });
+}
 ```
 
-- [ ] **Step 3: Add the account fields to `ComicSource`**
+- [ ] **Step 2: 运行测试确认失败**
 
-In `lib/core/comic/comic_source.dart`, add to `ComicSource` after `categoryOptions`:
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/models_test.dart`
+Expected: FAIL（`models.dart` 不存在 / 类未定义）
+
+- [ ] **Step 3: 实现 `lib/core/novel/models.dart`**
 
 ```dart
-  final bool hasLogin;
-  final bool hasCookieLogin;
-  final List<String> cookieFields;
-```
-
-and to the constructor:
-
-```dart
-    this.hasLogin = false,
-    this.hasCookieLogin = false,
-    this.cookieFields = const [],
-```
-
-- [ ] **Step 4: Parse the account metadata in `fromMetadata`**
-
-In `fromMetadata`, before `return ComicSource(...)`:
-
-```dart
-    final account = meta['account'];
-```
-
-and in the constructor call add:
-
-```dart
-      hasLogin: account is Map && account['hasLogin'] == true,
-      hasCookieLogin: account is Map && account['hasCookieLogin'] == true,
-      cookieFields: account is Map && account['cookieFields'] is List
-          ? (account['cookieFields'] as List).map((e) => e.toString()).toList()
-          : const [],
-```
-
-- [ ] **Step 5: Return the account metadata from the registry**
-
-In `_registryJs`, inside `__acgnhub_registerSource`'s `finish` return object, add after `category: ...`:
-
-```js
-      account: (function () {
-        const a = s.account;
-        const cw = a && a.loginWithCookies;
-        return {
-          hasLogin: !!(a && typeof a.login === 'function'),
-          hasCookieLogin: !!(cw && typeof cw.validate === 'function'),
-          cookieFields: cw && Array.isArray(cw.fields) ? cw.fields.map(String) : []
-        };
-      })()
-```
-
-- [ ] **Step 6: Add the manager methods**
-
-In `ComicSourceManager`, add after `category`:
-
-```dart
-  Future<bool> login(
-      ComicSource source, String username, String password) async {
-    await _ensureInitialized();
-    if (!source.hasLogin) return false;
-    try {
-      await _engine.evaluate('''
-        (async () => {
-          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
-          await s.account.login(${jsonEncode(username)}, ${jsonEncode(password)});
-          return true;
-        })()
-      ''');
-      return true;
-    } catch (_) {
-      return false;
-    }
+List<String> _stringList(dynamic raw) {
+  if (raw is List) {
+    return raw.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
   }
+  return const [];
+}
 
-  Future<bool> loginWithCookies(
-      ComicSource source, List<String> values) async {
-    await _ensureInitialized();
-    if (!source.hasCookieLogin) return false;
-    try {
-      final ok = await _engine.evaluate('''
-        (async () => {
-          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
-          return await s.account.loginWithCookies.validate(${jsonEncode(values)});
-        })()
-      ''');
-      if (ok == true) {
-        await AppDatabase()
-            .setString('source_data.${source.key}.logged_in', '1');
-        return true;
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
+class Novel {
+  final String id;
+  final String title;
+  final String? author;
+  final String? coverUrl;
+  final List<String> tags;
+  final String? summary;
+  final Map<String, dynamic> extra;
 
-  Future<void> logout(ComicSource source) async {
-    await _ensureInitialized();
-    try {
-      await _engine.evaluate('''
-        (async () => {
-          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
-          if (s.account && typeof s.account.logout === 'function') {
-            await s.account.logout();
-          }
-          return true;
-        })()
-      ''');
-    } catch (_) {
-      // Best-effort logout.
-    }
-    await AppDatabase().remove('source_data.${source.key}.logged_in');
-  }
+  const Novel({
+    required this.id,
+    required this.title,
+    this.author,
+    this.coverUrl,
+    this.tags = const [],
+    this.summary,
+    this.extra = const {},
+  });
 
-  Future<bool> isLogged(ComicSource source) async {
-    await _ensureInitialized();
-    if (!source.hasLogin && source.hasCookieLogin) {
-      return AppDatabase()
-              .getString('source_data.${source.key}.logged_in') ==
-          '1';
-    }
-    try {
-      final result = await _engine.evaluate('''
-        (async () => {
-          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
-          return !!s.isLogged;
-        })()
-      ''');
-      return result == true;
-    } catch (_) {
-      return false;
-    }
-  }
+  factory Novel.fromJson(Map<String, dynamic> json) => Novel(
+        id: json['id']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        author: json['author']?.toString(),
+        coverUrl: json['coverUrl']?.toString(),
+        tags: _stringList(json['tags']),
+        summary: json['summary']?.toString(),
+        extra: (json['extra'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        if (author != null) 'author': author,
+        if (coverUrl != null) 'coverUrl': coverUrl,
+        if (tags.isNotEmpty) 'tags': tags,
+        if (summary != null) 'summary': summary,
+        if (extra.isNotEmpty) 'extra': extra,
+      };
+}
+
+class NovelSection {
+  final String title;
+  final List<Novel> items;
+  const NovelSection({required this.title, required this.items});
+}
+
+class NovelHome {
+  final List<NovelSection> sections;
+  const NovelHome({required this.sections});
+}
+
+class NovelList {
+  final List<Novel> items;
+  final int page;
+  final bool hasMore;
+  const NovelList({required this.items, required this.page, required this.hasMore});
+}
+
+enum NovelBrowseKind { ranking, bunko }
+
+class NovelBrowse {
+  final NovelBrowseKind kind;
+  final String key;
+  const NovelBrowse(this.kind, this.key);
+}
+
+class NovelDetail {
+  final Novel novel;
+  final Map<String, String> chapters;
+  const NovelDetail({required this.novel, required this.chapters});
+}
+
+class NovelChapter {
+  final String title;
+  final String content;
+  const NovelChapter({required this.title, required this.content});
+}
 ```
 
-(`AppDatabase` is already imported in `comic_source.dart`.)
+- [ ] **Step 4: 运行测试确认通过**
 
-- [ ] **Step 7: Analyze and build**
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/models_test.dart`
+Expected: PASS（3 tests）
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
-
-- [ ] **Step 8: Commit and push**
+- [ ] **Step 5: 提交**
 
 ```bash
-git add assets/comic_source/init.js lib/core/comic/js_engine.dart lib/core/comic/comic_source.dart
-git commit -m "feat(comic): add account login support to the comic engine"
+git add lib/core/novel/models.dart test/core/novel/models_test.dart
+git commit -m "feat(novel): add novel models"
 git push
 ```
 

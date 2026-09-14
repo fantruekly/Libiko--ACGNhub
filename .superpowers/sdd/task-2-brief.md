@@ -1,188 +1,125 @@
-### Task 2: Account dialog in 源管理
+### Task 2: `NovelSource` 抽象与 `NovelSourceManager`
 
 **Files:**
-- Modify: `lib/modules/comic/comic_source_page.dart`
+- Create: `lib/core/novel/novel_source.dart`
+- Test: `test/core/novel/novel_source_test.dart`
 
 **Interfaces:**
-- Consumes: `ComicSource.hasLogin`/`hasCookieLogin`/`cookieFields` and the manager's `login`/`loginWithCookies`/`logout`/`isLogged` (Task 1).
+- Consumes: `lib/core/novel/models.dart`（Task 1）。
+- Produces:
+  - `abstract class NovelSource { String get id; String get name; String get baseUrl; Future<NovelHome> home(); Future<NovelList> browse(NovelBrowse browse, {int page = 1}); Future<List<Novel>> search(String keyword, {int page = 1}); Future<NovelDetail> detail(String id); Future<NovelChapter> chapter(String novelId, String chapterId); }`
+  - `class NovelSourceManager { NovelSourceManager({List<NovelSource>? sources}); List<NovelSource> get sources; void register(NovelSource s); NovelSource? byId(String id); }`（`register` 对重复 id 抛 `ArgumentError`）
 
-- [ ] **Step 1: Add the 账号 menu item**
+- [ ] **Step 1: 写失败测试**
 
-In `_sourceTile`'s `PopupMenuButton`, add to `onSelected`:
-
-```dart
-            if (value == 'account') _openAccount(source);
-```
-
-and to `itemBuilder`, before the 刷新 entry:
+`test/core/novel/novel_source_test.dart`:
 
 ```dart
-            if (source.hasLogin || source.hasCookieLogin)
-              const PopupMenuItem(value: 'account', child: Text('账号')),
-```
+import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/novel/models.dart';
+import 'package:acgnhub/core/novel/novel_source.dart';
 
-Add the handler near `_refresh`/`_confirmDelete`:
-
-```dart
-  void _openAccount(ComicSource source) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => _AccountDialog(source: source),
-    );
-  }
-```
-
-- [ ] **Step 2: Add the `_AccountDialog` widget**
-
-Append at the end of `comic_source_page.dart`:
-
-```dart
-class _AccountDialog extends ConsumerStatefulWidget {
-  final ComicSource source;
-
-  const _AccountDialog({required this.source});
-
+class _FakeSource extends NovelSource {
   @override
-  ConsumerState<_AccountDialog> createState() => _AccountDialogState();
+  String get id => 'fake';
+  @override
+  String get name => 'Fake';
+  @override
+  String get baseUrl => 'https://fake';
+  @override
+  Future<NovelHome> home() async => const NovelHome(sections: []);
+  @override
+  Future<NovelList> browse(NovelBrowse browse, {int page = 1}) async =>
+      NovelList(items: const [], page: page, hasMore: false);
+  @override
+  Future<List<Novel>> search(String keyword, {int page = 1}) async => const [];
+  @override
+  Future<NovelDetail> detail(String id) async =>
+      const NovelDetail(novel: Novel(id: 'x', title: 'x'), chapters: {});
+  @override
+  Future<NovelChapter> chapter(String novelId, String chapterId) async =>
+      const NovelChapter(title: 't', content: 'c');
 }
 
-class _AccountDialogState extends ConsumerState<_AccountDialog> {
-  late final List<TextEditingController> _controllers;
-  bool _logged = false;
-  bool _busy = false;
-  String? _error;
+void main() {
+  test('manager exposes registered sources', () {
+    final m = NovelSourceManager(sources: [_FakeSource()]);
+    expect(m.sources.map((s) => s.id), ['fake']);
+    expect(m.byId('fake')!.name, 'Fake');
+    expect(m.byId('nope'), isNull);
+  });
 
-  @override
-  void initState() {
-    super.initState();
-    final count = widget.source.hasCookieLogin
-        ? widget.source.cookieFields.length
-        : 2;
-    _controllers =
-        List.generate(count, (_) => TextEditingController());
-    _refreshStatus();
-  }
+  test('manager rejects duplicate ids', () {
+    final m = NovelSourceManager(sources: [_FakeSource()]);
+    expect(() => m.register(_FakeSource()), throwsArgumentError);
+  });
+}
+```
 
-  @override
-  void dispose() {
-    for (final controller in _controllers) {
-      controller.dispose();
+- [ ] **Step 2: 运行测试确认失败**
+
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/novel_source_test.dart`
+Expected: FAIL（`novel_source.dart` 不存在）
+
+- [ ] **Step 3: 实现 `lib/core/novel/novel_source.dart`**
+
+```dart
+import 'models.dart';
+
+abstract class NovelSource {
+  String get id;
+  String get name;
+  String get baseUrl;
+
+  /// 首页：若干带标题的书单。
+  Future<NovelHome> home();
+
+  /// 排行 / 文库分类，分页。
+  Future<NovelList> browse(NovelBrowse browse, {int page = 1});
+
+  // v1 仅声明，后续实现：
+  Future<List<Novel>> search(String keyword, {int page = 1});
+  Future<NovelDetail> detail(String id);
+  Future<NovelChapter> chapter(String novelId, String chapterId);
+}
+
+class NovelSourceManager {
+  NovelSourceManager({List<NovelSource>? sources}) {
+    for (final s in sources ?? const <NovelSource>[]) {
+      register(s);
     }
-    super.dispose();
   }
 
-  Future<void> _refreshStatus() async {
-    final logged =
-        await ref.read(comicSourceManagerProvider).isLogged(widget.source);
-    if (mounted) setState(() => _logged = logged);
-  }
+  final List<NovelSource> _sources = [];
 
-  String _label(int index) {
-    if (widget.source.hasCookieLogin) {
-      return widget.source.cookieFields[index];
+  List<NovelSource> get sources => List.unmodifiable(_sources);
+
+  void register(NovelSource source) {
+    if (_sources.any((s) => s.id == source.id)) {
+      throw ArgumentError('duplicate novel source id: ${source.id}');
     }
-    return index == 0 ? '账号 / 邮箱' : '密码';
+    _sources.add(source);
   }
 
-  Future<void> _submit() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final manager = ref.read(comicSourceManagerProvider);
-    final bool ok;
-    if (widget.source.hasLogin) {
-      ok = await manager.login(widget.source, _controllers[0].text.trim(),
-          _controllers[1].text);
-    } else {
-      ok = await manager.loginWithCookies(
-          widget.source, _controllers.map((c) => c.text.trim()).toList());
+  NovelSource? byId(String id) {
+    for (final s in _sources) {
+      if (s.id == id) return s;
     }
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _logged = ok;
-      _error = ok ? null : '登录失败';
-    });
-  }
-
-  Future<void> _logout() async {
-    setState(() => _busy = true);
-    await ref.read(comicSourceManagerProvider).logout(widget.source);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _logged = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.source.name),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(_logged ? '已登录' : '未登录',
-              style: TextStyle(
-                  fontSize: 13,
-                  color: _logged
-                      ? const Color(0xFF34C759)
-                      : const Color(0xFF8E8E93))),
-          if (!_logged) ...[
-            const SizedBox(height: 12),
-            for (var i = 0; i < _controllers.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TextField(
-                  controller: _controllers[i],
-                  obscureText: widget.source.hasLogin && i == 1,
-                  decoration: InputDecoration(
-                    labelText: _label(i),
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                ),
-              ),
-          ],
-          if (_error != null)
-            Text(_error!,
-                style: const TextStyle(
-                    fontSize: 13, color: Color(0xFFE81123))),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('关闭'),
-        ),
-        if (_logged)
-          TextButton(
-            onPressed: _busy ? null : _logout,
-            child: const Text('退出登录'),
-          )
-        else
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: const Text('登录'),
-          ),
-      ],
-    );
+    return null;
   }
 }
 ```
 
-- [ ] **Step 3: Analyze and build**
+- [ ] **Step 4: 运行测试确认通过**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` → built.
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/novel_source_test.dart`
+Expected: PASS（2 tests）
 
-- [ ] **Step 4: Commit and push**
+- [ ] **Step 5: 提交**
 
 ```bash
-git add lib/modules/comic/comic_source_page.dart
-git commit -m "feat(comic): add the source account dialog"
+git add lib/core/novel/novel_source.dart test/core/novel/novel_source_test.dart
+git commit -m "feat(novel): add NovelSource interface and manager"
 git push
 ```
 

@@ -1,113 +1,65 @@
-# Task 6 Report: Comic detail page
+# Task 6 Report: 轻小说首页 UI（`NovelCard` + `NovelHomePage`）并接入 shell
 
-## What I implemented
+## 实现内容
 
-### Part A — `lib/modules/comic/comic_detail_page.dart` (new)
+1. 新建 `lib/modules/novel/novel_home.dart`（按 brief 逐字实现）：
+   - `NovelCard`：封面（`CachedNetworkImage`，无封面时按书名 hash 生成占位色块 + 首字）、书名（2 行省略）、作者（1 行省略）。
+   - `NovelHomePage`（`ConsumerStatefulWidget`）：
+     - 源 chips（来自 `novelSourcesProvider`，默认 `linovelib`）。
+     - 分区 chips：推荐 / 排行 / 文库。
+     - 排行子 chips（`_rankingOptions` 13 项）、文库子 chips（`_bunkoOptions` 14 项）。
+     - 推荐分区走 `novelHomeProvider` + `flattenHome`；排行/文库走 `novelBrowseProvider((sourceId, kind, key, page))`。
+     - 加载态 `ShimmerLoader(crossAxisCount: 6)`；错误态 `EmptyState` + 「重试」（`ref.invalidate`）；空数据 `EmptyState('暂无内容')`。
+     - 网格 `GridView.builder`（6 列，`childAspectRatio: 0.58`），滚动到底部 400px 内触发下一页。
+2. 修改 `lib/shell/main_shell.dart`：
+   - 新增 `import '../modules/novel/novel_home.dart';`。
+   - `_pages` 第 3 项由 `_buildModulePlaceholder('轻小说', ...)` 改为 `const NovelHomePage()`；游戏占位与其余部分未改动。
 
-`class ComicDetailPage extends ConsumerStatefulWidget` with the four required
-constructor params (`sourceKey`, `comicId`, `title`, `cover`). Layout mirrors
-`anime_detail_page.dart`:
+## 测试与结果
 
-- **`_header`**: `DragToMoveArea` → 48 px white `Container` (bottom border
-  `#E5E5EA` 0.5) with a back `IconButton`, the `title` (`Expanded`, 16 px w600,
-  ellipsis) and `const WindowControls()`.
-- **Body**: `Scaffold(backgroundColor: Color(0xFFF2F2F7))` → `Column([_header,
-  Expanded(child: _body())])`.
-- **`_body`**: `ref.watch(comicDetailProvider((sourceKey, comicId)))`:
-  - loading → `ShimmerLoader(crossAxisCount: 6, itemCount: 12)`.
-  - error → `EmptyState(icon: Icons.error_outline_rounded, message: '加载失败',
-    actionLabel: '重试', onAction: ref.invalidate(...))`.
-  - data → `CustomScrollView` with the info card, chapter section, and (when
-    history exists) the 继续阅读 button, plus a 24 px bottom spacer.
-- **Info card**: `GlassSurface(blur: 0, borderRadius: 16, padding: 16, border
-  #E5E5EA, boxShadow [0x0F000000/16/(0,6)])` around a `Row(crossAxisAlignment:
-  start)`:
-  - `Hero(tag: 'comic_${sourceKey}_$comicId')` → `RepaintBoundary` →
-    `ClipRRect(10)` → 110×154 `CachedNetworkImage` (plain, `fit: cover`,
-    `memCacheWidth: 300`, `errorWidget: _coverPlaceholder`) or
-    `_coverPlaceholder` when the cover is null/empty. `ComicImageProvider` is
-    intentionally not used (it belongs to the C2b reader).
-  - 24 px gap → `Expanded` `Column`: title (20 px w600, max 2 lines), 14 px
-    gap, 收藏 button, 14 px gap, tags `Wrap`, 10 px gap, description.
-  - 收藏 button: `FilledButton.icon`, 36 px min height, radius 10; not
-    favorite → `#007AFF` bg / white fg / `Icons.bookmark_add_outlined` / `收藏`;
-    favorite → `#E5E5EA` bg / `#8E8E93` fg / `Icons.bookmark_added_rounded` /
-    `已收藏`. State comes from `ref.watch(comicFavoritesProvider)` membership on
-    `(sourceKey, comicId)`; press builds a `ComicFavorite` from the loaded
-    details (`title`, `cover`, `DateTime.now()`) and calls
-    `ref.read(comicFavoritesProvider.notifier).toggle(...)`.
-  - tags: `_tagChip` mirrors the anime `_metaChip` visual (accent 10 % bg,
-    radius 6, 12 px w600 accent text) without an icon.
-  - description: 13 px, `cs.onSurface.withValues(alpha: 0.7)`, `maxLines:
-    _expanded ? null : 3` with a 展开/收起 `GestureDetector` (state field
-    `_expanded`, shown when the text is long enough to truncate); empty/null →
-    `暂无简介`.
-- **章节 section**: `GlassSurface` card with a header `Row` (`章节` 16 px w600 +
-  `共 N 话` 12 px `#8E8E93`) and a `Wrap(spacing/runSpacing: 10)` of chapter
-  buttons from `details.chapters.entries` — each 104×44, radius 10,
-  `Color(0x0F007AFF)` fill, `Border.all(Color(0x4D007AFF))`, centered single-line
-  ellipsised label = the map **value** (chapter title), 13 px w500 `#007AFF`;
-  tap shows `SnackBar('阅读器开发中')`. Empty → `暂无章节`.
-- **继续阅读**: a full-width `FilledButton.icon` shown when
-  `ref.watch(comicHistoryProvider)` contains an entry matching
-  `(sourceKey, comicId)`; tap shows the same C2a `SnackBar` placeholder.
+- 新增 `test/modules/novel/novel_card_test.dart`（brief 逐字）：断言 `NovelCard` 渲染书名与作者。
+- `flutter analyze lib test` → `No issues found! (ran in 2.0s)`。
+- `flutter test` → `+185 ~1: All tests passed!`（1 个 skip 为既有的 `js_engine_smoke_test` flutter_qjs 原生库在 flutter test 下不可加载，非本任务引入）。
+- `flutter build windows --debug` → 成功，产出 `build\windows\x64\runner\Debug\acgnhub.exe`。
+- 冒烟启动：`Start-Process` 启动 exe，8 秒后进程仍存活（pid=30672），随后手动结束。**视觉验证未做（无法看到 UI），留给人工。**
 
-No reader was built; no comments added.
+## TDD Evidence
 
-### Part B — call-site wiring
+### RED
+命令：`flutter test test/modules/novel/novel_card_test.dart`
+输出（关键）：
+```
+test/modules/novel/novel_card_test.dart:4:8: Error: Error when reading 'lib/modules/novel/novel_home.dart': 系统找不到指定的文件
+import 'package:acgnhub/modules/novel/novel_home.dart';
+test/modules/novel/novel_card_test.dart:13:18: Error: Method not found: 'NovelCard'.
+00:00 +0 -1: Some tests failed.
+```
+为何符合预期：实现文件 `novel_home.dart` 尚未创建，`NovelCard` 不存在，编译失败即测试失败——正是「先失败」状态。
 
-- `comic_home.dart`: imported `comic_detail_page.dart`; `_DiscoverTab._explore`,
-  `_FavoritesTab`, and `_historyRow` now push `ComicDetailPage` via
-  `smoothRoute`; removed the now-unused `_showDetailPlaceholder`.
-- `comic_search.dart`: imported `comic_detail_page.dart` + `smooth_route.dart`;
-  result tap now pushes `ComicDetailPage` via `smoothRoute`; removed the unused
-  private placeholder.
-- Existing `heroTag`s on the cards are unchanged, so the Hero flies into the
-  detail cover.
+### GREEN
+命令：`flutter test test/modules/novel/novel_card_test.dart`
+输出：
+```
+00:00 +0: NovelCard shows title and author
+00:00 +1: All tests passed!
+```
 
-## Verification (exact commands + observed results)
+## 变更文件
 
-1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-   → `No issues found! (ran in 1.7s)`
-2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-   → `00:06 +136 ~1: All tests passed!` (136 passed / 1 skipped; the skip is the
-   pre-existing `js_engine_smoke_test`, which cannot load the QuickJS native
-   library under `flutter test`).
-3. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug`
-   → `√ Built build\windows\x64\runner\Debug\acgnhub.exe` (only a pre-existing
-   webview_windows CMake dev warning).
+- 新增 `lib/modules/novel/novel_home.dart`
+- 修改 `lib/shell/main_shell.dart`
+- 新增 `test/modules/novel/novel_card_test.dart`
 
-## Files changed + commit
+## 自审发现
 
-Commit `6a9b0c9` — `feat(comic): add the comic detail page` (3 files changed,
-456 insertions, 14 deletions):
-- `lib/modules/comic/comic_detail_page.dart` (new)
-- `lib/modules/comic/comic_home.dart`
-- `lib/modules/comic/comic_search.dart`
+- `novel_home.dart` 与 brief 代码逐字一致，无偏离。
+- `main_shell.dart` diff 仅包含 1 行 import + 3 行替换，游戏占位未动。
+- `String.characters` 无需额外 import（`material.dart` 间接导出），`flutter analyze` 确认无报错。
+- `_page` 在切换源/分区/子选项时重置为 1，逻辑正确。
+- 未引入任何新依赖，未设置 `fontFamily`。
 
-Only the three intended files were staged. Unrelated working-tree changes
-(generated plugin registrants, `.superpowers/sdd/*`) were left untouched.
+## 关注点 / 遗留
 
-## Self-review findings
-
-- `flutter analyze` is clean, confirming no unused imports/helpers remain after
-  removing both placeholders.
-- The 收藏 state is derived by watching the favorites list (not a one-shot
-  read), so toggling rebuilds the button.
-- `comicImageProvider` is deliberately not consumed, per the brief.
-- Chapter labels use the map value (title), not the key (id), matching the
-  `chapters: chapterId → title` contract.
-- `_historyEntry()` and `_continueReading()` both watch `comicHistoryProvider`,
-  so the continue button appears/disappears reactively.
-
-## Concerns
-
-- The 展开/收起 toggle is shown only when the description exceeds 60 chars (a
-  heuristic for "long enough to truncate at 3 lines"). Very wide/narrow layouts
-  could show a toggle when the text actually fits, or omit it when a wide-glyph
-  string wraps sooner; the brief did not specify the threshold.
-- With no tags, the info card still reserves the 10 px gap before the
-  description (minor cosmetic spacing), matching the anime card's unconditional
-  spacing style.
-- The chapter/continue taps are intentionally `SnackBar('阅读器开发中')`
-  placeholders until the C2b reader lands.
+- **视觉验证未完成**：本环境无法看到 UI，需人工在「轻小说」标签确认源 chip、网格、排行/文库子 chip 与滚动翻页效果。
+- 滚动触底翻页使用 `NotificationListener`，极端快速滚动可能重复触发 `_page++`；此为 brief 指定实现，v1 可接受。
+- `.superpowers/sdd/*` 中的 brief/report/progress 变更未纳入本次提交（brief 的 `git add` 仅指定 3 个源码/测试文件）。
