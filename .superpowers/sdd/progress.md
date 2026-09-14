@@ -260,6 +260,10 @@ Task 11 (uniform cards): complete (commit ea1bc47..64df555, review clean). Autho
   (explore grid) so all covers are the same height; card test now asserts author is absent.
 Task 12 (illustration sizing): complete (commit 64df555..3d79ee1, review clean). Reader `NovelImage` wrapped in a
   fixed `SizedBox(height: _illustrationHeight(context))` with `BoxFit.contain` — fills the page vertically, blank sides.
+Task 13 (人气榜 covers): complete (commit 7227414..9277f9b, review clean). `rankPath` now uniform
+  `/top/<key>/<page>.html`; allvisit uses `/top/allvisit/<page>.html` (30/30 rows with covers) instead of `/top.html`
+  (only ~6/122 rows had covers); `isSinglePageRanking` removed. Minor: the `rank_i_li` branch in `parseRankRows` is now
+  unreachable via `rankPath` but kept (with its test).
   Manual live-site verification owed to the human: selectors (#mlfy_main_text h1, div#TextContent p, div.mlfy_page a),
   relative vs absolute 下一页 hrefs, and that chapter bodies are <p>-wrapped.
   Deferred Minors: rapid-tap still bounded by rebuild timing; partial sheet theme override; duplicated Theme boilerplate;
