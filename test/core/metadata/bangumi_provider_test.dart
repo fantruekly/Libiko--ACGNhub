@@ -17,11 +17,14 @@ class _RecordingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     last = options;
+    final body = data is String ? data as String : jsonEncode(data);
     return ResponseBody.fromString(
-      jsonEncode(data),
+      body,
       200,
       headers: {
-        Headers.contentTypeHeader: [Headers.jsonContentType],
+        Headers.contentTypeHeader: [
+          data is String ? 'text/html' : Headers.jsonContentType
+        ],
       },
     );
   }
@@ -29,6 +32,29 @@ class _RecordingAdapter implements HttpClientAdapter {
   @override
   void close({bool force = false}) {}
 }
+
+const _browserHtml = '''
+<ul id="browserItemList" class="browserFull browser-list">
+<li id="item_633836" class="item odd clearit">
+  <a href="/subject/633836" class="subjectCover cover ll coverPortrait"><span class="image"><img src="//lain.bgm.tv/r/400/pic/cover/l/43/ca/633836_ql0f3.jpg" class="cover" loading="lazy"></span></a>
+  <div class="inner">
+    <h3><a href="/subject/633836" class="l">Re：从零开始的异世界生活 第四季 夺还篇</a><small class="grey">Re:ゼロから始める異世界生活 4th season 奪還篇</small></h3>
+    <span class="rank"><small>Rank </small>447</span>
+    <p class="info tip"> 8话 / 2026年4月2日 / 篠原正寛 / 長月達平 </p>
+    <p class="rateInfo"><span class="starstop-s"><span class="starlight stars8"></span></span> <small class="fade">7.8</small> <span class="tip_j">(1277人评分)</span></p>
+  </div>
+</li>
+<li id="item_622206" class="item even clearit">
+  <a href="/subject/622206" class="subjectCover cover ll coverPortrait"><span class="image"><img src="//lain.bgm.tv/r/400/pic/cover/l/6a/b3/622206_dpWcC.jpg" class="cover" loading="lazy"></span></a>
+  <div class="inner">
+    <h3><a href="/subject/622206" class="l">尼古喵喵</a><small class="grey">ヤニねこ</small></h3>
+    <span class="rank"><small>Rank </small>1396</span>
+    <p class="info tip"> 12话 / 2026年1月3日 / 木村 </p>
+    <p class="rateInfo"><span class="starstop-s"><span class="starlight stars7"></span></span> <small class="fade">7.3</small> <span class="tip_j">(4043人评分)</span></p>
+  </div>
+</li>
+</ul>
+''';
 
 void main() {
   final calendarItem = {
@@ -157,48 +183,47 @@ void main() {
     expect(await provider.feed(AnimeFeed.season, page: 2), isEmpty);
   });
 
-  test('feed(trending) posts to v0 search sorted by heat, paged by offset',
-      () async {
-    final subject = {
-      'id': 8,
-      'name': 'STEINS;GATE',
-      'name_cn': '命运石之门',
-      'summary': '秋叶原。',
-      'date': '2011-04-06',
-      'eps': 24,
-      'rating': {'score': 9.0, 'rank': 1, 'total': 100},
-      'images': {'large': 'http://lain.bgm.tv/pic/cover/l/x.jpg'},
-    };
-    final adapter = _RecordingAdapter({
-      'data': [subject],
-      'total': 1000,
-      'limit': 20,
-      'offset': 20,
-    });
+  test('feed(trending) scrapes the website trends browser', () async {
+    final adapter = _RecordingAdapter(_browserHtml);
     final dio = Dio(BaseOptions(baseUrl: 'https://api.bgm.tv'))
       ..httpClientAdapter = adapter;
     final provider = BangumiProvider(dio: dio);
 
     final works = await provider.feed(AnimeFeed.trending, page: 2);
 
-    expect(adapter.last.path, '/v0/search/subjects');
-    expect(adapter.last.method, 'POST');
-    expect(adapter.last.contentType, Headers.jsonContentType);
-    expect(adapter.last.queryParameters['limit'], 20);
-    expect(adapter.last.queryParameters['offset'], 20);
-    final rawBody = adapter.last.data;
-    final body = (rawBody is String ? jsonDecode(rawBody) : rawBody)
-        as Map<String, dynamic>;
-    expect(body['keyword'], '');
-    expect(body['sort'], 'heat');
-    expect(body['filter'], {'type': [2], 'nsfw': false});
-    final w = works.single;
-    expect(w.id, 'bangumi_8');
-    expect(w.title, '命运石之门');
-    expect(w.extra['bangumiId'], 8);
-    expect(w.extra['score'], closeTo(9.0, 0.001));
-    expect(w.extra['airDate'], '2011-04-06');
-    expect(w.extra['episodes'], 24);
+    expect(adapter.last.method, 'GET');
+    expect(adapter.last.uri.host, 'bgm.tv');
+    expect(adapter.last.uri.path, '/anime/browser');
+    expect(adapter.last.queryParameters['sort'], 'trends');
+    expect(adapter.last.queryParameters['page'], 2);
+    expect(works, hasLength(2));
+    final w = works.first;
+    expect(w.id, 'bangumi_633836');
+    expect(w.title, 'Re：从零开始的异世界生活 第四季 夺还篇');
+    expect(w.extra['bangumiId'], 633836);
+    expect(w.extra['score'], closeTo(7.8, 0.001));
+    expect(w.extra['rank'], 447);
+    expect(w.extra['episodes'], 8);
+    expect(w.extra['airDate'], '2026-04-02');
+  });
+
+  test('parseBrowserList maps the trends browser HTML', () {
+    final works = BangumiProvider.parseBrowserList(_browserHtml);
+    expect(works, hasLength(2));
+    final w = works.first;
+    expect(w.id, 'bangumi_633836');
+    expect(w.title, 'Re：从零开始的异世界生活 第四季 夺还篇');
+    expect(w.coverUrl,
+        'https://images.weserv.nl/?url=https%3A%2F%2Flain.bgm.tv%2Fr%2F400%2Fpic%2Fcover%2Fl%2F43%2Fca%2F633836_ql0f3.jpg&w=300');
+    expect(w.extra['bangumiId'], 633836);
+    expect(w.extra['score'], closeTo(7.8, 0.001));
+    expect(w.extra['rank'], 447);
+    expect(w.extra['episodes'], 8);
+    expect(w.extra['airDate'], '2026-04-02');
+    final second = works.last;
+    expect(second.title, '尼古喵喵');
+    expect(second.extra['episodes'], 12);
+    expect(second.extra['airDate'], '2026-01-03');
   });
 
   test('parseCharacters maps name, relation, image and actors', () {
