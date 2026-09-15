@@ -5,29 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:acgnhub/core/metadata/bangumi_provider.dart';
 import 'package:acgnhub/core/metadata/metadata_provider.dart';
 
-class _FakeAdapter implements HttpClientAdapter {
-  final dynamic data;
-  _FakeAdapter(this.data);
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    return ResponseBody.fromString(
-      jsonEncode(data),
-      200,
-      headers: {
-        Headers.contentTypeHeader: [Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
-}
-
 class _RecordingAdapter implements HttpClientAdapter {
   _RecordingAdapter(this.data);
   final dynamic data;
@@ -166,13 +143,16 @@ void main() {
         ]
       },
     ];
+    final adapter = _RecordingAdapter(days);
     final dio = Dio(BaseOptions(baseUrl: 'https://api.bgm.tv'))
-      ..httpClientAdapter = _FakeAdapter(days);
+      ..httpClientAdapter = adapter;
     final provider = BangumiProvider(
         dio: dio, now: () => DateTime(2026, 9, 10)); // Thursday = weekday 4
 
     final today = await provider.feed(AnimeFeed.today);
     expect(today.single.id, 'bangumi_1');
+    expect(adapter.last.path, '/calendar');
+    expect(adapter.last.method, 'GET');
 
     expect(await provider.feed(AnimeFeed.season, page: 2), isEmpty);
   });
@@ -202,6 +182,8 @@ void main() {
     final works = await provider.feed(AnimeFeed.trending, page: 2);
 
     expect(adapter.last.path, '/v0/search/subjects');
+    expect(adapter.last.method, 'POST');
+    expect(adapter.last.contentType, Headers.jsonContentType);
     expect(adapter.last.queryParameters['limit'], 20);
     expect(adapter.last.queryParameters['offset'], 20);
     final rawBody = adapter.last.data;
