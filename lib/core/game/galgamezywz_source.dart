@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
+import 'game_paging.dart';
 import 'game_source.dart';
 import 'models.dart';
 
@@ -14,7 +15,6 @@ const Map<String, String> gameImageHeaders = {
   'Referer': '$galgameZywzBaseUrl/',
 };
 
-const int galgameZywzPageSize = 24;
 const int galgameZywzSourcePageSize = 12;
 
 const Map<String, String> _categorySlugs = {
@@ -260,35 +260,19 @@ class GalgameZywzSource implements GameSource {
       ];
 
   @override
-  Future<GameList> browse(String optionKey, {int page = 1}) async {
-    final pagesPerApp =
-        (galgameZywzPageSize / galgameZywzSourcePageSize).ceil();
-    final startServer = (page - 1) * pagesPerApp + 1;
-    final items = <Game>[];
-    var hasMore = false;
-    for (var i = 0; i < pagesPerApp; i++) {
-      final serverPage = startServer + i;
-      final String html;
-      try {
-        html = await _get(galgameZywzBrowsePath(optionKey, serverPage));
-      } catch (_) {
-        if (i == 0) rethrow;
-        hasMore = false;
-        break;
-      }
-      final pageItems = parseGameList(html);
-      if (pageItems.isEmpty) {
-        hasMore = false;
-        break;
-      }
-      items.addAll(pageItems);
-      hasMore = parseHasNextPage(html, itemCount: pageItems.length);
-      if (!hasMore) break;
-    }
-    final trimmed = items.length > galgameZywzPageSize
-        ? items.sublist(0, galgameZywzPageSize)
-        : items;
-    return GameList(items: trimmed, page: page, hasMore: hasMore);
+  Future<GameList> browse(String optionKey, {int page = 1}) {
+    return buildGamePage(
+      page: page,
+      sourcePageSize: galgameZywzSourcePageSize,
+      fetch: (serverPage) async {
+        final html = await _get(galgameZywzBrowsePath(optionKey, serverPage));
+        final items = parseGameList(html);
+        return GameSourcePage(
+          items: items,
+          hasMore: parseHasNextPage(html, itemCount: items.length),
+        );
+      },
+    );
   }
 
   @override
