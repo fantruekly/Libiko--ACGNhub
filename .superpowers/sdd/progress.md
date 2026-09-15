@@ -397,3 +397,9 @@ Final whole-branch review (061c938..0a1b640): 'With fixes'. 1 Important (missing
 Fix b41989a: today/season test now asserts path=/calendar + method=GET via recording adapter; trending test asserts method=POST + Content-Type json; deleted unused _FakeAdapter. Re-review 0a1b640..b41989a: Approved.
   Minor (deferred): feed(season) page-1 path only covered indirectly; _perPage=20 may cause one extra fetch for AniList/Jikan on a full 20-item page; tall-viewport (grid doesn't overflow) paging stall possible; no cross-page dedupe in _FeedView._extra (pre-existing).
 Anime trending heat-list feature: COMPLETE (061c938..b41989a). Pushed to origin/dev.
+
+## Follow-up: 热门推荐 must match Bangumi website 热度 (2026-09-15)
+Root cause: website 热度 = /anime/browser?sort=trends (currently-trending); our API used POST /v0/search/subjects sort=heat (all-time heat). v0 API rejects 'trends' (400 sort not supported); no JSON endpoint exposes it -> scrape website HTML.
+Fix 5c60166: BangumiProvider.feed(trending) GETs https://bgm.tv/anime/browser?sort=trends&page=N (browser UA, text/html), new parseBrowserList (ul#browserItemList li.item -> id/h3 a.l/h3 small.grey/img.cover/span.rank/p.rateInfo small.fade/p.info.tip); _https handles protocol-relative //; removed _heatPerPage. Tests: parseBrowserList fixture + feed(trending) request assertions.
+  Verified live: page1 = Re:Zero S4 夺还篇, 尼古喵喵, 无职转生 S3, 穹庐下的魔女... (matches website); app screenshot confirmed. 271 tests pass, analyze clean.
+  Trade-off: depends on bgm.tv HTML structure (fragile vs JSON API); airDate/episodes best-effort parsed from p.info.tip (detail page still authoritative via API).
