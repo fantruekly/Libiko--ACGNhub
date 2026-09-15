@@ -125,7 +125,22 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 Expanded(
-                  child: IndexedStack(index: _currentIndex, children: _pages),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      for (var i = 0; i < _pages.length; i++)
+                        IgnorePointer(
+                          ignoring: i != _currentIndex,
+                          child: AnimatedOpacity(
+                            key: ValueKey('module-page-$i'),
+                            opacity: i == _currentIndex ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeInOut,
+                            child: _pages[i],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
