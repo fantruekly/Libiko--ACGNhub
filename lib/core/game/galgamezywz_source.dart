@@ -14,7 +14,7 @@ const Map<String, String> gameImageHeaders = {
   'Referer': '$galgameZywzBaseUrl/',
 };
 
-const int galgameZywzPageSize = 48;
+const int galgameZywzPageSize = 24;
 const int galgameZywzSourcePageSize = 12;
 
 const Map<String, String> _categorySlugs = {

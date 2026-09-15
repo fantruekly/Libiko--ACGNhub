@@ -61,4 +61,28 @@ void main() {
     ));
     expect(next.onPressed, isNull);
   });
+
+  testWidgets('grid uses 4 columns with 3:2 covers', (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider
+          .overrideWithValue(GameSourceManager(sources: [_FakeSource()])),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 4);
+
+    final size = tester.getSize(find.byType(GameCard).first);
+    const titleExtent = 44.0;
+    final coverHeight = size.height - titleExtent;
+    expect(size.width / coverHeight, closeTo(1.5, 0.02));
+  });
 }

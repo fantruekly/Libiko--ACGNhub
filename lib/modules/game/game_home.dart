@@ -16,6 +16,16 @@ const _accent = Color(0xFF007AFF);
 const _muted = Color(0xFF5A5A5F);
 const _fg = Color(0xFF1C1C1E);
 
+const int _gridColumns = 4;
+const double _gridSpacing = 16;
+const double _gridTitleExtent = 44;
+
+double _gridCellWidth(double maxWidth) =>
+    (maxWidth - 32 - _gridSpacing * (_gridColumns - 1)) / _gridColumns;
+
+double _gridCellExtent(double maxWidth) =>
+    _gridCellWidth(maxWidth) * 2 / 3 + _gridTitleExtent;
+
 class GameCard extends StatelessWidget {
   final Game game;
   final VoidCallback? onTap;
@@ -150,11 +160,14 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
     final key = (_sourceId, option.key, _page);
     final async = ref.watch(gameBrowseProvider(key));
     return async.when(
-      loading: () => const ShimmerLoader(
-          crossAxisCount: 6,
-          itemCount: 12,
-          aspectRatio: 0.58,
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+      loading: () => LayoutBuilder(builder: (context, constraints) {
+        final cellW = _gridCellWidth(constraints.maxWidth);
+        return ShimmerLoader(
+            crossAxisCount: _gridColumns,
+            itemCount: 8,
+            aspectRatio: cellW / _gridCellExtent(constraints.maxWidth),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
+      }),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
@@ -203,26 +216,28 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
     if (items.isEmpty) {
       return const EmptyState(icon: Icons.games_rounded, message: '暂无内容');
     }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6,
-          mainAxisSpacing: 20,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.58),
-      itemCount: items.length,
-      itemBuilder: (_, i) => GameCard(
-        game: items[i],
-        onTap: () => Navigator.push(
-          context,
-          noTransitionRoute(GameDetailPage(
-            sourceKey: _sourceId,
-            gameId: items[i].id,
-            title: items[i].title,
-            cover: items[i].coverUrl,
-          )),
+    return LayoutBuilder(builder: (context, constraints) {
+      return GridView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _gridColumns,
+            mainAxisSpacing: 20,
+            crossAxisSpacing: _gridSpacing,
+            mainAxisExtent: _gridCellExtent(constraints.maxWidth)),
+        itemCount: items.length,
+        itemBuilder: (_, i) => GameCard(
+          game: items[i],
+          onTap: () => Navigator.push(
+            context,
+            noTransitionRoute(GameDetailPage(
+              sourceKey: _sourceId,
+              gameId: items[i].id,
+              title: items[i].title,
+              cover: items[i].coverUrl,
+            )),
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
