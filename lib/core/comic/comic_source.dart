@@ -23,6 +23,23 @@ class ComicSourceSection {
       {required this.title, required this.type, this.usesLoadNext = false});
 }
 
+/// One group of category options from a source's `categoryComics.optionList`.
+///
+/// [showWhen] / [notShowWhen] name the categories the group applies to; a null
+/// list means "no restriction" for that side.
+class ComicCategoryOptionGroup {
+  final List<String> options;
+  final List<String>? showWhen;
+  final List<String>? notShowWhen;
+
+  const ComicCategoryOptionGroup(
+      {required this.options, this.showWhen, this.notShowWhen});
+
+  bool visibleFor(String category) =>
+      (showWhen == null || showWhen!.contains(category)) &&
+      (notShowWhen == null || !notShowWhen!.contains(category));
+}
+
 class ComicSource {
   final String name;
   final String key;
@@ -40,6 +57,7 @@ class ComicSource {
   final String categoryDefault;
   final String categoryParam;
   final List<String> categoryOptions;
+  final List<ComicCategoryOptionGroup> categoryOptionGroups;
   final bool hasLogin;
   final bool hasCookieLogin;
   final List<String> cookieFields;
@@ -61,6 +79,7 @@ class ComicSource {
     this.categoryDefault = '',
     this.categoryParam = '',
     this.categoryOptions = const [],
+    this.categoryOptionGroups = const [],
     this.hasLogin = false,
     this.hasCookieLogin = false,
     this.cookieFields = const [],
@@ -94,6 +113,9 @@ class ComicSource {
 
     final category = meta['category'];
     final account = meta['account'];
+    final defaultCategory = _categoryStr(category, 'category');
+    final optionGroups = _categoryOptionGroups(category);
+    final legacyOptions = _categoryList(category, 'options');
 
     return ComicSource(
       name: req('name'),
@@ -109,15 +131,53 @@ class ComicSource {
       canOnImageLoad: meta['onImageLoad'] == true,
       sections: _sectionsFrom(meta['sections']),
       hasCategoryComics: _hasCategory(category),
-      categoryDefault: _categoryStr(category, 'category'),
+      categoryDefault: defaultCategory,
       categoryParam: _categoryStr(category, 'param'),
-      categoryOptions: _categoryList(category, 'options'),
+      categoryOptionGroups: optionGroups,
+      categoryOptions: optionGroups.isEmpty
+          ? legacyOptions
+          : _optionsFor(optionGroups, defaultCategory),
       hasLogin: account is Map && account['hasLogin'] == true,
       hasCookieLogin: account is Map && account['hasCookieLogin'] == true,
       cookieFields: account is Map && account['cookieFields'] is List
           ? (account['cookieFields'] as List).map((e) => e.toString()).toList()
           : const [],
     );
+  }
+
+  /// The default option value of every [categoryOptionGroups] group that applies
+  /// to [category], in order. Falls back to the flat [categoryOptions] when the
+  /// source supplied no per-group metadata.
+  List<String> categoryOptionsFor(String category) => categoryOptionGroups.isEmpty
+      ? categoryOptions
+      : _optionsFor(categoryOptionGroups, category);
+
+  static List<String> _optionsFor(
+      List<ComicCategoryOptionGroup> groups, String category) =>
+      [
+        for (final group in groups)
+          if (group.options.isNotEmpty && group.visibleFor(category))
+            group.options.first.split('-').first,
+      ];
+
+  static List<ComicCategoryOptionGroup> _categoryOptionGroups(dynamic raw) {
+    if (raw is! Map) return const [];
+    final groups = raw['optionGroups'];
+    if (groups is! List) return const [];
+    return [
+      for (final group in groups)
+        if (group is Map)
+          ComicCategoryOptionGroup(
+            options: ((group['options'] as List?) ?? const [])
+                .map((e) => e.toString())
+                .toList(),
+            showWhen:
+                (group['showWhen'] as List?)?.map((e) => e.toString()).toList(),
+            notShowWhen: (group['notShowWhen'] as List?)
+                ?.map((e) => e.toString())
+                .toList(),
+          ),
+    ];
   }
 
   static List<ComicSourceSection> _sectionsFrom(dynamic raw) {
@@ -252,15 +312,18 @@ globalThis.__acgnhub_registerSource = function (key) {
         const cats = part && Array.isArray(part.categories) ? part.categories : [];
         const params = part && Array.isArray(part.categoryParams) ? part.categoryParams : [];
         const optList = cc && Array.isArray(cc.optionList) ? cc.optionList : [];
-        const options = optList.map(function (o) {
-          const opts = o && Array.isArray(o.options) ? o.options : [];
-          return opts.length ? String(opts[0]).split('-')[0] : '';
+        const optionGroups = optList.map(function (o) {
+          return {
+            options: o && Array.isArray(o.options) ? o.options.map(String) : [],
+            showWhen: o && Array.isArray(o.showWhen) ? o.showWhen.map(String) : null,
+            notShowWhen: o && Array.isArray(o.notShowWhen) ? o.notShowWhen.map(String) : null
+          };
         });
         return {
           hasComics: !!(cc && typeof cc.load === 'function'),
           category: cats.length ? String(cats[0]) : '',
           param: params.length ? String(params[0]) : '',
-          options: options
+          optionGroups: optionGroups
         };
       })(),
       account: (function () {
@@ -532,7 +595,7 @@ class ComicSourceManager {
     if (!source.hasCategoryComics) return const ExplorePage(comics: []);
     final cat = category ?? source.categoryDefault;
     final par = param ?? source.categoryParam;
-    final opts = options ?? source.categoryOptions;
+    final opts = options ?? source.categoryOptionsFor(cat);
     final result = await _engine.evaluate('''
       (async () => {
         const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});

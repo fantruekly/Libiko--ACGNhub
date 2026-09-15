@@ -7,10 +7,12 @@ class TabStrip extends StatelessWidget {
 
   static const _accent = Color(0xFF007AFF);
   static const _muted = Color(0xFF5A5A5F);
+  static const _selectedWeight = FontWeight.w500;
+  static const _unselectedWeight = FontWeight.w400;
 
   double _labelWidth(BuildContext context, String label) {
     final painter = TextPainter(
-      text: TextSpan(text: label, style: _style(false)),
+      text: TextSpan(text: label, style: _style(true)),
       maxLines: 1,
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
@@ -22,9 +24,18 @@ class TabStrip extends StatelessWidget {
 
   static TextStyle _style(bool selected) => TextStyle(
         fontSize: 15,
-        fontWeight: FontWeight.w500,
+        fontWeight: selected ? _selectedWeight : _unselectedWeight,
         color: selected ? _accent : _muted,
       );
+
+  static TextStyle _itemStyle(double t, int k) {
+    final d = (t - k).abs().clamp(0.0, 1.0).toDouble();
+    return TextStyle(
+      fontSize: 15,
+      fontWeight: FontWeight.lerp(_unselectedWeight, _selectedWeight, 1 - d),
+      color: Color.lerp(_accent, _muted, d),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,12 +77,7 @@ class TabStrip extends StatelessWidget {
                                 labels[k],
                                 maxLines: 1,
                                 softWrap: false,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color.lerp(_accent, _muted,
-                                      (t - k).abs().clamp(0.0, 1.0).toDouble()),
-                                ),
+                                style: _itemStyle(t, k),
                               ),
                             ),
                           ),

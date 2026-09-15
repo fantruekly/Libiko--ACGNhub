@@ -50,10 +50,10 @@ class ACGNhubApp extends StatelessWidget {
       themeMode: ThemeMode.light,
       theme: ThemeData(
         useMaterial3: true,
-        fontFamily: 'Microsoft YaHei',
+        fontFamily: 'NotoSansSC',
         fontFamilyFallback: const [
           'Microsoft YaHei UI',
-          'NotoSansSC',
+          'Microsoft YaHei',
           'Segoe UI',
         ],
         colorScheme: ColorScheme.fromSeed(

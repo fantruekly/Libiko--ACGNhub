@@ -23,21 +23,25 @@ class AnimeHomePage extends ConsumerWidget {
           final controller = DefaultTabController.of(context);
           return Column(
             children: [
-              const TabBar(
-                labelColor: Color(0xFF007AFF),
-                unselectedLabelColor: Color(0xFF5A5A5F),
-                indicatorColor: Color(0xFF007AFF),
-                dividerColor: Color(0xFFE5E5EA),
-                labelStyle:
-                    TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                unselectedLabelStyle:
-                    TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
-                tabs: [
+              TabBar(
+                labelColor: const Color(0xFF007AFF),
+                unselectedLabelColor: const Color(0xFF5A5A5F),
+                indicatorColor: const Color(0xFF007AFF),
+                dividerColor: const Color(0xFFE5E5EA),
+                labelStyle: Theme.of(context)
+                    .textTheme
+                    .titleSmall!
+                    .copyWith(fontSize: 15, fontWeight: FontWeight.w500),
+                unselectedLabelStyle: Theme.of(context)
+                    .textTheme
+                    .titleSmall!
+                    .copyWith(fontSize: 15, fontWeight: FontWeight.w400),
+                tabs: const [
                   Tab(text: '本季新番'),
                   Tab(text: '热门推荐'),
                   Tab(text: '今日放送'),
-                  Tab(text: '历史记录'),
                   Tab(text: '追番'),
+                  Tab(text: '历史记录'),
                 ],
               ),
               Expanded(
@@ -46,8 +50,8 @@ class AnimeHomePage extends ConsumerWidget {
                     _heroTab(controller, 0, const _FeedView(feed: AnimeFeed.season)),
                     _heroTab(controller, 1, const _FeedView(feed: AnimeFeed.trending)),
                     _heroTab(controller, 2, const _FeedView(feed: AnimeFeed.today)),
-                    _heroTab(controller, 3, const AnimeHistoryView()),
-                    _heroTab(controller, 4, const AnimeFollowView()),
+                    _heroTab(controller, 3, const AnimeFollowView()),
+                    _heroTab(controller, 4, const AnimeHistoryView()),
                   ],
                 ),
               ),
@@ -81,7 +85,7 @@ class _FeedView extends ConsumerStatefulWidget {
 class _FeedViewState extends ConsumerState<_FeedView>
     with AutomaticKeepAliveClientMixin {
   static const _accent = Color(0xFF007AFF);
-  static const _perPage = 25;
+  static const _perPage = 20;
 
   final List<Work> _extra = [];
   int _page = 1;

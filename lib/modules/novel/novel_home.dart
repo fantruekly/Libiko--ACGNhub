@@ -8,7 +8,7 @@ import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_source.dart';
 import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/pill_chip.dart';
+import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/tab_strip.dart';
@@ -40,6 +40,7 @@ class NovelCard extends StatelessWidget {
                       imageUrl: novel.coverUrl!,
                       fit: BoxFit.cover,
                       memCacheWidth: 400,
+                      fadeInDuration: Duration.zero,
                       httpHeaders: novelImageHeaders,
                       placeholder: (_, __) => _placeholder(),
                       errorWidget: (_, __, ___) => _placeholder(),
@@ -138,83 +139,44 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   }
 
   Widget _sourceChips(List<NovelSource> sources) {
-    return SizedBox(
-      height: 48,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            for (final s in sources)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _chip(s.name, s.id == _sourceId, () => setState(() {
-                  _sourceId = s.id;
-                  _groupIndex = -1;
-                  _optionIndex = 0;
-                  _page = 1;
-                })),
-              ),
-          ],
-        ),
-      ),
+    final labels = [for (final s in sources) s.name];
+    final index = sources.indexWhere((s) => s.id == _sourceId);
+    return ChipBar(
+      labels: labels,
+      selectedIndex: index < 0 ? 0 : index,
+      onSelected: (i) => setState(() {
+        _sourceId = sources[i].id;
+        _groupIndex = -1;
+        _optionIndex = 0;
+        _page = 1;
+      }),
     );
   }
 
   Widget _sectionChips(List<NovelBrowseGroup> groups) {
-    return SizedBox(
-      height: 48,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: _chip('推荐', _groupIndex < 0, () => setState(() {
-                _groupIndex = -1;
-                _page = 1;
-              })),
-            ),
-            for (var i = 0; i < groups.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _chip(groups[i].label, _groupIndex == i, () => setState(() {
-                  _groupIndex = i;
-                  _optionIndex = 0;
-                  _page = 1;
-                })),
-              ),
-          ],
-        ),
-      ),
+    final labels = ['推荐', for (final g in groups) g.label];
+    return ChipBar(
+      labels: labels,
+      selectedIndex: _groupIndex + 1,
+      onSelected: (i) => setState(() {
+        _groupIndex = i - 1;
+        _optionIndex = 0;
+        _page = 1;
+      }),
     );
   }
 
   Widget _optionChips(NovelBrowseGroup group) {
-    return SizedBox(
-      height: 48,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            for (var i = 0; i < group.options.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _chip(group.options[i].label, _optionIndex == i, () => setState(() {
-                  _optionIndex = i;
-                  _page = 1;
-                })),
-              ),
-          ],
-        ),
-      ),
+    final labels = [for (final o in group.options) o.label];
+    return ChipBar(
+      labels: labels,
+      selectedIndex: _optionIndex,
+      onSelected: (i) => setState(() {
+        _optionIndex = i;
+        _page = 1;
+      }),
     );
   }
-
-  Widget _chip(String label, bool selected, VoidCallback onTap) =>
-      PillChip(label: label, selected: selected, onTap: onTap);
 
   Widget _body(List<NovelBrowseGroup> groups) {
     if (_groupIndex < 0 || _groupIndex >= groups.length) {

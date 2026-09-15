@@ -66,26 +66,55 @@ class NovelSearchResult {
   const NovelSearchResult({required this.novel, required this.sourceKey});
 }
 
+/// 单个源搜索的超时时间，避免某个源卡住拖慢整个搜索。
+const Duration novelSearchTimeout = Duration(seconds: 10);
+
+/// 单个轻小说源的搜索结果，按源独立。
+/// 页面可据此按源渐进展示：哪个源先返回就先显示，慢的源不阻塞。
+final novelSearchSourceProvider =
+    FutureProvider.family<List<NovelSearchResult>, (String, String)>(
+        (ref, key) async {
+  final (sourceId, keyword) = key;
+  final k = keyword.trim();
+  if (k.isEmpty) return const [];
+  final source = ref.watch(novelSourceManagerProvider).byId(sourceId);
+  if (source == null) return const [];
+  final novels = await source.search(k).timeout(novelSearchTimeout);
+  return [
+    for (final novel in novels)
+      NovelSearchResult(novel: novel, sourceKey: sourceId),
+  ];
+});
+
+/// 并发搜索所有源并合并（按源顺序、标题去重）。慢的源不会叠加等待时间。
 final novelSearchProvider =
     FutureProvider.family<List<NovelSearchResult>, String>((ref, keyword) async {
   final k = keyword.trim();
   if (k.isEmpty) return const [];
   final sources = ref.watch(novelSourceManagerProvider).sources;
   if (sources.isEmpty) return const [];
+  final perSource = await Future.wait(sources.map((source) async {
+    try {
+      final novels = await source.search(k).timeout(novelSearchTimeout);
+      return (source.id, novels, null);
+    } catch (e) {
+      return (source.id, const <Novel>[], e);
+    }
+  }));
   final out = <NovelSearchResult>[];
   final seen = <String>{};
   Object? lastError;
   var succeeded = 0;
-  for (final source in sources) {
-    try {
-      for (final novel in await source.search(k)) {
-        if (seen.add(novel.title.trim())) {
-          out.add(NovelSearchResult(novel: novel, sourceKey: source.id));
-        }
+  for (final (sourceId, novels, error) in perSource) {
+    if (error != null) {
+      lastError = error;
+      continue;
+    }
+    succeeded++;
+    for (final novel in novels) {
+      if (seen.add(novel.title.trim())) {
+        out.add(NovelSearchResult(novel: novel, sourceKey: sourceId));
       }
-      succeeded++;
-    } catch (e) {
-      lastError = e;
     }
   }
   if (succeeded == 0) {

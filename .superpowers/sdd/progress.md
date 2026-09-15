@@ -374,3 +374,48 @@ Final whole-branch review (2fddbf2..4679bea): 'With fixes'. 1 Important (missing
   src-fallback test, and a zero-source guard in novelSearchProvider. Re-review 4679bea..71f2596: Approved.
 Novel search feature: COMPLETE (2fddbf2..71f2596). Pushed to origin/dev.
   Live manual verification still owed: open novel module -> search a keyword -> results/detail.
+
+## Chip bar transition feature (plan 2026-09-15-chip-bar-transition.md)
+Task 1: complete (commits 4edac71..12cb247, review clean: Approved). New lib/core/widgets/chip_bar.dart + test/core/widgets/chip_bar_test.dart.
+  Minor (deferred): AnimatedDefaultTextStyle uses linear curve (pill easeInOutCubic); limited test coverage; TextPainter per label per rebuild; no auto-scroll to selected chip; no Semantics.
+Task 2: complete (commits 12cb247..6920c98, review clean: Approved). novel_home.dart _sourceChips/_sectionChips/_optionChips use ChipBar; _chip + pill_chip import removed.
+  Minor (deferred): no automated test for section index mapping (selectedIndex=_groupIndex+1); index<0 fallback unreachable.
+Task 3: complete (commits 6920c98..062fa40, review clean: Approved after fix). comic_home.dart source/section/part rows use ChipBar; removed _chip/_sourceChip/_horizontalScroll/gestures import + pill_chip.dart.
+  Plan-mandated finding (human decided FIX): third-row keys omitted parent identity -> fix 062fa40 added source.key+section / _sourceId+_groupIndex to comic-part and novel-option keys.
+  Minor (deferred): delimiter-collision theoretical; no automated test for section/option index mapping; animation not visually confirmed headless.
+ALL 3 TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (4edac71..062fa40): 'With fixes'. 1 Important (ChipBar lost NotoSansSC via AnimatedDefaultTextStyle replace-not-merge) + 1 Important plan-level (caller-managed row keys fragile) + minors.
+Fix 5f78a59: merge ambient DefaultTextStyle into chip style (font restored, used for measure+render); add easeInOutCubic to text-color animation; ChipBar owns row identity via KeyedSubtree(ValueKey(Object.hashAll(labels))); removed 6 caller keys; reverted _partChips signature; added 'changing labels jumps' test. Re-review 062fa40..5f78a59: Approved.
+  Minor (deferred): internal label-only identity means two different parents with identical labels animate instead of jump (user chose encapsulation); scroll offset no longer resets on row change; no test for the font fix.
+Chip bar transition feature: COMPLETE (4edac71..5f78a59). Pushed to origin/dev. Live manual verification still owed.
+
+## Anime trending heat-list feature (plan 2026-09-15-anime-trending-heat.md, base eccc741)
+Task 1: complete (commits eccc741..0a1b640, review clean: Approved). bangumi_provider feed(trending) -> POST /v0/search/subjects (sort=heat, type=[2], nsfw=false, limit=20, offset paging); parseSearch accepts {data:[...]}; anime_home _perPage 25->20.
+  Minor (deferred): test does not assert Content-Type; _perPage=20 may cause one extra fetch for AniList/Jikan when a page returns exactly 20.
+ALL TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (061c938..0a1b640): 'With fixes'. 1 Important (missing season/today -> GET /calendar regression assertion) + minors (no Content-Type/method assertion; tall-viewport paging stall; no cross-page dedupe).
+Fix b41989a: today/season test now asserts path=/calendar + method=GET via recording adapter; trending test asserts method=POST + Content-Type json; deleted unused _FakeAdapter. Re-review 0a1b640..b41989a: Approved.
+  Minor (deferred): feed(season) page-1 path only covered indirectly; _perPage=20 may cause one extra fetch for AniList/Jikan on a full 20-item page; tall-viewport (grid doesn't overflow) paging stall possible; no cross-page dedupe in _FeedView._extra (pre-existing).
+Anime trending heat-list feature: COMPLETE (061c938..b41989a). Pushed to origin/dev.
+
+## Follow-up: 热门推荐 must match Bangumi website 热度 (2026-09-15)
+Root cause: website 热度 = /anime/browser?sort=trends (currently-trending); our API used POST /v0/search/subjects sort=heat (all-time heat). v0 API rejects 'trends' (400 sort not supported); no JSON endpoint exposes it -> scrape website HTML.
+Fix 5c60166: BangumiProvider.feed(trending) GETs https://bgm.tv/anime/browser?sort=trends&page=N (browser UA, text/html), new parseBrowserList (ul#browserItemList li.item -> id/h3 a.l/h3 small.grey/img.cover/span.rank/p.rateInfo small.fade/p.info.tip); _https handles protocol-relative //; removed _heatPerPage. Tests: parseBrowserList fixture + feed(trending) request assertions.
+  Verified live: page1 = Re:Zero S4 夺还篇, 尼古喵喵, 无职转生 S3, 穹庐下的魔女... (matches website); app screenshot confirmed. 271 tests pass, analyze clean.
+  Trade-off: depends on bgm.tv HTML structure (fragile vs JSON API); airDate/episodes best-effort parsed from p.info.tip (detail page still authoritative via API).
+
+## Sidebar + shell transitions feature (plan 2026-09-15-shell-transitions.md, base 36a4b28)
+Task 1: complete (commits 36a4b28..0d0c529, review clean: Approved). app_sidebar.dart _SidebarItem: label 13px/w600-w500/height1.4/no letterSpacing; TweenAnimationBuilder 0<->1 (200ms easeInOutCubic) drives line Opacity+scaleY from center and icon/text color lerp; line key ValueKey('sidebar-line'). New test/shell/app_sidebar_test.dart.
+  Minor (deferred): first-build no-animation not asserted; color lerp/font inheritance untested; 3px border inset removed so content shifts ~1.5px left.
+Task 2: complete (commits 0d0c529..b9f79f8, review clean: Approved). main_shell.dart: IndexedStack -> Stack(fit:expand) of per-page IgnorePointer + AnimatedOpacity(key ValueKey('module-page-'), 250ms easeInOut); all pages stay mounted. New test/shell/main_shell_test.dart (implementer changed pump() -> pump(100ms) to avoid pending dio timers; production matches brief).
+  Minor (deferred): test asserts only opacity target (not animation); depends on advancing past network timers; hardcoded 4 pages.
+ALL TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (c6a1079..b9f79f8): 'With fixes'. 2 Important (both new tests only asserted target/end state, so they could not detect removal of the animations) + minors (3px inset removed; thin font coverage; hardcoded page count; fragile finder; reused line key; StackFit.expand; no TickerMode).
+Fix a1ece38: sidebar test asserts mid-flight line opacity (0<t<1) + label style (weight/height/no letterSpacing/no fontFamily); main_shell test asserts AnimatedOpacity duration/curve + mid-flight rendered opacity via inner FadeTransition + scoped sidebar finder; bounded 300ms pump instead of pumpAndSettle (ShimmerLoader never settles). Re-review b9f79f8..a1ece38: Approved.
+  Minor (deferred): test couples to AnimatedOpacity->FadeTransition internals; 3px border inset removed (content ~1.5px left, no longer jitters); StackFit.expand vs loose; non-current pages still tick.
+Sidebar + shell transitions feature: COMPLETE (c6a1079..a1ece38). Pushed to origin/dev.
+
+## Bug fix: copy_manga 排行 only loaded one row (2026-09-15)
+Root cause (probe .superpowers/sdd/copy_manga_probe.dart): the app built ComicSource.categoryOptions as the FIRST option of EVERY categoryComics.optionList group -> [ '', '*datetime_updated', 'male', 'day' ]. copy_manga's categoryComics.load for 排行 expects only the groups shown for that category (audience+date = ['male','day']); with the wrong values the request is audience_type=&date_type=*datetime_updated and the API returns 210. So 排行 parts (今日/本周/本月排行, 6 items = one grid row) could not page into the rank category.
+Fix f2218fd: JS finish() now emits per-group {options, showWhen, notShowWhen} (optionGroups); ComicSource parses them + categoryOptionsFor(category) keeps only groups visible for that category (default option, split on '-'); manager.category uses source.categoryOptionsFor(cat). New unit tests (option-group filtering + flat-options fallback).
+  Verified: probe now reports options=[male, day] and category default count=30 maxPage=10 (was ERROR 210). 276 tests pass, analyze clean.

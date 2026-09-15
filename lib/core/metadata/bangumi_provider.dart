@@ -1,11 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:html/parser.dart' as html_parser;
 import '../models/anime_extra.dart';
 import '../models/work.dart';
 import 'metadata_provider.dart';
 
 class BangumiProvider implements MetadataProvider {
   static const _base = 'https://api.bgm.tv';
+  static const _browserBase = 'https://bgm.tv';
+  static const _browserUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   final Dio _dio;
   final DateTime Function() _now;
@@ -28,23 +33,30 @@ class BangumiProvider implements MetadataProvider {
 
   @override
   Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
+    if (feed == AnimeFeed.trending) {
+      final res = await _dio.get<String>(
+        '$_browserBase/anime/browser',
+        queryParameters: {'sort': 'trends', 'page': page},
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {
+            'User-Agent': _browserUserAgent,
+            'Accept': 'text/html,application/xhtml+xml',
+          },
+        ),
+      );
+      final html = res.data;
+      if (res.statusCode != 200 || html == null) {
+        throw Exception('bangumi 热度榜请求失败 (${res.statusCode})');
+      }
+      return parseBrowserList(html);
+    }
     if (page > 1) return const [];
     final res = await _dio.get('/calendar');
     final days = res.data as List<dynamic>;
-    switch (feed) {
-      case AnimeFeed.today:
-        return parseCalendar(days, onlyWeekday: _now().weekday);
-      case AnimeFeed.season:
-        return parseCalendar(days);
-      case AnimeFeed.trending:
-        final works = parseCalendar(days);
-        works.sort((a, b) {
-          final sa = (a.extra['score'] as num?) ?? 0;
-          final sb = (b.extra['score'] as num?) ?? 0;
-          return sb.compareTo(sa);
-        });
-        return works;
-    }
+    return feed == AnimeFeed.today
+        ? parseCalendar(days, onlyWeekday: _now().weekday)
+        : parseCalendar(days);
   }
 
   @override
@@ -132,9 +144,59 @@ class BangumiProvider implements MetadataProvider {
 
   static String? _https(String? url) {
     if (url == null || url.isEmpty) return null;
+    if (url.startsWith('//')) return 'https:$url';
     return url.startsWith('http://')
         ? url.replaceFirst('http://', 'https://')
         : url;
+  }
+
+  /// 解析网站「热度」榜单页（`/anime/browser?sort=trends`）的 HTML。
+  @visibleForTesting
+  static List<Work> parseBrowserList(String html) {
+    final doc = html_parser.parse(html);
+    final out = <Work>[];
+    for (final li in doc.querySelectorAll('ul#browserItemList li.item')) {
+      final id = int.tryParse(li.id.replaceFirst('item_', ''));
+      if (id == null) continue;
+      final nameCn = li.querySelector('h3 a.l')?.text.trim() ?? '';
+      final name = li.querySelector('h3 small.grey')?.text.trim() ?? '';
+      final title = nameCn.isNotEmpty ? nameCn : name;
+      if (title.isEmpty) continue;
+      final info = li.querySelector('p.info.tip')?.text ?? '';
+      final score = double.tryParse(
+          li.querySelector('p.rateInfo small.fade')?.text.trim() ?? '');
+      final rank = int.tryParse(
+          (li.querySelector('span.rank')?.text ?? '').replaceAll(RegExp(r'\D'), ''));
+      out.add(Work(
+        id: 'bangumi_$id',
+        sourceId: 'bangumi',
+        sourceName: 'Bangumi',
+        type: WorkType.anime,
+        title: title,
+        coverUrl: _cover(li.querySelector('img.cover')?.attributes['src']),
+        tags: const [],
+        extra: {
+          'bangumiId': id,
+          'score': score,
+          'episodes': _episodesFromInfo(info),
+          'airDate': _airDateFromInfo(info),
+          'rank': rank,
+        },
+      ));
+    }
+    return out;
+  }
+
+  static int? _episodesFromInfo(String info) {
+    final m = RegExp(r'(\d+)\s*话').firstMatch(info);
+    return m == null ? null : int.tryParse(m.group(1)!);
+  }
+
+  static String? _airDateFromInfo(String info) {
+    final m = RegExp(r'(\d{4})年(\d{1,2})月(\d{1,2})日').firstMatch(info);
+    if (m == null) return null;
+    return '${m.group(1)}-${m.group(2)!.padLeft(2, '0')}-'
+        '${m.group(3)!.padLeft(2, '0')}';
   }
 
   @visibleForTesting
@@ -155,7 +217,9 @@ class BangumiProvider implements MetadataProvider {
 
   @visibleForTesting
   static List<Work> parseSearch(dynamic data) {
-    final list = ((data is Map ? data['list'] : data) as List<dynamic>?) ?? [];
+    final list =
+        ((data is Map ? (data['list'] ?? data['data']) : data) as List<dynamic>?) ??
+            [];
     return list
         .map((e) => _parseItem(e as Map<String, dynamic>))
         .whereType<Work>()

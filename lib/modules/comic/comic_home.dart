@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,7 +7,7 @@ import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_source.dart';
 import '../../core/comic/explore_result.dart';
 import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/pill_chip.dart';
+import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/tab_strip.dart';
@@ -142,43 +141,24 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     Navigator.push(context, smoothRoute(const ComicSourcePage()));
   }
 
-  Widget _horizontalScroll(
-      {required EdgeInsets padding, required Widget child}) {
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(
-        dragDevices: const {
-          PointerDeviceKind.touch,
-          PointerDeviceKind.mouse,
-          PointerDeviceKind.trackpad,
-          PointerDeviceKind.stylus,
-        },
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: padding,
-        child: child,
-      ),
-    );
-  }
-
   Widget _sourceHeader(List<ComicSource> sources, ComicSource selected) {
     return SizedBox(
       height: 48,
       child: Row(
         children: [
           Expanded(
-            child: _horizontalScroll(
-              padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
-              child: Row(
-                children: [
-                  for (final source in sources)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child:
-                          _sourceChip(source, source.key == selected.key),
-                    ),
-                ],
-              ),
+            child: ChipBar(
+              labels: [for (final source in sources) source.name],
+              selectedIndex: sources.indexOf(selected),
+              onSelected: (i) {
+                final source = sources[i];
+                setState(() {
+                  _selectedKey = source.key;
+                  _selectedSection = 0;
+                  _selectedPart = 0;
+                  _page = 1;
+                });
+              },
             ),
           ),
           IconButton(
@@ -192,71 +172,37 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _chip(String label, bool selected, VoidCallback onTap) =>
-      PillChip(label: label, selected: selected, onTap: onTap);
-
-  Widget _sourceChip(ComicSource source, bool selected) {
-    return _chip(source.name, selected, () {
-      setState(() {
-        _selectedKey = source.key;
-        _selectedSection = 0;
-        _selectedPart = 0;
-        _page = 1;
-      });
-    });
-  }
-
   Widget _sectionChips(ComicSource source, int section) {
     if (source.sections.length <= 1) return const SizedBox.shrink();
-    return SizedBox(
-      height: 48,
-      child: _horizontalScroll(
-        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
-        child: Row(
-          children: [
-            for (var i = 0; i < source.sections.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _chip(
-                  source.sections[i].title.isEmpty
-                      ? '分区 ${i + 1}'
-                      : source.sections[i].title,
-                  i == section,
-                  () => setState(() {
-                    _selectedSection = i;
-                    _selectedPart = 0;
-                    _page = 1;
-                  }),
-                ),
-              ),
-          ],
-        ),
-      ),
+    final labels = [
+      for (var i = 0; i < source.sections.length; i++)
+        source.sections[i].title.isEmpty
+            ? '分区 ${i + 1}'
+            : source.sections[i].title,
+    ];
+    return ChipBar(
+      labels: labels,
+      selectedIndex: section,
+      onSelected: (i) => setState(() {
+        _selectedSection = i;
+        _selectedPart = 0;
+        _page = 1;
+      }),
     );
   }
 
   Widget _partChips(List<ComicPart> parts, int selected) {
-    return SizedBox(
-      height: 48,
-      child: _horizontalScroll(
-        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
-        child: Row(
-          children: [
-            for (var i = 0; i < parts.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _chip(
-                  parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
-                  i == selected,
-                  () => setState(() {
-                    _selectedPart = i;
-                    _page = 1;
-                  }),
-                ),
-              ),
-          ],
-        ),
-      ),
+    final labels = [
+      for (var i = 0; i < parts.length; i++)
+        parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
+    ];
+    return ChipBar(
+      labels: labels,
+      selectedIndex: selected,
+      onSelected: (i) => setState(() {
+        _selectedPart = i;
+        _page = 1;
+      }),
     );
   }
 
