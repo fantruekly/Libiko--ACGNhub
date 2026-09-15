@@ -273,6 +273,7 @@ class GalgameZywzSource implements GameSource {
         html = await _get(galgameZywzBrowsePath(optionKey, serverPage));
       } catch (_) {
         if (i == 0) rethrow;
+        hasMore = false;
         break;
       }
       final pageItems = parseGameList(html);

@@ -37,8 +37,9 @@ const _detailHtml = '''
 ''';
 
 class _FakeAdapter implements HttpClientAdapter {
-  _FakeAdapter(this.htmlByPath);
+  _FakeAdapter(this.htmlByPath, {this.failPaths = const {}});
   final Map<String, String> htmlByPath;
+  final Set<String> failPaths;
   final List<String> requested = [];
 
   @override
@@ -48,6 +49,9 @@ class _FakeAdapter implements HttpClientAdapter {
   Future<ResponseBody> fetch(RequestOptions options,
       Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     requested.add(options.path);
+    if (failPaths.contains(options.path)) {
+      throw DioException(requestOptions: options, message: 'boom');
+    }
     final html = htmlByPath[options.path] ?? '';
     return ResponseBody.fromString(html, 200, headers: {
       Headers.contentTypeHeader: ['text/plain; charset=utf-8'],
@@ -146,6 +150,45 @@ void main() {
     expect(list.items.first.id, '100');
     expect(list.items.last.id, '407');
     expect(list.hasMore, isTrue);
+  });
+
+  test('browse rethrows when the first source page fails', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter(
+      {
+        '/lm/galgame':
+            _listHtmlWith(12, next: '/lm/galgame/page/2', idBase: 100),
+      },
+      failPaths: {'/lm/galgame'},
+    );
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    expect(
+      () => source.browse('galgame', page: 1),
+      throwsA(isA<DioException>()),
+    );
+  });
+
+  test('browse ends the list when a later source page fails', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter(
+      {
+        '/lm/galgame':
+            _listHtmlWith(12, next: '/lm/galgame/page/2', idBase: 100),
+        '/lm/galgame/page/2':
+            _listHtmlWith(12, next: '/lm/galgame/page/3', idBase: 200),
+      },
+      failPaths: {'/lm/galgame/page/3'},
+    );
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final list = await source.browse('galgame', page: 1);
+    expect(adapter.requested,
+        ['/lm/galgame', '/lm/galgame/page/2', '/lm/galgame/page/3']);
+    expect(list.items, hasLength(24));
+    expect(list.hasMore, isFalse);
   });
 
   test('detail requests /game/<id> and parses fields', () async {
