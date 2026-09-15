@@ -403,3 +403,14 @@ Root cause: website 热度 = /anime/browser?sort=trends (currently-trending); ou
 Fix 5c60166: BangumiProvider.feed(trending) GETs https://bgm.tv/anime/browser?sort=trends&page=N (browser UA, text/html), new parseBrowserList (ul#browserItemList li.item -> id/h3 a.l/h3 small.grey/img.cover/span.rank/p.rateInfo small.fade/p.info.tip); _https handles protocol-relative //; removed _heatPerPage. Tests: parseBrowserList fixture + feed(trending) request assertions.
   Verified live: page1 = Re:Zero S4 夺还篇, 尼古喵喵, 无职转生 S3, 穹庐下的魔女... (matches website); app screenshot confirmed. 271 tests pass, analyze clean.
   Trade-off: depends on bgm.tv HTML structure (fragile vs JSON API); airDate/episodes best-effort parsed from p.info.tip (detail page still authoritative via API).
+
+## Sidebar + shell transitions feature (plan 2026-09-15-shell-transitions.md, base 36a4b28)
+Task 1: complete (commits 36a4b28..0d0c529, review clean: Approved). app_sidebar.dart _SidebarItem: label 13px/w600-w500/height1.4/no letterSpacing; TweenAnimationBuilder 0<->1 (200ms easeInOutCubic) drives line Opacity+scaleY from center and icon/text color lerp; line key ValueKey('sidebar-line'). New test/shell/app_sidebar_test.dart.
+  Minor (deferred): first-build no-animation not asserted; color lerp/font inheritance untested; 3px border inset removed so content shifts ~1.5px left.
+Task 2: complete (commits 0d0c529..b9f79f8, review clean: Approved). main_shell.dart: IndexedStack -> Stack(fit:expand) of per-page IgnorePointer + AnimatedOpacity(key ValueKey('module-page-'), 250ms easeInOut); all pages stay mounted. New test/shell/main_shell_test.dart (implementer changed pump() -> pump(100ms) to avoid pending dio timers; production matches brief).
+  Minor (deferred): test asserts only opacity target (not animation); depends on advancing past network timers; hardcoded 4 pages.
+ALL TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (c6a1079..b9f79f8): 'With fixes'. 2 Important (both new tests only asserted target/end state, so they could not detect removal of the animations) + minors (3px inset removed; thin font coverage; hardcoded page count; fragile finder; reused line key; StackFit.expand; no TickerMode).
+Fix a1ece38: sidebar test asserts mid-flight line opacity (0<t<1) + label style (weight/height/no letterSpacing/no fontFamily); main_shell test asserts AnimatedOpacity duration/curve + mid-flight rendered opacity via inner FadeTransition + scoped sidebar finder; bounded 300ms pump instead of pumpAndSettle (ShimmerLoader never settles). Re-review b9f79f8..a1ece38: Approved.
+  Minor (deferred): test couples to AnimatedOpacity->FadeTransition internals; 3px border inset removed (content ~1.5px left, no longer jitters); StackFit.expand vs loose; non-current pages still tick.
+Sidebar + shell transitions feature: COMPLETE (c6a1079..a1ece38). Pushed to origin/dev.
