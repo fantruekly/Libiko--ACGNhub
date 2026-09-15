@@ -1,125 +1,215 @@
-### Task 1: linovelib 搜索
+### Task 1: `ChipBar` 组件
 
 **Files:**
-- Modify: `lib/core/novel/linovelib_source.dart`
-- Test: `test/core/novel/linovelib_search_parser_test.dart`
+- Create: `lib/core/widgets/chip_bar.dart`
+- Test: `test/core/widgets/chip_bar_test.dart`
 
 **Interfaces:**
-- Consumes: 文件内已有的 `_absUrl`、`_textOf`、`novelIdFromHref`、`_dio`、`linovelibBaseUrl`。
-- Produces: `List<Novel> parseSearchResults(String html)`；`LinovelibSource.search(String keyword, {int page = 1})`。
+- Consumes: 无（仅 Flutter）。
+- Produces:
+  ```dart
+  class ChipBar extends StatelessWidget {
+    final List<String> labels;
+    final int selectedIndex;
+    final ValueChanged<int> onSelected;
+    final EdgeInsetsGeometry padding;
+    const ChipBar({
+      super.key,
+      required this.labels,
+      required this.selectedIndex,
+      required this.onSelected,
+      this.padding = const EdgeInsets.symmetric(horizontal: 16),
+    });
+  }
+  ```
 
-- [ ] **Step 1: 写解析器的失败测试**
+- [ ] **Step 1: 写失败测试**
 
-创建 `test/core/novel/linovelib_search_parser_test.dart`：
+创建 `test/core/widgets/chip_bar_test.dart`：
 
 ```dart
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/linovelib_source.dart';
+import 'package:acgnhub/core/widgets/chip_bar.dart';
 
-const _searchHtml = '''
-<div class="search-result-list clearfix">
-  <div class="imgbox fl se-result-book"><a href="/novel/3676.html"><img src="x.svg" data-original="https://www.linovelib.com/files/article/image/3/3676/3676s.jpg"></a></div>
-  <div class="fl se-result-infos">
-    <h2 class="tit"><a href="/novel/3676.html">败犬女主太多了</a></h2>
-    <div class="bookinfo"><a href="/authorarticle/x.html">雨森</a><em>|</em><a href="/wenku/famitsubunko/1.html">Fami通</a><em>|</em><span>连载</span></div>
-    <p>简介文字</p>
-  </div>
-</div>
-''';
+const _pillKey = ValueKey('chip-bar-pill');
+
+Widget _app(int index, {ValueChanged<int>? onSelected}) => MaterialApp(
+      home: Scaffold(
+        body: ChipBar(
+          labels: const ['推荐', '排行', '分类'],
+          selectedIndex: index,
+          onSelected: onSelected ?? (_) {},
+        ),
+      ),
+    );
 
 void main() {
-  test('parseSearchResults reads search result cards', () {
-    final items = parseSearchResults(_searchHtml);
-    expect(items, hasLength(1));
-    final n = items.single;
-    expect(n.id, '3676');
-    expect(n.title, '败犬女主太多了');
-    expect(n.author, '雨森');
-    expect(n.coverUrl,
-        'https://www.linovelib.com/files/article/image/3/3676/3676s.jpg');
-    expect(n.summary, '简介文字');
+  testWidgets('renders all labels', (tester) async {
+    await tester.pumpWidget(_app(0));
+    expect(find.text('推荐'), findsOneWidget);
+    expect(find.text('排行'), findsOneWidget);
+    expect(find.text('分类'), findsOneWidget);
   });
 
-  test('parseSearchResults returns empty when no results', () {
-    expect(parseSearchResults('<div></div>'), isEmpty);
+  testWidgets('tapping a chip reports its index', (tester) async {
+    int? tapped;
+    await tester.pumpWidget(_app(0, onSelected: (i) => tapped = i));
+    await tester.tap(find.text('分类'));
+    expect(tapped, 2);
+  });
+
+  testWidgets('highlight slides to the newly selected chip', (tester) async {
+    await tester.pumpWidget(_app(0));
+    await tester.pumpAndSettle();
+    final start = tester.getTopLeft(find.byKey(_pillKey)).dx;
+
+    await tester.pumpWidget(_app(2));
+    await tester.pump(const Duration(milliseconds: 40));
+    final mid = tester.getTopLeft(find.byKey(_pillKey)).dx;
+
+    await tester.pumpAndSettle();
+    final end = tester.getTopLeft(find.byKey(_pillKey)).dx;
+
+    expect(start, lessThan(mid));
+    expect(mid, lessThan(end));
   });
 }
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_search_parser_test.dart`
-Expected: 编译失败（`parseSearchResults` 未定义）。
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/widgets/chip_bar_test.dart`
+Expected: 编译失败（`chip_bar.dart` 不存在）。
 
-- [ ] **Step 3: 实现解析器**
+- [ ] **Step 3: 实现 `ChipBar`**
 
-编辑 `lib/core/novel/linovelib_source.dart`，在 `parseMobileBookList` 之后新增：
+创建 `lib/core/widgets/chip_bar.dart`：
 
 ```dart
-List<Novel> parseSearchResults(String html) {
-  final doc = html_parser.parse(html);
-  final out = <Novel>[];
-  for (final row in doc.querySelectorAll('div.search-result-list')) {
-    final titleA = row.querySelector('h2.tit a');
-    final id = novelIdFromHref(titleA?.attributes['href']);
-    if (titleA == null || id == null) continue;
-    final img = row.querySelector('div.imgbox img');
-    final cover =
-        _absUrl(img?.attributes['data-original'] ?? img?.attributes['src']);
-    final author = _textOf(row.querySelector('div.bookinfo a'));
-    final summary = _textOf(row.querySelector('p'));
-    out.add(Novel(
-      id: id,
-      title: _textOf(titleA),
-      author: author.isEmpty ? null : author,
-      coverUrl: cover.isEmpty ? null : cover,
-      summary: summary.isEmpty ? null : summary,
-      extra: {'url': '$linovelibBaseUrl/novel/$id.html'},
-    ));
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+
+class ChipBar extends StatelessWidget {
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final EdgeInsetsGeometry padding;
+
+  const ChipBar({
+    super.key,
+    required this.labels,
+    required this.selectedIndex,
+    required this.onSelected,
+    this.padding = const EdgeInsets.symmetric(horizontal: 16),
+  });
+
+  static const _accent = Color(0xFF007AFF);
+  static const _muted = Color(0xFF5A5A5F);
+  static const _hPad = 15.0;
+  static const _gap = 10.0;
+  static const _duration = Duration(milliseconds: 220);
+
+  static TextStyle _style(bool selected) => TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: selected ? Colors.white : _muted,
+      );
+
+  double _widthOf(BuildContext context, String label) {
+    final painter = TextPainter(
+      text: TextSpan(text: label, style: _style(false)),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final width = (painter.width + _hPad * 2).ceilToDouble();
+    painter.dispose();
+    return width;
   }
-  return out;
+
+  @override
+  Widget build(BuildContext context) {
+    if (labels.isEmpty) return const SizedBox.shrink();
+    final index = selectedIndex.clamp(0, labels.length - 1);
+    final widths = [for (final label in labels) _widthOf(context, label)];
+    final lefts = <double>[];
+    var x = 0.0;
+    for (final width in widths) {
+      lefts.add(x);
+      x += width + _gap;
+    }
+    return SizedBox(
+      height: 48,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: const {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+            PointerDeviceKind.stylus,
+          },
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: padding,
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              AnimatedPositioned(
+                duration: _duration,
+                curve: Curves.easeInOutCubic,
+                left: lefts[index],
+                top: 6,
+                width: widths[index],
+                height: 36,
+                child: const DecoratedBox(
+                  key: ValueKey('chip-bar-pill'),
+                  decoration: BoxDecoration(
+                    color: _accent,
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  for (var i = 0; i < labels.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(right: _gap),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onSelected(i),
+                        child: SizedBox(
+                          width: widths[i],
+                          height: 48,
+                          child: Center(
+                            child: AnimatedDefaultTextStyle(
+                              duration: _duration,
+                              style: _style(i == index),
+                              child: Text(labels[i],
+                                  maxLines: 1, softWrap: false),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 ```
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_search_parser_test.dart`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/widgets/chip_bar_test.dart`
 Expected: 全部通过。
 
-- [ ] **Step 5: 实现 `search`**
-
-编辑 `lib/core/novel/linovelib_source.dart`，把：
-
-```dart
-  @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) =>
-      throw UnimplementedError();
-```
-
-替换为：
-
-```dart
-  @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) async {
-    final k = keyword.trim();
-    if (k.isEmpty) return const [];
-    final res = await _dio.post<String>(
-      '/S6/',
-      data: {'searchkey': k},
-      options: Options(
-        responseType: ResponseType.plain,
-        contentType: Headers.formUrlEncodedContentType,
-      ),
-    );
-    final html = res.data;
-    if (res.statusCode != 200 || html == null) {
-      throw Exception('linovelib 搜索失败：$k (${res.statusCode})');
-    }
-    return parseSearchResults(html);
-  }
-```
-
-- [ ] **Step 6: 运行静态检查与全量测试**
+- [ ] **Step 5: 静态检查与全量测试**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
 Expected: `No issues found!`
@@ -127,11 +217,11 @@ Expected: `No issues found!`
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
 Expected: 全绿。
 
-- [ ] **Step 7: 提交**
+- [ ] **Step 6: 提交**
 
 ```bash
-git add lib/core/novel/linovelib_source.dart test/core/novel/linovelib_search_parser_test.dart
-git commit -m "feat(novel): linovelib search"
+git add lib/core/widgets/chip_bar.dart test/core/widgets/chip_bar_test.dart
+git commit -m "feat(ui): add sliding-highlight ChipBar"
 git push origin dev
 ```
 

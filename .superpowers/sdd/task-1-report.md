@@ -1,94 +1,90 @@
-# Task 1 Report: linovelib 搜索
+# Task 1 Report: `ChipBar` widget
 
 ## Status
-
 DONE
 
-## Summary
+## What I implemented
+Created the reusable sliding-highlight `ChipBar` widget exactly as specified in the brief:
 
-为 `LinovelibSource` 增加跨源搜索能力的第一个任务：新增纯解析器 `parseSearchResults(String html)`，并通过 `POST https://www.linovelib.com/S6/`（表单 `searchkey=<kw>`）实现 `LinovelibSource.search(keyword, {page})`。后续任务的 lknovel 搜索、聚合 provider、搜索页均依赖 `search()` 存在。
+- `lib/core/widgets/chip_bar.dart` — a `StatelessWidget` that:
+  - Takes `labels`, `selectedIndex`, `onSelected`, and an optional `padding`
+    (default `EdgeInsets.symmetric(horizontal: 16)`).
+  - Renders a horizontally scrollable row of label chips.
+  - Measures each label with a `TextPainter` (chip width = text width + `2 * 15` padding).
+  - Animates a single accent pill (`Color(0xFF007AFF)`, radius 16, height 36) behind
+    the selected chip using `AnimatedPositioned` (220ms, `Curves.easeInOutCubic`).
+  - Fades the selected label to white via `AnimatedDefaultTextStyle`; unselected
+    labels use `Color(0xFF5A5A5F)`; both `fontSize: 15`, `FontWeight.w500`.
+  - Row height 48, chip gap 10.
+  - Guards against empty `labels` and clamps `selectedIndex` into range.
+  - Enables mouse/trackpad drag scrolling via `ScrollConfiguration`.
+- `test/core/widgets/chip_bar_test.dart` — the three widget tests from the brief
+  (renders all labels; tap reports index; highlight slides on selection change).
 
-## Implemented
+No page wiring (Tasks 2 & 3), no `pubspec.yaml` change, no new dependencies,
+no code comments (consistent with existing widget style). The widget being unused
+by app code after this task is expected.
 
-- `List<Novel> parseSearchResults(String html)`（置于 `parseMobileBookList` 之后）：
-  - 遍历 `div.search-result-list`；
-  - 从 `h2.tit a` 取标题与 `novelIdFromHref` 解析 id；
-  - 封面取 `div.imgbox img` 的 `data-original`（回退 `src`），经 `_absUrl` 绝对化；
-  - 作者取 `div.bookinfo a` 首个文本，简介取 `p` 文本；
-  - 空作者/封面/简介转为 `null`，`extra['url']` 为 `$linovelibBaseUrl/novel/$id.html`。
-- `LinovelibSource.search`：trim 关键词，空则返回 `const []`；`_dio.post<String>('/S6/', data: {'searchkey': k}, options: Options(responseType: ResponseType.plain, contentType: Headers.formUrlEncodedContentType))`；非 200 或 null 抛 `Exception('linovelib 搜索失败：$k (${res.statusCode})')`；否则 `parseSearchResults(html)`。
+## What I tested and results
+- Focused test: `flutter test test/core/widgets/chip_bar_test.dart` → 3/3 pass.
+- Static analysis: `flutter analyze lib test` → `No issues found! (ran in 4.2s)`.
+- Full suite: `flutter test` → `+268 ~1: All tests passed!`
+  (the `~1` is the pre-existing `js_engine_smoke_test.dart` skip for the
+  unavailable `flutter_qjs` native DLL, unrelated to this change).
 
-## TDD Evidence
+## TDD evidence
 
-### RED
-
+### RED (before implementation)
 Command:
-`$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_search_parser_test.dart`
-
-Result (compilation failure — parser undefined):
-
 ```
-test/core/novel/linovelib_search_parser_test.dart:17:19: Error: Method not found: 'parseSearchResults'.
-test/core/novel/linovelib_search_parser_test.dart:29:12: Error: Method not found: 'parseSearchResults'.
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/widgets/chip_bar_test.dart
+```
+Output (excerpt):
+```
+00:00 +0 -1: loading D:/ACGNhub/test/core/widgets/chip_bar_test.dart [E]
+  Failed to load "D:/ACGNhub/test/core/widgets/chip_bar_test.dart":
+  Compilation failed ... Error when reading 'lib/core/widgets/chip_bar.dart':
+  系统找不到指定的文件。
+  import 'package:acgnhub/core/widgets/chip_bar.dart';
+  test/core/widgets/chip_bar_test.dart:9:15: Error: Method not found: 'ChipBar'.
 00:00 +0 -1: Some tests failed.
 ```
+Why the failure was expected: the test imports and instantiates `ChipBar`, but
+`lib/core/widgets/chip_bar.dart` had not been created yet, so the test could not
+compile. This confirms the test genuinely exercises the new widget rather than
+passing vacuously.
 
-### GREEN
-
+### GREEN (after implementation)
 Command:
-`$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_search_parser_test.dart`
-
-Result:
-
 ```
-00:00 +2: All tests passed!
+$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/widgets/chip_bar_test.dart
 ```
-
-### Analyze
-
-Command:
-`$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-
-Result:
-
+Output (excerpt):
 ```
-Analyzing 2 items...
-No issues found! (ran in 2.3s)
+00:00 +0: renders all labels
+00:00 +1: tapping a chip reports its index
+00:00 +2: highlight slides to the newly selected chip
+00:00 +3: All tests passed!
 ```
 
-### Full suite
+## Files changed
+- `lib/core/widgets/chip_bar.dart` (new, 115 lines)
+- `test/core/widgets/chip_bar_test.dart` (new, 47 lines)
 
-Command:
-`$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
+Commit: `12cb247 feat(ui): add sliding-highlight ChipBar`
+Pushed: `66415c5..12cb247  dev -> dev`
 
-Result:
+## Self-review findings
+- Implementation and test match the brief verbatim; no deviations.
+- `selectedIndex.clamp(0, labels.length - 1)` returns `int` (Dart's `int.clamp`
+  override), so list indexing is type-safe; `flutter analyze` confirms.
+- Test hygiene: the slide test relies on the same element tree (same widget
+  structure/keys) being reused across `pumpWidget` calls so `AnimatedPositioned`
+  animates rather than jumping — this is intentional and the test verifies
+  `start < mid < end`.
+- No dead code, no unused params, no commented-out code.
+- `.superpowers/sdd/task-1-brief.md` shows as locally modified by the harness and
+  was deliberately left out of the commit (brief step 6 lists only the two files).
 
-```
-00:13 +253 ~1: All tests passed!
-```
-
-(253 passed, 1 skipped pre-existing.)
-
-## Files Changed
-
-- `lib/core/novel/linovelib_source.dart` — 新增 `parseSearchResults`；`search` 由 `throw UnimplementedError()` 改为 POST `/S6/` 实现。
-- `test/core/novel/linovelib_search_parser_test.dart` — 新增解析器测试（2 条）。
-
-## Commits
-
-- `2a0aabe` feat(novel): linovelib search（已 push 至 `origin/dev`）
-
-## Self-Review
-
-- 新增解析器测试通过（含空结果用例）。✔
-- `flutter analyze lib test` clean（`No issues found!`）。✔
-- `flutter test` 全绿（253 passed, 1 skipped）。✔
-- 无新依赖；`pubspec.yaml` 未改动。✔
-- 未添加 brief 之外的代码注释。✔
-- 仅改动 `lib/core/novel/linovelib_source.dart` 与新增测试文件。✔
-- `page` 参数按 brief 签名保留但未使用（brief 代码如此），无 analyze 告警。✔
-
-## Concerns
-
-- `search` 的 `page` 参数被接受但未参与请求；当前 `/S6/` 表单仅提交 `searchkey`。若后续需要分页，需确认站点搜索分页参数（可能为 `page`），并在后续任务补齐。此为 brief 明确指定的实现，未擅自扩展。
-- 解析器假设每个结果卡片为独立的 `div.search-result-list`；若站点真实 DOM 为「一个列表容器 + 多个子项」，则需调整选择器。已按 brief 给定 HTML 夹具实现。
+## Issues or concerns
+None. The widget is intentionally not wired into any page yet (Tasks 2/3).

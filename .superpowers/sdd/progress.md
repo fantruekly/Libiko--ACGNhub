@@ -374,3 +374,17 @@ Final whole-branch review (2fddbf2..4679bea): 'With fixes'. 1 Important (missing
   src-fallback test, and a zero-source guard in novelSearchProvider. Re-review 4679bea..71f2596: Approved.
 Novel search feature: COMPLETE (2fddbf2..71f2596). Pushed to origin/dev.
   Live manual verification still owed: open novel module -> search a keyword -> results/detail.
+
+## Chip bar transition feature (plan 2026-09-15-chip-bar-transition.md)
+Task 1: complete (commits 4edac71..12cb247, review clean: Approved). New lib/core/widgets/chip_bar.dart + test/core/widgets/chip_bar_test.dart.
+  Minor (deferred): AnimatedDefaultTextStyle uses linear curve (pill easeInOutCubic); limited test coverage; TextPainter per label per rebuild; no auto-scroll to selected chip; no Semantics.
+Task 2: complete (commits 12cb247..6920c98, review clean: Approved). novel_home.dart _sourceChips/_sectionChips/_optionChips use ChipBar; _chip + pill_chip import removed.
+  Minor (deferred): no automated test for section index mapping (selectedIndex=_groupIndex+1); index<0 fallback unreachable.
+Task 3: complete (commits 6920c98..062fa40, review clean: Approved after fix). comic_home.dart source/section/part rows use ChipBar; removed _chip/_sourceChip/_horizontalScroll/gestures import + pill_chip.dart.
+  Plan-mandated finding (human decided FIX): third-row keys omitted parent identity -> fix 062fa40 added source.key+section / _sourceId+_groupIndex to comic-part and novel-option keys.
+  Minor (deferred): delimiter-collision theoretical; no automated test for section/option index mapping; animation not visually confirmed headless.
+ALL 3 TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (4edac71..062fa40): 'With fixes'. 1 Important (ChipBar lost NotoSansSC via AnimatedDefaultTextStyle replace-not-merge) + 1 Important plan-level (caller-managed row keys fragile) + minors.
+Fix 5f78a59: merge ambient DefaultTextStyle into chip style (font restored, used for measure+render); add easeInOutCubic to text-color animation; ChipBar owns row identity via KeyedSubtree(ValueKey(Object.hashAll(labels))); removed 6 caller keys; reverted _partChips signature; added 'changing labels jumps' test. Re-review 062fa40..5f78a59: Approved.
+  Minor (deferred): internal label-only identity means two different parents with identical labels animate instead of jump (user chose encapsulation); scroll offset no longer resets on row change; no test for the font fix.
+Chip bar transition feature: COMPLETE (4edac71..5f78a59). Pushed to origin/dev. Live manual verification still owed.

@@ -1,89 +1,37 @@
-# Task 2 Report: lknovel 搜索
+# Task 2 Report: Novel page secondary selector bars → ChipBar
 
-## Status
+## What I implemented
 
-DONE
+Wired `_ExploreTabState` in `lib/modules/novel/novel_home.dart` to the reusable `ChipBar` (Task 1):
 
-## Implemented
+- Step 1: Replaced `import '../../core/widgets/pill_chip.dart';` with `import '../../core/widgets/chip_bar.dart';`.
+- Step 2: `_sourceChips` now builds a `ChipBar` keyed `novel-source-<labels joined>`, with `selectedIndex` derived from `sources.indexWhere((s) => s.id == _sourceId)` (falling back to 0), and `onSelected` updating `_sourceId`, resetting `_groupIndex`, `_optionIndex`, `_page`.
+- Step 3: `_sectionChips` builds labels `['推荐', ...groups]`, keyed `novel-section-...`, `selectedIndex: _groupIndex + 1`, `onSelected` maps `i - 1` back to `_groupIndex` and resets `_optionIndex`/`_page`.
+- Step 4: `_optionChips` builds labels from `group.options`, keyed `novel-option-...`, `selectedIndex: _optionIndex`.
+- Step 5: Deleted the now-unused `_chip` helper.
+- Did NOT touch `lib/core/widgets/pill_chip.dart` or any comic-page file, per task constraints.
 
-Added `LknovelSource.search(String keyword, {int page = 1})` in
-`lib/core/novel/lknovel_source.dart`, replacing the `UnimplementedError`
-stub. It trims the keyword, returns `const []` for empty input, POSTs to
-`bff/apk-search-result-v1` with `{q, page, page_size: 20, pageSize: 20}`,
-and parses the response via `parseLkList(lkData(json))`.
+All replacements match the brief's before/after code exactly.
 
-Added the `search posts to apk-search-result-v1` test in
-`test/core/novel/lknovel_source_test.dart`.
+## What I tested and results
 
-## TDD Evidence
+- `flutter analyze lib test` → `No issues found!`
+- Focused: `flutter test test/modules/novel/novel_home_tabs_test.dart test/modules/novel/novel_home_pager_test.dart` → All tests passed.
+- Full: `flutter test` → `All tests passed!` (268 passed, 1 skipped — the pre-existing `js_engine_smoke_test` skip for the flutter_qjs native lib under `flutter test`).
 
-### RED
+## Files changed
 
-Command:
-`$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/lknovel_source_test.dart`
+- `lib/modules/novel/novel_home.dart` (+32 / −68)
+- Commit: `6920c98 feat(novel): sliding-highlight secondary chip bar` (pushed to `origin/dev`)
 
-Result (before implementation):
+## Self-review findings
 
-```
-00:00 +17: search posts to apk-search-result-v1
-00:00 +17 -1: search posts to apk-search-result-v1 [E]
-  UnimplementedError
-  package:acgnhub/core/novel/lknovel_source.dart 287:7  LknovelSource.search
-00:00 +17 -1: Some tests failed.
-```
+- No unused imports/symbols remain; analyze is clean.
+- Empty-list safety: `_sourceChips` returns `ChipBar` which renders `SizedBox.shrink()` when `labels` is empty; `_sectionChips` always has at least `'推荐'`; `_optionChips` only renders when a group with options is selected (guarded by `_body`/`_groupIndex`).
+- `ChipBar` clamps `selectedIndex` internally, so a stale `_optionIndex` cannot crash.
+- Minor intentional behavior change (per brief): selecting `推荐` now also resets `_optionIndex = 0` (the old code left it untouched). Harmless since the option row is hidden for `_groupIndex < 0`.
+- Keying by joined labels means switching source/section label lists remounts (jump, no cross-row slide), while index-only changes animate — as designed.
 
-### GREEN
+## Issues or concerns
 
-Same command after implementation:
-
-```
-00:00 +18: All tests passed!
-```
-
-### Analyze
-
-Command:
-`$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-
-Result:
-
-```
-Analyzing 2 items...
-No issues found! (ran in 2.2s)
-```
-
-### Full suite
-
-Command:
-`$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-
-Result:
-
-```
-00:12 +254 ~1: All tests passed!
-```
-
-## Files Changed
-
-- `lib/core/novel/lknovel_source.dart` — implemented `search`.
-- `test/core/novel/lknovel_source_test.dart` — added search test.
-
-## Commit
-
-- `2433e0f` `feat(novel): lknovel search`
-- Pushed to `origin/dev` (`2a0aabe..2433e0f`).
-
-## Self-Review
-
-- New `search` test passes (18/18 in the file). ✔
-- `flutter analyze lib test` clean (`No issues found!`). ✔
-- `flutter test` fully green (254 passed, 1 skipped). ✔
-- Code transcribed verbatim from brief. ✔
-- No new dependencies; `pubspec.yaml` untouched. ✔
-- No new comments. ✔
-- Only the two allowed files committed. ✔
-
-## Concerns
-
-- None. Empty-keyword guard returns `const []` without a network call; this
-  behavior is not covered by a dedicated test (brief did not request one).
+None blocking. The `推荐` optionIndex reset is a benign deviation from prior behavior, explicitly specified by the brief.

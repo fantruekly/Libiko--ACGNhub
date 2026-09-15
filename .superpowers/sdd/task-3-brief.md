@@ -1,144 +1,241 @@
-### Task 3: 聚合搜索 Provider
+### Task 3: 漫画页副选择栏接入 `ChipBar` 并删除 `PillChip`
 
 **Files:**
-- Modify: `lib/modules/novel/novel_providers.dart`
-- Test: `test/modules/novel/novel_search_provider_test.dart`
+- Modify: `lib/modules/comic/comic_home.dart`
+- Delete: `lib/core/widgets/pill_chip.dart`
 
 **Interfaces:**
-- Consumes: `NovelSource.search`（Task 1/2）、`novelSourceManagerProvider`、`Novel`。
-- Produces:
-  - `class NovelSearchResult { final Novel novel; final String sourceKey; const NovelSearchResult({required this.novel, required this.sourceKey}); }`
-  - `final novelSearchProvider = FutureProvider.family<List<NovelSearchResult>, String>((ref, keyword) async {...});`
+- Consumes: `ChipBar`（Task 1）。
+- Produces: 无新公共接口；`_DiscoverTab` 的源 / 分区 / 分卷 chips 改为 `ChipBar`；`PillChip` 被删除。
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: 换 import**
 
-创建 `test/modules/novel/novel_search_provider_test.dart`：
+在 `lib/modules/comic/comic_home.dart` 顶部，把：
 
 ```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:acgnhub/core/novel/models.dart';
-import 'package:acgnhub/core/novel/novel_source.dart';
-import 'package:acgnhub/modules/novel/novel_providers.dart';
-
-class _SearchSource extends NovelSource {
-  _SearchSource(this.id, this.results, {this.throws = false});
-  @override
-  final String id;
-  final List<Novel> results;
-  final bool throws;
-  @override
-  String get name => id;
-  @override
-  String get baseUrl => 'https://x';
-  @override
-  List<NovelBrowseGroup> get browseGroups => const [];
-  @override
-  Future<NovelHome> home() async => const NovelHome(sections: []);
-  @override
-  Future<NovelList> browse(String optionKey, {int page = 1}) async =>
-      NovelList(items: const [], page: page, hasMore: false);
-  @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) async {
-    if (throws) throw Exception('boom');
-    return results;
-  }
-
-  @override
-  Future<NovelDetail> detail(String id) async =>
-      const NovelDetail(novel: Novel(id: 'x', title: 'x'), volumes: []);
-  @override
-  Future<NovelChapter> chapter(String novelId, String chapterId) async =>
-      const NovelChapter(title: 't', blocks: []);
-}
-
-ProviderContainer _container(List<NovelSource> sources) {
-  final c = ProviderContainer(overrides: [
-    novelSourceManagerProvider
-        .overrideWithValue(NovelSourceManager(sources: sources)),
-  ]);
-  addTearDown(c.dispose);
-  return c;
-}
-
-void main() {
-  test('aggregates across sources and dedupes by title', () async {
-    final c = _container([
-      _SearchSource('a', const [Novel(id: '1', title: 'X'), Novel(id: '2', title: 'Y')]),
-      _SearchSource('b', const [Novel(id: '3', title: 'X'), Novel(id: '4', title: 'Z')]),
-    ]);
-    final results = await c.read(novelSearchProvider('k').future);
-    expect(results.map((r) => r.novel.title), ['X', 'Y', 'Z']);
-    expect(results.first.sourceKey, 'a');
-    expect(results.last.sourceKey, 'b');
-  });
-
-  test('skips a failing source', () async {
-    final c = _container([
-      _SearchSource('a', const [], throws: true),
-      _SearchSource('b', const [Novel(id: '4', title: 'Z')]),
-    ]);
-    final results = await c.read(novelSearchProvider('k').future);
-    expect(results.single.novel.title, 'Z');
-  });
-
-  test('throws when every source fails', () async {
-    final c = _container([_SearchSource('a', const [], throws: true)]);
-    await expectLater(c.read(novelSearchProvider('k').future), throwsA(isA<StateError>()));
-  });
-}
+import '../../core/widgets/pill_chip.dart';
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_search_provider_test.dart`
-Expected: 编译失败（`NovelSearchResult` / `novelSearchProvider` 未定义）。
-
-- [ ] **Step 3: 实现**
-
-在 `lib/modules/novel/novel_providers.dart` 末尾新增：
+替换为：
 
 ```dart
-class NovelSearchResult {
-  final Novel novel;
-  final String sourceKey;
-  const NovelSearchResult({required this.novel, required this.sourceKey});
-}
-
-final novelSearchProvider =
-    FutureProvider.family<List<NovelSearchResult>, String>((ref, keyword) async {
-  final k = keyword.trim();
-  if (k.isEmpty) return const [];
-  final sources = ref.watch(novelSourceManagerProvider).sources;
-  final out = <NovelSearchResult>[];
-  final seen = <String>{};
-  Object? lastError;
-  var succeeded = 0;
-  for (final source in sources) {
-    try {
-      for (final novel in await source.search(k)) {
-        if (seen.add(novel.title.trim())) {
-          out.add(NovelSearchResult(novel: novel, sourceKey: source.id));
-        }
-      }
-      succeeded++;
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  if (succeeded == 0) {
-    throw StateError('所有轻小说源搜索失败：$lastError');
-  }
-  return out;
-});
+import '../../core/widgets/chip_bar.dart';
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [ ] **Step 2: 源选择栏改为 `ChipBar`**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_search_provider_test.dart`
-Expected: 全部通过。
+把 `_sourceHeader` 中的：
 
-- [ ] **Step 5: 静态检查与全量测试**
+```dart
+          Expanded(
+            child: _horizontalScroll(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+              child: Row(
+                children: [
+                  for (final source in sources)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child:
+                          _sourceChip(source, source.key == selected.key),
+                    ),
+                ],
+              ),
+            ),
+          ),
+```
+
+替换为：
+
+```dart
+          Expanded(
+            child: ChipBar(
+              key: ValueKey(
+                  'comic-source-${[for (final s in sources) s.name].join('|')}'),
+              labels: [for (final source in sources) source.name],
+              selectedIndex: sources.indexOf(selected),
+              onSelected: (i) {
+                final source = sources[i];
+                setState(() {
+                  _selectedKey = source.key;
+                  _selectedSection = 0;
+                  _selectedPart = 0;
+                  _page = 1;
+                });
+              },
+            ),
+          ),
+```
+
+- [ ] **Step 3: 删除 `_chip` 与 `_sourceChip`**
+
+把：
+
+```dart
+  Widget _chip(String label, bool selected, VoidCallback onTap) =>
+      PillChip(label: label, selected: selected, onTap: onTap);
+
+  Widget _sourceChip(ComicSource source, bool selected) {
+    return _chip(source.name, selected, () {
+      setState(() {
+        _selectedKey = source.key;
+        _selectedSection = 0;
+        _selectedPart = 0;
+        _page = 1;
+      });
+    });
+  }
+```
+
+整段删除。
+
+- [ ] **Step 4: 分区选择栏改为 `ChipBar`**
+
+把：
+
+```dart
+  Widget _sectionChips(ComicSource source, int section) {
+    if (source.sections.length <= 1) return const SizedBox.shrink();
+    return SizedBox(
+      height: 48,
+      child: _horizontalScroll(
+        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+        child: Row(
+          children: [
+            for (var i = 0; i < source.sections.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _chip(
+                  source.sections[i].title.isEmpty
+                      ? '分区 ${i + 1}'
+                      : source.sections[i].title,
+                  i == section,
+                  () => setState(() {
+                    _selectedSection = i;
+                    _selectedPart = 0;
+                    _page = 1;
+                  }),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+```
+
+替换为：
+
+```dart
+  Widget _sectionChips(ComicSource source, int section) {
+    if (source.sections.length <= 1) return const SizedBox.shrink();
+    final labels = [
+      for (var i = 0; i < source.sections.length; i++)
+        source.sections[i].title.isEmpty
+            ? '分区 ${i + 1}'
+            : source.sections[i].title,
+    ];
+    return ChipBar(
+      key: ValueKey('comic-section-${source.key}-${labels.join('|')}'),
+      labels: labels,
+      selectedIndex: section,
+      onSelected: (i) => setState(() {
+        _selectedSection = i;
+        _selectedPart = 0;
+        _page = 1;
+      }),
+    );
+  }
+```
+
+- [ ] **Step 5: 分卷选择栏改为 `ChipBar`**
+
+把：
+
+```dart
+  Widget _partChips(List<ComicPart> parts, int selected) {
+    return SizedBox(
+      height: 48,
+      child: _horizontalScroll(
+        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+        child: Row(
+          children: [
+            for (var i = 0; i < parts.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _chip(
+                  parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
+                  i == selected,
+                  () => setState(() {
+                    _selectedPart = i;
+                    _page = 1;
+                  }),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+```
+
+替换为：
+
+```dart
+  Widget _partChips(List<ComicPart> parts, int selected) {
+    final labels = [
+      for (var i = 0; i < parts.length; i++)
+        parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
+    ];
+    return ChipBar(
+      key: ValueKey('comic-part-${labels.join('|')}'),
+      labels: labels,
+      selectedIndex: selected,
+      onSelected: (i) => setState(() {
+        _selectedPart = i;
+        _page = 1;
+      }),
+    );
+  }
+```
+
+- [ ] **Step 6: 删除不再使用的 `_horizontalScroll` 与 `gestures` import**
+
+三处 chip 行都换成 `ChipBar` 后，`_horizontalScroll` 已无调用者，且 `PointerDeviceKind` 仅它使用。把：
+
+```dart
+  Widget _horizontalScroll(
+      {required EdgeInsets padding, required Widget child}) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: const {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: padding,
+        child: child,
+      ),
+    );
+  }
+```
+
+整段删除；并把顶部：
+
+```dart
+import 'package:flutter/gestures.dart';
+```
+
+整行删除。
+
+- [ ] **Step 7: 删除 `PillChip`**
+
+删除文件 `lib/core/widgets/pill_chip.dart`。
+
+- [ ] **Step 8: 静态检查与全量测试**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
 Expected: `No issues found!`
@@ -146,12 +243,27 @@ Expected: `No issues found!`
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
 Expected: 全绿。
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 9: 提交**
 
 ```bash
-git add lib/modules/novel/novel_providers.dart test/modules/novel/novel_search_provider_test.dart
-git commit -m "feat(novel): aggregate search provider"
+git add lib/modules/comic/comic_home.dart lib/core/widgets/pill_chip.dart
+git commit -m "feat(comic): sliding-highlight secondary chip bar; drop PillChip"
 git push origin dev
 ```
 
 ---
+
+## 验证（任务全部完成后）
+
+1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` 全绿。
+2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` 成功。
+3. 启动应用：
+   - 漫画页「发现」：点击不同源 / 分区 / 分卷，蓝色高亮药丸滑动到新位置，未选中项为灰色纯文字；切换源时第二行标签变化，药丸直接跳变不横跨。
+   - 轻小说页「探索」：源 / 推荐-排行-分类 / 选项同理。
+   - 顶部 `TabStrip` 行为不变。
+
+## 已知取舍
+
+- 仅 chip 选中态做过渡，内容区仍用骨架屏（不做淡入/滑动）。
+- 选中项不自动滚动入视。
+- 行切换（标签列表变化）为跳变，不做跨行滑动动画。

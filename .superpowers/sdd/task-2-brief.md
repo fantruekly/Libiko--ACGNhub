@@ -1,70 +1,188 @@
-### Task 2: lknovel 搜索
+### Task 2: 轻小说页副选择栏接入 `ChipBar`
 
 **Files:**
-- Modify: `lib/core/novel/lknovel_source.dart`
-- Test: `test/core/novel/lknovel_source_test.dart`
+- Modify: `lib/modules/novel/novel_home.dart`
+- Test: `test/modules/novel/novel_home_test.dart`（如存在则跑；否则以 `flutter test` 全量覆盖）
 
 **Interfaces:**
-- Consumes: `LknovelSource._post`、`lkData`、`parseLkList`；`test/core/novel/lknovel_source_test.dart` 里已有的 `_feedData` fixture。
-- Produces: `LknovelSource.search(String keyword, {int page = 1})`。
+- Consumes: `ChipBar`（Task 1）。
+- Produces: 无新公共接口；`_ExploreTab` 的 `_sourceChips` / `_sectionChips` / `_optionChips` 改为返回 `ChipBar`。
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: 换 import**
 
-在 `test/core/novel/lknovel_source_test.dart` 的 `main()` 末尾（最后一个 `test` 之后）追加：
-
-```dart
-  test('search posts to apk-search-result-v1', () async {
-    Map<String, dynamic>? seen;
-    final source = LknovelSource(poster: (endpoint, body) async {
-      expect(endpoint, 'bff/apk-search-result-v1');
-      seen = body;
-      return {'code': 0, 'data': _feedData};
-    });
-    final list = await source.search('败犬', page: 2);
-    expect(seen!['q'], '败犬');
-    expect(seen!['page'], 2);
-    expect(list.single.id, '1338');
-  });
-```
-
-- [ ] **Step 2: 运行测试确认失败**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/lknovel_source_test.dart`
-Expected: 失败（`search` 抛 `UnimplementedError`）。
-
-- [ ] **Step 3: 实现 `search`**
-
-编辑 `lib/core/novel/lknovel_source.dart`，把：
+在 `lib/modules/novel/novel_home.dart` 顶部，把：
 
 ```dart
-  @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) =>
-      throw UnimplementedError();
+import '../../core/widgets/pill_chip.dart';
 ```
 
 替换为：
 
 ```dart
-  @override
-  Future<List<Novel>> search(String keyword, {int page = 1}) async {
-    final k = keyword.trim();
-    if (k.isEmpty) return const [];
-    final json = await _post('bff/apk-search-result-v1', {
-      'q': k,
-      'page': page,
-      'page_size': 20,
-      'pageSize': 20,
-    });
-    return parseLkList(lkData(json));
+import '../../core/widgets/chip_bar.dart';
+```
+
+- [ ] **Step 2: 替换 `_sourceChips`**
+
+把：
+
+```dart
+  Widget _sourceChips(List<NovelSource> sources) {
+    return SizedBox(
+      height: 48,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            for (final s in sources)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _chip(s.name, s.id == _sourceId, () => setState(() {
+                  _sourceId = s.id;
+                  _groupIndex = -1;
+                  _optionIndex = 0;
+                  _page = 1;
+                })),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+替换为：
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/lknovel_source_test.dart`
-Expected: 全部通过。
+```dart
+  Widget _sourceChips(List<NovelSource> sources) {
+    final labels = [for (final s in sources) s.name];
+    final index = sources.indexWhere((s) => s.id == _sourceId);
+    return ChipBar(
+      key: ValueKey('novel-source-${labels.join('|')}'),
+      labels: labels,
+      selectedIndex: index < 0 ? 0 : index,
+      onSelected: (i) => setState(() {
+        _sourceId = sources[i].id;
+        _groupIndex = -1;
+        _optionIndex = 0;
+        _page = 1;
+      }),
+    );
+  }
+```
 
-- [ ] **Step 5: 静态检查与全量测试**
+- [ ] **Step 3: 替换 `_sectionChips`**
+
+把：
+
+```dart
+  Widget _sectionChips(List<NovelBrowseGroup> groups) {
+    return SizedBox(
+      height: 48,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: _chip('推荐', _groupIndex < 0, () => setState(() {
+                _groupIndex = -1;
+                _page = 1;
+              })),
+            ),
+            for (var i = 0; i < groups.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _chip(groups[i].label, _groupIndex == i, () => setState(() {
+                  _groupIndex = i;
+                  _optionIndex = 0;
+                  _page = 1;
+                })),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+```
+
+替换为：
+
+```dart
+  Widget _sectionChips(List<NovelBrowseGroup> groups) {
+    final labels = ['推荐', for (final g in groups) g.label];
+    return ChipBar(
+      key: ValueKey('novel-section-${labels.join('|')}'),
+      labels: labels,
+      selectedIndex: _groupIndex + 1,
+      onSelected: (i) => setState(() {
+        _groupIndex = i - 1;
+        _optionIndex = 0;
+        _page = 1;
+      }),
+    );
+  }
+```
+
+- [ ] **Step 4: 替换 `_optionChips`**
+
+把：
+
+```dart
+  Widget _optionChips(NovelBrowseGroup group) {
+    return SizedBox(
+      height: 48,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            for (var i = 0; i < group.options.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _chip(group.options[i].label, _optionIndex == i, () => setState(() {
+                  _optionIndex = i;
+                  _page = 1;
+                })),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+```
+
+替换为：
+
+```dart
+  Widget _optionChips(NovelBrowseGroup group) {
+    final labels = [for (final o in group.options) o.label];
+    return ChipBar(
+      key: ValueKey('novel-option-${labels.join('|')}'),
+      labels: labels,
+      selectedIndex: _optionIndex,
+      onSelected: (i) => setState(() {
+        _optionIndex = i;
+        _page = 1;
+      }),
+    );
+  }
+```
+
+- [ ] **Step 5: 删除 `_chip` 辅助方法**
+
+把：
+
+```dart
+  Widget _chip(String label, bool selected, VoidCallback onTap) =>
+      PillChip(label: label, selected: selected, onTap: onTap);
+```
+
+整段删除。
+
+- [ ] **Step 6: 运行静态检查与全量测试**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
 Expected: `No issues found!`
@@ -72,11 +190,11 @@ Expected: `No issues found!`
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
 Expected: 全绿。
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 7: 提交**
 
 ```bash
-git add lib/core/novel/lknovel_source.dart test/core/novel/lknovel_source_test.dart
-git commit -m "feat(novel): lknovel search"
+git add lib/modules/novel/novel_home.dart
+git commit -m "feat(novel): sliding-highlight secondary chip bar"
 git push origin dev
 ```
 
