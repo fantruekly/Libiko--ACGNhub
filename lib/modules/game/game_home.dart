@@ -10,21 +10,12 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import 'game_detail_page.dart';
+import 'game_grid.dart';
 import 'game_providers.dart';
 
 const _accent = Color(0xFF007AFF);
 const _muted = Color(0xFF5A5A5F);
 const _fg = Color(0xFF1C1C1E);
-
-const int _gridColumns = 4;
-const double _gridSpacing = 16;
-const double _gridTitleExtent = 44;
-
-double _gridCellWidth(double maxWidth) =>
-    (maxWidth - 32 - _gridSpacing * (_gridColumns - 1)) / _gridColumns;
-
-double _gridCellExtent(double maxWidth) =>
-    _gridCellWidth(maxWidth) * 2 / 3 + _gridTitleExtent;
 
 class GameCard extends StatelessWidget {
   final Game game;
@@ -166,11 +157,11 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
     final async = ref.watch(gameBrowseProvider(key));
     return async.when(
       loading: () => LayoutBuilder(builder: (context, constraints) {
-        final cellW = _gridCellWidth(constraints.maxWidth);
+        final cellW = gameGridCellWidth(constraints.maxWidth);
         return ShimmerLoader(
-            crossAxisCount: _gridColumns,
+            crossAxisCount: gameGridColumns,
             itemCount: 8,
-            aspectRatio: cellW / _gridCellExtent(constraints.maxWidth),
+            aspectRatio: cellW / gameGridCellExtent(constraints.maxWidth),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
       }),
       error: (_, __) => EmptyState(
@@ -225,10 +216,10 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
       return GridView.builder(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _gridColumns,
+            crossAxisCount: gameGridColumns,
             mainAxisSpacing: 20,
-            crossAxisSpacing: _gridSpacing,
-            mainAxisExtent: _gridCellExtent(constraints.maxWidth)),
+            crossAxisSpacing: gameGridSpacing,
+            mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
         itemCount: items.length,
         itemBuilder: (_, i) => GameCard(
           game: items[i],
