@@ -34,6 +34,7 @@ dependencies:
   crypto: ^3.0.7
   fast_gbk: ^1.0.0
   pointycastle: ^3.9.1
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
