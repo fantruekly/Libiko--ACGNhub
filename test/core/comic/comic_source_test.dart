@@ -58,4 +58,56 @@ void main() {
     expect(source.hasCookieLogin, isFalse);
     expect(source.cookieFields, isEmpty);
   });
+
+  test('fromMetadata keeps only the option groups that apply to the category',
+      () {
+    final source = ComicSource.fromMetadata({
+      'name': '拷贝漫画',
+      'key': 'copy_manga',
+      'version': '1.4.1',
+      'category': {
+        'hasComics': true,
+        'category': '排行',
+        'param': 'ranking',
+        'optionGroups': [
+          {
+            'options': ['-全部', 'japan-日漫', 'korea-韩漫'],
+            'showWhen': ['全部', '愛情', '冒險'],
+          },
+          {
+            'options': ['*datetime_updated-时间倒序', 'popular-热度倒序'],
+            'showWhen': ['全部', '愛情', '冒險'],
+          },
+          {
+            'options': ['male-男频', 'female-女频'],
+            'showWhen': ['排行'],
+          },
+          {
+            'options': ['day-上升最快', 'week-最近7天', 'total-總榜單'],
+            'showWhen': ['排行'],
+          },
+        ],
+      },
+    });
+    expect(source.hasCategoryComics, isTrue);
+    expect(source.categoryDefault, '排行');
+    expect(source.categoryParam, 'ranking');
+    expect(source.categoryOptions, ['male', 'day']);
+    expect(source.categoryOptionsFor('排行'), ['male', 'day']);
+    expect(source.categoryOptionsFor('全部'), ['', '*datetime_updated']);
+  });
+
+  test('fromMetadata falls back to the flat options list', () {
+    final source = ComicSource.fromMetadata({
+      'name': 'X',
+      'key': 'x',
+      'version': '1.0.0',
+      'category': {
+        'hasComics': true,
+        'options': ['a', 'b'],
+      },
+    });
+    expect(source.categoryOptions, ['a', 'b']);
+    expect(source.categoryOptionsFor('anything'), ['a', 'b']);
+  });
 }
