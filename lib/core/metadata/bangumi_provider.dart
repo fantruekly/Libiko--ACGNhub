@@ -6,6 +6,7 @@ import 'metadata_provider.dart';
 
 class BangumiProvider implements MetadataProvider {
   static const _base = 'https://api.bgm.tv';
+  static const _heatPerPage = 20;
 
   final Dio _dio;
   final DateTime Function() _now;
@@ -28,23 +29,31 @@ class BangumiProvider implements MetadataProvider {
 
   @override
   Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
+    if (feed == AnimeFeed.trending) {
+      final res = await _dio.post(
+        '/v0/search/subjects',
+        queryParameters: {
+          'limit': _heatPerPage,
+          'offset': (page - 1) * _heatPerPage,
+        },
+        data: {
+          'keyword': '',
+          'sort': 'heat',
+          'filter': {
+            'type': [2],
+            'nsfw': false,
+          },
+        },
+        options: Options(contentType: Headers.jsonContentType),
+      );
+      return parseSearch(res.data);
+    }
     if (page > 1) return const [];
     final res = await _dio.get('/calendar');
     final days = res.data as List<dynamic>;
-    switch (feed) {
-      case AnimeFeed.today:
-        return parseCalendar(days, onlyWeekday: _now().weekday);
-      case AnimeFeed.season:
-        return parseCalendar(days);
-      case AnimeFeed.trending:
-        final works = parseCalendar(days);
-        works.sort((a, b) {
-          final sa = (a.extra['score'] as num?) ?? 0;
-          final sb = (b.extra['score'] as num?) ?? 0;
-          return sb.compareTo(sa);
-        });
-        return works;
-    }
+    return feed == AnimeFeed.today
+        ? parseCalendar(days, onlyWeekday: _now().weekday)
+        : parseCalendar(days);
   }
 
   @override
@@ -155,7 +164,9 @@ class BangumiProvider implements MetadataProvider {
 
   @visibleForTesting
   static List<Work> parseSearch(dynamic data) {
-    final list = ((data is Map ? data['list'] : data) as List<dynamic>?) ?? [];
+    final list =
+        ((data is Map ? (data['list'] ?? data['data']) : data) as List<dynamic>?) ??
+            [];
     return list
         .map((e) => _parseItem(e as Map<String, dynamic>))
         .whereType<Work>()

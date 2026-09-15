@@ -28,6 +28,31 @@ class _FakeAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+class _RecordingAdapter implements HttpClientAdapter {
+  _RecordingAdapter(this.data);
+  final dynamic data;
+  late RequestOptions last;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    last = options;
+    return ResponseBody.fromString(
+      jsonEncode(data),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   final calendarItem = {
     'id': 456080,
@@ -81,11 +106,17 @@ void main() {
     expect(BangumiProvider.parseCalendar(days, onlyWeekday: 2), isEmpty);
   });
 
-  test('parseSearch reads data.list', () {
-    final works = BangumiProvider.parseSearch({
-      'list': [calendarItem]
-    });
-    expect(works.single.id, 'bangumi_456080');
+  test('parseSearch reads data.list and data.data', () {
+    expect(
+        BangumiProvider.parseSearch({
+          'list': [calendarItem]
+        }).single.id,
+        'bangumi_456080');
+    expect(
+        BangumiProvider.parseSearch({
+          'data': [calendarItem]
+        }).single.id,
+        'bangumi_456080');
   });
 
   test('parseDetail reads tags and falls back to name when name_cn is empty',
@@ -110,9 +141,7 @@ void main() {
     expect(w.extra['score'], closeTo(8.9, 0.001));
   });
 
-  test(
-      'feed(today) filters to the injected weekday; page>1 is empty; trending sorts by score',
-      () async {
+  test('feed(today) filters to the injected weekday; page>1 is empty', () async {
     final days = [
       {
         'weekday': {'id': 4},
@@ -146,9 +175,48 @@ void main() {
     expect(today.single.id, 'bangumi_1');
 
     expect(await provider.feed(AnimeFeed.season, page: 2), isEmpty);
+  });
 
-    final trending = await provider.feed(AnimeFeed.trending);
-    expect(trending.first.id, 'bangumi_2'); // 9.0 before 8.0
+  test('feed(trending) posts to v0 search sorted by heat, paged by offset',
+      () async {
+    final subject = {
+      'id': 8,
+      'name': 'STEINS;GATE',
+      'name_cn': '命运石之门',
+      'summary': '秋叶原。',
+      'date': '2011-04-06',
+      'eps': 24,
+      'rating': {'score': 9.0, 'rank': 1, 'total': 100},
+      'images': {'large': 'http://lain.bgm.tv/pic/cover/l/x.jpg'},
+    };
+    final adapter = _RecordingAdapter({
+      'data': [subject],
+      'total': 1000,
+      'limit': 20,
+      'offset': 20,
+    });
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.bgm.tv'))
+      ..httpClientAdapter = adapter;
+    final provider = BangumiProvider(dio: dio);
+
+    final works = await provider.feed(AnimeFeed.trending, page: 2);
+
+    expect(adapter.last.path, '/v0/search/subjects');
+    expect(adapter.last.queryParameters['limit'], 20);
+    expect(adapter.last.queryParameters['offset'], 20);
+    final rawBody = adapter.last.data;
+    final body = (rawBody is String ? jsonDecode(rawBody) : rawBody)
+        as Map<String, dynamic>;
+    expect(body['keyword'], '');
+    expect(body['sort'], 'heat');
+    expect(body['filter'], {'type': [2], 'nsfw': false});
+    final w = works.single;
+    expect(w.id, 'bangumi_8');
+    expect(w.title, '命运石之门');
+    expect(w.extra['bangumiId'], 8);
+    expect(w.extra['score'], closeTo(9.0, 0.001));
+    expect(w.extra['airDate'], '2011-04-06');
+    expect(w.extra['episodes'], 24);
   });
 
   test('parseCharacters maps name, relation, image and actors', () {

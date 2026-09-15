@@ -85,7 +85,7 @@ class _FeedView extends ConsumerStatefulWidget {
 class _FeedViewState extends ConsumerState<_FeedView>
     with AutomaticKeepAliveClientMixin {
   static const _accent = Color(0xFF007AFF);
-  static const _perPage = 25;
+  static const _perPage = 20;
 
   final List<Work> _extra = [];
   int _page = 1;
