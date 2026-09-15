@@ -356,7 +356,10 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
                       icon: const Icon(Icons.close_rounded, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    const WindowControls(),
+                    WindowControls(
+                      foregroundColor: Colors.white.withValues(alpha: 0.85),
+                      hoverColor: Colors.white.withValues(alpha: 0.12),
+                    ),
                   ],
                 ),
               ),
