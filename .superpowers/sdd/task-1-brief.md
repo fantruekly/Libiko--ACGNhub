@@ -1,224 +1,175 @@
-### Task 1: 侧栏文字与线条动效
+## Task 1: 游戏数据模型
 
 **Files:**
-- Modify: `lib/shell/app_sidebar.dart`
-- Test: `test/shell/app_sidebar_test.dart`
+- Create: `lib/core/game/models.dart`
+- Test: `test/core/game/models_test.dart`
 
 **Interfaces:**
-- Consumes: 现有 `AppSidebar({required int selectedIndex, required ValueChanged<int> onChanged, required VoidCallback onSettingsTap})`。
-- Produces: 无新公共接口；`_SidebarItem` 内部改为动画实现，线条 `Opacity` 带 `key: ValueKey('sidebar-line')`。
+- Consumes: 无。
+- Produces: `Game`（字段 `id/title/coverUrl/summary/category/tags/publishedAt/views/extra`，`Game.fromJson`、`toJson`）、`GameBrowseOption(key,label)`、`GameList(items,page,hasMore)`、`GameDetail(game,size,platform,updatedAt,paragraphs,screenshots,sourceUrl)`。
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: Write the failing test**
 
-创建 `test/shell/app_sidebar_test.dart`：
+Create `test/core/game/models_test.dart`:
 
 ```dart
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/shell/app_sidebar.dart';
+import 'package:acgnhub/core/game/models.dart';
 
 void main() {
-  testWidgets('sidebar labels are 13px and the selected line animates',
-      (tester) async {
-    var selected = 0;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: StatefulBuilder(
-          builder: (context, setState) => AppSidebar(
-            selectedIndex: selected,
-            onChanged: (i) => setState(() => selected = i),
-            onSettingsTap: () {},
-          ),
-        ),
-      ),
-    ));
-    await tester.pumpAndSettle();
+  test('Game fromJson/toJson round-trips', () {
+    final g = Game(
+      id: '1207',
+      title: '金辉恋曲四重奏',
+      coverUrl: 'https://x/cover.jpg',
+      summary: 'sum',
+      category: '玩家热评游戏',
+      tags: const ['汉化', 'PC'],
+      publishedAt: DateTime.utc(2026, 9, 11),
+      views: 4300,
+      extra: const {'url': 'https://game.galgamezywz.org/game/1207'},
+    );
+    final back = Game.fromJson(g.toJson());
+    expect(back.id, '1207');
+    expect(back.title, '金辉恋曲四重奏');
+    expect(back.coverUrl, 'https://x/cover.jpg');
+    expect(back.summary, 'sum');
+    expect(back.category, '玩家热评游戏');
+    expect(back.tags, ['汉化', 'PC']);
+    expect(back.publishedAt, DateTime.utc(2026, 9, 11));
+    expect(back.views, 4300);
+    expect(back.extra['url'], 'https://game.galgamezywz.org/game/1207');
+  });
 
-    for (final label in ['动漫', '漫画', '轻小说', '游戏', '设置']) {
-      expect(find.text(label), findsOneWidget);
-    }
-    expect(tester.widget<Text>(find.text('动漫')).style!.fontSize, 13);
+  test('Game.fromJson tolerates missing optional fields', () {
+    final g = Game.fromJson(const {'id': '1', 'title': 'T'});
+    expect(g.coverUrl, isNull);
+    expect(g.summary, isNull);
+    expect(g.category, isNull);
+    expect(g.tags, isEmpty);
+    expect(g.publishedAt, isNull);
+    expect(g.views, isNull);
+  });
+}
+```
 
-    List<double> lineOpacity() => tester
-        .widgetList<Opacity>(find.byKey(const ValueKey('sidebar-line')))
-        .map((w) => w.opacity)
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `flutter test test/core/game/models_test.dart`
+Expected: FAIL（`Error: Couldn't resolve the package 'acgnhub/core/game/models.dart'` 或找不到 `Game`）。
+
+- [ ] **Step 3: Write minimal implementation**
+
+Create `lib/core/game/models.dart`:
+
+```dart
+List<String> _stringList(dynamic raw) {
+  if (raw is List) {
+    return raw
+        .map((e) => e?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
         .toList();
-
-    expect(lineOpacity(), [1.0, 0.0, 0.0, 0.0, 0.0]);
-
-    await tester.tap(find.text('漫画'));
-    await tester.pumpAndSettle();
-    expect(lineOpacity(), [0.0, 1.0, 0.0, 0.0, 0.0]);
-  });
-}
-```
-
-- [ ] **Step 2: 运行测试确认失败**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/shell/app_sidebar_test.dart`
-Expected: 失败——`find.byKey(ValueKey('sidebar-line'))` 找不到（当前没有该 `Opacity`），且字号断言为 11 而非 13。
-
-- [ ] **Step 3: 实现**
-
-把 `lib/shell/app_sidebar.dart` 里整个 `_SidebarItem` 类：
-
-```dart
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  static const _accent = Color(0xFF007AFF);
-  static const _fg = Color(0xFF1C1C1E);
-
-  @override
-  Widget build(BuildContext context) {
-    final iconColor = selected ? _accent : _fg.withValues(alpha: 0.35);
-    final textColor = selected ? _accent : _fg.withValues(alpha: 0.45);
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 72,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          border: selected
-              ? const Border(left: BorderSide(color: _accent, width: 3))
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 24, color: iconColor),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                height: 1.5,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: textColor,
-                letterSpacing: 0.02,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
+  return const [];
 }
-```
 
-替换为：
+class Game {
+  final String id;
+  final String title;
+  final String? coverUrl;
+  final String? summary;
+  final String? category;
+  final List<String> tags;
+  final DateTime? publishedAt;
+  final int? views;
+  final Map<String, dynamic> extra;
 
-```dart
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
+  const Game({
+    required this.id,
+    required this.title,
+    this.coverUrl,
+    this.summary,
+    this.category,
+    this.tags = const [],
+    this.publishedAt,
+    this.views,
+    this.extra = const {},
   });
 
-  static const _accent = Color(0xFF007AFF);
-  static const _fg = Color(0xFF1C1C1E);
+  factory Game.fromJson(Map<String, dynamic> json) => Game(
+        id: json['id']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        coverUrl: json['coverUrl']?.toString(),
+        summary: json['summary']?.toString(),
+        category: json['category']?.toString(),
+        tags: _stringList(json['tags']),
+        publishedAt: json['publishedAt'] == null
+            ? null
+            : DateTime.tryParse(json['publishedAt'].toString()),
+        views: json['views'] is int
+            ? json['views'] as int
+            : int.tryParse('${json['views']}'),
+        extra: (json['extra'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
 
-  @override
-  Widget build(BuildContext context) {
-    final idleIcon = _fg.withValues(alpha: 0.35);
-    final idleText = _fg.withValues(alpha: 0.45);
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        if (coverUrl != null) 'coverUrl': coverUrl,
+        if (summary != null) 'summary': summary,
+        if (category != null) 'category': category,
+        if (tags.isNotEmpty) 'tags': tags,
+        if (publishedAt != null) 'publishedAt': publishedAt!.toIso8601String(),
+        if (views != null) 'views': views,
+        if (extra.isNotEmpty) 'extra': extra,
+      };
+}
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(
-            begin: selected ? 1.0 : 0.0, end: selected ? 1.0 : 0.0),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOutCubic,
-        builder: (context, t, _) {
-          final iconColor = Color.lerp(idleIcon, _accent, t)!;
-          final textColor = Color.lerp(idleText, _accent, t)!;
-          return Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Container(
-                width: 72,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 24, color: iconColor),
-                    const SizedBox(height: 4),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w500,
-                        color: textColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Opacity(
-                  key: const ValueKey('sidebar-line'),
-                  opacity: t,
-                  child: Transform.scale(
-                    scaleY: t,
-                    alignment: Alignment.center,
-                    child: Container(width: 3, color: _accent),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
+class GameBrowseOption {
+  final String key;
+  final String label;
+  const GameBrowseOption({required this.key, required this.label});
+}
+
+class GameList {
+  final List<Game> items;
+  final int page;
+  final bool hasMore;
+  const GameList({required this.items, required this.page, required this.hasMore});
+}
+
+class GameDetail {
+  final Game game;
+  final String? size;
+  final String? platform;
+  final DateTime? updatedAt;
+  final List<String> paragraphs;
+  final List<String> screenshots;
+  final String sourceUrl;
+
+  const GameDetail({
+    required this.game,
+    this.size,
+    this.platform,
+    this.updatedAt,
+    this.paragraphs = const [],
+    this.screenshots = const [],
+    required this.sourceUrl,
+  });
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [ ] **Step 4: Run test to verify it passes**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/shell/app_sidebar_test.dart`
-Expected: 通过。
+Run: `flutter test test/core/game/models_test.dart`
+Expected: PASS（2 tests）。
 
-- [ ] **Step 5: 静态检查与全量测试**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-Expected: 全绿。
-
-- [ ] **Step 6: 提交**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/shell/app_sidebar.dart test/shell/app_sidebar_test.dart
-git commit -m "feat(shell): unify sidebar label size; animate the selected line"
-git push origin dev
+git add lib/core/game/models.dart test/core/game/models_test.dart
+git commit -m "feat(game): add game data models"
 ```
 
 ---
+

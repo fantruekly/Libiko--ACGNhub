@@ -1,214 +1,355 @@
-### Task 7: 插图渲染（正文块模型）
-
-> 用户反馈：插图无法显示。根因：linovelib 插图章节的图片在 `div#TextContent` 内，形如
-> `<img src="/images/sloading.svg" data-src="https://img3.readpai.com/.../321969.jpeg" class="imagecontent lazyload">`
-> ——真实地址在 `data-src`（`src` 是懒加载占位）。阅读器只取 `<p>`，故插图丢失。
+## Task 7: 首页 UI（GameCard + GameHomePage）
 
 **Files:**
-- Modify: `lib/core/novel/models.dart`
-- Modify: `lib/core/novel/linovelib_source.dart`
-- Modify: `lib/modules/novel/novel_reader_page.dart`
-- Modify: `test/core/novel/linovelib_chapter_parser_test.dart`
-- Modify: `test/modules/novel/novel_reader_page_test.dart`
+- Create: `lib/modules/game/game_home.dart`
+- Test: `test/modules/game/game_home_test.dart`
 
 **Interfaces:**
-- Produces: `sealed class NovelBlock`; `class NovelText extends NovelBlock { final String text; }`; `class NovelImage extends NovelBlock { final String url; }`; `class NovelChapter { final String title; final List<NovelBlock> blocks; }`（**替换**原 `content` 字段）。
+- Consumes: `gameSourcesProvider` / `gameBrowseProvider`（Task 6）、`GameCard` 用到的 `gameImageHeaders`（Task 3）、`ChipBar` / `ShimmerLoader` / `EmptyState` / `noTransitionRoute`。
+- Produces: `class GameCard extends StatelessWidget { GameCard({required Game game, VoidCallback? onTap}) }`、`class GameHomePage extends ConsumerStatefulWidget { const GameHomePage({super.key}) }`。
 
-- [ ] **Step 1: 改测试**
+- [ ] **Step 1: Write the failing test**
 
-`linovelib_chapter_parser_test.dart`：把断言 `ch.content` 改为 `ch.blocks`。例如：
-
-```dart
-  test('parseChapter reads title, paragraphs and images in order', () {
-    final ch = parseChapter(_pagedHtml, 'FB');
-    expect(ch.title, '第60話 規則（2）');
-    expect(
-      ch.blocks.map((b) => switch (b) {
-            NovelText(:final text) => text,
-            NovelImage(:final url) => 'IMG:$url',
-          }),
-      ['第一段。', '第二段。', '第三段。'],
-    );
-  });
-```
-
-并新增插图用例：
+Create `test/modules/game/game_home_test.dart`:
 
 ```dart
-  test('parseChapter extracts lazy-loaded images and skips placeholders', () {
-    const html = '''
-<div id="TextContent">
-  <p>文</p>
-  <img src="/images/sloading.svg" data-src="https://img3.readpai.com/5/1/2/a.jpeg" class="imagecontent lazyload">
-  <img src="/images/sloading.svg" data-src="/files/x.png">
-</div>''';
-    final ch = parseChapter(html, 'T');
-    final images = ch.blocks.whereType<NovelImage>().map((b) => b.url).toList();
-    expect(images, [
-      'https://img3.readpai.com/5/1/2/a.jpeg',
-      'https://www.linovelib.com/files/x.png',
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/game/game_source.dart';
+import 'package:acgnhub/core/game/models.dart';
+import 'package:acgnhub/modules/game/game_home.dart';
+import 'package:acgnhub/modules/game/game_providers.dart';
+
+class _FakeSource implements GameSource {
+  @override
+  String get id => 'galgamezywz';
+  @override
+  String get name => 'galgame大玩家';
+  @override
+  String get baseUrl => 'https://fake';
+  @override
+  List<GameBrowseOption> get browseOptions => const [
+        GameBrowseOption(key: 'latest', label: '最近更新'),
+        GameBrowseOption(key: 'wanjiareping', label: '玩家热评'),
+      ];
+  @override
+  Future<GameList> browse(String optionKey, {int page = 1}) async => GameList(
+        items: [Game(id: '$optionKey-$page', title: '游戏$optionKey$page')],
+        page: page,
+        hasMore: optionKey == 'latest' && page == 1,
+      );
+  @override
+  Future<GameDetail> detail(String id) async =>
+      GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
+}
+
+void main() {
+  testWidgets('renders source/section chips, grid and pager', (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider
+          .overrideWithValue(GameSourceManager(sources: [_FakeSource()])),
     ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('galgame大玩家'), findsOneWidget);
+    expect(find.text('最近更新'), findsOneWidget);
+    expect(find.text('玩家热评'), findsOneWidget);
+    expect(find.text('游戏latest1'), findsOneWidget);
+    expect(find.text('第 1 页'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('下一页'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('第 2 页'), findsOneWidget);
+    expect(find.text('游戏latest2'), findsOneWidget);
+    // 第 2 页 hasMore=false → 下一页禁用
+    final next = tester.widget<IconButton>(find.byTooltip('下一页'));
+    expect(next.onPressed, isNull);
   });
-```
-
-（若测试文件未 import `models.dart` 需补 `import 'package:acgnhub/core/novel/models.dart';`。`fetchChapterPages` 测试的 `ch.content` 断言改为 `ch.blocks.whereType<NovelText>().map((b)=>b.text).join('\n\n')`。）
-
-- [ ] **Step 2: 运行确认失败**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart`
-Expected: FAIL（`NovelBlock` 未定义）
-
-- [ ] **Step 3: 改 `models.dart`**
-
-把 `NovelChapter` 替换为：
-
-```dart
-sealed class NovelBlock {
-  const NovelBlock();
-}
-
-class NovelText extends NovelBlock {
-  final String text;
-  const NovelText(this.text);
-}
-
-class NovelImage extends NovelBlock {
-  final String url;
-  const NovelImage(this.url);
-}
-
-class NovelChapter {
-  final String title;
-  final List<NovelBlock> blocks;
-  const NovelChapter({required this.title, this.blocks = const []});
 }
 ```
 
-- [ ] **Step 4: 改 `linovelib_source.dart` 的 `parseChapter` / `fetchChapterPages`**
+- [ ] **Step 2: Run test to verify it fails**
 
-`parseChapter` 改为按 `div#TextContent` 的子元素顺序产出块：
+Run: `flutter test test/modules/game/game_home_test.dart`
+Expected: FAIL（找不到 `game_home.dart`）。
 
-```dart
-String? _imageUrl(dom.Element img) {
-  final raw = img.attributes['data-src'] ?? img.attributes['src'];
-  if (raw == null || raw.isEmpty) return null;
-  if (raw.contains('sloading') || raw.endsWith('.svg')) return null;
-  return _absUrl(raw);
-}
+- [ ] **Step 3: Write minimal implementation**
 
-NovelChapter parseChapter(String html, String fallbackTitle) {
-  final doc = html_parser.parse(html);
-  final title = _textOf(doc.querySelector('#mlfy_main_text h1'));
-  final blocks = <NovelBlock>[];
-  final content = doc.querySelector('div#TextContent');
-  if (content != null) {
-    for (final node in content.nodes) {
-      if (node is! dom.Element) continue;
-      switch (node.localName) {
-        case 'p':
-          final t = node.text.trim();
-          if (t.isNotEmpty) blocks.add(NovelText(t));
-        case 'img':
-          final url = _imageUrl(node);
-          if (url != null) blocks.add(NovelImage(url));
-      }
-    }
-  }
-  return NovelChapter(
-      title: title.isEmpty ? fallbackTitle : title, blocks: blocks);
-}
-```
-
-`fetchChapterPages` 把拼接从字符串改为块列表：
+Create `lib/modules/game/game_home.dart`:
 
 ```dart
-  final first = parseChapter(firstHtml, '');
-  final blocks = <NovelBlock>[...first.blocks];
-  var next = nextPageHref(firstHtml, novelId, chapterId);
-  var pages = 1;
-  while (next != null && pages < maxPages) {
-    final html = await fetch(next);
-    blocks.addAll(parseChapter(html, '').blocks);
-    next = nextPageHref(html, novelId, chapterId);
-    pages++;
-  }
-  return NovelChapter(title: first.title, blocks: blocks);
-```
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
-- [ ] **Step 5: 改阅读器 `_content` 渲染块**
+import '../../core/game/galgamezywz_source.dart';
+import '../../core/game/game_source.dart';
+import '../../core/game/models.dart';
+import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/smooth_route.dart';
+import 'game_detail_page.dart';
+import 'game_providers.dart';
 
-`novel_reader_page.dart`：顶部加 `import 'package:cached_network_image/cached_network_image.dart';`；`_content` 改为遍历 `chapter.blocks`：
+const _accent = Color(0xFF007AFF);
+const _muted = Color(0xFF5A5A5F);
+const _fg = Color(0xFF1C1C1E);
 
-```dart
-  Widget _content(
-      NovelChapter chapter, NovelReaderSettings settings, _Palette palette) {
-    return SingleChildScrollView(
-      controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
+class GameCard extends StatelessWidget {
+  final Game game;
+  final VoidCallback? onTap;
+  const GameCard({super.key, required this.game, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (chapter.title.isNotEmpty) ...[
-            Text(chapter.title,
-                style: TextStyle(
-                    fontSize: settings.fontSize + 4,
-                    fontWeight: FontWeight.w600,
-                    color: palette.fg)),
-            const SizedBox(height: 16),
-          ],
-          if (chapter.blocks.isEmpty)
-            Text('本章暂无内容',
-                style: TextStyle(
-                    fontSize: settings.fontSize,
-                    color: palette.fg.withValues(alpha: 0.5)))
-          else
-            for (final block in chapter.blocks)
-              switch (block) {
-                NovelText(:final text) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Text(text,
-                        style: TextStyle(
-                            fontSize: settings.fontSize,
-                            height: settings.lineHeight,
-                            color: palette.fg)),
-                  ),
-                NovelImage(:final url) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CachedNetworkImage(
-                        imageUrl: url,
-                        fit: BoxFit.contain,
-                        placeholder: (_, __) => const SizedBox(
-                            height: 180,
-                            child: Center(child: CircularProgressIndicator())),
-                        errorWidget: (_, __, ___) => const SizedBox(
-                            height: 80,
-                            child: Center(
-                                child: Icon(Icons.broken_image_outlined))),
-                      ),
-                    ),
-                  ),
-              },
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: game.coverUrl != null && game.coverUrl!.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: game.coverUrl!,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 400,
+                      fadeInDuration: Duration.zero,
+                      httpHeaders: gameImageHeaders,
+                      placeholder: (_, __) => _placeholder(),
+                      errorWidget: (_, __, ___) => _placeholder(),
+                    )
+                  : _placeholder(),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 38,
+            child: Text(
+              game.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                  color: _fg),
+            ),
+          ),
         ],
       ),
     );
   }
+
+  Widget _placeholder() {
+    final hash = game.title.hashCode.abs();
+    const bg = [
+      Color(0xFFF3E5F5),
+      Color(0xFFEDE7F6),
+      Color(0xFFE8EAF6),
+      Color(0xFFE0F2F1),
+    ];
+    return Container(
+      color: bg[hash % bg.length],
+      child: Center(
+        child: Text(
+          game.title.isEmpty ? '游' : game.title.characters.first,
+          style: TextStyle(
+              color: _accent.withValues(alpha: 0.2),
+              fontSize: 28,
+              fontWeight: FontWeight.w400),
+        ),
+      ),
+    );
+  }
+}
+
+class GameHomePage extends ConsumerStatefulWidget {
+  const GameHomePage({super.key});
+
+  @override
+  ConsumerState<GameHomePage> createState() => _GameHomePageState();
+}
+
+class _GameHomePageState extends ConsumerState<GameHomePage> {
+  String _sourceId = 'galgamezywz';
+  int _optionIndex = 0;
+  int _page = 1;
+
+  @override
+  Widget build(BuildContext context) {
+    final sources = ref.watch(gameSourcesProvider);
+    final source = ref.watch(gameSourceManagerProvider).byId(_sourceId);
+    final options = source?.browseOptions ?? const <GameBrowseOption>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 8),
+        _sourceChips(sources),
+        _sectionChips(options),
+        Expanded(child: _body(options)),
+      ],
+    );
+  }
+
+  Widget _sourceChips(List<GameSource> sources) {
+    if (sources.isEmpty) return const SizedBox.shrink();
+    final labels = [for (final s in sources) s.name];
+    final index = sources.indexWhere((s) => s.id == _sourceId);
+    return ChipBar(
+      labels: labels,
+      selectedIndex: index < 0 ? 0 : index,
+      onSelected: (i) => setState(() {
+        _sourceId = sources[i].id;
+        _optionIndex = 0;
+        _page = 1;
+      }),
+    );
+  }
+
+  Widget _sectionChips(List<GameBrowseOption> options) {
+    final labels = [for (final o in options) o.label];
+    if (labels.isEmpty) return const SizedBox.shrink();
+    return ChipBar(
+      labels: labels,
+      selectedIndex: _optionIndex.clamp(0, labels.length - 1),
+      onSelected: (i) => setState(() {
+        _optionIndex = i;
+        _page = 1;
+      }),
+    );
+  }
+
+  Widget _body(List<GameBrowseOption> options) {
+    if (options.isEmpty) {
+      return const EmptyState(icon: Icons.games_rounded, message: '暂无内容');
+    }
+    final option = options[_optionIndex.clamp(0, options.length - 1)];
+    final key = (_sourceId, option.key, _page);
+    final async = ref.watch(gameBrowseProvider(key));
+    return async.when(
+      loading: () => const ShimmerLoader(
+          crossAxisCount: 6,
+          itemCount: 12,
+          aspectRatio: 0.58,
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+      error: (_, __) => EmptyState(
+        icon: Icons.cloud_off_rounded,
+        message: '加载失败',
+        actionLabel: '重试',
+        onAction: () => ref.invalidate(gameBrowseProvider(key)),
+      ),
+      data: (list) => Column(
+        children: [
+          Expanded(child: _grid(list.items)),
+          _pager(list.hasMore),
+        ],
+      ),
+    );
+  }
+
+  Widget _pager(bool hasMore) {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            tooltip: '上一页',
+            icon: const Icon(Icons.chevron_left_rounded),
+            onPressed: _page > 1 ? () => setState(() => _page--) : null,
+          ),
+          const SizedBox(width: 16),
+          Text('第 $_page 页',
+              style: const TextStyle(fontSize: 13, color: _muted)),
+          const SizedBox(width: 16),
+          IconButton(
+            tooltip: '下一页',
+            icon: const Icon(Icons.chevron_right_rounded),
+            onPressed: hasMore ? () => setState(() => _page++) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _grid(List<Game> items) {
+    if (items.isEmpty) {
+      return const EmptyState(icon: Icons.games_rounded, message: '暂无内容');
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6,
+          mainAxisSpacing: 20,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.58),
+      itemCount: items.length,
+      itemBuilder: (_, i) => GameCard(
+        game: items[i],
+        onTap: () => Navigator.push(
+          context,
+          noTransitionRoute(GameDetailPage(
+            sourceKey: _sourceId,
+            gameId: items[i].id,
+            title: items[i].title,
+            cover: items[i].coverUrl,
+          )),
+        ),
+      ),
+    );
+  }
+}
 ```
 
-- [ ] **Step 6: 阅读器测试改断言**
+> 注：`game_detail_page.dart` 在本任务尚未创建。为避免 Task 7 无法编译，先在 `lib/modules/game/game_detail_page.dart` 放一个最小占位（Task 8 会整体替换）：
 
-`novel_reader_page_test.dart` 的 override 从 `NovelChapter(title:..., content:...)` 改为 `blocks:`，断言 `find.text('第一段。')` 等；「下一章」测试同理（`content: '甲段'` → `blocks: [NovelText('甲段')]`）。
+```dart
+import 'package:flutter/material.dart';
 
-- [ ] **Step 7: 全量校验 + 提交**
+class GameDetailPage extends StatelessWidget {
+  final String sourceKey;
+  final String gameId;
+  final String title;
+  final String? cover;
+  const GameDetailPage({
+    super.key,
+    required this.sourceKey,
+    required this.gameId,
+    required this.title,
+    this.cover,
+  });
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test` → `No issues found!`
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` → 全部通过
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `flutter test test/modules/game/game_home_test.dart`
+Expected: PASS（1 test）。
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/core/novel/models.dart lib/core/novel/linovelib_source.dart lib/modules/novel/novel_reader_page.dart test/core/novel/linovelib_chapter_parser_test.dart test/modules/novel/novel_reader_page_test.dart
-git commit -m "fix(novel): render chapter illustrations (block model with images)"
-git push
+git add lib/modules/game/game_home.dart lib/modules/game/game_detail_page.dart test/modules/game/game_home_test.dart
+git commit -m "feat(game): add game home page with cards and paging"
 ```
 
 ---
+

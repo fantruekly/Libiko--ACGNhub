@@ -1,163 +1,100 @@
-# Task 4 Report: 搜索页与入口
+# Task 4 Report: galgamezywz 详情解析
 
-## Status: DONE
+## What I implemented
 
-## What I Implemented
+Appended to `lib/core/game/galgamezywz_source.dart`:
+- `String _valueAfterColon(String text)` — extracts the trimmed value after an ASCII `:` or full-width `：`.
+- `DateTime? _dateAfterColon(String text)` — parses a date from `_valueAfterColon`.
+- `GameDetail parseGameDetail(String html, String sourceUrl)` — parses the detail page:
+  - id from `sourceUrl` via `gameIdFromHref`
+  - title from `h1.post-title` (fallback `.entry-title`)
+  - cover from `.archive-shop .img-box img` `src`/`data-src` via `_absUrl`
+  - meta rows from `.archive-shop .info-box .article-meta li` matched by prefix: 资源分类 (inner `a`), 浏览热度 (`parseCount`), 发布时间, 最近更新, 游戏大小, 游戏平台
+  - tags from `.entry-tags a[rel="tag"]`
+  - paragraphs from `article.post-content p` (fallback whole-text if no `p`)
+  - screenshots from `article.post-content img src` (skip `data:`, dedupe, exclude cover)
 
-- **Created** `lib/modules/novel/novel_search.dart` — `NovelSearchPage`
-  (`ConsumerStatefulWidget`, `String? initialKeyword`), transcribed verbatim
-  from the brief. Mirrors `comic_search.dart`: a top search bar
-  (back button, autofocus text field with `initialKeyword`, clear button,
-  搜索 button), an `EmptyState` prompt (`输入关键词搜索轻小说`) before a keyword
-  is entered, and a `GridView` of `NovelCard`s fed by
-  `novelSearchProvider(_keyword)`. Loading uses `ShimmerLoader`
-  (`crossAxisCount: 6`, `aspectRatio: 0.58`); empty results show
-  `没有找到轻小说`; errors show a retry `EmptyState`. Tapping a card pushes
-  `noTransitionRoute(NovelDetailPage(...))` with the result's `sourceKey`.
-- **Modified** `lib/shell/main_shell.dart` — added
-  `import '../modules/novel/novel_search.dart';` and widened the top-bar search
-  condition from `_currentIndex == 0 || _currentIndex == 1` to
-  `_currentIndex >= 0 && _currentIndex <= 2`, adding the novel branch
-  (`const NovelSearchPage()`). Anime (0) and comic (1) behavior unchanged.
-- **Created** `test/modules/novel/novel_search_page_test.dart` — the brief's two
-  widget tests, transcribed verbatim.
+Appended to `test/core/game/galgamezywz_parser_test.dart`:
+- fixture `_detailHtml` (verbatim from the brief)
+- test `parseGameDetail extracts meta, paragraphs, tags and screenshots`
 
-No new dependencies; `pubspec.yaml` untouched. No new comments. Chinese UI copy.
+No `GalgameZywzSource` class was added (that belongs to a later task). No new dependencies. No comments added.
+
+## What I tested and test results
+
+Command: `C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_parser_test.dart`
+Result: `00:00 +6: All tests passed!` (6 tests, including the 5 pre-existing listing/pagination tests).
+
+Also ran: `C:\flutter\bin\flutter.bat analyze lib/core/game/galgamezywz_source.dart test/core/game/galgamezywz_parser_test.dart`
+Result: `No issues found!`
 
 ## TDD Evidence
 
 ### RED
-
 Command:
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_search_page_test.dart
+C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_parser_test.dart
 ```
-
 Output (excerpt):
 ```
-test/modules/novel/novel_search_page_test.dart:6:8: Error: Error when reading
-'lib/modules/novel/novel_search.dart': 系统找不到指定的文件。
-test/modules/novel/novel_search_page_test.dart:17:38: Error: Method not found:
-'NovelSearchPage'.
-test/modules/novel/novel_search_page_test.dart:26:32: Error: Method not found:
-'NovelSearchPage'.
+Failed to load ".../galgamezywz_parser_test.dart":
+Compilation failed ... test/core/game/galgamezywz_parser_test.dart:129:20:
+Error: Method not found: 'parseGameDetail'.
+      final detail = parseGameDetail(_detailHtml, '$galgameZywzBaseUrl/game/1207');
+                     ^^^^^^^^^^^^^^^
 00:00 +0 -1: Some tests failed.
 ```
-
-Why expected: `novel_search.dart` did not exist yet, so compilation fails —
-exactly as the brief's Step 2 predicts.
+Why expected: the test references `parseGameDetail`, which did not exist yet in the source file. This is the intended failing state before implementation.
 
 ### GREEN
-
 Command:
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_search_page_test.dart
+C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_parser_test.dart
+```
+Output (excerpt):
+```
+00:00 +0: gameIdFromHref extracts the numeric id
+00:00 +1: parseCount parses K/M suffixes and raw numbers
+00:00 +2: galgameZywzBrowsePath maps options to paths
+00:00 +3: parseGameList keeps items with a /game/<id> link and skips others
+00:00 +4: parseHasNextPage follows the next link, else the item-count fallback
+00:00 +5: parseGameDetail extracts meta, paragraphs, tags and screenshots
+00:00 +6: All tests passed!
 ```
 
-Output:
+## Files changed
+
+- `lib/core/game/galgamezywz_source.dart` (+95)
+- `test/core/game/galgamezywz_parser_test.dart` (+48)
+
+Commit: `9b29830 feat(game): parse galgamezywz detail page`
+
+## Self-review findings
+
+- Completeness: matches the brief; `parseGameDetail` plus the two private helpers only. No `GalgameZywzSource` class, no extra files.
+- Quality: follows the existing pattern of top-level parse functions and `_absUrl`/`_textOf` reuse.
+- Discipline: no comments, no new deps, listing/pagination code and tests untouched.
+- Testing: the new test exercises real parsing against the fixture; full file passes; analyzer clean.
+
+## Issues / concerns
+
+**Deviation from the brief's verbatim implementation (required to pass the brief's own test).**
+
+The brief's provided screenshot loop was:
+```dart
+final src = _absUrl(im.attributes['src'] ?? im.attributes['data-src']);
+if (src.isEmpty || src.startsWith('data:')) continue;
 ```
-00:00 +0: renders results from the provider
-00:00 +1: shows a prompt before searching
-00:00 +2: All tests passed!
+`_absUrl` is called first, so a `data:` URI (`data:image/gif;base64,AAAA`) does not start with `http`/`//`/`/` and gets rewritten to `https://game.galgamezywz.org/data:image/gif;base64,AAAA`. The subsequent `startsWith('data:')` check therefore never matches, and the fixture's data URI leaked into `screenshots` (observed failing output: actual had 2 entries vs. expected 1). This contradicts the brief's stated intent to "skip `data:`".
+
+Minimal fix applied (checks the raw attribute before `_absUrl`):
+```dart
+final raw = im.attributes['src'] ?? im.attributes['data-src'];
+if (raw == null || raw.isEmpty || raw.startsWith('data:')) continue;
+final src = _absUrl(raw);
+if (cover.isNotEmpty && src == cover) continue;
+if (seen.add(src)) screenshots.add(src);
 ```
+Behavior for all non-`data:` URLs is unchanged; the fixture now passes. This is the only deviation from the brief's provided code.
 
-## Verification
-
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
-→ No issues found! (ran in 2.0s)
-```
-
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
-→ 00:10 +259 ~1: All tests passed!
-  (259 passed, 1 pre-existing skip: flutter_qjs native lib)
-```
-
-## Files Changed
-
-- `lib/modules/novel/novel_search.dart` (new)
-- `lib/shell/main_shell.dart` (modified)
-- `test/modules/novel/novel_search_page_test.dart` (new)
-
-## Self-Review
-
-- **Both page tests pass.** `renders results from the provider`: the overridden
-  `novelSearchProvider('关键词')` resolves after two pumps and `find.text('结果书')`
-  finds one widget. `shows a prompt before searching`: with no `initialKeyword`,
-  `_keyword` is empty so `find.text('输入关键词搜索轻小说')` finds one widget. ✅
-- `flutter analyze lib test` clean. ✅
-- `flutter test` fully green (only the pre-existing `flutter_qjs` skip). ✅
-- Only the three allowed code files changed; `pubspec.yaml` untouched; no new
-  comments. ✅
-- `main_shell.dart` diff verified to match the brief's Step 5 replacement exactly. ✅
-
-## Concerns
-
-- Manual on-device verification (brief's 验证 section: build, switch to the novel
-  module, real keyword such as 「败犬」, enter detail) was not performed in this
-  environment; only automated `flutter test` / `flutter analyze` were run.
-- The pre-existing `.superpowers/sdd/*` report/brief files were already modified
-  in the worktree before this task; they were left untouched by the commit
-  (only the three task files were staged), per the brief's Step 7.
-
----
-
-# Whole-Branch Review Fixes
-
-## Status: DONE
-
-## Findings Addressed
-
-- **Fix 1 (Important): missing empty-results page test.** Added the
-  `shows empty message when there are no results` widget test to
-  `test/modules/novel/novel_search_page_test.dart`, overriding
-  `novelSearchProvider('关键词')` with an empty list and asserting
-  `没有找到轻小说` renders. This completes the spec's three page cases
-  (results / prompt / empty).
-- **Fix 2 (Minor): zero-source guard.** Added `if (sources.isEmpty) return const [];`
-  in `novelSearchProvider` (`lib/modules/novel/novel_providers.dart:74`), right
-  after `sources` is read. Matches the comic provider's
-  `if (searchable.isEmpty) return const [];` and prevents the misleading
-  `StateError('所有轻小说源搜索失败：null')`.
-- **Fix 3 (Minor): empty-keyword coverage.** Added `empty keyword returns no results`
-  and `no sources returns empty` to
-  `test/modules/novel/novel_search_provider_test.dart`, and
-  `search returns empty for a blank keyword` to
-  `test/core/novel/lknovel_source_test.dart` (asserting the poster is never called).
-- **Fix 4 (Minor): linovelib `src` fallback test.** Added
-  `parseSearchResults falls back to img src when data-original missing` to
-  `test/core/novel/linovelib_search_parser_test.dart`.
-
-No new comments were added.
-
-## Verification
-
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test
-→ No issues found! (ran in 2.2s)
-```
-
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/ test/core/novel/
-→ 00:03 +92: All tests passed!
-```
-
-```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test
-→ 00:10 +264 ~1: All tests passed!
-  (264 passed, 1 pre-existing skip: flutter_qjs native lib)
-```
-
-## Files Changed
-
-- `lib/modules/novel/novel_providers.dart` (modified)
-- `test/modules/novel/novel_search_page_test.dart` (modified)
-- `test/modules/novel/novel_search_provider_test.dart` (modified)
-- `test/core/novel/lknovel_source_test.dart` (modified)
-- `test/core/novel/linovelib_search_parser_test.dart` (modified)
-
-## Concerns
-
-- None. Full suite green; the only skip is the pre-existing `flutter_qjs`
-  native-library skip unrelated to these changes.
+Also note: pre-existing uncommitted modifications to `.superpowers/sdd/*` files were present in the working tree; they were left untouched and not staged.

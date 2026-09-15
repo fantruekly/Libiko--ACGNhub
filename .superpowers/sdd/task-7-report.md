@@ -1,90 +1,71 @@
-# Task 7 Report: 轻小说插图渲染（正文块模型）
-
-## Status: DONE
+# Task 7 Report: 首页 UI（GameCard + GameHomePage）
 
 ## What I implemented
-
-Root cause: linovelib 插图章节把图片放在 `div#TextContent` 内，真实地址在 `data-src`（`src` 是 `sloading.svg` 懒加载占位），旧阅读器只提取 `<p>`，图片丢失。
-
-1. **`lib/core/novel/models.dart`** — 用有序块模型替换 `NovelChapter.content: String`：
-   - `sealed class NovelBlock`
-   - `class NovelText extends NovelBlock { final String text; }`
-   - `class NovelImage extends NovelBlock { final String url; }`
-   - `class NovelChapter { final String title; final List<NovelBlock> blocks; }`
-2. **`lib/core/novel/linovelib_source.dart`**：
-   - 新增 `_imageUrl(dom.Element)`：优先 `data-src`，回退 `src`；跳过含 `sloading` 或以 `.svg` 结尾的占位符；其余经 `_absUrl` 补全。
-   - `parseChapter` 改为遍历 `div#TextContent` 的**直接子元素**（按顺序）：`p` → `NovelText`（trim 后非空），`img` → `NovelImage`。
-   - `fetchChapterPages` 改为跨分页拼接块列表。
-3. **`lib/modules/novel/novel_reader_page.dart`**：
-   - 引入 `cached_network_image`。
-   - `_content` 遍历 `chapter.blocks`，用 switch 模式匹配渲染 `NovelText`（保留字号/行距/前景色）与 `NovelImage`（`ClipRRect` + `CachedNetworkImage`，含 placeholder / errorWidget）。空块显示「本章暂无内容」。
-4. **测试**：更新所有因模型变更受影响的测试文件（含上下文未列出的两个 ripple 文件）。
+- `lib/modules/game/game_home.dart` — `GameCard` (cached cover with `gameImageHeaders`, deterministic placeholder, 2-line title) and `GameHomePage` (`ConsumerStatefulWidget`) with:
+  - source ChipBar (`gameSourcesProvider`)
+  - section ChipBar (`GameBrowseOption` labels)
+  - 6-column `GridView` of `GameCard`
+  - manual 上一页/下一页 pager driven by `GameList.hasMore`
+  - loading `ShimmerLoader`, error `EmptyState` with 重试, empty `EmptyState`
+  - card tap → `noTransitionRoute(GameDetailPage(...))`
+- `lib/modules/game/game_detail_page.dart` — minimal placeholder (intentional; Task 8 replaces it).
+- `test/modules/game/game_home_test.dart` — widget test with a fake `GameSource`.
 
 ## What I tested and results
-
-- `flutter analyze lib test` → **No issues found!**
-- `flutter test` → **All tests passed!** (211 passed, 1 skipped)
-- 定点：`flutter test test/core/novel/linovelib_chapter_parser_test.dart test/modules/novel/novel_reader_page_test.dart` → **All tests passed!** (7 tests)
+- `C:\flutter\bin\flutter.bat test test/modules/game/game_home_test.dart` → `+1: All tests passed!`
+- `C:\flutter\bin\flutter.bat analyze lib/modules/game/game_home.dart lib/modules/game/game_detail_page.dart test/modules/game/game_home_test.dart` → `No issues found!`
 
 ## TDD Evidence
 
 ### RED
-
-Command:
+Command: `C:\flutter\bin\flutter.bat test test/modules/game/game_home_test.dart`
+Output (key lines):
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart
+test/modules/game/game_home_test.dart:6:8: Error: Error when reading 'lib/modules/game/game_home.dart': 系统找不到指定的文件。
+import 'package:acgnhub/modules/game/game_home.dart';
+test/modules/game/game_home_test.dart:42:53: Error: Method not found: 'GameHomePage'.
+Some tests failed.
 ```
-Failing output (excerpt):
-```
-test/core/novel/linovelib_chapter_parser_test.dart:24:13: Error: 'NovelImage' isn't a type.
-test/core/novel/linovelib_chapter_parser_test.dart:49:29: Error: 'NovelText' isn't a type.
-test/core/novel/linovelib_chapter_parser_test.dart:22:10: Error: The getter 'blocks' isn't defined for the type 'NovelChapter'.
-  - 'NovelChapter' is from 'package:acgnhub/core/novel/models.dart'
-00:00 +0 -1: Some tests failed.
-```
-Why expected: tests were written against the new interface (`NovelBlock`/`NovelText`/`NovelImage`/`blocks`) before the model existed, so the compiler rejected the undefined types/getters — the intended red state proving the tests exercise the new API.
+Why expected: `game_home.dart` did not exist yet, so the test could not compile/run — correct RED for a not-yet-written implementation.
 
 ### GREEN
-
-Command:
+Command: `C:\flutter\bin\flutter.bat test test/modules/game/game_home_test.dart`
+Output:
 ```
-$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/novel/linovelib_chapter_parser_test.dart test/modules/novel/novel_reader_page_test.dart
+00:00 +0: renders source/section chips, grid and pager
+00:00 +1: All tests passed!
 ```
-Passing output:
-```
-00:00 +0: ... parseChapter reads title, paragraphs and images in order
-00:00 +1: ... parseChapter extracts lazy-loaded images and skips placeholders
-00:00 +2: ... parseChapter falls back to the given title
-00:00 +3: ... nextPageHref returns same-chapter page links only
-00:00 +4: ... fetchChapterPages concatenates same-chapter pages
-00:00 +5: ... NovelReaderPage renders the chapter title and paragraphs
-00:00 +6: ... tapping 下一章 loads the next chapter
-00:00 +7: All tests passed!
-```
-
-Full suite: `flutter test` → `00:08 +211 ~1: All tests passed!`
 
 ## Files changed
-
-- `lib/core/novel/models.dart`
-- `lib/core/novel/linovelib_source.dart`
-- `lib/modules/novel/novel_reader_page.dart`
-- `test/core/novel/linovelib_chapter_parser_test.dart`
-- `test/modules/novel/novel_reader_page_test.dart`
-- `test/core/novel/novel_source_test.dart` (ripple: `NovelChapter(title:'t', content:'c')` → `blocks:[NovelText('c')]`)
-- `test/modules/novel/novel_home_pager_test.dart` (same ripple)
-
-Commit: `6b7dc5b fix(novel): render chapter illustrations (block model with images)` (pushed to `dev`, `d4878d6..6b7dc5b`).
+- `lib/modules/game/game_home.dart` (new)
+- `lib/modules/game/game_detail_page.dart` (new, placeholder)
+- `test/modules/game/game_home_test.dart` (new)
+- Commit: `2044588 feat(game): add game home page with cards and paging`
 
 ## Self-review findings
+- Completeness: exactly the three files named in the brief; implementation code is verbatim from the brief.
+- Quality: mirrors `lib/modules/novel/novel_home.dart` structure and styling constants.
+- Discipline: no extra files, no added comments (the one comment in the test was already in the brief), no new dependencies.
+- Testing: single widget test covers chips, grid render, paging, and disabled state; analyzer clean.
 
-- **Ripple check**: `grep` for `NovelChapter(` and `.content` under `lib/` and `test/` surfaced two test files beyond the brief's list (`novel_source_test.dart`, `novel_home_pager_test.dart`); both updated. No remaining `content:` usages under the novel tests, and no `.content` references remain in `lib/core/novel/`.
-- **Diff fidelity**: implementation matches the brief's verbatim code (verified via `git diff`).
-- **No new dependency**: reused `cached_network_image ^3.4.1` (already in `pubspec.yaml`).
-- **No `fontFamily`** is set in any `TextStyle`.
-- **No real network in tests**: reader test overrides providers; parser tests use inline HTML strings.
+## Deviation from brief (concern)
+The brief's test, used verbatim, **cannot pass**:
+```dart
+final next = tester.widget<IconButton>(find.byTooltip('下一页'));
+```
+`find.byTooltip` matches the `Tooltip` widget (a descendant of `IconButton`), so casting it to `IconButton` throws:
+```
+type 'Tooltip' is not a subtype of type 'IconButton' in type cast
+```
+This is independent of the implementation — no valid `IconButton`-based pager can satisfy it. I made the minimal intent-preserving fix, changing only the disabled-state lookup while leaving the rest of the test verbatim:
+```dart
+final next = tester.widget<IconButton>(find.ancestor(
+  of: find.byTooltip('下一页'),
+  matching: find.byType(IconButton),
+));
+expect(next.onPressed, isNull);
+```
+All other test lines, including `tester.tap(find.byTooltip('下一页'))`, are unchanged.
 
-## Concerns
-
-- `parseChapter` now iterates only **direct children** of `#TextContent` (per the brief/verified DOM). If some chapter variant nests paragraphs inside a wrapper `div`, those would no longer be picked up. Current linovelib structure puts `p`/`img` as direct children, so this is correct for the known case.
-- `_imageUrl` prefers `data-src` unconditionally; a placeholder in `data-src` with a real `src` would be skipped, but that ordering matches the site's lazyload convention.
+## Issues or concerns
+- The above test-finder fix is the only deviation. If the orchestrator requires the test file to match the brief byte-for-byte, revert that line and the test will fail at the cast. Otherwise, no other concerns.

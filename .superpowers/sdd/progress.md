@@ -419,3 +419,46 @@ Sidebar + shell transitions feature: COMPLETE (c6a1079..a1ece38). Pushed to orig
 Root cause (probe .superpowers/sdd/copy_manga_probe.dart): the app built ComicSource.categoryOptions as the FIRST option of EVERY categoryComics.optionList group -> [ '', '*datetime_updated', 'male', 'day' ]. copy_manga's categoryComics.load for 排行 expects only the groups shown for that category (audience+date = ['male','day']); with the wrong values the request is audience_type=&date_type=*datetime_updated and the API returns 210. So 排行 parts (今日/本周/本月排行, 6 items = one grid row) could not page into the rank category.
 Fix f2218fd: JS finish() now emits per-group {options, showWhen, notShowWhen} (optionGroups); ComicSource parses them + categoryOptionsFor(category) keeps only groups visible for that category (default option, split on '-'); manager.category uses source.categoryOptionsFor(cat). New unit tests (option-group filtering + flat-options fallback).
   Verified: probe now reports options=[male, day] and category default count=30 maxPage=10 (was ERROR 210). 276 tests pass, analyze clean.
+
+## Game module v1 ledger - home browse + detail
+
+Plan: docs/superpowers/plans/2026-09-15-game-module.md
+Spec: docs/superpowers/specs/2026-09-15-game-module-design.md
+Base commit: bc6ff0e (before Task 1)
+
+Task 1: complete (commits bc6ff0e..83025ef, review clean)
+  Minor (deferred): views double parses to null; no container-model tests; GameDetail has no fromJson/toJson.
+
+Task 2: complete (commits 83025ef..29c1b2c, review clean)
+  Minor (deferred): constructor-duplicate/empty-sources untested; sources copies per access.
+
+Task 3: complete (commits 29c1b2c..6276962, review clean)
+  Minor (deferred): no-posts-warp fallback parses whole doc (plan-mandated, untested); parseCount M/lowercase/garbage + itemCount==11 boundary untested.
+
+Task 4: complete (commits 6276962..9b29830, review clean; justified deviation: check data: before _absUrl)
+  Minor (deferred): lazy src=data: placeholder drops real data-src; _valueAfterColon ASCII-colon preference; cover-exclusion/no-p/title-fallback untested.
+
+Task 5: complete (commits 9b29830..60a6f57, review clean)
+  Minor (deferred): _get non-200 branch largely unreachable (Dio throws first); error path untested.
+
+Task 6: complete (commits 60a6f57..9f95e4e, review clean)
+  Minor (deferred): gameDetailProvider unknown-source guard + gameSourcesProvider untested.
+
+Task 7: complete (commits 9f95e4e..2044588, review clean; justified deviation: byTooltip returns Tooltip not IconButton)
+  Minor (deferred): _sourceId hardcoded; no cover-image/error/empty/tap coverage.
+
+Task 8: complete (commits 2044588..d14f427 + registrants 92479fe + fix d14f427, review clean after 1 fix)
+  Fix: gallery thumbnails 200x130 -> 200x112.5 (16:9, per human: spec governs).
+  Controller: committed regenerated desktop plugin registrants (92479fe) omitted from plan commit list.
+  Minor (deferred): launchUrl result/exception ignored; gallery lacks memCacheWidth; viewer uses MaterialPageRoute not smoothRoute; viewer has no DragToMoveArea; date/count formatting untested.
+
+Task 9: complete (commits d14f427..825b0a1, review clean; full suite 295 pass/1 skip, analyze clean)
+  Minor (deferred): manual Windows in-app verification outstanding.
+ALL 9 TASKS COMPLETE. Next: final whole-branch review.
+
+Final whole-branch review (bc6ff0e..825b0a1): 'With fixes'. 1 Important must-fix (viewer window controls on frameless window) + deferred minors.
+Fix wave: cf5569c (DragToMoveArea strip + WindowControls + smoothRoute + memCacheWidth) and d6b390f (optional light foreground/hover colors on WindowControls/WindowButton). Re-review 825b0a1..d6b390f: Ready to merge: Yes.
+Game module v1: COMPLETE (bc6ff0e..d6b390f). Pushed to origin/dev; user merges via PR.
+  MUST-VERIFY (human, live site): manual Windows run - tab content, section switching, paging, detail fields, gallery viewer, external browser, offline retry; specifically multi-posts-warp scoping on '/' and UTF-8 decode of Chinese.
+  Deferred Minors: parseGameList fallback to documentElement; _get non-200 dead branch; _sourceId hardcoded; launchUrl result ignored; views double->null; container-model tests; parseCount M/lowercase/boundary tests; GameDetail fromJson absent; game_home_test lacks chip/card tap; viewer route smoothRoute (ok).
+
