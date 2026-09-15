@@ -1,112 +1,3 @@
-## Task 8: 详情页 UI（含 url_launcher）
-
-**Files:**
-- Modify: `pubspec.yaml`（新增 `url_launcher`）
-- Modify: `lib/modules/game/game_detail_page.dart`（整体替换 Task 7 的占位）
-- Test: `test/modules/game/game_detail_page_test.dart`
-
-**Interfaces:**
-- Consumes: `gameDetailProvider`（Task 6）、`gameImageHeaders`（Task 3）、`EmptyState` / `ShimmerLoader` / `WindowControls`。
-- Produces: `class GameDetailPage extends ConsumerWidget { GameDetailPage({required String sourceKey, required String gameId, required String title, String? cover}) }`。
-
-- [ ] **Step 1: 新增依赖并拉取**
-
-在 `pubspec.yaml` 的 `dependencies` 中（`pointycastle: ^3.9.1` 之后）加入：
-
-```yaml
-  url_launcher: ^6.3.1
-```
-
-Run: `flutter pub get`
-Expected: 成功解析并写入 `pubspec.lock`。
-
-- [ ] **Step 2: Write the failing test**
-
-Create `test/modules/game/game_detail_page_test.dart`：
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/models.dart';
-import 'package:acgnhub/modules/game/game_detail_page.dart';
-import 'package:acgnhub/modules/game/game_providers.dart';
-
-void main() {
-  testWidgets('renders title, meta, tags, paragraphs and source button',
-      (tester) async {
-    final detail = GameDetail(
-      game: Game(
-        id: '1207',
-        title: '金辉恋曲四重奏',
-        category: '玩家热评游戏',
-        tags: const ['汉化', 'PC'],
-        publishedAt: DateTime(2026, 9, 11),
-        views: 4300,
-      ),
-      size: '14.3GB',
-      platform: 'PC+安卓直装',
-      updatedAt: DateTime(2026, 9, 12),
-      paragraphs: const ['第一段简介。', '第二段简介。'],
-      sourceUrl: 'https://game.galgamezywz.org/game/1207',
-    );
-
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        gameDetailProvider(('galgamezywz', '1207'))
-            .overrideWith((ref) async => detail),
-      ],
-      child: const MaterialApp(
-        home: GameDetailPage(
-            sourceKey: 'galgamezywz', gameId: '1207', title: '金辉恋曲四重奏'),
-      ),
-    ));
-    await tester.pumpAndSettle();
-
-    expect(find.text('金辉恋曲四重奏'), findsWidgets);
-    expect(find.text('玩家热评游戏'), findsOneWidget);
-    expect(find.text('汉化'), findsOneWidget);
-    expect(find.text('PC'), findsOneWidget);
-    expect(find.text('14.3GB'), findsOneWidget);
-    expect(find.text('PC+安卓直装'), findsOneWidget);
-    expect(find.text('第一段简介。'), findsOneWidget);
-    expect(find.text('第二段简介。'), findsOneWidget);
-    expect(find.text('简介'), findsOneWidget);
-    expect(find.byTooltip('在原站打开'), findsOneWidget);
-    expect(find.text('数据来源 game.galgamezywz.org'), findsOneWidget);
-  });
-
-  testWidgets('shows a retry action on error', (tester) async {
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        gameDetailProvider(('galgamezywz', '404'))
-            .overrideWith((ref) async => throw Exception('boom')),
-      ],
-      child: const MaterialApp(
-        home: GameDetailPage(
-            sourceKey: 'galgamezywz', gameId: '404', title: '加载失败'),
-      ),
-    ));
-    await tester.pumpAndSettle();
-
-    expect(find.text('加载失败'), findsWidgets);
-    expect(find.text('重试'), findsOneWidget);
-  });
-}
-```
-
-> 说明：用例刻意让 `coverUrl` 为空、`screenshots` 为空，避免在测试环境触发网络图片加载（`CachedNetworkImage`）。截图画廊的数据由 Task 3/4 的解析单测覆盖，画廊渲染手动验证。
-
-- [ ] **Step 3: Run test to verify it fails**
-
-Run: `flutter test test/modules/game/game_detail_page_test.dart`
-Expected: FAIL（占位页没有标题/简介/按钮）。
-
-- [ ] **Step 4: Write the implementation**
-
-整体替换 `lib/modules/game/game_detail_page.dart`：
-
-```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -117,6 +8,7 @@ import '../../core/game/galgamezywz_source.dart';
 import '../../core/game/models.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'game_providers.dart';
 
@@ -324,7 +216,7 @@ class GameDetailPage extends ConsumerWidget {
 
   Widget _gallery(BuildContext context, List<String> urls) {
     return SizedBox(
-      height: 130,
+      height: 112.5,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: urls.length,
@@ -332,17 +224,17 @@ class GameDetailPage extends ConsumerWidget {
         itemBuilder: (_, i) => GestureDetector(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(
-                builder: (_) => _ImageViewerPage(urls: urls, initialIndex: i)),
+            smoothRoute(_ImageViewerPage(urls: urls, initialIndex: i)),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
               width: 200,
-              height: 130,
+              height: 112.5,
               child: CachedNetworkImage(
                 imageUrl: urls[i],
                 fit: BoxFit.cover,
+                memCacheWidth: 400,
                 httpHeaders: gameImageHeaders,
                 placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
                 errorWidget: (_, __, ___) =>
@@ -450,12 +342,26 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
             ),
           ),
           Positioned(
-            top: 8,
-            right: 8,
-            child: SafeArea(
-              child: IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+            top: 0,
+            left: 0,
+            right: 0,
+            child: DragToMoveArea(
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.only(left: 4),
+                child: Row(
+                  children: [
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    WindowControls(
+                      foregroundColor: Colors.white.withValues(alpha: 0.85),
+                      hoverColor: Colors.white.withValues(alpha: 0.12),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -475,19 +381,3 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
     );
   }
 }
-```
-
-- [ ] **Step 5: Run test to verify it passes**
-
-Run: `flutter test test/modules/game/game_detail_page_test.dart`
-Expected: PASS（2 tests）。
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add pubspec.yaml pubspec.lock lib/modules/game/game_detail_page.dart test/modules/game/game_detail_page_test.dart
-git commit -m "feat(game): add game detail page with gallery and source link"
-```
-
----
-

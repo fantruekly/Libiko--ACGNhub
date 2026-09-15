@@ -1,43 +1,94 @@
-# Task 8 报告：详情页/阅读器加窗口控制按钮
+# Task 8 Report: 详情页 UI（含 url_launcher）
 
-## 实现内容
+## What I implemented
 
-按 brief 逐字实现，改动最小：
+- Added `url_launcher: ^6.3.1` to `pubspec.yaml` (after `pointycastle: ^3.9.1`) and ran `flutter pub get` (resolved `url_launcher 6.3.2`).
+- Replaced the Task 7 placeholder `lib/modules/game/game_detail_page.dart` with the full `GameDetailPage extends ConsumerWidget` verbatim from the brief:
+  - 48px `DragToMoveArea` header with back button, title, "在原站打开" tooltip button (`launchUrl(..., mode: LaunchMode.externalApplication)`), and `WindowControls`.
+  - `gameDetailProvider` watch with `ShimmerLoader` loading state and `EmptyState` error state (`加载失败` / `重试` via `ref.invalidate`).
+  - Info card (cover, title, category + tags, meta rows), 简介 paragraphs, 截图 gallery with a full-screen `_ImageViewerPage` (`PageView` + `InteractiveViewer`), and the `数据来源 game.galgamezywz.org` footer.
+- Created `test/modules/game/game_detail_page_test.dart` verbatim from the brief (2 widget tests).
 
-1. **详情页** `lib/modules/novel/novel_detail_page.dart`
-   - 新增 `import '../../core/widgets/window_controls.dart';`
-   - `AppBar` 增加 `actions: const [WindowControls()],`
+## What I tested and results
 
-2. **阅读器** `lib/modules/novel/novel_reader_page.dart`
-   - 新增 `import '../../core/widgets/window_controls.dart';`
-   - `_topBar` 的 `Row` 末尾（标题 `Expanded` 之后）加 `const WindowControls(),`
+- `flutter test test/modules/game/game_detail_page_test.dart test/modules/game/game_home_test.dart`
+  - `renders title, meta, tags, paragraphs and source button` — PASS
+  - `shows a retry action on error` — PASS
+  - `renders source/section chips, grid and pager` (game_home regression) — PASS
+  - Result: `00:00 +3: All tests passed!`
+- `flutter analyze lib/modules/game/game_detail_page.dart test/modules/game/game_detail_page_test.dart` — `No issues found!`
 
-未在其他任何位置添加窗口控件。
+## TDD Evidence
 
-## 测试与结果
+### RED
 
-| 命令 | 结果 |
-| --- | --- |
-| `flutter analyze lib test` | `No issues found!` |
-| `flutter test` | `+211 ~1: All tests passed!`（1 个既有 skip：flutter_qjs native 在 test 下不可加载） |
-| `flutter build windows --debug` | `√ Built build\windows\x64\runner\Debug\acgnhub.exe` |
+Command: `C:\flutter\bin\flutter.bat test test/modules/game/game_detail_page_test.dart`
 
-## 变更文件
+Output (excerpt):
+```
+00:00 +0: renders title, meta, tags, paragraphs and source button
+Expected: at least one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "金辉恋曲四重奏": []>
+The test description was: renders title, meta, tags, paragraphs and source button
+00:00 +0 -1: renders title, meta, tags, paragraphs and source button [E]
+00:00 +0 -1: shows a retry action on error
+Expected: at least one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "加载失败": []>
+The test description was: shows a retry action on error
+00:00 +0 -2: Some tests failed.
+```
 
-- `lib/modules/novel/novel_detail_page.dart`（+2）
-- `lib/modules/novel/novel_reader_page.dart`（+2）
+Why expected: the Task 7 placeholder `GameDetailPage.build` returned `const SizedBox.shrink()`, so none of the title / meta / paragraph / button / error-state text existed. This proves the tests actually exercise the new UI.
 
-提交：`cfeaf12 fix(novel): show window controls on detail and reader pages`，已推送 `dev`。
+### GREEN
 
-## 自审发现
+Command: `C:\flutter\bin\flutter.bat test test/modules/game/game_detail_page_test.dart test/modules/game/game_home_test.dart`
 
-- 导入按字母序插入，符合现有风格。
-- 阅读器顶栏高 56，`WindowControls` 高 48，垂直方向不溢出；3 个按钮各宽 46，与返回键 + 标题 `Expanded` 同排布局正常。
-- 详情页 `AppBar` 默认高 56，同样容纳 48 高的控件。
-- 无新增依赖；无 `TextStyle` 设置 `fontFamily`。
-- `WindowControls` 在 `initState`/`dispose` 成对添加/移除 `windowManager` 监听，路由叠加（详情页在阅读器之下仍挂载）不会泄漏监听。
+Output:
+```
+00:00 +0: loading .../game_detail_page_test.dart
+00:00 +0: .../game_detail_page_test.dart: renders title, meta, tags, paragraphs and source button
+00:00 +1: .../game_home_test.dart: renders source/section chips, grid and pager
+00:00 +2: .../game_home_test.dart: renders source/section chips, grid and pager
+00:00 +3: All tests passed!
+```
 
-## 遗留/关注点
+## Files changed
 
-- 无功能性遗留。仅提示：`WindowControls` 每次实例化都会 `windowManager.addListener`，详情页与阅读器同时挂载时会有两个监听器，行为正确、随 dispose 释放，属既有设计，未改动。
-- 本次仅 `git add` 两个目标文件；工作区中其余 `.superpowers/sdd/*`、`docs/superpowers/plans/*` 的改动未纳入本次提交。
+- `pubspec.yaml` (added `url_launcher: ^6.3.1`)
+- `pubspec.lock` (url_launcher + platform packages)
+- `lib/modules/game/game_detail_page.dart` (placeholder → full implementation)
+- `test/modules/game/game_detail_page_test.dart` (new)
+
+Commit: `4ec2212 feat(game): add game detail page with gallery and source link` (4 files changed, 485 insertions, 2 deletions).
+
+## Self-review findings
+
+- Completeness: matches the brief exactly; no extra files or dependencies.
+- Quality: header follows the existing `lib/modules/novel/novel_detail_page.dart` pattern (48px `DragToMoveArea` + `WindowControls`), constants `_accent`/`_muted`/`_fg` reused.
+- Discipline: no comments added; no overbuilding; test intentionally omits gallery (no `screenshots`, no `coverUrl`) to avoid network image loads, as documented in the brief.
+- Testing: tests assert rendered fields and the error/retry state; output pristine (no warnings).
+- Only `url_launcher` added; all imports resolve to existing widgets (`EmptyState`, `ShimmerLoader`, `WindowControls`, `gameImageHeaders`).
+
+## Issues or concerns
+
+- `flutter pub get` regenerated platform plugin registrants: `windows/flutter/generated_plugin_registrant.cc`, `windows/flutter/generated_plugins.cmake`, `linux/flutter/*`, `macos/Flutter/GeneratedPluginRegistrant.swift`. These are tooling side effects of adding a plugin and were left uncommitted because the brief's commit step stages only the four named files. Flutter regenerates them on build, so no action is required unless the repo convention is to commit them.
+- Pre-existing dirty `.superpowers/sdd/*` files (briefs/reports modified by the orchestrator) were left untouched and uncommitted.
+
+## Fix: 16:9 screenshot thumbnails
+
+Review found the gallery thumbnails were 200×130 (≈1.54:1) but the approved spec requires 16:9.
+
+Change made in `lib/modules/game/game_detail_page.dart`, method `_gallery`:
+- Outer `SizedBox(height: 130, ...)` → `height: 112.5`.
+- Inner thumbnail `SizedBox(width: 200, height: 130, ...)` → `height: 112.5` (width kept at 200).
+
+Result: thumbnail is exactly 200 / 112.5 = 16/9. No other changes.
+
+Commands run:
+- `C:\flutter\bin\flutter.bat test test/modules/game/game_detail_page_test.dart test/modules/game/game_home_test.dart`
+  - Output: `00:00 +3: All tests passed!` (3 tests passed)
+- `C:\flutter\bin\flutter.bat analyze lib/modules/game/game_detail_page.dart`
+  - Output: `No issues found! (ran in 1.0s)`
+
+Commit: `fix(game): use 16:9 screenshot thumbnails` (1 file changed).

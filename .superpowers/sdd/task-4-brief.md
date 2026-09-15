@@ -1,323 +1,187 @@
-### Task 4: 搜索页与入口
+## Task 4: galgamezywz 详情解析
 
 **Files:**
-- Create: `lib/modules/novel/novel_search.dart`
-- Modify: `lib/shell/main_shell.dart`
-- Test: `test/modules/novel/novel_search_page_test.dart`
+- Modify: `lib/core/game/galgamezywz_source.dart`（追加详情解析）
+- Test: `test/core/game/galgamezywz_parser_test.dart`（追加详情用例）
 
 **Interfaces:**
-- Consumes: `novelSearchProvider` / `NovelSearchResult`（Task 3）、`NovelCard`（`lib/modules/novel/novel_home.dart`）、`NovelDetailPage`、`noTransitionRoute`、`EmptyState`、`ShimmerLoader`。
-- Produces: `class NovelSearchPage extends ConsumerStatefulWidget { final String? initialKeyword; const NovelSearchPage({super.key, this.initialKeyword}); }`
+- Consumes: Task 3 的辅助函数（`_absUrl` / `_textOf` / `parseCount` / `gameIdFromHref`）。
+- Produces: `GameDetail parseGameDetail(String html, String sourceUrl)`。
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: Write the failing test**
 
-创建 `test/modules/novel/novel_search_page_test.dart`：
+在 `test/core/game/galgamezywz_parser_test.dart` 末尾追加（`main()` 内）：
 
 ```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/models.dart';
-import 'package:acgnhub/modules/novel/novel_providers.dart';
-import 'package:acgnhub/modules/novel/novel_search.dart';
-
-void main() {
-  testWidgets('renders results from the provider', (tester) async {
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        novelSearchProvider('关键词').overrideWith((ref) async => const [
-              NovelSearchResult(
-                  novel: Novel(id: '1', title: '结果书'), sourceKey: 'lknovel'),
-            ]),
-      ],
-      child: const MaterialApp(home: NovelSearchPage(initialKeyword: '关键词')),
-    ));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('结果书'), findsOneWidget);
+  test('parseGameDetail extracts meta, paragraphs, tags and screenshots', () {
+    final detail = parseGameDetail(_detailHtml, '$galgameZywzBaseUrl/game/1207');
+    expect(detail.game.id, '1207');
+    expect(detail.game.title, '金辉恋曲四重奏');
+    expect(detail.game.coverUrl,
+        'https://game.galgamezywz.org/wp-content/uploads/cover.jpg');
+    expect(detail.game.category, '玩家热评游戏');
+    expect(detail.game.tags, ['汉化', 'PC']);
+    expect(detail.game.views, 4300);
+    expect(detail.game.publishedAt, DateTime.parse('2026-09-11'));
+    expect(detail.updatedAt, DateTime.parse('2026-09-12'));
+    expect(detail.size, '14.3GB');
+    expect(detail.platform, 'PC+安卓直装');
+    expect(detail.paragraphs, ['第一段简介。', '第二段简介。']);
+    expect(detail.screenshots, [
+      'https://game.galgamezywz.org/wp-content/uploads/1.jpg',
+    ]);
+    expect(detail.sourceUrl, '$galgameZywzBaseUrl/game/1207');
   });
-
-  testWidgets('shows a prompt before searching', (tester) async {
-    await tester.pumpWidget(const ProviderScope(
-      child: MaterialApp(home: NovelSearchPage()),
-    ));
-    expect(find.text('输入关键词搜索轻小说'), findsOneWidget);
-  });
-}
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_search_page_test.dart`
-Expected: 编译失败（`novel_search.dart` 不存在）。
-
-- [ ] **Step 3: 实现搜索页**
-
-创建 `lib/modules/novel/novel_search.dart`：
+并在文件顶部（`_listNoNextHtml` 之后）加入 fixture：
 
 ```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+const _detailHtml = '''
+<div class="archive-shop">
+  <div class="img-box"><img class="lazy" src="https://game.galgamezywz.org/wp-content/uploads/cover.jpg"></div>
+  <div class="info-box">
+    <ul class="article-meta">
+      <li>资源分类: <a href="https://game.galgamezywz.org/lm/wanjiareping">玩家热评游戏</a></li>
+      <li>浏览热度: (4.3K)</li>
+      <li>发布时间: 2026-09-11</li>
+      <li>最近更新: 2026-09-12</li>
+      <li>游戏大小: 14.3GB</li>
+      <li>游戏平台: PC+安卓直装</li>
+    </ul>
+  </div>
+</div>
+<h1 class="post-title">金辉恋曲四重奏</h1>
+<div class="entry-tags">
+  <a rel="tag" href="https://game.galgamezywz.org/bq/hanhua">汉化</a>
+  <a rel="tag" href="https://game.galgamezywz.org/bq/pc">PC</a>
+</div>
+<article class="post-content">
+  <p>第一段简介。</p>
+  <p>第二段简介。</p>
+  <img src="https://game.galgamezywz.org/wp-content/uploads/1.jpg" class="aligncenter wp-image-1">
+  <img src="https://game.galgamezywz.org/wp-content/uploads/1.jpg" class="aligncenter">
+  <img src="data:image/gif;base64,AAAA">
+</article>
+''';
+```
 
-import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/shimmer_loader.dart';
-import '../../core/widgets/smooth_route.dart';
-import 'novel_detail_page.dart';
-import 'novel_home.dart';
-import 'novel_providers.dart';
+- [ ] **Step 2: Run test to verify it fails**
 
-const _muted = Color(0xFF5A5A5F);
+Run: `flutter test test/core/game/galgamezywz_parser_test.dart`
+Expected: FAIL（`parseGameDetail` 未定义）。
 
-class NovelSearchPage extends ConsumerStatefulWidget {
-  final String? initialKeyword;
-  const NovelSearchPage({super.key, this.initialKeyword});
+- [ ] **Step 3: Write minimal implementation**
 
-  @override
-  ConsumerState<NovelSearchPage> createState() => _NovelSearchPageState();
+在 `lib/core/game/galgamezywz_source.dart` 末尾追加：
+
+```dart
+String _valueAfterColon(String text) {
+  final ascii = text.indexOf(':');
+  final wide = text.indexOf('：');
+  final cut = ascii >= 0 ? ascii : wide;
+  if (cut < 0) return text.trim();
+  return text.substring(cut + 1).trim();
 }
 
-class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
-  final _ctrl = TextEditingController();
-  String _keyword = '';
+DateTime? _dateAfterColon(String text) =>
+    DateTime.tryParse(_valueAfterColon(text));
 
-  @override
-  void initState() {
-    super.initState();
-    final initial = widget.initialKeyword?.trim() ?? '';
-    if (initial.isNotEmpty) {
-      _ctrl.text = initial;
-      _keyword = initial;
+GameDetail parseGameDetail(String html, String sourceUrl) {
+  final doc = html_parser.parse(html);
+  final id = gameIdFromHref(sourceUrl) ?? '';
+  final title = _textOf(doc.querySelector('h1.post-title'));
+  final titleFallback = _textOf(doc.querySelector('.entry-title'));
+  final img = doc.querySelector('.archive-shop .img-box img');
+  final cover = _absUrl(img?.attributes['src'] ?? img?.attributes['data-src']);
+
+  String? category;
+  int? views;
+  DateTime? publishedAt;
+  DateTime? updatedAt;
+  String? size;
+  String? platform;
+  for (final li
+      in doc.querySelectorAll('.archive-shop .info-box .article-meta li')) {
+    final text = _textOf(li);
+    if (text.contains('资源分类')) {
+      final a = _textOf(li.querySelector('a'));
+      category = a.isNotEmpty ? a : _valueAfterColon(text);
+    } else if (text.contains('浏览热度')) {
+      views = parseCount(text);
+    } else if (text.contains('发布时间')) {
+      publishedAt = _dateAfterColon(text);
+    } else if (text.contains('最近更新')) {
+      updatedAt = _dateAfterColon(text);
+    } else if (text.contains('游戏大小')) {
+      size = _valueAfterColon(text);
+    } else if (text.contains('游戏平台')) {
+      platform = _valueAfterColon(text);
     }
   }
 
-  void _search() {
-    final k = _ctrl.text.trim();
-    if (k.isEmpty) return;
-    setState(() => _keyword = k);
-  }
+  final tags = <String>[
+    for (final a in doc.querySelectorAll('.entry-tags a[rel="tag"]'))
+      if (_textOf(a).isNotEmpty) _textOf(a),
+  ];
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _searchBar(cs),
-            Expanded(child: _body()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _searchBar(ColorScheme cs) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
-        border:
-            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => Navigator.pop(context),
-            splashRadius: 20,
-          ),
-          Expanded(
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F7),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      autofocus: widget.initialKeyword == null,
-                      style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: '搜索轻小说...',
-                        hintStyle: TextStyle(color: _muted, fontSize: 15),
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      onSubmitted: (_) => _search(),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                  if (_ctrl.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _ctrl.clear();
-                        setState(() {});
-                      },
-                      child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-              onPressed: _search,
-              child: const Text('搜索', style: TextStyle(fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
-  Widget _body() {
-    if (_keyword.isEmpty) {
-      return const EmptyState(
-          icon: Icons.search_rounded, message: '输入关键词搜索轻小说');
+  final paragraphs = <String>[];
+  final screenshots = <String>[];
+  final content = doc.querySelector('article.post-content');
+  if (content != null) {
+    final ps = content.querySelectorAll('p');
+    if (ps.isEmpty) {
+      final t = _textOf(content);
+      if (t.isNotEmpty) paragraphs.add(t);
+    } else {
+      for (final p in ps) {
+        final t = _textOf(p);
+        if (t.isNotEmpty) paragraphs.add(t);
+      }
     }
-    final async = ref.watch(novelSearchProvider(_keyword));
-    return async.when(
-      loading: () => const ShimmerLoader(
-        crossAxisCount: 6,
-        itemCount: 12,
-        aspectRatio: 0.58,
-        padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
-      ),
-      error: (error, __) => EmptyState(
-        icon: Icons.error_outline_rounded,
-        message: error.toString(),
-        actionLabel: '重试',
-        onAction: () => ref.invalidate(novelSearchProvider(_keyword)),
-      ),
-      data: (results) {
-        if (results.isEmpty) {
-          return const EmptyState(
-              icon: Icons.search_off_rounded, message: '没有找到轻小说');
-        }
-        return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 6,
-              mainAxisSpacing: 20,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.58),
-          itemCount: results.length,
-          itemBuilder: (_, i) {
-            final r = results[i];
-            return NovelCard(
-              novel: r.novel,
-              onTap: () => Navigator.push(
-                context,
-                noTransitionRoute(NovelDetailPage(
-                  sourceKey: r.sourceKey,
-                  novelId: r.novel.id,
-                  title: r.novel.title,
-                  cover: r.novel.coverUrl,
-                )),
-              ),
-            );
-          },
-        );
-      },
-    );
+    final seen = <String>{};
+    for (final im in content.querySelectorAll('img')) {
+      final src = _absUrl(im.attributes['src'] ?? im.attributes['data-src']);
+      if (src.isEmpty || src.startsWith('data:')) continue;
+      if (cover.isNotEmpty && src == cover) continue;
+      if (seen.add(src)) screenshots.add(src);
+    }
   }
+
+  final game = Game(
+    id: id,
+    title: title.isNotEmpty ? title : titleFallback,
+    coverUrl: cover.isEmpty ? null : cover,
+    category: (category == null || category.isEmpty) ? null : category,
+    tags: tags,
+    publishedAt: publishedAt,
+    views: views,
+    extra: {'url': sourceUrl},
+  );
+
+  return GameDetail(
+    game: game,
+    size: (size == null || size.isEmpty) ? null : size,
+    platform: (platform == null || platform.isEmpty) ? null : platform,
+    updatedAt: updatedAt,
+    paragraphs: paragraphs,
+    screenshots: screenshots,
+    sourceUrl: sourceUrl,
+  );
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [ ] **Step 4: Run test to verify it passes**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/modules/novel/novel_search_page_test.dart`
-Expected: 全部通过。
+Run: `flutter test test/core/game/galgamezywz_parser_test.dart`
+Expected: PASS（6 tests）。
 
-- [ ] **Step 5: 接入顶栏入口**
-
-编辑 `lib/shell/main_shell.dart`：
-
-(a) 加 import：
-
-```dart
-import '../modules/novel/novel_search.dart';
-```
-
-(b) 把顶栏搜索图标的条件与跳转：
-
-```dart
-              if (_currentIndex == 0 || _currentIndex == 1)
-                IconButton(
-                  icon: const Icon(Icons.search_rounded, size: 20),
-                  color: _muted,
-                  splashRadius: 20,
-                  onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => _currentIndex == 0
-                              ? const AnimeSearchPage()
-                              : const ComicSearchPage())),
-                ),
-```
-
-替换为：
-
-```dart
-              if (_currentIndex >= 0 && _currentIndex <= 2)
-                IconButton(
-                  icon: const Icon(Icons.search_rounded, size: 20),
-                  color: _muted,
-                  splashRadius: 20,
-                  onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => _currentIndex == 0
-                              ? const AnimeSearchPage()
-                              : _currentIndex == 1
-                                  ? const ComicSearchPage()
-                                  : const NovelSearchPage())),
-                ),
-```
-
-- [ ] **Step 6: 运行静态检查与全量测试**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-Expected: 全绿。
-
-- [ ] **Step 7: 提交**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/modules/novel/novel_search.dart lib/shell/main_shell.dart test/modules/novel/novel_search_page_test.dart
-git commit -m "feat(novel): search page and top-bar entry"
-git push origin dev
+git add lib/core/game/galgamezywz_source.dart test/core/game/galgamezywz_parser_test.dart
+git commit -m "feat(game): parse galgamezywz detail page"
 ```
 
 ---
 
-## 验证（任务全部完成后）
-
-1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` 全绿。
-2. 构建并启动应用，切到轻小说模块：
-   - 顶栏出现搜索图标；点击打开搜索页。
-   - 输入关键词（如「败犬」）回车/点「搜索」→ 出现结果网格（合并两个源、按书名去重）。
-   - 点结果进入详情页。
-   - 空关键词显示「输入关键词搜索轻小说」；无结果显示「没有找到轻小说」。
-
-## 已知取舍
-
-- 单页、无分页/加载更多；不做搜索历史与按源筛选。
-- 结果不标来源；同名书只保留第一个。

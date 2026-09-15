@@ -1,121 +1,120 @@
-### Task 2: 板块切换交叉淡入淡出
+## Task 2: GameSource 抽象与管理器
 
 **Files:**
-- Modify: `lib/shell/main_shell.dart`
-- Test: `test/shell/main_shell_test.dart`
+- Create: `lib/core/game/game_source.dart`
+- Test: `test/core/game/game_source_test.dart`
 
 **Interfaces:**
-- Consumes: 现有 `MainShell`（`lib/shell/main_shell.dart`，`_pages` 为 4 个模块页）。
-- Produces: 无新公共接口；每个板块包一层带 `key: ValueKey('module-page-$i')` 的 `AnimatedOpacity`。
+- Consumes: `lib/core/game/models.dart`（Task 1）。
+- Produces: `abstract class GameSource { String get id; String get name; String get baseUrl; List<GameBrowseOption> get browseOptions; Future<GameList> browse(String optionKey, {int page = 1}); Future<GameDetail> detail(String id); }` 与 `GameSourceManager({List<GameSource>? sources})`（`sources` / `register` / `byId`）。
 
-- [ ] **Step 1: 写失败测试**
+- [ ] **Step 1: Write the failing test**
 
-创建 `test/shell/main_shell_test.dart`：
+Create `test/core/game/game_source_test.dart`:
 
 ```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/shell/main_shell.dart';
+import 'package:acgnhub/core/game/game_source.dart';
+import 'package:acgnhub/core/game/models.dart';
+
+class _FakeSource implements GameSource {
+  @override
+  String get id => 'fake';
+  @override
+  String get name => 'Fake';
+  @override
+  String get baseUrl => 'https://fake';
+  @override
+  List<GameBrowseOption> get browseOptions =>
+      const [GameBrowseOption(key: 'latest', label: '最近更新')];
+  @override
+  Future<GameList> browse(String optionKey, {int page = 1}) async =>
+      GameList(items: const [], page: page, hasMore: false);
+  @override
+  Future<GameDetail> detail(String id) async =>
+      GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
+}
 
 void main() {
-  testWidgets('switching modules cross-fades while keeping every page mounted',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
+  test('manager exposes registered sources', () {
+    final m = GameSourceManager(sources: [_FakeSource()]);
+    expect(m.sources.map((s) => s.id), ['fake']);
+    expect(m.byId('fake')!.name, 'Fake');
+    expect(m.byId('nope'), isNull);
+  });
 
-    await tester.pumpWidget(const ProviderScope(
-      child: MaterialApp(home: MainShell()),
-    ));
-    await tester.pump();
-
-    List<double> pageOpacity() => [
-          for (var i = 0; i < 4; i++)
-            tester
-                .widget<AnimatedOpacity>(find.byKey(ValueKey('module-page-$i')))
-                .opacity,
-        ];
-
-    expect(pageOpacity(), [1.0, 0.0, 0.0, 0.0]);
-
-    await tester.tap(find.text('漫画'));
-    await tester.pump();
-    expect(pageOpacity(), [0.0, 1.0, 0.0, 0.0]);
+  test('manager rejects duplicate ids', () {
+    final m = GameSourceManager(sources: [_FakeSource()]);
+    expect(() => m.register(_FakeSource()), throwsArgumentError);
   });
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/shell/main_shell_test.dart`
-Expected: 失败——`find.byKey(ValueKey('module-page-0'))` 找不到（当前是 `IndexedStack`，没有这些 key）。
+Run: `flutter test test/core/game/game_source_test.dart`
+Expected: FAIL（找不到 `GameSourceManager` / `GameSource`）。
 
-- [ ] **Step 3: 实现**
+- [ ] **Step 3: Write minimal implementation**
 
-编辑 `lib/shell/main_shell.dart`，把 `build` 中的：
-
-```dart
-                Expanded(
-                  child: IndexedStack(index: _currentIndex, children: _pages),
-                ),
-```
-
-替换为：
+Create `lib/core/game/game_source.dart`:
 
 ```dart
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      for (var i = 0; i < _pages.length; i++)
-                        IgnorePointer(
-                          ignoring: i != _currentIndex,
-                          child: AnimatedOpacity(
-                            key: ValueKey('module-page-$i'),
-                            opacity: i == _currentIndex ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            child: _pages[i],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+import 'models.dart';
+
+abstract class GameSource {
+  String get id;
+  String get name;
+  String get baseUrl;
+
+  /// 该源声明的浏览分区（首页顶部 chip）。
+  List<GameBrowseOption> get browseOptions;
+
+  /// 按分区选项分页拉取。
+  Future<GameList> browse(String optionKey, {int page = 1});
+
+  /// 详情。
+  Future<GameDetail> detail(String id);
+}
+
+class GameSourceManager {
+  GameSourceManager({List<GameSource>? sources}) {
+    for (final s in sources ?? const <GameSource>[]) {
+      register(s);
+    }
+  }
+
+  final List<GameSource> _sources = [];
+
+  List<GameSource> get sources => List.unmodifiable(_sources);
+
+  void register(GameSource source) {
+    if (_sources.any((s) => s.id == source.id)) {
+      throw ArgumentError('duplicate game source id: ${source.id}');
+    }
+    _sources.add(source);
+  }
+
+  GameSource? byId(String id) {
+    for (final s in _sources) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+}
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [ ] **Step 4: Run test to verify it passes**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/shell/main_shell_test.dart`
-Expected: 通过。
+Run: `flutter test test/core/game/game_source_test.dart`
+Expected: PASS（2 tests）。
 
-- [ ] **Step 5: 静态检查与全量测试**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-Expected: 全绿。
-
-- [ ] **Step 6: 提交**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/shell/main_shell.dart test/shell/main_shell_test.dart
-git commit -m "feat(shell): cross-fade module switching"
-git push origin dev
+git add lib/core/game/game_source.dart test/core/game/game_source_test.dart
+git commit -m "feat(game): add GameSource abstraction and manager"
 ```
 
 ---
 
-## 验证（任务完成后）
-
-1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` 全绿。
-2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` 成功。
-3. 启动应用：
-   - 侧栏文字变大（13px）、未选中不再过细；
-   - 点侧栏项时左侧蓝线从中间向上下展开并淡入，图标/文字颜色同步过渡；
-   - 切换动漫/漫画/轻小说/游戏时内容交叉淡入淡出（~250ms），切回原板块时滚动位置与 Tab 状态保留。
-
-## 已知取舍
-
-- 板块切换只有透明度过渡（无滑动/缩放）。
-- 所有板块常驻（与 `IndexedStack` 一致），未额外用 `TickerMode` 停掉非当前页的动画。

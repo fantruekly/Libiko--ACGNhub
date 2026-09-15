@@ -1,269 +1,272 @@
-### Task 3: 漫画页副选择栏接入 `ChipBar` 并删除 `PillChip`
+## Task 3: galgamezywz 列表与分页解析
 
 **Files:**
-- Modify: `lib/modules/comic/comic_home.dart`
-- Delete: `lib/core/widgets/pill_chip.dart`
+- Create: `lib/core/game/galgamezywz_source.dart`（本任务只含常量、辅助函数、列表/分页解析、路径函数）
+- Test: `test/core/game/galgamezywz_parser_test.dart`
 
 **Interfaces:**
-- Consumes: `ChipBar`（Task 1）。
-- Produces: 无新公共接口；`_DiscoverTab` 的源 / 分区 / 分卷 chips 改为 `ChipBar`；`PillChip` 被删除。
+- Consumes: `models.dart`（Task 1）。
+- Produces:
+  - `const String galgameZywzBaseUrl`、`galgameZywzUserAgent`、`Map<String,String> gameImageHeaders`
+  - `String? gameIdFromHref(String? href)`
+  - `int? parseCount(String raw)`
+  - `String galgameZywzBrowsePath(String optionKey, int page)`
+  - `List<Game> parseGameList(String html)`
+  - `bool parseHasNextPage(String html, {required int itemCount})`
 
-- [ ] **Step 1: 换 import**
+- [ ] **Step 1: Write the failing test**
 
-在 `lib/modules/comic/comic_home.dart` 顶部，把：
+Create `test/core/game/galgamezywz_parser_test.dart`:
 
 ```dart
-import '../../core/widgets/pill_chip.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/game/galgamezywz_source.dart';
+
+const _listHtml = '''
+<section class="container">
+  <div class="posts-warp row">
+    <div class="col">
+      <article class="post-item item-grid">
+        <div class="entry-media ratio ratio-3x2">
+          <a class="media-img lazy bg-cover bg-center" href="https://game.galgamezywz.org/game/1207" data-bg="https://game.galgamezywz.org/wp-content/uploads/2025/03/cover.webp"></a>
+        </div>
+        <div class="entry-wrapper">
+          <div class="entry-cat-dot"><a href="https://game.galgamezywz.org/lm/wanjiareping">玩家热评游戏</a></div>
+          <h2 class="entry-title"><a href="https://game.galgamezywz.org/game/1207" title="金辉恋曲四重奏">金辉恋曲四重奏</a></h2>
+          <div class="entry-desc">这是一段简介。</div>
+          <div class="entry-meta">
+            <span class="meta-date"><time class="pub-date" datetime="2026-09-11T10:21:10+08:00">4 天前</time></span>
+            <span class="meta-likes">1</span>
+            <span class="meta-fav">7</span>
+            <span class="meta-views">4.3K</span>
+            <span class="meta-price">0</span>
+          </div>
+        </div>
+      </article>
+    </div>
+    <div class="col">
+      <article class="post-item item-grid">
+        <h2 class="entry-title"><a href="https://game.galgamezywz.org/lm/galgame">没有游戏链接的条目</a></h2>
+      </article>
+    </div>
+  </div>
+  <nav class="page-nav mt-4"><ul class="pagination">
+    <li class="page-item disabled"><span class="page-link">1/171</span></li>
+    <li class="page-item"><a class="page-link page-next" href="https://game.galgamezywz.org/page/2">下一页</a></li>
+  </ul></nav>
+</section>
+''';
+
+const _listNoNextHtml = '''
+<section class="container">
+  <div class="posts-warp row">
+    <div class="col">
+      <article class="post-item item-grid">
+        <h2 class="entry-title"><a href="https://game.galgamezywz.org/game/9">最后一页</a></h2>
+      </article>
+    </div>
+  </div>
+  <nav class="page-nav"><ul class="pagination">
+    <li class="page-item disabled"><span class="page-link">171/171</span></li>
+  </ul></nav>
+</section>
+''';
+
+void main() {
+  test('gameIdFromHref extracts the numeric id', () {
+    expect(gameIdFromHref('https://game.galgamezywz.org/game/1207'), '1207');
+    expect(gameIdFromHref('/game/9'), '9');
+    expect(gameIdFromHref('https://game.galgamezywz.org/lm/galgame'), isNull);
+    expect(gameIdFromHref(null), isNull);
+  });
+
+  test('parseCount parses K/M suffixes and raw numbers', () {
+    expect(parseCount('4.3K'), 4300);
+    expect(parseCount('125.2K'), 125200);
+    expect(parseCount('6.2K'), 6200);
+    expect(parseCount('664'), 664);
+    expect(parseCount('浏览热度: (4.3K)'), 4300);
+    expect(parseCount(''), isNull);
+  });
+
+  test('galgameZywzBrowsePath maps options to paths', () {
+    expect(galgameZywzBrowsePath('latest', 1), '/');
+    expect(galgameZywzBrowsePath('latest', 3), '/page/3');
+    expect(galgameZywzBrowsePath('galgame', 1), '/lm/galgame');
+    expect(galgameZywzBrowsePath('galgame', 2), '/lm/galgame/page/2');
+    expect(() => galgameZywzBrowsePath('nope', 1), throwsArgumentError);
+  });
+
+  test('parseGameList keeps items with a /game/<id> link and skips others', () {
+    final items = parseGameList(_listHtml);
+    expect(items, hasLength(1));
+    expect(items.first.id, '1207');
+    expect(items.first.title, '金辉恋曲四重奏');
+    expect(items.first.coverUrl,
+        'https://game.galgamezywz.org/wp-content/uploads/2025/03/cover.webp');
+    expect(items.first.summary, '这是一段简介。');
+    expect(items.first.category, '玩家热评游戏');
+    expect(items.first.publishedAt, DateTime.parse('2026-09-11T10:21:10+08:00'));
+    expect(items.first.views, 4300);
+  });
+
+  test('parseHasNextPage follows the next link, else the item-count fallback',
+      () {
+    expect(parseHasNextPage(_listHtml, itemCount: 1), isTrue);
+    expect(parseHasNextPage(_listNoNextHtml, itemCount: 1), isFalse);
+    expect(parseHasNextPage('<html></html>', itemCount: 12), isTrue);
+    expect(parseHasNextPage('<html></html>', itemCount: 3), isFalse);
+  });
+}
 ```
 
-替换为：
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `flutter test test/core/game/galgamezywz_parser_test.dart`
+Expected: FAIL（找不到 `galgamezywz_source.dart`）。
+
+- [ ] **Step 3: Write minimal implementation**
+
+Create `lib/core/game/galgamezywz_source.dart`:
 
 ```dart
-import '../../core/widgets/chip_bar.dart';
-```
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 
-- [ ] **Step 2: 源选择栏改为 `ChipBar`**
+import 'models.dart';
 
-把 `_sourceHeader` 中的：
+const String galgameZywzBaseUrl = 'https://game.galgamezywz.org';
+const String galgameZywzUserAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-```dart
-          Expanded(
-            child: _horizontalScroll(
-              padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
-              child: Row(
-                children: [
-                  for (final source in sources)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child:
-                          _sourceChip(source, source.key == selected.key),
-                    ),
-                ],
-              ),
-            ),
-          ),
-```
+const Map<String, String> gameImageHeaders = {
+  'Referer': '$galgameZywzBaseUrl/',
+};
 
-替换为：
+const Map<String, String> _categorySlugs = {
+  'wanjiareping': 'wanjiareping',
+  'galgame': 'galgame',
+  'haoyoutuijian': 'haoyoutuijian',
+  'wanjiazuiai': 'wanjiazuiai',
+};
 
-```dart
-          Expanded(
-            child: ChipBar(
-              key: ValueKey(
-                  'comic-source-${[for (final s in sources) s.name].join('|')}'),
-              labels: [for (final source in sources) source.name],
-              selectedIndex: sources.indexOf(selected),
-              onSelected: (i) {
-                final source = sources[i];
-                setState(() {
-                  _selectedKey = source.key;
-                  _selectedSection = 0;
-                  _selectedPart = 0;
-                  _page = 1;
-                });
-              },
-            ),
-          ),
-```
+final RegExp _gameHref = RegExp(r'/game/(\d+)');
 
-- [ ] **Step 3: 删除 `_chip` 与 `_sourceChip`**
+String? gameIdFromHref(String? href) {
+  if (href == null) return null;
+  return _gameHref.firstMatch(href)?.group(1);
+}
 
-把：
+String _absUrl(String? url) {
+  if (url == null || url.isEmpty) return '';
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('//')) return 'https:$url';
+  return url.startsWith('/') ? '$galgameZywzBaseUrl$url' : '$galgameZywzBaseUrl/$url';
+}
 
-```dart
-  Widget _chip(String label, bool selected, VoidCallback onTap) =>
-      PillChip(label: label, selected: selected, onTap: onTap);
+String _textOf(dom.Element? el) => el?.text.trim() ?? '';
 
-  Widget _sourceChip(ComicSource source, bool selected) {
-    return _chip(source.name, selected, () {
-      setState(() {
-        _selectedKey = source.key;
-        _selectedSection = 0;
-        _selectedPart = 0;
-        _page = 1;
-      });
-    });
+/// 解析预格式化计数（'6.2K' -> 6200，'1.2M' -> 1200000，'664' -> 664）。
+int? parseCount(String raw) {
+  final s = raw.replaceAll(RegExp(r'[^0-9KkMm.]'), '').trim();
+  if (s.isEmpty) return null;
+  final m = RegExp(r'^([0-9]+(?:\.[0-9]+)?)([KkMm]?)$').firstMatch(s);
+  if (m == null) return null;
+  final value = double.tryParse(m.group(1)!);
+  if (value == null) return null;
+  final suffix = m.group(2)?.toLowerCase();
+  final factor = suffix == 'k' ? 1000 : (suffix == 'm' ? 1000000 : 1);
+  return (value * factor).round();
+}
+
+/// 分区选项 -> 相对路径（相对 galgameZywzBaseUrl）。
+String galgameZywzBrowsePath(String optionKey, int page) {
+  if (optionKey == 'latest') {
+    return page <= 1 ? '/' : '/page/$page';
   }
-```
-
-整段删除。
-
-- [ ] **Step 4: 分区选择栏改为 `ChipBar`**
-
-把：
-
-```dart
-  Widget _sectionChips(ComicSource source, int section) {
-    if (source.sections.length <= 1) return const SizedBox.shrink();
-    return SizedBox(
-      height: 48,
-      child: _horizontalScroll(
-        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
-        child: Row(
-          children: [
-            for (var i = 0; i < source.sections.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _chip(
-                  source.sections[i].title.isEmpty
-                      ? '分区 ${i + 1}'
-                      : source.sections[i].title,
-                  i == section,
-                  () => setState(() {
-                    _selectedSection = i;
-                    _selectedPart = 0;
-                    _page = 1;
-                  }),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+  final slug = _categorySlugs[optionKey];
+  if (slug == null) {
+    throw ArgumentError('unknown game browse option: $optionKey');
   }
-```
+  return page <= 1 ? '/lm/$slug' : '/lm/$slug/page/$page';
+}
 
-替换为：
+dom.Element? _firstPostsWarp(dom.Document doc) =>
+    doc.querySelector('div.posts-warp');
 
-```dart
-  Widget _sectionChips(ComicSource source, int section) {
-    if (source.sections.length <= 1) return const SizedBox.shrink();
-    final labels = [
-      for (var i = 0; i < source.sections.length; i++)
-        source.sections[i].title.isEmpty
-            ? '分区 ${i + 1}'
-            : source.sections[i].title,
-    ];
-    return ChipBar(
-      key: ValueKey('comic-section-${source.key}-${labels.join('|')}'),
-      labels: labels,
-      selectedIndex: section,
-      onSelected: (i) => setState(() {
-        _selectedSection = i;
-        _selectedPart = 0;
-        _page = 1;
-      }),
-    );
+/// 从列表容器向上找分页所在的 section.container / .home-widget。
+dom.Element _paginationScope(dom.Element warp) {
+  dom.Element? node = warp.parent;
+  while (node != null) {
+    if (node.classes.contains('home-widget')) return node;
+    if (node.localName == 'section' && node.classes.contains('container')) {
+      return node;
+    }
+    node = node.parent;
   }
-```
+  return warp;
+}
 
-- [ ] **Step 5: 分卷选择栏改为 `ChipBar`**
+Game? _gameFromItem(dom.Element item) {
+  final titleA = item.querySelector('.entry-title a');
+  final id = gameIdFromHref(titleA?.attributes['href']);
+  if (titleA == null || id == null) return null;
+  final media = item.querySelector('a.media-img');
+  final cover = _absUrl(media?.attributes['data-bg'] ??
+      media?.attributes['data-src'] ??
+      media?.attributes['src']);
+  final summary = _textOf(item.querySelector('.entry-desc'));
+  final category = _textOf(item.querySelector('.entry-cat-dot a'));
+  final dateRaw = item.querySelector('time.pub-date')?.attributes['datetime'];
+  return Game(
+    id: id,
+    title: _textOf(titleA),
+    coverUrl: cover.isEmpty ? null : cover,
+    summary: summary.isEmpty ? null : summary,
+    category: category.isEmpty ? null : category,
+    publishedAt: dateRaw == null ? null : DateTime.tryParse(dateRaw),
+    views: parseCount(_textOf(item.querySelector('.meta-views'))),
+    extra: {'url': '$galgameZywzBaseUrl/game/$id'},
+  );
+}
 
-把：
-
-```dart
-  Widget _partChips(List<ComicPart> parts, int selected) {
-    return SizedBox(
-      height: 48,
-      child: _horizontalScroll(
-        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
-        child: Row(
-          children: [
-            for (var i = 0; i < parts.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _chip(
-                  parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
-                  i == selected,
-                  () => setState(() {
-                    _selectedPart = i;
-                    _page = 1;
-                  }),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+List<Game> parseGameList(String html) {
+  final doc = html_parser.parse(html);
+  final scope = _firstPostsWarp(doc) ?? doc.documentElement;
+  final out = <Game>[];
+  if (scope == null) return out;
+  for (final item in scope.querySelectorAll('article.post-item')) {
+    final g = _gameFromItem(item);
+    if (g != null) out.add(g);
   }
-```
+  return out;
+}
 
-替换为：
-
-```dart
-  Widget _partChips(List<ComicPart> parts, int selected) {
-    final labels = [
-      for (var i = 0; i < parts.length; i++)
-        parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
-    ];
-    return ChipBar(
-      key: ValueKey('comic-part-${labels.join('|')}'),
-      labels: labels,
-      selectedIndex: selected,
-      onSelected: (i) => setState(() {
-        _selectedPart = i;
-        _page = 1;
-      }),
-    );
+bool parseHasNextPage(String html, {required int itemCount}) {
+  final doc = html_parser.parse(html);
+  final warp = _firstPostsWarp(doc);
+  final scoped = warp == null ? null : _paginationScope(warp);
+  final nav =
+      (scoped ?? doc).querySelector('nav.page-nav') ?? doc.querySelector('nav.page-nav');
+  if (nav != null) {
+    return nav.querySelector('a.page-link.page-next') != null;
   }
+  return itemCount >= 12;
+}
 ```
 
-- [ ] **Step 6: 删除不再使用的 `_horizontalScroll` 与 `gestures` import**
+- [ ] **Step 4: Run test to verify it passes**
 
-三处 chip 行都换成 `ChipBar` 后，`_horizontalScroll` 已无调用者，且 `PointerDeviceKind` 仅它使用。把：
+Run: `flutter test test/core/game/galgamezywz_parser_test.dart`
+Expected: PASS（5 tests）。
 
-```dart
-  Widget _horizontalScroll(
-      {required EdgeInsets padding, required Widget child}) {
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(
-        dragDevices: const {
-          PointerDeviceKind.touch,
-          PointerDeviceKind.mouse,
-          PointerDeviceKind.trackpad,
-          PointerDeviceKind.stylus,
-        },
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: padding,
-        child: child,
-      ),
-    );
-  }
-```
-
-整段删除；并把顶部：
-
-```dart
-import 'package:flutter/gestures.dart';
-```
-
-整行删除。
-
-- [ ] **Step 7: 删除 `PillChip`**
-
-删除文件 `lib/core/widgets/pill_chip.dart`。
-
-- [ ] **Step 8: 静态检查与全量测试**
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
-Expected: `No issues found!`
-
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
-Expected: 全绿。
-
-- [ ] **Step 9: 提交**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/modules/comic/comic_home.dart lib/core/widgets/pill_chip.dart
-git commit -m "feat(comic): sliding-highlight secondary chip bar; drop PillChip"
-git push origin dev
+git add lib/core/game/galgamezywz_source.dart test/core/game/galgamezywz_parser_test.dart
+git commit -m "feat(game): parse galgamezywz listing and pagination"
 ```
 
 ---
 
-## 验证（任务全部完成后）
-
-1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` 全绿。
-2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` 成功。
-3. 启动应用：
-   - 漫画页「发现」：点击不同源 / 分区 / 分卷，蓝色高亮药丸滑动到新位置，未选中项为灰色纯文字；切换源时第二行标签变化，药丸直接跳变不横跨。
-   - 轻小说页「探索」：源 / 推荐-排行-分类 / 选项同理。
-   - 顶部 `TabStrip` 行为不变。
-
-## 已知取舍
-
-- 仅 chip 选中态做过渡，内容区仍用骨架屏（不做淡入/滑动）。
-- 选中项不自动滚动入视。
-- 行切换（标签列表变化）为跳变，不做跨行滑动动画。

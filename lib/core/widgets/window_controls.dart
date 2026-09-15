@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 class WindowControls extends StatefulWidget {
-  const WindowControls({super.key});
+  final Color? foregroundColor;
+  final Color? hoverColor;
+
+  const WindowControls({super.key, this.foregroundColor, this.hoverColor});
 
   @override
   State<WindowControls> createState() => _WindowControlsState();
@@ -44,11 +47,15 @@ class _WindowControlsState extends State<WindowControls> with WindowListener {
         WindowButton(
           icon: Icons.remove_rounded,
           tooltip: '最小化',
+          foregroundColor: widget.foregroundColor,
+          hoverColor: widget.hoverColor,
           onTap: () => windowManager.minimize(),
         ),
         WindowButton(
           icon: _isMaximized ? Icons.filter_none_rounded : Icons.crop_square_rounded,
           tooltip: _isMaximized ? '还原' : '最大化',
+          foregroundColor: widget.foregroundColor,
+          hoverColor: widget.hoverColor,
           onTap: () async {
             if (await windowManager.isMaximized()) {
               await windowManager.unmaximize();
@@ -61,6 +68,8 @@ class _WindowControlsState extends State<WindowControls> with WindowListener {
           icon: Icons.close_rounded,
           tooltip: '关闭',
           danger: true,
+          foregroundColor: widget.foregroundColor,
+          hoverColor: widget.hoverColor,
           onTap: () => windowManager.close(),
         ),
       ],
@@ -73,6 +82,8 @@ class WindowButton extends StatefulWidget {
   final String tooltip;
   final bool danger;
   final VoidCallback onTap;
+  final Color? foregroundColor;
+  final Color? hoverColor;
 
   const WindowButton({
     super.key,
@@ -80,6 +91,8 @@ class WindowButton extends StatefulWidget {
     required this.tooltip,
     required this.onTap,
     this.danger = false,
+    this.foregroundColor,
+    this.hoverColor,
   });
 
   @override
@@ -92,11 +105,14 @@ class _WindowButtonState extends State<WindowButton> {
   @override
   Widget build(BuildContext context) {
     final bg = _hover
-        ? (widget.danger ? const Color(0xFFE81123) : const Color(0x0D000000))
+        ? (widget.danger
+            ? const Color(0xFFE81123)
+            : (widget.hoverColor ?? const Color(0x0D000000)))
         : Colors.transparent;
     final fg = (_hover && widget.danger)
         ? Colors.white
-        : const Color(0xFF1C1C1E).withValues(alpha: 0.55);
+        : (widget.foregroundColor ??
+            const Color(0xFF1C1C1E).withValues(alpha: 0.55));
 
     return Tooltip(
       message: widget.tooltip,

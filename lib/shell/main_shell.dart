@@ -8,6 +8,7 @@ import '../modules/comic/comic_home.dart';
 import '../modules/comic/comic_search.dart';
 import '../modules/novel/novel_home.dart';
 import '../modules/novel/novel_search.dart';
+import '../modules/game/game_home.dart';
 import 'settings_page.dart';
 import 'app_sidebar.dart';
 
@@ -32,45 +33,8 @@ class _MainShellState extends State<MainShell> {
     const AnimeHomePage(),
     const ComicHomePage(),
     const NovelHomePage(),
-    _buildModulePlaceholder('游戏', Icons.games_rounded, '游戏模块',
-        '浏览 Galgame 游戏资源与详细信息', const Color(0xFFAF52DE)),
+    const GameHomePage(),
   ];
-
-  static Widget _buildModulePlaceholder(
-      String title, IconData icon, String subtitle, String desc, Color accent) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20)),
-            child: Icon(icon, size: 36, color: accent),
-          ),
-          const SizedBox(height: 24),
-          Text(subtitle,
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w600, color: _fg)),
-          const SizedBox(height: 8),
-          Text(desc, style: const TextStyle(fontSize: 14, color: _muted)),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text('即将推出',
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w500, color: accent)),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   void initState() {
