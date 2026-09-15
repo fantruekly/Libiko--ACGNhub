@@ -27,6 +27,8 @@ class _FakeSource implements GameSource {
   @override
   Future<GameDetail> detail(String id) async =>
       GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
+  @override
+  Future<List<Game>> search(String keyword) async => const [];
 }
 
 class _NekoFakeSource implements GameSource {
@@ -48,6 +50,8 @@ class _NekoFakeSource implements GameSource {
   @override
   Future<GameDetail> detail(String id) async =>
       GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
+  @override
+  Future<List<Game>> search(String keyword) async => const [];
 }
 
 void main() {

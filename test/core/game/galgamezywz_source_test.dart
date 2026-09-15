@@ -189,4 +189,27 @@ void main() {
         ['latest', 'wanjiareping', 'galgame', 'haoyoutuijian', 'wanjiazuiai']);
     expect(source.browseOptions.first.label, '最近更新');
   });
+
+  test('search requests the keyword and parses results', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/?s=%E9%AD%94%E5%A5%B3': _listHtmlWith(2, idBase: 100),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final results = await source.search('魔女');
+    expect(adapter.requested, ['/?s=%E9%AD%94%E5%A5%B3']);
+    expect(results.map((g) => g.id), ['100', '101']);
+  });
+
+  test('search returns empty without a request for a blank keyword', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({});
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    expect(await source.search('   '), isEmpty);
+    expect(adapter.requested, isEmpty);
+  });
 }

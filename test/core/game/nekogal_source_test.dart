@@ -134,4 +134,17 @@ void main() {
         ['pcgame', 'hhzy', 'srzy', 'pegame']);
     expect(source.browseOptions.first.label, 'PC资源');
   });
+
+  test('search requests the keyword and parses results', () async {
+    final dio = Dio(BaseOptions(baseUrl: nekogalBaseUrl));
+    final adapter = _FakeAdapter({
+      '/?s=%E9%AD%94%E5%A5%B3': _listPageHtml(2, base: 100),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = NekogalSource(dio: dio);
+
+    final results = await source.search('魔女');
+    expect(adapter.requested, ['/?s=%E9%AD%94%E5%A5%B3']);
+    expect(results.map((g) => g.id), ['100', '101']);
+  });
 }

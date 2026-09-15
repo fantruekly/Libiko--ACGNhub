@@ -222,6 +222,14 @@ class NekogalSource implements GameSource {
     return parseNekogalDetail(html, '$nekogalBaseUrl/archives/$id');
   }
 
+  @override
+  Future<List<Game>> search(String keyword) async {
+    final k = keyword.trim();
+    if (k.isEmpty) return const [];
+    final html = await _get('/?s=${Uri.encodeQueryComponent(k)}');
+    return parseNekogalList(html);
+  }
+
   static const int _maxAttempts = 4;
   static const Duration _retryDelay = Duration(milliseconds: 200);
 

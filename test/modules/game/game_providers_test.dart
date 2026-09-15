@@ -26,6 +26,8 @@ class _FakeSource implements GameSource {
         game: Game(id: id, title: '游戏$id'),
         sourceUrl: 'https://fake/game/$id',
       );
+  @override
+  Future<List<Game>> search(String keyword) async => const [];
 }
 
 ProviderContainer _container() => ProviderContainer(overrides: [

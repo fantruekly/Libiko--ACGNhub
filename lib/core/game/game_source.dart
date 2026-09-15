@@ -13,6 +13,9 @@ abstract class GameSource {
 
   /// 详情。
   Future<GameDetail> detail(String id);
+
+  /// 关键词搜索（仅第一页）。
+  Future<List<Game>> search(String keyword);
 }
 
 class GameSourceManager {

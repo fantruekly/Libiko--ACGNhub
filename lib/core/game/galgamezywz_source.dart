@@ -277,6 +277,14 @@ class GalgameZywzSource implements GameSource {
     return parseGameDetail(html, '$galgameZywzBaseUrl/game/$id');
   }
 
+  @override
+  Future<List<Game>> search(String keyword) async {
+    final k = keyword.trim();
+    if (k.isEmpty) return const [];
+    final html = await _get('/?s=${Uri.encodeQueryComponent(k)}');
+    return parseGameList(html);
+  }
+
   Future<String> _get(String path) async {
     final res = await _dio.get<String>(
       path,
