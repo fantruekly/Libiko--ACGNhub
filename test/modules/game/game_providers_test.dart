@@ -139,6 +139,13 @@ void main() {
     addTearDown(container.dispose);
     final results = await container.read(gameSearchProvider('x').future);
     expect(results, hasLength(1));
+    expect(results.single.sourceKey, 'a');
+  });
+
+  test('gameSearchProvider is empty for a blank keyword', () async {
+    final container = _container();
+    addTearDown(container.dispose);
+    expect(await container.read(gameSearchProvider('  ').future), isEmpty);
   });
 
   test('gameSearchProvider isolates a failing source', () async {

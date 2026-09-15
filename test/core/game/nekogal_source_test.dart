@@ -147,4 +147,14 @@ void main() {
     expect(adapter.requested, ['/?s=%E9%AD%94%E5%A5%B3']);
     expect(results.map((g) => g.id), ['100', '101']);
   });
+
+  test('search returns empty without a request for a blank keyword', () async {
+    final dio = Dio(BaseOptions(baseUrl: nekogalBaseUrl));
+    final adapter = _FakeAdapter({});
+    dio.httpClientAdapter = adapter;
+    final source = NekogalSource(dio: dio);
+
+    expect(await source.search('   '), isEmpty);
+    expect(adapter.requested, isEmpty);
+  });
 }

@@ -104,6 +104,8 @@ final gameSearchProvider =
 });
 ```
 
+> 说明：`gameSearchProvider` 目前不被搜索页使用（搜索页用 per-source provider 做渐进展示）。保留它是为了与现有 `novelSearchProvider` 保持一致，并作为未来「全应用搜索」的预留 seam；其行为由单测覆盖。
+
 ## 搜索页（`game_search.dart`）
 
 镜像 `lib/modules/novel/novel_search.dart`：
