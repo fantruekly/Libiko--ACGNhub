@@ -13,6 +13,8 @@ Future<GameList> buildGamePage({
   required int sourcePageSize,
   required Future<GameSourcePage> Function(int sourcePage) fetch,
 }) async {
+  assert(sourcePageSize > 0 && gamePageSize % sourcePageSize == 0,
+      'sourcePageSize must divide gamePageSize');
   final pagesPerApp = (gamePageSize / sourcePageSize).ceil();
   final startServer = (page - 1) * pagesPerApp + 1;
   final items = <Game>[];

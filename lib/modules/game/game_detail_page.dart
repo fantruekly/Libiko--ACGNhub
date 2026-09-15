@@ -144,9 +144,9 @@ class GameDetailPage extends ConsumerWidget {
           _gallery(context, detail.screenshots),
         ],
         const SizedBox(height: 20),
-        const Text('数据来源 game.galgamezywz.org',
+        Text('数据来源 ${_sourceHost(detail.sourceUrl)}',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: _muted)),
+            style: const TextStyle(fontSize: 11, color: _muted)),
       ],
     );
   }
@@ -287,6 +287,11 @@ class GameDetailPage extends ConsumerWidget {
       placeholder: (_, __) => Container(color: const Color(0xFFE8EAF6)),
       errorWidget: (_, __, ___) => Container(color: const Color(0xFFE8EAF6)),
     );
+  }
+
+  String _sourceHost(String url) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    return host.isEmpty ? url : host;
   }
 
   String _formatDate(DateTime d) {

@@ -29,6 +29,27 @@ class _FakeSource implements GameSource {
       GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
 }
 
+class _NekoFakeSource implements GameSource {
+  @override
+  String get id => 'nekogal';
+  @override
+  String get name => 'NekoGAL';
+  @override
+  String get baseUrl => 'https://fake';
+  @override
+  List<GameBrowseOption> get browseOptions =>
+      const [GameBrowseOption(key: 'pcgame', label: 'PC资源')];
+  @override
+  Future<GameList> browse(String optionKey, {int page = 1}) async => GameList(
+        items: [Game(id: '$optionKey-$page', title: '游戏$optionKey$page')],
+        page: page,
+        hasMore: false,
+      );
+  @override
+  Future<GameDetail> detail(String id) async =>
+      GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
+}
+
 void main() {
   testWidgets('renders source/section chips, grid and pager', (tester) async {
     final container = ProviderContainer(overrides: [
@@ -111,5 +132,30 @@ void main() {
 
     final hero = tester.widget<Hero>(find.byType(Hero));
     expect(hero.tag, 'game_galgamezywz_latest-1');
+  });
+
+  testWidgets('switching to the second source shows its sections',
+      (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider.overrideWithValue(
+          GameSourceManager(sources: [_FakeSource(), _NekoFakeSource()])),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('galgame大玩家'), findsOneWidget);
+    expect(find.text('NekoGAL'), findsOneWidget);
+    expect(find.text('最近更新'), findsOneWidget);
+
+    await tester.tap(find.text('NekoGAL'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('PC资源'), findsOneWidget);
+    expect(find.text('最近更新'), findsNothing);
   });
 }

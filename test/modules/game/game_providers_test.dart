@@ -59,4 +59,13 @@ void main() {
       throwsStateError,
     );
   });
+
+  test('default manager registers both game sources', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    expect(
+      container.read(gameSourceManagerProvider).sources.map((s) => s.id),
+      ['galgamezywz', 'nekogal'],
+    );
+  });
 }

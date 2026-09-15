@@ -23,11 +23,12 @@ void main() {
     expect(list.hasMore, isTrue);
   });
 
-  test('trims a larger accumulation to 24', () async {
+  test('trims an over-filled accumulation to 24', () async {
     final list =
-        await buildGamePage(page: 1, sourcePageSize: 13, fetch: (p) async {
+        await buildGamePage(page: 1, sourcePageSize: 12, fetch: (p) async {
+      final count = p == 1 ? 13 : 12;
       return GameSourcePage(
-        items: [for (var i = 0; i < 13; i++) _g('$p-$i')],
+        items: [for (var i = 0; i < count; i++) _g('$p-$i')],
         hasMore: true,
       );
     });
