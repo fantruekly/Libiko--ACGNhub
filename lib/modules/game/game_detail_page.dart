@@ -215,7 +215,7 @@ class GameDetailPage extends ConsumerWidget {
 
   Widget _gallery(BuildContext context, List<String> urls) {
     return SizedBox(
-      height: 130,
+      height: 112.5,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: urls.length,
@@ -230,7 +230,7 @@ class GameDetailPage extends ConsumerWidget {
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
               width: 200,
-              height: 130,
+              height: 112.5,
               child: CachedNetworkImage(
                 imageUrl: urls[i],
                 fit: BoxFit.cover,
