@@ -52,6 +52,15 @@
 
 与漫画 `comic_<sourceKey>_<id>` 同构。
 
+### 详情页加载态（保证 Hero 首帧就位）
+
+- 问题：详情数据异步加载。若加载期间只显示整页骨架屏，目标页首帧没有 `Hero`，380ms 转场期间无法配对，**首次打开不会出现封面飞行**（只会看到淡入）。动漫模块之所以正常，是因为它用卡片传入的封面**立即**构建信息卡。
+- 方案：轻小说、游戏详情页在 `loading` 时改为渲染「信息卡（用卡片传入的封面/标题）+ 加载指示器」，使 `Hero` 在首帧就位；数据返回后替换为完整内容。
+  - 轻小说：`_infoCard(Novel(id: novelId, title: title, coverUrl: cover), cover)` + `CircularProgressIndicator`。
+  - 游戏：`_infoCard(Game(id: gameId, title: title, coverUrl: cover), cover, GameDetail(game: ..., sourceUrl: ''))` + `CircularProgressIndicator`。
+  - 移除不再使用的 `ShimmerLoader` import。
+- 加载观感由「整页骨架」变为「信息卡先显示，其余加载中」（已与用户确认）。
+
 ## 已知差异
 
 游戏卡片封面为 3:2 横图，详情封面为 100×132 竖图，`Hero` 飞行时比例变化较明显；动漫/漫画两侧比例接近，变化不明显。如观感不佳，后续可把游戏详情封面也改成横图（不在本版）。
