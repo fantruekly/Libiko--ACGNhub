@@ -1,215 +1,329 @@
-### Task 1: `ChipBar` 组件
+### Task 1: Bangumi 热门推荐改为热度榜（含分页）
 
 **Files:**
-- Create: `lib/core/widgets/chip_bar.dart`
-- Test: `test/core/widgets/chip_bar_test.dart`
+- Modify: `lib/core/metadata/bangumi_provider.dart`
+- Modify: `lib/modules/anime/anime_home.dart:88`
+- Test: `test/core/metadata/bangumi_provider_test.dart`
 
 **Interfaces:**
-- Consumes: 无（仅 Flutter）。
-- Produces:
-  ```dart
-  class ChipBar extends StatelessWidget {
-    final List<String> labels;
-    final int selectedIndex;
-    final ValueChanged<int> onSelected;
-    final EdgeInsetsGeometry padding;
-    const ChipBar({
-      super.key,
-      required this.labels,
-      required this.selectedIndex,
-      required this.onSelected,
-      this.padding = const EdgeInsets.symmetric(horizontal: 16),
-    });
-  }
-  ```
+- Consumes: 现有 `_dio`、`_parseItem`、`BangumiProvider.parseSearch`、`AnimeFeed`（`lib/core/metadata/metadata_provider.dart:3`）。
+- Produces: `BangumiProvider.feed(AnimeFeed.trending, {int page = 1})` 走 v0 搜索接口；`parseSearch(dynamic)` 兼容 `{data: [...]}` 与 `{list: [...]}`。签名不变。
 
 - [ ] **Step 1: 写失败测试**
 
-创建 `test/core/widgets/chip_bar_test.dart`：
+编辑 `test/core/metadata/bangumi_provider_test.dart`。
+
+(a) 在 `_FakeAdapter` 类之后新增一个会记录请求的适配器：
 
 ```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/widgets/chip_bar.dart';
+class _RecordingAdapter implements HttpClientAdapter {
+  _RecordingAdapter(this.data);
+  final dynamic data;
+  late RequestOptions last;
 
-const _pillKey = ValueKey('chip-bar-pill');
-
-Widget _app(int index, {ValueChanged<int>? onSelected}) => MaterialApp(
-      home: Scaffold(
-        body: ChipBar(
-          labels: const ['推荐', '排行', '分类'],
-          selectedIndex: index,
-          onSelected: onSelected ?? (_) {},
-        ),
-      ),
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    last = options;
+    return ResponseBody.fromString(
+      jsonEncode(data),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
     );
+  }
 
-void main() {
-  testWidgets('renders all labels', (tester) async {
-    await tester.pumpWidget(_app(0));
-    expect(find.text('推荐'), findsOneWidget);
-    expect(find.text('排行'), findsOneWidget);
-    expect(find.text('分类'), findsOneWidget);
-  });
-
-  testWidgets('tapping a chip reports its index', (tester) async {
-    int? tapped;
-    await tester.pumpWidget(_app(0, onSelected: (i) => tapped = i));
-    await tester.tap(find.text('分类'));
-    expect(tapped, 2);
-  });
-
-  testWidgets('highlight slides to the newly selected chip', (tester) async {
-    await tester.pumpWidget(_app(0));
-    await tester.pumpAndSettle();
-    final start = tester.getTopLeft(find.byKey(_pillKey)).dx;
-
-    await tester.pumpWidget(_app(2));
-    await tester.pump(const Duration(milliseconds: 40));
-    final mid = tester.getTopLeft(find.byKey(_pillKey)).dx;
-
-    await tester.pumpAndSettle();
-    final end = tester.getTopLeft(find.byKey(_pillKey)).dx;
-
-    expect(start, lessThan(mid));
-    expect(mid, lessThan(end));
-  });
+  @override
+  void close({bool force = false}) {}
 }
+```
+
+(b) 把 `parseSearch reads data.list` 这个测试：
+
+```dart
+  test('parseSearch reads data.list', () {
+    final works = BangumiProvider.parseSearch({
+      'list': [calendarItem]
+    });
+    expect(works.single.id, 'bangumi_456080');
+  });
+```
+
+替换为：
+
+```dart
+  test('parseSearch reads data.list and data.data', () {
+    expect(
+        BangumiProvider.parseSearch({
+          'list': [calendarItem]
+        }).single.id,
+        'bangumi_456080');
+    expect(
+        BangumiProvider.parseSearch({
+          'data': [calendarItem]
+        }).single.id,
+        'bangumi_456080');
+  });
+```
+
+(c) 把 `feed(today) filters ... trending sorts by score` 这个测试：
+
+```dart
+  test(
+      'feed(today) filters to the injected weekday; page>1 is empty; trending sorts by score',
+      () async {
+    final days = [
+      {
+        'weekday': {'id': 4},
+        'items': [
+          {
+            'id': 1,
+            'name': 'A',
+            'name_cn': '甲',
+            'rating': {'score': 8.0}
+          }
+        ]
+      },
+      {
+        'weekday': {'id': 5},
+        'items': [
+          {
+            'id': 2,
+            'name': 'B',
+            'name_cn': '乙',
+            'rating': {'score': 9.0}
+          }
+        ]
+      },
+    ];
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.bgm.tv'))
+      ..httpClientAdapter = _FakeAdapter(days);
+    final provider = BangumiProvider(
+        dio: dio, now: () => DateTime(2026, 9, 10)); // Thursday = weekday 4
+
+    final today = await provider.feed(AnimeFeed.today);
+    expect(today.single.id, 'bangumi_1');
+
+    expect(await provider.feed(AnimeFeed.season, page: 2), isEmpty);
+
+    final trending = await provider.feed(AnimeFeed.trending);
+    expect(trending.first.id, 'bangumi_2'); // 9.0 before 8.0
+  });
+```
+
+替换为（去掉 trending 断言）：
+
+```dart
+  test('feed(today) filters to the injected weekday; page>1 is empty', () async {
+    final days = [
+      {
+        'weekday': {'id': 4},
+        'items': [
+          {
+            'id': 1,
+            'name': 'A',
+            'name_cn': '甲',
+            'rating': {'score': 8.0}
+          }
+        ]
+      },
+      {
+        'weekday': {'id': 5},
+        'items': [
+          {
+            'id': 2,
+            'name': 'B',
+            'name_cn': '乙',
+            'rating': {'score': 9.0}
+          }
+        ]
+      },
+    ];
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.bgm.tv'))
+      ..httpClientAdapter = _FakeAdapter(days);
+    final provider = BangumiProvider(
+        dio: dio, now: () => DateTime(2026, 9, 10)); // Thursday = weekday 4
+
+    final today = await provider.feed(AnimeFeed.today);
+    expect(today.single.id, 'bangumi_1');
+
+    expect(await provider.feed(AnimeFeed.season, page: 2), isEmpty);
+  });
+```
+
+(d) 在 `main()` 内新增热度榜测试：
+
+```dart
+  test('feed(trending) posts to v0 search sorted by heat, paged by offset',
+      () async {
+    final subject = {
+      'id': 8,
+      'name': 'STEINS;GATE',
+      'name_cn': '命运石之门',
+      'summary': '秋叶原。',
+      'date': '2011-04-06',
+      'eps': 24,
+      'rating': {'score': 9.0, 'rank': 1, 'total': 100},
+      'images': {'large': 'http://lain.bgm.tv/pic/cover/l/x.jpg'},
+    };
+    final adapter = _RecordingAdapter({
+      'data': [subject],
+      'total': 1000,
+      'limit': 20,
+      'offset': 20,
+    });
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.bgm.tv'))
+      ..httpClientAdapter = adapter;
+    final provider = BangumiProvider(dio: dio);
+
+    final works = await provider.feed(AnimeFeed.trending, page: 2);
+
+    expect(adapter.last.path, '/v0/search/subjects');
+    expect(adapter.last.queryParameters['limit'], 20);
+    expect(adapter.last.queryParameters['offset'], 20);
+    final rawBody = adapter.last.data;
+    final body = (rawBody is String ? jsonDecode(rawBody) : rawBody)
+        as Map<String, dynamic>;
+    expect(body['keyword'], '');
+    expect(body['sort'], 'heat');
+    expect(body['filter'], {'type': [2], 'nsfw': false});
+    final w = works.single;
+    expect(w.id, 'bangumi_8');
+    expect(w.title, '命运石之门');
+    expect(w.extra['bangumiId'], 8);
+    expect(w.extra['score'], closeTo(9.0, 0.001));
+    expect(w.extra['airDate'], '2011-04-06');
+    expect(w.extra['episodes'], 24);
+  });
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/widgets/chip_bar_test.dart`
-Expected: 编译失败（`chip_bar.dart` 不存在）。
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/bangumi_provider_test.dart`
+Expected: 失败——`feed(trending)` 仍走 `/calendar`，请求路径不是 `/v0/search/subjects`（断言 `adapter.last.path` 失败）；`parseSearch({'data': [...]})` 返回空（断言失败）。
 
-- [ ] **Step 3: 实现 `ChipBar`**
+- [ ] **Step 3: 实现 provider 改动**
 
-创建 `lib/core/widgets/chip_bar.dart`：
+编辑 `lib/core/metadata/bangumi_provider.dart`。
+
+(a) 在 `BangumiProvider` 内新增常量（放在 `static const _base = ...` 之后）：
 
 ```dart
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+  static const _heatPerPage = 20;
+```
 
-class ChipBar extends StatelessWidget {
-  final List<String> labels;
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
-  final EdgeInsetsGeometry padding;
+(b) 把整个 `feed` 方法：
 
-  const ChipBar({
-    super.key,
-    required this.labels,
-    required this.selectedIndex,
-    required this.onSelected,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16),
-  });
-
-  static const _accent = Color(0xFF007AFF);
-  static const _muted = Color(0xFF5A5A5F);
-  static const _hPad = 15.0;
-  static const _gap = 10.0;
-  static const _duration = Duration(milliseconds: 220);
-
-  static TextStyle _style(bool selected) => TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: selected ? Colors.white : _muted,
-      );
-
-  double _widthOf(BuildContext context, String label) {
-    final painter = TextPainter(
-      text: TextSpan(text: label, style: _style(false)),
-      maxLines: 1,
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout();
-    final width = (painter.width + _hPad * 2).ceilToDouble();
-    painter.dispose();
-    return width;
-  }
-
+```dart
   @override
-  Widget build(BuildContext context) {
-    if (labels.isEmpty) return const SizedBox.shrink();
-    final index = selectedIndex.clamp(0, labels.length - 1);
-    final widths = [for (final label in labels) _widthOf(context, label)];
-    final lefts = <double>[];
-    var x = 0.0;
-    for (final width in widths) {
-      lefts.add(x);
-      x += width + _gap;
+  Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
+    if (page > 1) return const [];
+    final res = await _dio.get('/calendar');
+    final days = res.data as List<dynamic>;
+    switch (feed) {
+      case AnimeFeed.today:
+        return parseCalendar(days, onlyWeekday: _now().weekday);
+      case AnimeFeed.season:
+        return parseCalendar(days);
+      case AnimeFeed.trending:
+        final works = parseCalendar(days);
+        works.sort((a, b) {
+          final sa = (a.extra['score'] as num?) ?? 0;
+          final sb = (b.extra['score'] as num?) ?? 0;
+          return sb.compareTo(sa);
+        });
+        return works;
     }
-    return SizedBox(
-      height: 48,
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(
-          dragDevices: const {
-            PointerDeviceKind.touch,
-            PointerDeviceKind.mouse,
-            PointerDeviceKind.trackpad,
-            PointerDeviceKind.stylus,
-          },
-        ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: padding,
-          child: Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              AnimatedPositioned(
-                duration: _duration,
-                curve: Curves.easeInOutCubic,
-                left: lefts[index],
-                top: 6,
-                width: widths[index],
-                height: 36,
-                child: const DecoratedBox(
-                  key: ValueKey('chip-bar-pill'),
-                  decoration: BoxDecoration(
-                    color: _accent,
-                    borderRadius: BorderRadius.all(Radius.circular(16)),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  for (var i = 0; i < labels.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(right: _gap),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onSelected(i),
-                        child: SizedBox(
-                          width: widths[i],
-                          height: 48,
-                          child: Center(
-                            child: AnimatedDefaultTextStyle(
-                              duration: _duration,
-                              style: _style(i == index),
-                              child: Text(labels[i],
-                                  maxLines: 1, softWrap: false),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
-}
+```
+
+替换为：
+
+```dart
+  @override
+  Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async {
+    if (feed == AnimeFeed.trending) {
+      final res = await _dio.post(
+        '/v0/search/subjects',
+        queryParameters: {
+          'limit': _heatPerPage,
+          'offset': (page - 1) * _heatPerPage,
+        },
+        data: {
+          'keyword': '',
+          'sort': 'heat',
+          'filter': {
+            'type': [2],
+            'nsfw': false,
+          },
+        },
+        options: Options(contentType: Headers.jsonContentType),
+      );
+      return parseSearch(res.data);
+    }
+    if (page > 1) return const [];
+    final res = await _dio.get('/calendar');
+    final days = res.data as List<dynamic>;
+    return feed == AnimeFeed.today
+        ? parseCalendar(days, onlyWeekday: _now().weekday)
+        : parseCalendar(days);
+  }
+```
+
+(c) 把 `parseSearch`：
+
+```dart
+  @visibleForTesting
+  static List<Work> parseSearch(dynamic data) {
+    final list = ((data is Map ? data['list'] : data) as List<dynamic>?) ?? [];
+    return list
+        .map((e) => _parseItem(e as Map<String, dynamic>))
+        .whereType<Work>()
+        .toList();
+  }
+```
+
+替换为：
+
+```dart
+  @visibleForTesting
+  static List<Work> parseSearch(dynamic data) {
+    final list =
+        ((data is Map ? (data['list'] ?? data['data']) : data) as List<dynamic>?) ??
+            [];
+    return list
+        .map((e) => _parseItem(e as Map<String, dynamic>))
+        .whereType<Work>()
+        .toList();
+  }
 ```
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/widgets/chip_bar_test.dart`
+Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test test/core/metadata/bangumi_provider_test.dart`
 Expected: 全部通过。
 
-- [ ] **Step 5: 静态检查与全量测试**
+- [ ] **Step 5: 调整 `_FeedView` 每页阈值**
+
+编辑 `lib/modules/anime/anime_home.dart:88`，把：
+
+```dart
+  static const _perPage = 25;
+```
+
+替换为：
+
+```dart
+  static const _perPage = 20;
+```
+
+原因：`_loadMore` 用 `_hasMore = next.length >= _perPage` 判断是否还有下一页（`anime_home.dart:120`）。Bangumi 热度榜每页固定 20，阈值必须 ≤20 才能继续加载；AniList/Jikan 每页 25（`anilist_provider.dart:7`、`jikan_provider.dart:7`），阈值 20 对它们仍成立（满页 25 ≥ 20 继续，末页不足 20 停止）；本季新番/今日放送的 `page > 1` 返回空 → 立即停止，行为不变。
+
+- [ ] **Step 6: 静态检查与全量测试**
 
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter analyze lib test`
 Expected: `No issues found!`
@@ -217,12 +331,28 @@ Expected: `No issues found!`
 Run: `$env:Path = "C:\flutter\bin;$env:Path"; flutter test`
 Expected: 全绿。
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 7: 提交**
 
 ```bash
-git add lib/core/widgets/chip_bar.dart test/core/widgets/chip_bar_test.dart
-git commit -m "feat(ui): add sliding-highlight ChipBar"
+git add lib/core/metadata/bangumi_provider.dart lib/modules/anime/anime_home.dart test/core/metadata/bangumi_provider_test.dart
+git commit -m "feat(anime): 热门推荐 uses Bangumi all-anime heat ranking"
 git push origin dev
 ```
 
 ---
+
+## 验证（任务完成后）
+
+1. `$env:Path = "C:\flutter\bin;$env:Path"; flutter test` 全绿。
+2. `$env:Path = "C:\flutter\bin;$env:Path"; flutter build windows --debug` 成功。
+3. 启动应用 → 动漫 → 热门推荐：
+   - 首屏是热度榜（应能看到 STEINS;GATE、ぼっち・ざ・ろっく！、葬送のフリーレン 这类高热度作品）。
+   - 滚到底会自动加载下一页（共 20 条/页）。
+   - 本季新番、今日放送行为与之前一致。
+
+## 已知取舍
+
+- 结果集上限 1000、每页固定 20（Bangumi 接口限制）。
+- 过滤 `nsfw: false`（不含 R18）。
+- v0 条目无顶层 `rank`，`extra['rank']` 为 null；代码中无人使用。
+- 未给 `_FeedView` 的分页加 widget 测试（`_FeedView` 为私有、滚动触发依赖布局尺寸）；以全量测试 + 构建 + 手动滚动验证覆盖。

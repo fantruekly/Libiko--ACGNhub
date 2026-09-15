@@ -388,3 +388,12 @@ Final whole-branch review (4edac71..062fa40): 'With fixes'. 1 Important (ChipBar
 Fix 5f78a59: merge ambient DefaultTextStyle into chip style (font restored, used for measure+render); add easeInOutCubic to text-color animation; ChipBar owns row identity via KeyedSubtree(ValueKey(Object.hashAll(labels))); removed 6 caller keys; reverted _partChips signature; added 'changing labels jumps' test. Re-review 062fa40..5f78a59: Approved.
   Minor (deferred): internal label-only identity means two different parents with identical labels animate instead of jump (user chose encapsulation); scroll offset no longer resets on row change; no test for the font fix.
 Chip bar transition feature: COMPLETE (4edac71..5f78a59). Pushed to origin/dev. Live manual verification still owed.
+
+## Anime trending heat-list feature (plan 2026-09-15-anime-trending-heat.md, base eccc741)
+Task 1: complete (commits eccc741..0a1b640, review clean: Approved). bangumi_provider feed(trending) -> POST /v0/search/subjects (sort=heat, type=[2], nsfw=false, limit=20, offset paging); parseSearch accepts {data:[...]}; anime_home _perPage 25->20.
+  Minor (deferred): test does not assert Content-Type; _perPage=20 may cause one extra fetch for AniList/Jikan when a page returns exactly 20.
+ALL TASKS COMPLETE. Next: final whole-branch review.
+Final whole-branch review (061c938..0a1b640): 'With fixes'. 1 Important (missing season/today -> GET /calendar regression assertion) + minors (no Content-Type/method assertion; tall-viewport paging stall; no cross-page dedupe).
+Fix b41989a: today/season test now asserts path=/calendar + method=GET via recording adapter; trending test asserts method=POST + Content-Type json; deleted unused _FakeAdapter. Re-review 0a1b640..b41989a: Approved.
+  Minor (deferred): feed(season) page-1 path only covered indirectly; _perPage=20 may cause one extra fetch for AniList/Jikan on a full 20-item page; tall-viewport (grid doesn't overflow) paging stall possible; no cross-page dedupe in _FeedView._extra (pre-existing).
+Anime trending heat-list feature: COMPLETE (061c938..b41989a). Pushed to origin/dev.
