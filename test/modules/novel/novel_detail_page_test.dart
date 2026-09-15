@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,6 +101,24 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'novel_linovelib_5340');
+  });
+
+  testWidgets('NovelDetailPage shows the cover Hero while loading',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        novelDetailProvider(('linovelib', '5340'))
+            .overrideWith((ref) => Completer<NovelDetail>().future),
+      ],
+      child: const MaterialApp(
+        home: NovelDetailPage(
+            sourceKey: 'linovelib', novelId: '5340', title: '不相容的異種族妻子們'),
+      ),
+    ));
+    await tester.pump();
+
     final hero = tester.widget<Hero>(find.byType(Hero));
     expect(hero.tag, 'novel_linovelib_5340');
   });

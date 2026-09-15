@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,5 +69,23 @@ void main() {
 
     expect(find.text('加载失败'), findsWidgets);
     expect(find.text('重试'), findsOneWidget);
+  });
+
+  testWidgets('GameDetailPage shows the cover Hero while loading',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        gameDetailProvider(('galgamezywz', '1207'))
+            .overrideWith((ref) => Completer<GameDetail>().future),
+      ],
+      child: const MaterialApp(
+        home: GameDetailPage(
+            sourceKey: 'galgamezywz', gameId: '1207', title: '金辉恋曲四重奏'),
+      ),
+    ));
+    await tester.pump();
+
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'game_galgamezywz_1207');
   });
 }
