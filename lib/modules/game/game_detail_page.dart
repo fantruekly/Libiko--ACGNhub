@@ -8,6 +8,7 @@ import '../../core/game/galgamezywz_source.dart';
 import '../../core/game/models.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'game_providers.dart';
 
@@ -223,8 +224,7 @@ class GameDetailPage extends ConsumerWidget {
         itemBuilder: (_, i) => GestureDetector(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(
-                builder: (_) => _ImageViewerPage(urls: urls, initialIndex: i)),
+            smoothRoute(_ImageViewerPage(urls: urls, initialIndex: i)),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -234,6 +234,7 @@ class GameDetailPage extends ConsumerWidget {
               child: CachedNetworkImage(
                 imageUrl: urls[i],
                 fit: BoxFit.cover,
+                memCacheWidth: 400,
                 httpHeaders: gameImageHeaders,
                 placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
                 errorWidget: (_, __, ___) =>
@@ -341,12 +342,23 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
             ),
           ),
           Positioned(
-            top: 8,
-            right: 8,
-            child: SafeArea(
-              child: IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+            top: 0,
+            left: 0,
+            right: 0,
+            child: DragToMoveArea(
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.only(left: 4),
+                child: Row(
+                  children: [
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const WindowControls(),
+                  ],
+                ),
               ),
             ),
           ),
