@@ -1,0 +1,64 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/game/game_source.dart';
+import 'package:acgnhub/core/game/models.dart';
+import 'package:acgnhub/modules/game/game_home.dart';
+import 'package:acgnhub/modules/game/game_providers.dart';
+
+class _FakeSource implements GameSource {
+  @override
+  String get id => 'galgamezywz';
+  @override
+  String get name => 'galgame大玩家';
+  @override
+  String get baseUrl => 'https://fake';
+  @override
+  List<GameBrowseOption> get browseOptions => const [
+        GameBrowseOption(key: 'latest', label: '最近更新'),
+        GameBrowseOption(key: 'wanjiareping', label: '玩家热评'),
+      ];
+  @override
+  Future<GameList> browse(String optionKey, {int page = 1}) async => GameList(
+        items: [Game(id: '$optionKey-$page', title: '游戏$optionKey$page')],
+        page: page,
+        hasMore: optionKey == 'latest' && page == 1,
+      );
+  @override
+  Future<GameDetail> detail(String id) async =>
+      GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
+}
+
+void main() {
+  testWidgets('renders source/section chips, grid and pager', (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider
+          .overrideWithValue(GameSourceManager(sources: [_FakeSource()])),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('galgame大玩家'), findsOneWidget);
+    expect(find.text('最近更新'), findsOneWidget);
+    expect(find.text('玩家热评'), findsOneWidget);
+    expect(find.text('游戏latest1'), findsOneWidget);
+    expect(find.text('第 1 页'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('下一页'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('第 2 页'), findsOneWidget);
+    expect(find.text('游戏latest2'), findsOneWidget);
+    // 第 2 页 hasMore=false → 下一页禁用
+    final next = tester.widget<IconButton>(find.ancestor(
+      of: find.byTooltip('下一页'),
+      matching: find.byType(IconButton),
+    ));
+    expect(next.onPressed, isNull);
+  });
+}
