@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/game/galgamezywz_source.dart';
 import '../../core/game/game_source.dart';
 import '../../core/game/models.dart';
+import '../../core/game/nekogal_source.dart';
 
 final gameSourceManagerProvider = Provider<GameSourceManager>(
-  (ref) => GameSourceManager(sources: [GalgameZywzSource()]),
+  (ref) => GameSourceManager(sources: [GalgameZywzSource(), NekogalSource()]),
 );
 
 final gameSourcesProvider = Provider<List<GameSource>>(
