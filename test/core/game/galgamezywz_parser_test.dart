@@ -51,6 +51,34 @@ const _listNoNextHtml = '''
 </section>
 ''';
 
+const _detailHtml = '''
+<div class="archive-shop">
+  <div class="img-box"><img class="lazy" src="https://game.galgamezywz.org/wp-content/uploads/cover.jpg"></div>
+  <div class="info-box">
+    <ul class="article-meta">
+      <li>资源分类: <a href="https://game.galgamezywz.org/lm/wanjiareping">玩家热评游戏</a></li>
+      <li>浏览热度: (4.3K)</li>
+      <li>发布时间: 2026-09-11</li>
+      <li>最近更新: 2026-09-12</li>
+      <li>游戏大小: 14.3GB</li>
+      <li>游戏平台: PC+安卓直装</li>
+    </ul>
+  </div>
+</div>
+<h1 class="post-title">金辉恋曲四重奏</h1>
+<div class="entry-tags">
+  <a rel="tag" href="https://game.galgamezywz.org/bq/hanhua">汉化</a>
+  <a rel="tag" href="https://game.galgamezywz.org/bq/pc">PC</a>
+</div>
+<article class="post-content">
+  <p>第一段简介。</p>
+  <p>第二段简介。</p>
+  <img src="https://game.galgamezywz.org/wp-content/uploads/1.jpg" class="aligncenter wp-image-1">
+  <img src="https://game.galgamezywz.org/wp-content/uploads/1.jpg" class="aligncenter">
+  <img src="data:image/gif;base64,AAAA">
+</article>
+''';
+
 void main() {
   test('gameIdFromHref extracts the numeric id', () {
     expect(gameIdFromHref('https://game.galgamezywz.org/game/1207'), '1207');
@@ -95,5 +123,25 @@ void main() {
     expect(parseHasNextPage(_listNoNextHtml, itemCount: 1), isFalse);
     expect(parseHasNextPage('<html></html>', itemCount: 12), isTrue);
     expect(parseHasNextPage('<html></html>', itemCount: 3), isFalse);
+  });
+
+  test('parseGameDetail extracts meta, paragraphs, tags and screenshots', () {
+    final detail = parseGameDetail(_detailHtml, '$galgameZywzBaseUrl/game/1207');
+    expect(detail.game.id, '1207');
+    expect(detail.game.title, '金辉恋曲四重奏');
+    expect(detail.game.coverUrl,
+        'https://game.galgamezywz.org/wp-content/uploads/cover.jpg');
+    expect(detail.game.category, '玩家热评游戏');
+    expect(detail.game.tags, ['汉化', 'PC']);
+    expect(detail.game.views, 4300);
+    expect(detail.game.publishedAt, DateTime.parse('2026-09-11'));
+    expect(detail.updatedAt, DateTime.parse('2026-09-12'));
+    expect(detail.size, '14.3GB');
+    expect(detail.platform, 'PC+安卓直装');
+    expect(detail.paragraphs, ['第一段简介。', '第二段简介。']);
+    expect(detail.screenshots, [
+      'https://game.galgamezywz.org/wp-content/uploads/1.jpg',
+    ]);
+    expect(detail.sourceUrl, '$galgameZywzBaseUrl/game/1207');
   });
 }

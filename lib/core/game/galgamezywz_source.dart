@@ -122,3 +122,98 @@ bool parseHasNextPage(String html, {required int itemCount}) {
   }
   return itemCount >= 12;
 }
+
+String _valueAfterColon(String text) {
+  final ascii = text.indexOf(':');
+  final wide = text.indexOf('：');
+  final cut = ascii >= 0 ? ascii : wide;
+  if (cut < 0) return text.trim();
+  return text.substring(cut + 1).trim();
+}
+
+DateTime? _dateAfterColon(String text) =>
+    DateTime.tryParse(_valueAfterColon(text));
+
+GameDetail parseGameDetail(String html, String sourceUrl) {
+  final doc = html_parser.parse(html);
+  final id = gameIdFromHref(sourceUrl) ?? '';
+  final title = _textOf(doc.querySelector('h1.post-title'));
+  final titleFallback = _textOf(doc.querySelector('.entry-title'));
+  final img = doc.querySelector('.archive-shop .img-box img');
+  final cover = _absUrl(img?.attributes['src'] ?? img?.attributes['data-src']);
+
+  String? category;
+  int? views;
+  DateTime? publishedAt;
+  DateTime? updatedAt;
+  String? size;
+  String? platform;
+  for (final li
+      in doc.querySelectorAll('.archive-shop .info-box .article-meta li')) {
+    final text = _textOf(li);
+    if (text.contains('资源分类')) {
+      final a = _textOf(li.querySelector('a'));
+      category = a.isNotEmpty ? a : _valueAfterColon(text);
+    } else if (text.contains('浏览热度')) {
+      views = parseCount(text);
+    } else if (text.contains('发布时间')) {
+      publishedAt = _dateAfterColon(text);
+    } else if (text.contains('最近更新')) {
+      updatedAt = _dateAfterColon(text);
+    } else if (text.contains('游戏大小')) {
+      size = _valueAfterColon(text);
+    } else if (text.contains('游戏平台')) {
+      platform = _valueAfterColon(text);
+    }
+  }
+
+  final tags = <String>[
+    for (final a in doc.querySelectorAll('.entry-tags a[rel="tag"]'))
+      if (_textOf(a).isNotEmpty) _textOf(a),
+  ];
+
+  final paragraphs = <String>[];
+  final screenshots = <String>[];
+  final content = doc.querySelector('article.post-content');
+  if (content != null) {
+    final ps = content.querySelectorAll('p');
+    if (ps.isEmpty) {
+      final t = _textOf(content);
+      if (t.isNotEmpty) paragraphs.add(t);
+    } else {
+      for (final p in ps) {
+        final t = _textOf(p);
+        if (t.isNotEmpty) paragraphs.add(t);
+      }
+    }
+    final seen = <String>{};
+    for (final im in content.querySelectorAll('img')) {
+      final raw = im.attributes['src'] ?? im.attributes['data-src'];
+      if (raw == null || raw.isEmpty || raw.startsWith('data:')) continue;
+      final src = _absUrl(raw);
+      if (cover.isNotEmpty && src == cover) continue;
+      if (seen.add(src)) screenshots.add(src);
+    }
+  }
+
+  final game = Game(
+    id: id,
+    title: title.isNotEmpty ? title : titleFallback,
+    coverUrl: cover.isEmpty ? null : cover,
+    category: (category == null || category.isEmpty) ? null : category,
+    tags: tags,
+    publishedAt: publishedAt,
+    views: views,
+    extra: {'url': sourceUrl},
+  );
+
+  return GameDetail(
+    game: game,
+    size: (size == null || size.isEmpty) ? null : size,
+    platform: (platform == null || platform.isEmpty) ? null : platform,
+    updatedAt: updatedAt,
+    paragraphs: paragraphs,
+    screenshots: screenshots,
+    sourceUrl: sourceUrl,
+  );
+}
