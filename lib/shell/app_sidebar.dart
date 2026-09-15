@@ -101,37 +101,61 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = selected ? _accent : _fg.withValues(alpha: 0.35);
-    final textColor = selected ? _accent : _fg.withValues(alpha: 0.45);
+    final idleIcon = _fg.withValues(alpha: 0.35);
+    final idleText = _fg.withValues(alpha: 0.45);
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 72,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          border: selected
-              ? const Border(left: BorderSide(color: _accent, width: 3))
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 24, color: iconColor),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                height: 1.5,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: textColor,
-                letterSpacing: 0.02,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(
+            begin: selected ? 1.0 : 0.0, end: selected ? 1.0 : 0.0),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOutCubic,
+        builder: (context, t, _) {
+          final iconColor = Color.lerp(idleIcon, _accent, t)!;
+          final textColor = Color.lerp(idleText, _accent, t)!;
+          return Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Container(
+                width: 72,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 24, color: iconColor),
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.w500,
+                        color: textColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Opacity(
+                  key: const ValueKey('sidebar-line'),
+                  opacity: t,
+                  child: Transform.scale(
+                    scaleY: t,
+                    alignment: Alignment.center,
+                    child: Container(width: 3, color: _accent),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
