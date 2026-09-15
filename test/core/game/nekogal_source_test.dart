@@ -49,6 +49,31 @@ class _FakeAdapter implements HttpClientAdapter {
   }
 }
 
+class _FlakyAdapter implements HttpClientAdapter {
+  _FlakyAdapter(this.htmlByPath, {this.failFirst = 0});
+  final Map<String, String> htmlByPath;
+  final int failFirst;
+  int calls = 0;
+  final List<String> requested = [];
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    calls++;
+    if (calls <= failFirst) {
+      throw DioException(requestOptions: options, message: 'handshake failed');
+    }
+    requested.add(options.path);
+    final html = htmlByPath[options.path] ?? '';
+    return ResponseBody.fromString(html, 200, headers: {
+      Headers.contentTypeHeader: ['text/plain; charset=utf-8'],
+    });
+  }
+}
+
 void main() {
   test('browse requests two source pages and returns 24', () async {
     final dio = Dio(BaseOptions(baseUrl: nekogalBaseUrl));
@@ -68,6 +93,25 @@ void main() {
     expect(list.items.first.id, '100');
     expect(list.items.last.id, '211');
     expect(list.hasMore, isTrue);
+  });
+
+  test('retries transient connection failures', () async {
+    final dio = Dio(BaseOptions(baseUrl: nekogalBaseUrl));
+    final adapter = _FlakyAdapter(
+      {
+        '/archives/category/pcgame': _listPageHtml(12,
+            next: '/archives/category/pcgame/page/2', base: 100),
+        '/archives/category/pcgame/page/2': _listPageHtml(12,
+            next: '/archives/category/pcgame/page/3', base: 200),
+      },
+      failFirst: 2,
+    );
+    dio.httpClientAdapter = adapter;
+    final source = NekogalSource(dio: dio);
+
+    final list = await source.browse('pcgame', page: 1);
+    expect(list.items, hasLength(24));
+    expect(list.items.first.id, '100');
   });
 
   test('detail requests /archives/<id> and parses fields', () async {

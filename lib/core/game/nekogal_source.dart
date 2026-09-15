@@ -219,15 +219,25 @@ class NekogalSource implements GameSource {
     return parseNekogalDetail(html, '$nekogalBaseUrl/archives/$id');
   }
 
+  static const int _maxAttempts = 4;
+  static const Duration _retryDelay = Duration(milliseconds: 200);
+
   Future<String> _get(String path) async {
-    final res = await _dio.get<String>(
-      path,
-      options: Options(responseType: ResponseType.plain),
-    );
-    final data = res.data;
-    if (res.statusCode != 200 || data == null) {
-      throw Exception('nekogal 请求失败：$path (${res.statusCode})');
+    for (var attempt = 1; ; attempt++) {
+      try {
+        final res = await _dio.get<String>(
+          path,
+          options: Options(responseType: ResponseType.plain),
+        );
+        final data = res.data;
+        if (res.statusCode != 200 || data == null) {
+          throw Exception('nekogal 请求失败：$path (${res.statusCode})');
+        }
+        return data;
+      } on DioException catch (e) {
+        if (e.response != null || attempt >= _maxAttempts) rethrow;
+        await Future.delayed(_retryDelay);
+      }
     }
-    return data;
   }
 }
