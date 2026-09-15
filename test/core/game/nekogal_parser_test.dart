@@ -34,7 +34,7 @@ const _detailHtml = '''
   <ul class="breadcrumb"><a href="/archives/category/pcgame">PC资源</a></ul>
   <div class="post-metas"><item class="meta-view">451</item><item class="meta-like">8</item></div>
 </div></div>
-<div class="article-header"><span title="2026年09月14日 20:56发布">2026-09-14</span></div>
+<div class="px12-sm muted-2-color text-ellipsis"><span data-toggle="tooltip" data-placement="bottom" title="2026年09月14日 20:56发布">21小时前发布</span></div>
 <article class="article"><div class="article-content"><div class="wp-posts-content">
   <h2>游戏简介</h2>
   <p>第一段简介。</p>

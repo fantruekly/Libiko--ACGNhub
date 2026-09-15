@@ -85,14 +85,19 @@ bool parseNekogalHasNext(String html, {required int itemCount}) {
   return itemCount >= 12;
 }
 
-DateTime? _parseChineseDate(String raw) {
-  final m = RegExp(r'(\d{4})年(\d{2})月(\d{2})日').firstMatch(raw);
-  if (m == null) return DateTime.tryParse(raw);
-  return DateTime(
-    int.parse(m.group(1)!),
-    int.parse(m.group(2)!),
-    int.parse(m.group(3)!),
-  );
+DateTime? _findPublishedDate(dom.Document doc) {
+  final re = RegExp(r'(\d{4})年(\d{1,2})月(\d{1,2})日');
+  for (final el in doc.querySelectorAll('[title]')) {
+    final m = re.firstMatch(el.attributes['title'] ?? '');
+    if (m != null) {
+      return DateTime(
+        int.parse(m.group(1)!),
+        int.parse(m.group(2)!),
+        int.parse(m.group(3)!),
+      );
+    }
+  }
+  return null;
 }
 
 GameDetail parseNekogalDetail(String html, String sourceUrl) {
@@ -114,8 +119,6 @@ GameDetail parseNekogalDetail(String html, String sourceUrl) {
       category = text;
     }
   }
-
-  final dateRaw = doc.querySelector('.article-header span')?.attributes['title'];
 
   final paragraphs = <String>[];
   final screenshots = <String>[];
@@ -148,7 +151,7 @@ GameDetail parseNekogalDetail(String html, String sourceUrl) {
     coverUrl: cover.isEmpty ? null : cover,
     category: category,
     tags: tags,
-    publishedAt: dateRaw == null ? null : _parseChineseDate(dateRaw),
+    publishedAt: _findPublishedDate(doc),
     views: parseNekogalCount(
         _textOf(doc.querySelector('.post-metas item.meta-view'))),
     extra: {'url': sourceUrl},
