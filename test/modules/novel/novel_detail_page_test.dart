@@ -82,4 +82,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('已收藏'), findsOneWidget);
   });
+
+  testWidgets('NovelDetailPage wraps the cover in a Hero', (tester) async {
+    const detail = NovelDetail(
+      novel: Novel(id: '5340', title: '不相容的異種族妻子們'),
+      volumes: [],
+    );
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        novelDetailProvider(('linovelib', '5340'))
+            .overrideWith((ref) async => detail),
+      ],
+      child: const MaterialApp(
+        home: NovelDetailPage(
+            sourceKey: 'linovelib', novelId: '5340', title: '不相容的異種族妻子們'),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'novel_linovelib_5340');
+  });
 }

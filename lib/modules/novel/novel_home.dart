@@ -23,31 +23,36 @@ const _fg = Color(0xFF1C1C1E);
 class NovelCard extends StatelessWidget {
   final Novel novel;
   final VoidCallback? onTap;
-  const NovelCard({super.key, required this.novel, this.onTap});
+  final String? heroTag;
+  const NovelCard({super.key, required this.novel, this.onTap, this.heroTag});
 
   @override
   Widget build(BuildContext context) {
+    Widget image = RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: novel.coverUrl != null && novel.coverUrl!.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: novel.coverUrl!,
+                fit: BoxFit.cover,
+                memCacheWidth: 400,
+                fadeInDuration: Duration.zero,
+                httpHeaders: novelImageHeaders,
+                placeholder: (_, __) => _placeholder(),
+                errorWidget: (_, __, ___) => _placeholder(),
+              )
+            : _placeholder(),
+      ),
+    );
+    if (heroTag != null) {
+      image = Hero(tag: heroTag!, child: image);
+    }
     return GestureDetector(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: novel.coverUrl != null && novel.coverUrl!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: novel.coverUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 400,
-                      fadeInDuration: Duration.zero,
-                      httpHeaders: novelImageHeaders,
-                      placeholder: (_, __) => _placeholder(),
-                      errorWidget: (_, __, ___) => _placeholder(),
-                    )
-                  : _placeholder(),
-            ),
-          ),
+          Expanded(child: image),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
@@ -85,19 +90,34 @@ class NovelHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const DefaultTabController(
+    return DefaultTabController(
       length: 3,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TabStrip(labels: ['探索', '收藏', '历史']),
-          Expanded(
-            child: TabBarView(
-              children: [_ExploreTab(), _FavoritesTab(), _HistoryTab()],
+      child: Builder(builder: (context) {
+        final controller = DefaultTabController.of(context);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const TabStrip(labels: ['探索', '收藏', '历史']),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _heroTab(controller, 0, const _ExploreTab()),
+                  _heroTab(controller, 1, const _FavoritesTab()),
+                  _heroTab(controller, 2, const _HistoryTab()),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      }),
+    );
+  }
+
+  static Widget _heroTab(TabController controller, int index, Widget child) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) =>
+          HeroMode(enabled: controller.index == index, child: child),
     );
   }
 }
@@ -264,9 +284,10 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       itemCount: items.length,
       itemBuilder: (_, i) => NovelCard(
         novel: items[i],
+        heroTag: 'novel_${_sourceId}_${items[i].id}',
         onTap: () => Navigator.push(
           context,
-          noTransitionRoute(NovelDetailPage(
+          smoothRoute(NovelDetailPage(
             sourceKey: _sourceId,
             novelId: items[i].id,
             title: items[i].title,
@@ -299,9 +320,10 @@ class _FavoritesTab extends ConsumerWidget {
           title: favorites[i].title,
           coverUrl: favorites[i].cover,
         ),
+        heroTag: 'novel_${favorites[i].sourceKey}_${favorites[i].novelId}',
         onTap: () => Navigator.push(
           context,
-          noTransitionRoute(NovelDetailPage(
+          smoothRoute(NovelDetailPage(
             sourceKey: favorites[i].sourceKey,
             novelId: favorites[i].novelId,
             title: favorites[i].title,

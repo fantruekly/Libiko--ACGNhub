@@ -157,20 +157,23 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: 100,
-                  height: 132,
-                  child: cover != null
-                      ? CachedNetworkImage(
-                          imageUrl: cover,
-                          fit: BoxFit.cover,
-                          httpHeaders: novelImageHeaders,
-                          placeholder: (_, __) => _coverPlaceholder(),
-                          errorWidget: (_, __, ___) => _coverPlaceholder(),
-                        )
-                      : _coverPlaceholder(),
+              Hero(
+                tag: 'novel_${widget.sourceKey}_${widget.novelId}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 100,
+                    height: 132,
+                    child: cover != null
+                        ? CachedNetworkImage(
+                            imageUrl: cover,
+                            fit: BoxFit.cover,
+                            httpHeaders: novelImageHeaders,
+                            placeholder: (_, __) => _coverPlaceholder(),
+                            errorWidget: (_, __, ___) => _coverPlaceholder(),
+                          )
+                        : _coverPlaceholder(),
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
