@@ -77,7 +77,8 @@ Future<GameList> browse(String optionKey, {int page = 1}) async {
 }
 ```
 
-- `page` 仍表示 App 页码（每页 48），`hasMore` 表示是否还有更多游戏。
+- `page` 仍表示 App 页码（每页 48）。
+- `hasMore`：正常路径取最后一个成功源页的 `parseHasNextPage`；若后续源页失败或为空（视为列表结束），则 `hasMore = false`，避免「下一页」跳过失败源页造成内容空洞。
 - 解析函数、`detail`、常量与其它方法不变。
 
 ### `lib/modules/game/game_home.dart`
@@ -87,7 +88,7 @@ Future<GameList> browse(String optionKey, {int page = 1}) async {
 ## 错误处理
 
 - 首个源页请求失败 → 抛异常 → provider error → UI `EmptyState` + 「重试」（与现状一致）。
-- 后续源页失败或为空 → 视为列表结束，不报错（覆盖源站总页数非 4 倍数的情况）。
+- 后续源页失败或为空 → 视为列表结束，`hasMore = false`，不报错（覆盖源站总页数非 4 倍数的情况）。
 - 源站没有下一页 → 提前结束，不再发多余请求。
 
 ## 测试
