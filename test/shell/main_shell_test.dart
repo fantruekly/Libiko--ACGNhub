@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:acgnhub/modules/game/game_search.dart';
 import 'package:acgnhub/shell/app_sidebar.dart';
 import 'package:acgnhub/shell/main_shell.dart';
 
@@ -54,5 +55,30 @@ void main() {
     expect(renderedOpacity(0), 0.0);
     expect(renderedOpacity(1), 1.0);
     expect(targetOpacity(), [0.0, 1.0, 0.0, 0.0]);
+  });
+
+  testWidgets('game tab exposes the search entry', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const ProviderScope(
+      child: MaterialApp(home: MainShell()),
+    ));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.tap(find.descendant(
+      of: find.byType(AppSidebar),
+      matching: find.text('游戏'),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final searchButton = find.byWidgetPredicate((w) =>
+        w is IconButton &&
+        w.icon is Icon &&
+        (w.icon as Icon).icon == Icons.search_rounded);
+    expect(searchButton, findsOneWidget);
+
+    await tester.tap(searchButton);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(find.byType(GameSearchPage), findsOneWidget);
   });
 }
