@@ -129,7 +129,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
           children: [
             _sourceHeader(sources, selected),
             _sectionChips(selected, section),
-            if (parts.length > 1) _partChips(selected, section, parts, part),
+            if (parts.length > 1) _partChips(parts, part),
             Expanded(child: _explore(selected, section, part)),
           ],
         );
@@ -148,8 +148,6 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
         children: [
           Expanded(
             child: ChipBar(
-              key: ValueKey(
-                  'comic-source-${[for (final s in sources) s.name].join('|')}'),
               labels: [for (final source in sources) source.name],
               selectedIndex: sources.indexOf(selected),
               onSelected: (i) {
@@ -183,7 +181,6 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             : source.sections[i].title,
     ];
     return ChipBar(
-      key: ValueKey('comic-section-${source.key}-${labels.join('|')}'),
       labels: labels,
       selectedIndex: section,
       onSelected: (i) => setState(() {
@@ -194,14 +191,12 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _partChips(
-      ComicSource source, int section, List<ComicPart> parts, int selected) {
+  Widget _partChips(List<ComicPart> parts, int selected) {
     final labels = [
       for (var i = 0; i < parts.length; i++)
         parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
     ];
     return ChipBar(
-      key: ValueKey('comic-part-${source.key}-$section-${labels.join('|')}'),
       labels: labels,
       selectedIndex: selected,
       onSelected: (i) => setState(() {

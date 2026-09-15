@@ -142,7 +142,6 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     final labels = [for (final s in sources) s.name];
     final index = sources.indexWhere((s) => s.id == _sourceId);
     return ChipBar(
-      key: ValueKey('novel-source-${labels.join('|')}'),
       labels: labels,
       selectedIndex: index < 0 ? 0 : index,
       onSelected: (i) => setState(() {
@@ -157,7 +156,6 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   Widget _sectionChips(List<NovelBrowseGroup> groups) {
     final labels = ['推荐', for (final g in groups) g.label];
     return ChipBar(
-      key: ValueKey('novel-section-${labels.join('|')}'),
       labels: labels,
       selectedIndex: _groupIndex + 1,
       onSelected: (i) => setState(() {
@@ -171,7 +169,6 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   Widget _optionChips(NovelBrowseGroup group) {
     final labels = [for (final o in group.options) o.label];
     return ChipBar(
-      key: ValueKey('novel-option-$_sourceId-$_groupIndex-${labels.join('|')}'),
       labels: labels,
       selectedIndex: _optionIndex,
       onSelected: (i) => setState(() {

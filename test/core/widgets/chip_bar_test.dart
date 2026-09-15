@@ -44,4 +44,25 @@ void main() {
     expect(start, lessThan(mid));
     expect(mid, lessThan(end));
   });
+
+  testWidgets('changing the labels jumps instead of animating', (tester) async {
+    Widget app(List<String> labels, int index) => MaterialApp(
+          home: Scaffold(
+            body: ChipBar(
+              labels: labels,
+              selectedIndex: index,
+              onSelected: (_) {},
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(app(const ['推荐', '排行', '分类'], 0));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(app(const ['全部', '连载', '完结'], 2));
+    final atStart = tester.getTopLeft(find.byKey(_pillKey)).dx;
+    await tester.pumpAndSettle();
+    final atEnd = tester.getTopLeft(find.byKey(_pillKey)).dx;
+    expect(atStart, atEnd);
+  });
 }

@@ -27,9 +27,9 @@ class ChipBar extends StatelessWidget {
         color: selected ? Colors.white : _muted,
       );
 
-  double _widthOf(BuildContext context, String label) {
+  double _widthOf(BuildContext context, String label, TextStyle style) {
     final painter = TextPainter(
-      text: TextSpan(text: label, style: _style(false)),
+      text: TextSpan(text: label, style: style),
       maxLines: 1,
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
@@ -43,7 +43,11 @@ class ChipBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (labels.isEmpty) return const SizedBox.shrink();
     final index = selectedIndex.clamp(0, labels.length - 1);
-    final widths = [for (final label in labels) _widthOf(context, label)];
+    final base = DefaultTextStyle.of(context).style;
+    TextStyle styleFor(bool selected) => base.merge(_style(selected));
+    final widths = [
+      for (final label in labels) _widthOf(context, label, styleFor(false)),
+    ];
     final lefts = <double>[];
     var x = 0.0;
     for (final width in widths) {
@@ -64,49 +68,53 @@ class ChipBar extends StatelessWidget {
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: padding,
-          child: Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              AnimatedPositioned(
-                duration: _duration,
-                curve: Curves.easeInOutCubic,
-                left: lefts[index],
-                top: 6,
-                width: widths[index],
-                height: 36,
-                child: const DecoratedBox(
-                  key: ValueKey('chip-bar-pill'),
-                  decoration: BoxDecoration(
-                    color: _accent,
-                    borderRadius: BorderRadius.all(Radius.circular(16)),
+          child: KeyedSubtree(
+            key: ValueKey(Object.hashAll(labels)),
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                AnimatedPositioned(
+                  duration: _duration,
+                  curve: Curves.easeInOutCubic,
+                  left: lefts[index],
+                  top: 6,
+                  width: widths[index],
+                  height: 36,
+                  child: const DecoratedBox(
+                    key: ValueKey('chip-bar-pill'),
+                    decoration: BoxDecoration(
+                      color: _accent,
+                      borderRadius: BorderRadius.all(Radius.circular(16)),
+                    ),
                   ),
                 ),
-              ),
-              Row(
-                children: [
-                  for (var i = 0; i < labels.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(right: _gap),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onSelected(i),
-                        child: SizedBox(
-                          width: widths[i],
-                          height: 48,
-                          child: Center(
-                            child: AnimatedDefaultTextStyle(
-                              duration: _duration,
-                              style: _style(i == index),
-                              child: Text(labels[i],
-                                  maxLines: 1, softWrap: false),
+                Row(
+                  children: [
+                    for (var i = 0; i < labels.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: _gap),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => onSelected(i),
+                          child: SizedBox(
+                            width: widths[i],
+                            height: 48,
+                            child: Center(
+                              child: AnimatedDefaultTextStyle(
+                                duration: _duration,
+                                curve: Curves.easeInOutCubic,
+                                style: styleFor(i == index),
+                                child: Text(labels[i],
+                                    maxLines: 1, softWrap: false),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
