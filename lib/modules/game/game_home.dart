@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../core/game/galgamezywz_source.dart';
+import '../../core/game/game_image.dart';
 import '../../core/game/game_source.dart';
 import '../../core/game/models.dart';
 import '../../core/widgets/chip_bar.dart';
@@ -43,7 +43,7 @@ class GameCard extends StatelessWidget {
                 fit: BoxFit.cover,
                 memCacheWidth: 400,
                 fadeInDuration: Duration.zero,
-                httpHeaders: gameImageHeaders,
+                httpHeaders: gameImageHeadersFor(game.coverUrl),
                 placeholder: (_, __) => _placeholder(),
                 errorWidget: (_, __, ___) => _placeholder(),
               )

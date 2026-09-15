@@ -4,7 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../../core/game/galgamezywz_source.dart';
+import '../../core/game/game_image.dart';
 import '../../core/game/models.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -249,7 +249,7 @@ class GameDetailPage extends ConsumerWidget {
                 imageUrl: urls[i],
                 fit: BoxFit.cover,
                 memCacheWidth: 400,
-                httpHeaders: gameImageHeaders,
+                httpHeaders: gameImageHeadersFor(urls[i]),
                 placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
                 errorWidget: (_, __, ___) =>
                     Container(color: const Color(0xFFE5E5EA)),
@@ -283,7 +283,7 @@ class GameDetailPage extends ConsumerWidget {
       imageUrl: url,
       fit: BoxFit.cover,
       memCacheWidth: 300,
-      httpHeaders: gameImageHeaders,
+      httpHeaders: gameImageHeadersFor(url),
       placeholder: (_, __) => Container(color: const Color(0xFFE8EAF6)),
       errorWidget: (_, __, ___) => Container(color: const Color(0xFFE8EAF6)),
     );
@@ -345,7 +345,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
                 child: CachedNetworkImage(
                   imageUrl: widget.urls[i],
                   fit: BoxFit.contain,
-                  httpHeaders: gameImageHeaders,
+                  httpHeaders: gameImageHeadersFor(widget.urls[i]),
                   placeholder: (_, __) => const Center(
                       child: CircularProgressIndicator(color: Colors.white54)),
                   errorWidget: (_, __, ___) => const Center(
