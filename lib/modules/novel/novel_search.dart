@@ -132,48 +132,89 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
       return const EmptyState(
           icon: Icons.search_rounded, message: '输入关键词搜索轻小说');
     }
-    final async = ref.watch(novelSearchProvider(_keyword));
-    return async.when(
-      loading: () => const ShimmerLoader(
+    final sources = ref.watch(novelSourcesProvider);
+    final results = <NovelSearchResult>[];
+    final seen = <String>{};
+    var pending = 0;
+    var failed = 0;
+    Object? lastError;
+    for (final source in sources) {
+      final async =
+          ref.watch(novelSearchSourceProvider((source.id, _keyword)));
+      async.when(
+        data: (list) {
+          for (final r in list) {
+            if (seen.add(r.novel.title.trim())) results.add(r);
+          }
+        },
+        loading: () {
+          pending++;
+        },
+        error: (error, __) {
+          failed++;
+          lastError = error;
+        },
+      );
+    }
+    if (results.isEmpty && pending > 0) {
+      return const ShimmerLoader(
         crossAxisCount: 6,
         itemCount: 12,
         aspectRatio: 0.58,
         padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
-      ),
-      error: (error, __) => EmptyState(
-        icon: Icons.error_outline_rounded,
-        message: error.toString(),
-        actionLabel: '重试',
-        onAction: () => ref.invalidate(novelSearchProvider(_keyword)),
-      ),
-      data: (results) {
-        if (results.isEmpty) {
-          return const EmptyState(
-              icon: Icons.search_off_rounded, message: '没有找到轻小说');
-        }
-        return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 6,
-              mainAxisSpacing: 20,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.58),
-          itemCount: results.length,
-          itemBuilder: (_, i) {
-            final r = results[i];
-            return NovelCard(
-              novel: r.novel,
-              onTap: () => Navigator.push(
-                context,
-                noTransitionRoute(NovelDetailPage(
-                  sourceKey: r.sourceKey,
-                  novelId: r.novel.id,
-                  title: r.novel.title,
-                  cover: r.novel.coverUrl,
-                )),
-              ),
-            );
+      );
+    }
+    if (results.isEmpty) {
+      if (sources.isNotEmpty && failed == sources.length) {
+        return EmptyState(
+          icon: Icons.error_outline_rounded,
+          message: lastError?.toString() ?? '搜索失败',
+          actionLabel: '重试',
+          onAction: () {
+            for (final source in sources) {
+              ref.invalidate(novelSearchSourceProvider((source.id, _keyword)));
+            }
           },
+        );
+      }
+      return const EmptyState(
+          icon: Icons.search_off_rounded, message: '没有找到轻小说');
+    }
+    return Column(
+      children: [
+        if (pending > 0)
+          const LinearProgressIndicator(
+            minHeight: 2,
+            color: Color(0xFF007AFF),
+            backgroundColor: Color(0xFFE5E5EA),
+          ),
+        Expanded(child: _grid(results)),
+      ],
+    );
+  }
+
+  Widget _grid(List<NovelSearchResult> results) {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6,
+          mainAxisSpacing: 20,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.58),
+      itemCount: results.length,
+      itemBuilder: (_, i) {
+        final r = results[i];
+        return NovelCard(
+          novel: r.novel,
+          onTap: () => Navigator.push(
+            context,
+            noTransitionRoute(NovelDetailPage(
+              sourceKey: r.sourceKey,
+              novelId: r.novel.id,
+              title: r.novel.title,
+              cover: r.novel.coverUrl,
+            )),
+          ),
         );
       },
     );

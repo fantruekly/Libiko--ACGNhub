@@ -40,6 +40,7 @@ class NovelCard extends StatelessWidget {
                       imageUrl: novel.coverUrl!,
                       fit: BoxFit.cover,
                       memCacheWidth: 400,
+                      fadeInDuration: Duration.zero,
                       httpHeaders: novelImageHeaders,
                       placeholder: (_, __) => _placeholder(),
                       errorWidget: (_, __, ___) => _placeholder(),
