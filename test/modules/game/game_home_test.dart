@@ -80,9 +80,18 @@ void main() {
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
     expect(delegate.crossAxisCount, 4);
 
-    final size = tester.getSize(find.byType(GameCard).first);
-    const titleExtent = 44.0;
-    final coverHeight = size.height - titleExtent;
-    expect(size.width / coverHeight, closeTo(1.5, 0.02));
+    final surfaceWidth =
+        tester.view.physicalSize.width / tester.view.devicePixelRatio;
+    final expectedCellWidth = (surfaceWidth - 32 - 16 * 3) / 4;
+    final expectedExtent = expectedCellWidth * 2 / 3 + 44;
+    expect(delegate.mainAxisExtent, closeTo(expectedExtent, 0.5));
+
+    final card = find.byType(GameCard).first;
+    expect(tester.getSize(card).width, closeTo(expectedCellWidth, 0.5));
+
+    final cover = tester.getSize(find
+        .descendant(of: card, matching: find.byType(ClipRRect))
+        .first);
+    expect(cover.width / cover.height, closeTo(1.5, 0.01));
   });
 }
