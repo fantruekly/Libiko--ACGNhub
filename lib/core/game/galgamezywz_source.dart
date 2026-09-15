@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
+import 'game_source.dart';
 import 'models.dart';
 
 const String galgameZywzBaseUrl = 'https://game.galgamezywz.org';
@@ -216,4 +218,67 @@ GameDetail parseGameDetail(String html, String sourceUrl) {
     screenshots: screenshots,
     sourceUrl: sourceUrl,
   );
+}
+
+class GalgameZywzSource implements GameSource {
+  GalgameZywzSource({Dio? dio})
+      : _dio = dio ??
+            Dio(BaseOptions(
+              baseUrl: galgameZywzBaseUrl,
+              connectTimeout: const Duration(seconds: 20),
+              receiveTimeout: const Duration(seconds: 20),
+              headers: {
+                'User-Agent': galgameZywzUserAgent,
+                'Accept':
+                    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Referer': '$galgameZywzBaseUrl/',
+              },
+            ));
+
+  final Dio _dio;
+
+  @override
+  String get id => 'galgamezywz';
+
+  @override
+  String get name => 'galgame大玩家';
+
+  @override
+  String get baseUrl => galgameZywzBaseUrl;
+
+  @override
+  List<GameBrowseOption> get browseOptions => const [
+        GameBrowseOption(key: 'latest', label: '最近更新'),
+        GameBrowseOption(key: 'wanjiareping', label: '玩家热评'),
+        GameBrowseOption(key: 'galgame', label: '资源推荐'),
+        GameBrowseOption(key: 'haoyoutuijian', label: '好游推荐'),
+        GameBrowseOption(key: 'wanjiazuiai', label: '玩家最爱'),
+      ];
+
+  @override
+  Future<GameList> browse(String optionKey, {int page = 1}) async {
+    final html = await _get(galgameZywzBrowsePath(optionKey, page));
+    final items = parseGameList(html);
+    final hasMore = parseHasNextPage(html, itemCount: items.length);
+    return GameList(items: items, page: page, hasMore: hasMore);
+  }
+
+  @override
+  Future<GameDetail> detail(String id) async {
+    final html = await _get('/game/$id');
+    return parseGameDetail(html, '$galgameZywzBaseUrl/game/$id');
+  }
+
+  Future<String> _get(String path) async {
+    final res = await _dio.get<String>(
+      path,
+      options: Options(responseType: ResponseType.plain),
+    );
+    final data = res.data;
+    if (res.statusCode != 200 || data == null) {
+      throw Exception('galgamezywz 请求失败：$path (${res.statusCode})');
+    }
+    return data;
+  }
 }
