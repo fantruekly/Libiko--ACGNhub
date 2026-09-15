@@ -4,18 +4,24 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:acgnhub/core/game/galgamezywz_source.dart';
 
-const _listHtml = '''
-<div class="posts-warp">
-  <article class="post-item item-grid">
-    <a class="media-img" href="/game/1207" data-bg="https://game.galgamezywz.org/wp-content/uploads/cover.jpg"></a>
-    <h2 class="entry-title"><a href="/game/1207">金辉恋曲四重奏</a></h2>
-    <div class="entry-meta"><span class="meta-views">4.3K</span></div>
-  </article>
-</div>
-<nav class="page-nav"><ul class="pagination">
-  <li class="page-item"><a class="page-link page-next" href="/page/2">下一页</a></li>
-</ul></nav>
-''';
+String _listHtmlWith(int count, {String? next, String idPrefix = 'g'}) {
+  final items = StringBuffer();
+  for (var i = 0; i < count; i++) {
+    items.write(
+        '<article class="post-item item-grid">'
+        '<a class="media-img" href="/game/$idPrefix$i" data-bg="https://game.galgamezywz.org/wp-content/uploads/$idPrefix$i.jpg"></a>'
+        '<h2 class="entry-title"><a href="/game/$idPrefix$i">游戏$idPrefix$i</a></h2>'
+        '</article>');
+  }
+  final nav = next == null
+      ? '<nav class="page-nav"><ul class="pagination">'
+          '<li class="page-item disabled"><span class="page-link">N/N</span></li>'
+          '</ul></nav>'
+      : '<nav class="page-nav"><ul class="pagination">'
+          '<li class="page-item"><a class="page-link page-next" href="$next">下一页</a></li>'
+          '</ul></nav>';
+  return '<div class="posts-warp">$items</div>$nav';
+}
 
 const _detailHtml = '''
 <div class="archive-shop">
@@ -49,17 +55,95 @@ class _FakeAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  test('browse requests the option path and parses the list', () async {
+  test('browse page 1 requests four source pages and returns 48', () async {
     final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
-    final adapter = _FakeAdapter({'/lm/galgame': _listHtml});
+    final adapter = _FakeAdapter({
+      '/lm/galgame':
+          _listHtmlWith(12, next: '/lm/galgame/page/2', idPrefix: 'a'),
+      '/lm/galgame/page/2':
+          _listHtmlWith(12, next: '/lm/galgame/page/3', idPrefix: 'b'),
+      '/lm/galgame/page/3':
+          _listHtmlWith(12, next: '/lm/galgame/page/4', idPrefix: 'c'),
+      '/lm/galgame/page/4':
+          _listHtmlWith(12, next: '/lm/galgame/page/5', idPrefix: 'd'),
+    });
     dio.httpClientAdapter = adapter;
     final source = GalgameZywzSource(dio: dio);
 
     final list = await source.browse('galgame', page: 1);
-    expect(adapter.requested, ['/lm/galgame']);
-    expect(list.items.single.id, '1207');
-    expect(list.items.single.title, '金辉恋曲四重奏');
+    expect(adapter.requested, [
+      '/lm/galgame',
+      '/lm/galgame/page/2',
+      '/lm/galgame/page/3',
+      '/lm/galgame/page/4',
+    ]);
+    expect(list.items, hasLength(48));
+    expect(list.items.first.id, 'a0');
+    expect(list.items.last.id, 'd11');
     expect(list.page, 1);
+    expect(list.hasMore, isTrue);
+  });
+
+  test('browse page 2 requests the next four source pages', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/lm/galgame/page/5':
+          _listHtmlWith(12, next: '/lm/galgame/page/6', idPrefix: 'e'),
+      '/lm/galgame/page/6':
+          _listHtmlWith(12, next: '/lm/galgame/page/7', idPrefix: 'f'),
+      '/lm/galgame/page/7':
+          _listHtmlWith(12, next: '/lm/galgame/page/8', idPrefix: 'g'),
+      '/lm/galgame/page/8':
+          _listHtmlWith(12, next: '/lm/galgame/page/9', idPrefix: 'h'),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final list = await source.browse('galgame', page: 2);
+    expect(adapter.requested, [
+      '/lm/galgame/page/5',
+      '/lm/galgame/page/6',
+      '/lm/galgame/page/7',
+      '/lm/galgame/page/8',
+    ]);
+    expect(list.items, hasLength(48));
+    expect(list.items.first.id, 'e0');
+    expect(list.page, 2);
+    expect(list.hasMore, isTrue);
+  });
+
+  test('browse stops early when a source page has no next link', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/lm/galgame':
+          _listHtmlWith(12, next: '/lm/galgame/page/2', idPrefix: 'a'),
+      '/lm/galgame/page/2': _listHtmlWith(12, idPrefix: 'b'),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final list = await source.browse('galgame', page: 1);
+    expect(adapter.requested, ['/lm/galgame', '/lm/galgame/page/2']);
+    expect(list.items, hasLength(24));
+    expect(list.hasMore, isFalse);
+  });
+
+  test('browse trims a 52-item page to 48', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/': _listHtmlWith(16, next: '/page/2', idPrefix: 's'),
+      '/page/2': _listHtmlWith(12, next: '/page/3', idPrefix: 't'),
+      '/page/3': _listHtmlWith(12, next: '/page/4', idPrefix: 'u'),
+      '/page/4': _listHtmlWith(12, next: '/page/5', idPrefix: 'v'),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final list = await source.browse('latest', page: 1);
+    expect(adapter.requested, ['/', '/page/2', '/page/3', '/page/4']);
+    expect(list.items, hasLength(48));
+    expect(list.items.first.id, 's0');
+    expect(list.items.last.id, 'v7');
     expect(list.hasMore, isTrue);
   });
 

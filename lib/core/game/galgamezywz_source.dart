@@ -14,6 +14,9 @@ const Map<String, String> gameImageHeaders = {
   'Referer': '$galgameZywzBaseUrl/',
 };
 
+const int galgameZywzPageSize = 48;
+const int galgameZywzSourcePageSize = 12;
+
 const Map<String, String> _categorySlugs = {
   'wanjiareping': 'wanjiareping',
   'galgame': 'galgame',
@@ -21,7 +24,7 @@ const Map<String, String> _categorySlugs = {
   'wanjiazuiai': 'wanjiazuiai',
 };
 
-final RegExp _gameHref = RegExp(r'/game/(\d+)');
+final RegExp _gameHref = RegExp(r'/game/([0-9A-Za-z]+)');
 
 String? gameIdFromHref(String? href) {
   if (href == null) return null;
@@ -258,10 +261,33 @@ class GalgameZywzSource implements GameSource {
 
   @override
   Future<GameList> browse(String optionKey, {int page = 1}) async {
-    final html = await _get(galgameZywzBrowsePath(optionKey, page));
-    final items = parseGameList(html);
-    final hasMore = parseHasNextPage(html, itemCount: items.length);
-    return GameList(items: items, page: page, hasMore: hasMore);
+    final pagesPerApp =
+        (galgameZywzPageSize / galgameZywzSourcePageSize).ceil();
+    final startServer = (page - 1) * pagesPerApp + 1;
+    final items = <Game>[];
+    var hasMore = false;
+    for (var i = 0; i < pagesPerApp; i++) {
+      final serverPage = startServer + i;
+      final String html;
+      try {
+        html = await _get(galgameZywzBrowsePath(optionKey, serverPage));
+      } catch (_) {
+        if (i == 0) rethrow;
+        break;
+      }
+      final pageItems = parseGameList(html);
+      if (pageItems.isEmpty) {
+        hasMore = false;
+        break;
+      }
+      items.addAll(pageItems);
+      hasMore = parseHasNextPage(html, itemCount: pageItems.length);
+      if (!hasMore) break;
+    }
+    final trimmed = items.length > galgameZywzPageSize
+        ? items.sublist(0, galgameZywzPageSize)
+        : items;
+    return GameList(items: trimmed, page: page, hasMore: hasMore);
   }
 
   @override
