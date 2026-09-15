@@ -24,7 +24,7 @@ const Map<String, String> _categorySlugs = {
   'wanjiazuiai': 'wanjiazuiai',
 };
 
-final RegExp _gameHref = RegExp(r'/game/([0-9A-Za-z]+)');
+final RegExp _gameHref = RegExp(r'/game/(\d+)');
 
 String? gameIdFromHref(String? href) {
   if (href == null) return null;
