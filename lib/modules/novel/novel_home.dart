@@ -171,7 +171,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   Widget _optionChips(NovelBrowseGroup group) {
     final labels = [for (final o in group.options) o.label];
     return ChipBar(
-      key: ValueKey('novel-option-${labels.join('|')}'),
+      key: ValueKey('novel-option-$_sourceId-$_groupIndex-${labels.join('|')}'),
       labels: labels,
       selectedIndex: _optionIndex,
       onSelected: (i) => setState(() {

@@ -129,7 +129,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
           children: [
             _sourceHeader(sources, selected),
             _sectionChips(selected, section),
-            if (parts.length > 1) _partChips(parts, part),
+            if (parts.length > 1) _partChips(selected, section, parts, part),
             Expanded(child: _explore(selected, section, part)),
           ],
         );
@@ -194,13 +194,14 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     );
   }
 
-  Widget _partChips(List<ComicPart> parts, int selected) {
+  Widget _partChips(
+      ComicSource source, int section, List<ComicPart> parts, int selected) {
     final labels = [
       for (var i = 0; i < parts.length; i++)
         parts[i].title.isEmpty ? '分区 ${i + 1}' : parts[i].title,
     ];
     return ChipBar(
-      key: ValueKey('comic-part-${labels.join('|')}'),
+      key: ValueKey('comic-part-${source.key}-$section-${labels.join('|')}'),
       labels: labels,
       selectedIndex: selected,
       onSelected: (i) => setState(() {
