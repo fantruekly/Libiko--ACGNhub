@@ -47,6 +47,9 @@ void main() {
     expect(find.text('简介'), findsOneWidget);
     expect(find.byTooltip('在原站打开'), findsOneWidget);
     expect(find.text('数据来源 game.galgamezywz.org'), findsOneWidget);
+
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'game_galgamezywz_1207');
   });
 
   testWidgets('shows a retry action on error', (tester) async {

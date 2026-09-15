@@ -161,9 +161,13 @@ class GameDetailPage extends ConsumerWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(width: 100, height: 132, child: _cover(coverUrl)),
+              Hero(
+                tag: 'game_${sourceKey}_$gameId',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child:
+                      SizedBox(width: 100, height: 132, child: _cover(coverUrl)),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(

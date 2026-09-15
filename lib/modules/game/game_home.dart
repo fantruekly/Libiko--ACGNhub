@@ -29,31 +29,36 @@ double _gridCellExtent(double maxWidth) =>
 class GameCard extends StatelessWidget {
   final Game game;
   final VoidCallback? onTap;
-  const GameCard({super.key, required this.game, this.onTap});
+  final String? heroTag;
+  const GameCard({super.key, required this.game, this.onTap, this.heroTag});
 
   @override
   Widget build(BuildContext context) {
+    Widget image = RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: game.coverUrl != null && game.coverUrl!.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: game.coverUrl!,
+                fit: BoxFit.cover,
+                memCacheWidth: 400,
+                fadeInDuration: Duration.zero,
+                httpHeaders: gameImageHeaders,
+                placeholder: (_, __) => _placeholder(),
+                errorWidget: (_, __, ___) => _placeholder(),
+              )
+            : _placeholder(),
+      ),
+    );
+    if (heroTag != null) {
+      image = Hero(tag: heroTag!, child: image);
+    }
     return GestureDetector(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: game.coverUrl != null && game.coverUrl!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: game.coverUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 400,
-                      fadeInDuration: Duration.zero,
-                      httpHeaders: gameImageHeaders,
-                      placeholder: (_, __) => _placeholder(),
-                      errorWidget: (_, __, ___) => _placeholder(),
-                    )
-                  : _placeholder(),
-            ),
-          ),
+          Expanded(child: image),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
@@ -227,9 +232,10 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
         itemCount: items.length,
         itemBuilder: (_, i) => GameCard(
           game: items[i],
+          heroTag: 'game_${_sourceId}_${items[i].id}',
           onTap: () => Navigator.push(
             context,
-            noTransitionRoute(GameDetailPage(
+            smoothRoute(GameDetailPage(
               sourceKey: _sourceId,
               gameId: items[i].id,
               title: items[i].title,

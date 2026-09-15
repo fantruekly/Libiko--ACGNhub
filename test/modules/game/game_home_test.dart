@@ -94,4 +94,22 @@ void main() {
         .first);
     expect(cover.width / cover.height, closeTo(1.5, 0.01));
   });
+
+  testWidgets('game card cover has a Hero tagged by source and id',
+      (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider
+          .overrideWithValue(GameSourceManager(sources: [_FakeSource()])),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'game_galgamezywz_latest-1');
+  });
 }
