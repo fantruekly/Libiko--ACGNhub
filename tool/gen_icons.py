@@ -1,9 +1,8 @@
 """Generate platform app icons from the source artwork.
 
-Source: assets/branding/app_icon.png (a rounded-square icon on a near-white
-background). The outer white is made transparent (flood-filled from the four
-corners) so the rounded corners stay clean on any background, then the image is
-downscaled into the Windows / Android / web icon slots.
+Source: assets/branding/app_icon.png (full-bleed square artwork). It is
+downscaled into the Windows / Android / web icon slots as-is; the launcher or
+shell applies its own corner masking, so no transparency is added here.
 
 Run from the repo root:  python tool/gen_icons.py
 """
@@ -11,23 +10,14 @@ Run from the repo root:  python tool/gen_icons.py
 import os
 import sys
 
-import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "assets", "branding", "app_icon.png")
-MAGIC = (255, 0, 254, 255)
 
 
 def load_source() -> Image.Image:
-    im = Image.open(SRC).convert("RGBA")
-    w, h = im.size
-    for corner in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]:
-        ImageDraw.floodfill(im, corner, MAGIC, thresh=60)
-    arr = np.array(im)
-    mask = (arr[:, :, 0] == 255) & (arr[:, :, 1] == 0) & (arr[:, :, 2] == 254)
-    arr[mask, 3] = 0
-    return Image.fromarray(arr, "RGBA")
+    return Image.open(SRC).convert("RGBA")
 
 
 def resized(im: Image.Image, size: int) -> Image.Image:
