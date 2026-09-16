@@ -86,34 +86,64 @@ class _SlideSwitcherState extends State<SlideSwitcher> {
 
 ## 接入
 
+> **关键**：`SlideSwitcher` 必须包住**整个 `async.when`**（loading/error/data），这样切换时它保持挂载、`didUpdateWidget` 才能触发滑动；数据到达后 `id` 不变、原地替换。分页栏作为同级兄弟放在 `SlideSwitcher` 之外，保持固定。（若只包 `data:` 分支，切换时 provider 变 loading、`data:` 分支被骨架屏替换 → `SlideSwitcher` 被卸载 → 不播放动画。）
+
 ### 游戏（`lib/modules/game/game_home.dart`）
 
-`_body` 的 `data` 分支：
+`_body`：
 
 ```dart
-      data: (list) => Column(
-        children: [
-          Expanded(
-            child: SlideSwitcher(
-              id: (_sourceId, option.key, _page),
-              index: sourceIndex * 10000 + _optionIndex * 100 + _page,
-              child: _grid(list.items),
+    final sourceIndex =
+        ref.watch(gameSourcesProvider).indexWhere((s) => s.id == _sourceId);
+    final option = options[_optionIndex.clamp(0, options.length - 1)];
+    final key = (_sourceId, option.key, _page);
+    final async = ref.watch(gameBrowseProvider(key));
+    final pageData = async.valueOrNull;
+    return Column(
+      children: [
+        Expanded(
+          child: SlideSwitcher(
+            id: key,
+            index: sourceIndex * 10000 + _optionIndex * 100 + _page,
+            child: async.when(
+              loading: () => ...现有骨架屏...,
+              error: (_, __) => ...现有 EmptyState...,
+              data: (list) => _grid(list.items),
             ),
           ),
-          _pager(list.hasMore),
-        ],
-      ),
+        ),
+        if (pageData != null) _pager(pageData.hasMore),
+      ],
+    );
 ```
 
-- `sourceIndex` = `ref.watch(gameSourcesProvider).indexWhere((s) => s.id == _sourceId)`（在 `_body` 内计算）。
 - `_pager` 在 `SlideSwitcher` 之外 → 固定不动。
 
 ### 轻小说（`lib/modules/novel/novel_home.dart` 的 `_ExploreTabState._body`）
 
-分组/选项数据分支：
+- 顶部：`final sourceIndex = ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId);`
+- 「推荐」分支（`_groupIndex == -1`）：
 
 ```dart
-      data: (list) => Column(
+      final async = ref.watch(novelHomeProvider(_sourceId));
+      return SlideSwitcher(
+        id: (_sourceId, '__home__'),
+        index: sourceIndex * 1000000,
+        child: async.when(
+          loading: () => ...骨架屏...,
+          error: (_, __) => ...失败...,
+          data: (home) => _grid(flattenHome(home)),
+        ),
+      );
+```
+
+- 分组分支：
+
+```dart
+      final option = group.options[_optionIndex.clamp(0, group.options.length - 1)];
+      final async = ref.watch(novelBrowseProvider((_sourceId, option.key, _page)));
+      final pageData = async.valueOrNull;
+      return Column(
         children: [
           Expanded(
             child: SlideSwitcher(
@@ -122,21 +152,27 @@ class _SlideSwitcherState extends State<SlideSwitcher> {
                   (_groupIndex + 1) * 10000 +
                   _optionIndex * 100 +
                   _page,
-              child: _grid(list.items),
+              child: async.when(
+                loading: () => ...骨架屏...,
+                error: (_, __) => ...失败...,
+                data: (list) => _grid(list.items),
+              ),
             ),
           ),
-          _pager(list.hasMore),
+          if (pageData != null) _pager(pageData.hasMore),
         ],
-      ),
+      );
 ```
 
-- `sourceIndex` = `ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId)`。
-- 「推荐」分组（`_groupIndex == -1`，走 `novelHomeProvider`）也包一层 `SlideSwitcher`：`id: (_sourceId, '__home__')`，`index: sourceIndex * 1000000`。
-- `_pager` 固定不动。
+- `_pager` 在 `SlideSwitcher` 之外 → 固定不动。
 
 ### 漫画（`lib/modules/comic/comic_home.dart` 的 `_DiscoverTabState._explore`）
 
+- `_explore` 增加 `int sourceIndex` 参数，由 `_DiscoverTabState.build` 用 `sources.indexOf(selected)` 传入。
+- 结构：
+
 ```dart
+    final pageData = async.valueOrNull;
     return Column(
       children: [
         Expanded(
@@ -159,8 +195,7 @@ class _SlideSwitcherState extends State<SlideSwitcher> {
     );
 ```
 
-- `_explore` 增加 `int sourceIndex` 参数，由 `_DiscoverTabState.build` 用 `sources.indexOf(selected)` 传入（`sources` 在该处已取得）。
-- `_paginationBar` 在 `SlideSwitcher` 之外 → 固定不动。
+- `_paginationBar` 在 `SlideSwitcher` 之外 → 固定不动（显示条件与现状一致）。
 
 ## 方向规则
 

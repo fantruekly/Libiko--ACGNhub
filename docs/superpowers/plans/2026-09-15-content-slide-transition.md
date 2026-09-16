@@ -194,21 +194,39 @@ git commit -m "feat(ui): add a direction-aware slide switcher"
         ref.watch(gameSourcesProvider).indexWhere((s) => s.id == _sourceId);
 ```
 
-3) 把 `data:` 分支（第 173–178 行）替换为：
+3) 把整个 `return async.when(...)`（第 158–180 行）替换为（`SlideSwitcher` 包住整个 `async.when`，分页栏在其外）：
 
 ```dart
-      data: (list) => Column(
-        children: [
-          Expanded(
-            child: SlideSwitcher(
-              id: (_sourceId, option.key, _page),
-              index: sourceIndex * 10000 + _optionIndex * 100 + _page,
-              child: _grid(list.items),
+    final pageData = async.valueOrNull;
+    return Column(
+      children: [
+        Expanded(
+          child: SlideSwitcher(
+            id: key,
+            index: sourceIndex * 10000 + _optionIndex * 100 + _page,
+            child: async.when(
+              loading: () => LayoutBuilder(builder: (context, constraints) {
+                final cellW = gameGridCellWidth(constraints.maxWidth);
+                return ShimmerLoader(
+                    crossAxisCount: gameGridColumns,
+                    itemCount: 8,
+                    aspectRatio:
+                        cellW / gameGridCellExtent(constraints.maxWidth),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
+              }),
+              error: (_, __) => EmptyState(
+                icon: Icons.cloud_off_rounded,
+                message: '加载失败',
+                actionLabel: '重试',
+                onAction: () => ref.invalidate(gameBrowseProvider(key)),
+              ),
+              data: (list) => _grid(list.items),
             ),
           ),
-          _pager(list.hasMore),
-        ],
-      ),
+        ),
+        if (pageData != null) _pager(pageData.hasMore),
+      ],
+    );
 ```
 
 ### Step 2: 运行回归
@@ -244,20 +262,34 @@ git commit -m "feat(game): slide the grid when switching sections or pages"
         ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId);
 ```
 
-3) 「推荐」分支的 `data:`（第 216 行）改为：
+3) 「推荐」分支（`_groupIndex < 0`）的 `return async.when(...)`（第 204–217 行）替换为（`SlideSwitcher` 包住整个 `async.when`）：
 
 ```dart
-        data: (home) => SlideSwitcher(
-          id: (_sourceId, '__home__'),
-          index: sourceIndex * 1000000,
-          child: _grid(flattenHome(home)),
+      return SlideSwitcher(
+        id: (_sourceId, '__home__'),
+        index: sourceIndex * 1000000,
+        child: async.when(
+          loading: () => const ShimmerLoader(
+              crossAxisCount: 6,
+              itemCount: 12,
+              aspectRatio: 0.58,
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+          error: (_, __) => EmptyState(
+            icon: Icons.cloud_off_rounded,
+            message: '加载失败',
+            actionLabel: '重试',
+            onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+          ),
+          data: (home) => _grid(flattenHome(home)),
         ),
+      );
 ```
 
-4) 分组分支的 `data:`（第 238–243 行）替换为：
+4) 分组分支的 `return async.when(...)`（第 225–244 行）替换为（`SlideSwitcher` 包住整个 `async.when`，分页栏在其外）：
 
 ```dart
-      data: (list) => Column(
+      final pageData = async.valueOrNull;
+      return Column(
         children: [
           Expanded(
             child: SlideSwitcher(
@@ -266,12 +298,26 @@ git commit -m "feat(game): slide the grid when switching sections or pages"
                   (_groupIndex + 1) * 10000 +
                   _optionIndex * 100 +
                   _page,
-              child: _grid(list.items),
+              child: async.when(
+                loading: () => const ShimmerLoader(
+                    crossAxisCount: 6,
+                    itemCount: 12,
+                    aspectRatio: 0.58,
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+                error: (_, __) => EmptyState(
+                  icon: Icons.cloud_off_rounded,
+                  message: '加载失败',
+                  actionLabel: '重试',
+                  onAction: () => ref.invalidate(
+                      novelBrowseProvider((_sourceId, option.key, _page))),
+                ),
+                data: (list) => _grid(list.items),
+              ),
             ),
           ),
-          _pager(list.hasMore),
+          if (pageData != null) _pager(pageData.hasMore),
         ],
-      ),
+      );
 ```
 
 ### Step 2: 运行回归
