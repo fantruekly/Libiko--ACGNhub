@@ -48,6 +48,7 @@ void main() {
     expect(find.text('第二段简介。'), findsOneWidget);
     expect(find.text('简介'), findsOneWidget);
     expect(find.text('在原站打开'), findsOneWidget);
+    expect(find.byTooltip('在原站打开'), findsNothing);
     expect(find.text('数据来源 game.galgamezywz.org'), findsOneWidget);
 
     final hero = tester.widget<Hero>(find.byType(Hero));
