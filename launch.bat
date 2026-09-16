@@ -2,9 +2,9 @@
 setlocal
 set "PATH=C:\flutter\bin;%PATH%"
 set "ROOT=%~dp0"
-set "EXE=%ROOT%build\windows\x64\runner\Debug\acgnhub.exe"
+set "EXE=%ROOT%build\windows\x64\runner\Debug\libiko.exe"
 
-echo Building ACGNhub...
+echo Building Libiko...
 pushd "%ROOT%"
 call flutter build windows --debug
 popd

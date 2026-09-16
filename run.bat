@@ -14,7 +14,7 @@ if not exist "%FLUTTER_CMD%" (
     exit /b 1
 )
 
-echo Starting ACGNhub (Flutter Windows)...
+echo Starting Libiko (Flutter Windows)...
 echo.
 
 call "%FLUTTER_CMD%" run -d windows

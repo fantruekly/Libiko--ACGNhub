@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.acgnhub" "\0"
-            VALUE "FileDescription", "acgnhub" "\0"
+            VALUE "CompanyName", "com.libiko" "\0"
+            VALUE "FileDescription", "Libiko" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "acgnhub" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.acgnhub. All rights reserved." "\0"
-            VALUE "OriginalFilename", "acgnhub.exe" "\0"
-            VALUE "ProductName", "acgnhub" "\0"
+            VALUE "InternalName", "libiko" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.libiko. All rights reserved." "\0"
+            VALUE "OriginalFilename", "libiko.exe" "\0"
+            VALUE "ProductName", "Libiko" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

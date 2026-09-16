@@ -1,4 +1,4 @@
-package com.acgnhub.acgnhub
+package com.libiko.libiko
 
 import io.flutter.embedding.android.FlutterActivity
 
