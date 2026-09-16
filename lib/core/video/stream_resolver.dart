@@ -28,7 +28,10 @@ class StreamResolver {
       unawaited(() async {
         try {
           await browser.load(playPageUrl, timeout: timeout);
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('[StreamResolver] load failed for $playPageUrl: $e');
+          if (!completer.isCompleted) completer.complete(null);
+        }
       }());
       final url = await completer.future.timeout(timeout, onTimeout: () {
         debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');

@@ -42,4 +42,22 @@ void main() {
     await browser.load('about:blank');
     await browser.dispose();
   });
+
+  test('accepts an extension-less HLS URL reported with a streaming MIME type',
+      () {
+    expect(
+      looksLikeMediaResponse('https://cdn.test/hls/index?sign=abc',
+          'application/vnd.apple.mpegurl'),
+      isTrue,
+    );
+    expect(looksLikeMediaResponse('https://cdn.test/x', 'application/x-mpegURL'),
+        isTrue);
+  });
+
+  test('still accepts media URLs and rejects plain responses', () {
+    expect(looksLikeMediaResponse('https://cdn.test/v/1.m3u8', ''), isTrue);
+    expect(
+        looksLikeMediaResponse('https://cdn.test/page.html', 'text/html'), isFalse);
+    expect(looksLikeMediaResponse('https://cdn.test/time', ''), isFalse);
+  });
 }

@@ -38,6 +38,15 @@ bool looksLikeMediaUrl(String url) {
   return _mediaRe.hasMatch(path);
 }
 
+/// True when either the URL looks like a media file ([looksLikeMediaUrl]) or
+/// the response MIME type is a streaming media type. The MIME check exists
+/// because some HLS playlists are served from extension-less URLs.
+bool looksLikeMediaResponse(String url, String mime) {
+  final m = mime.toLowerCase();
+  if (m.contains('mpegurl') || m.contains('mp2t')) return true;
+  return looksLikeMediaUrl(url);
+}
+
 /// Creates the platform's [HeadlessBrowser]. [desktop] overrides the platform
 /// check for tests.
 HeadlessBrowser createHeadlessBrowser({bool? desktop}) =>
