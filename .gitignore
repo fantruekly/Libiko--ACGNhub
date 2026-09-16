@@ -49,3 +49,6 @@ app.*.map.json
 
 # Backend build output
 /server/build/
+
+# Release packaging output
+/dist/
