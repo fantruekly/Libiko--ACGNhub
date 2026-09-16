@@ -52,6 +52,7 @@ app.*.map.json
 
 # Release packaging output
 /dist/
+<<<<<<< HEAD
 
 # Android signing secrets
 /android/key.properties
@@ -66,3 +67,5 @@ app.*.map.json
 /docs/
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> parent of d35ca50 (docs: deleteDesigndoc)

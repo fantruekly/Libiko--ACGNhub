@@ -1,0 +1,5 @@
+﻿404f913 feat(anime): add search and detail pages
+ lib/modules/anime/anime_detail.dart | 122 ++++++++++++++++++++++++++++++++++++
+ lib/modules/anime/anime_home.dart   |  13 +---
+ lib/modules/anime/anime_search.dart | 112 +++++++++++++++++++++++++++++++++
+ 3 files changed, 235 insertions(+), 12 deletions(-)

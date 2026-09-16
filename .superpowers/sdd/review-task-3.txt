@@ -1,0 +1,164 @@
+﻿COMMITS:
+3c4f86f feat(core): add SourceAdapter interface and SourceManager
+
+STAT:
+ lib/core/source/source_adapter.dart       | 23 +++++++++++
+ lib/core/source/source_manager.dart       | 46 ++++++++++++++++++++++
+ test/core/source/source_manager_test.dart | 64 +++++++++++++++++++++++++++++++
+ 3 files changed, 133 insertions(+)
+
+DIFF:
+diff --git a/lib/core/source/source_adapter.dart b/lib/core/source/source_adapter.dart
+new file mode 100644
+index 0000000..edc0985
+--- /dev/null
++++ b/lib/core/source/source_adapter.dart
+@@ -0,0 +1,23 @@
++import '../models/work.dart';
++import '../models/chapter.dart';
++import '../models/search_result.dart';
++import '../models/source.dart';
++
++abstract class SourceAdapter {
++  String get id;
++  String get name;
++  WorkType get type;
++  String get baseUrl;
++
++  SourceInfo get info => SourceInfo(
++        id: id,
++        name: name,
++        type: type,
++        baseUrl: baseUrl,
++      );
++
++  Future<SearchResult> search(String keyword, {int page = 1});
++  Future<Work> fetchDetail(String workId);
++  Future<List<Chapter>> fetchChapters(String workId);
++  Future<dynamic> fetchContent(String chapterId);
++}
+\ No newline at end of file
+diff --git a/lib/core/source/source_manager.dart b/lib/core/source/source_manager.dart
+new file mode 100644
+index 0000000..e47b3f8
+--- /dev/null
++++ b/lib/core/source/source_manager.dart
+@@ -0,0 +1,46 @@
++import 'source_adapter.dart';
++import '../models/work.dart';
++import '../models/search_result.dart';
++
++class SourceManager {
++  final List<SourceAdapter> _adapters = [];
++
++  List<SourceAdapter> get adapters => List.unmodifiable(_adapters);
++
++  void register(SourceAdapter adapter) {
++    if (_adapters.any((a) => a.id == adapter.id)) {
++      throw ArgumentError('Source with id "${adapter.id}" already registered');
++    }
++    _adapters.add(adapter);
++  }
++
++  void remove(String sourceId) {
++    _adapters.removeWhere((a) => a.id == sourceId);
++  }
++
++  List<SourceAdapter> getByType(WorkType type) {
++    return _adapters.where((a) => a.type == type).toList();
++  }
++
++  SourceAdapter? getById(String sourceId) {
++    try {
++      return _adapters.firstWhere((a) => a.id == sourceId);
++    } catch (_) {
++      return null;
++    }
++  }
++
++  Future<List<SearchResult>> searchAll(
++    WorkType type,
++    String keyword, {
++    int page = 1,
++  }) async {
++    final adapters = getByType(type);
++    if (adapters.isEmpty) return [];
++
++    final results = await Future.wait(
++      adapters.map((a) => a.search(keyword, page: page)),
++    );
++    return results;
++  }
++}
+\ No newline at end of file
+diff --git a/test/core/source/source_manager_test.dart b/test/core/source/source_manager_test.dart
+new file mode 100644
+index 0000000..14ae70e
+--- /dev/null
++++ b/test/core/source/source_manager_test.dart
+@@ -0,0 +1,64 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:acgnhub/core/source/source_adapter.dart';
++import 'package:acgnhub/core/source/source_manager.dart';
++import 'package:acgnhub/core/models/work.dart';
++import 'package:acgnhub/core/models/chapter.dart';
++import 'package:acgnhub/core/models/search_result.dart';
++
++class _MockAdapter extends SourceAdapter {
++  @override
++  String get id => 'mock';
++  @override
++  String get name => 'Mock';
++  @override
++  WorkType get type => WorkType.anime;
++  @override
++  String get baseUrl => 'https://mock.com';
++
++  @override
++  Future<SearchResult> search(String keyword, {int page = 1}) async {
++    return SearchResult(works: [], totalPages: 0, currentPage: 1);
++  }
++
++  @override
++  Future<Work> fetchDetail(String workId) async {
++    return Work(id: workId, sourceId: id, sourceName: name, type: type, title: 'Mock');
++  }
++
++  @override
++  Future<List<Chapter>> fetchChapters(String workId) async => [];
++  @override
++  Future<dynamic> fetchContent(String chapterId) async => null;
++}
++
++void main() {
++  group('SourceManager', () {
++    test('register and getByType', () {
++      final manager = SourceManager();
++      final adapter = _MockAdapter();
++      manager.register(adapter);
++      expect(manager.getByType(WorkType.anime).length, 1);
++      expect(manager.getByType(WorkType.comic), isEmpty);
++    });
++
++    test('duplicate registration throws', () {
++      final manager = SourceManager();
++      manager.register(_MockAdapter());
++      expect(() => manager.register(_MockAdapter()), throwsArgumentError);
++    });
++
++    test('remove source', () {
++      final manager = SourceManager();
++      manager.register(_MockAdapter());
++      manager.remove('mock');
++      expect(manager.adapters, isEmpty);
++    });
++
++    test('getById', () {
++      final manager = SourceManager();
++      manager.register(_MockAdapter());
++      expect(manager.getById('mock')?.id, 'mock');
++      expect(manager.getById('nonexistent'), isNull);
++    });
++  });
++}
+\ No newline at end of file

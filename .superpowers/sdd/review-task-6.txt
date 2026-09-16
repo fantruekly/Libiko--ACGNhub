@@ -1,0 +1,90 @@
+﻿ef83cf7 feat(core): add FavoriteManager and SearchEngine
+---
+diff --git a/lib/core/services/favorite_manager.dart b/lib/core/services/favorite_manager.dart
+new file mode 100644
+index 0000000..297e815
+--- /dev/null
++++ b/lib/core/services/favorite_manager.dart
+@@ -0,0 +1,38 @@
++import 'dart:convert';
++import '../models/work.dart';
++import '../storage/database.dart';
++
++class FavoriteManager {
++  static const _key = 'favorites';
++
++  List<Work> getFavorites({WorkType? type}) {
++    final jsonList = AppDatabase().getStringList(_key);
++    final works = jsonList.map((j) => Work.fromJson(json.decode(j) as Map<String, dynamic>)).toList();
++    if (type != null) {
++      return works.where((w) => w.type == type).toList();
++    }
++    return works;
++  }
++
++  Future<void> addFavorite(Work work) async {
++    final favorites = getFavorites();
++    if (favorites.any((w) => w.id == work.id)) return;
++    favorites.add(work);
++    await _save(favorites);
++  }
++
++  Future<void> removeFavorite(String workId) async {
++    final favorites = getFavorites();
++    favorites.removeWhere((w) => w.id == workId);
++    await _save(favorites);
++  }
++
++  bool isFavorite(String workId) {
++    return getFavorites().any((w) => w.id == workId);
++  }
++
++  Future<void> _save(List<Work> works) async {
++    final jsonList = works.map((w) => json.encode(w.toJson())).toList();
++    await AppDatabase().setStringList(_key, jsonList);
++  }
++}
+\ No newline at end of file
+diff --git a/lib/core/services/search_engine.dart b/lib/core/services/search_engine.dart
+new file mode 100644
+index 0000000..3fd47f9
+--- /dev/null
++++ b/lib/core/services/search_engine.dart
+@@ -0,0 +1,36 @@
++import '../models/work.dart';
++import '../models/search_result.dart';
++import '../source/source_manager.dart';
++
++class SearchEngine {
++  final SourceManager _sourceManager;
++
++  SearchEngine(this._sourceManager);
++
++  Future<List<SearchResult>> search(
++    WorkType type,
++    String keyword, {
++    int page = 1,
++  }) async {
++    if (keyword.trim().isEmpty) return [];
++    return _sourceManager.searchAll(type, keyword, page: page);
++  }
++
++  Future<List<Work>> getAggregatedResults(
++    WorkType type,
++    String keyword, {
++    int page = 1,
++  }) async {
++    final results = await search(type, keyword, page: page);
++    final seen = <String>{};
++    final aggregated = <Work>[];
++    for (final result in results) {
++      for (final work in result.works) {
++        if (seen.add(work.id)) {
++          aggregated.add(work);
++        }
++      }
++    }
++    return aggregated;
++  }
++}
+\ No newline at end of file
