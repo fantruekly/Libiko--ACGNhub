@@ -1,5 +1,9 @@
 import 'dart:async';
 
+import 'headless_browser_android.dart';
+import 'headless_browser_windows.dart';
+import '../platform.dart';
+
 /// A hidden browser used to render source pages and sniff their media streams.
 /// Windows and Android have different native implementations; callers see only
 /// this interface.
@@ -33,3 +37,10 @@ bool looksLikeMediaUrl(String url) {
   final path = Uri.tryParse(url)?.path ?? url;
   return _mediaRe.hasMatch(path);
 }
+
+/// Creates the platform's [HeadlessBrowser]. [desktop] overrides the platform
+/// check for tests.
+HeadlessBrowser createHeadlessBrowser({bool? desktop}) =>
+    (desktop ?? isDesktop)
+        ? WindowsHeadlessBrowser()
+        : AndroidHeadlessBrowser();

@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:webview_windows/webview_windows.dart';
 
+import 'headless_browser.dart';
 import 'source_rule.dart';
 
 const String kBrowserUserAgent =
@@ -94,36 +94,15 @@ class WebviewScraper {
     Duration timeout = const Duration(seconds: 20),
     int attempts = 3,
   }) async {
-    final webview = HeadlessWebview();
-    final subs = <StreamSubscription>[];
-    final loaded = Completer<void>();
-
+    final browser = createHeadlessBrowser();
     try {
-      await webview.run();
-      try {
-        await webview.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
-      } catch (_) {}
-      await webview.setUserAgent(userAgent ?? kBrowserUserAgent);
-
-      var currentUrl = '';
-      subs.add(webview.url.listen((value) => currentUrl = value));
-
-      subs.add(webview.loadingState.listen((state) {
-        if (state == LoadingState.navigationCompleted &&
-            currentUrl.isNotEmpty &&
-            currentUrl != 'about:blank' &&
-            !loaded.isCompleted) {
-          loaded.complete();
-        }
-      }));
-
-      await webview.loadUrl(url);
-      await loaded.future.timeout(timeout, onTimeout: () {});
+      await browser.start(userAgent: userAgent ?? kBrowserUserAgent);
+      await browser.load(url, timeout: timeout);
 
       for (var attempt = 0; attempt < attempts; attempt++) {
         dynamic result;
         try {
-          result = await webview.executeScript(script);
+          result = await browser.eval(script);
         } catch (_) {
           result = null;
         }
@@ -138,13 +117,8 @@ class WebviewScraper {
       debugPrint('[WebviewScraper] failed for $url: $e');
       return null;
     } finally {
-      for (final s in subs) {
-        try {
-          await s.cancel();
-        } catch (_) {}
-      }
       try {
-        await webview.dispose();
+        await browser.dispose();
       } catch (_) {}
     }
   }

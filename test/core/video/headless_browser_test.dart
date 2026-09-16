@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/video/headless_browser.dart';
+import 'package:libiko/core/video/headless_browser_windows.dart';
 
 void main() {
   test('accepts a media URL whose path ends with .m3u8 or .mp4', () {
@@ -27,5 +28,9 @@ void main() {
         isFalse);
     expect(looksLikeMediaUrl('https://www.bmmdmm.com/time'), isFalse);
     expect(looksLikeMediaUrl('https://img.test/pic/a.webp'), isFalse);
+  });
+
+  test('factory returns the Windows implementation on desktop', () {
+    expect(createHeadlessBrowser(desktop: true), isA<WindowsHeadlessBrowser>());
   });
 }
