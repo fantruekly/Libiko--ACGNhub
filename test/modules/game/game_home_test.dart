@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/game_source.dart';
-import 'package:acgnhub/core/game/models.dart';
-import 'package:acgnhub/modules/game/game_home.dart';
-import 'package:acgnhub/modules/game/game_providers.dart';
+import 'package:libiko/core/game/game_source.dart';
+import 'package:libiko/core/game/models.dart';
+import 'package:libiko/modules/game/game_home.dart';
+import 'package:libiko/modules/game/game_providers.dart';
 
 class _FakeSource implements GameSource {
   @override
@@ -27,6 +27,31 @@ class _FakeSource implements GameSource {
   @override
   Future<GameDetail> detail(String id) async =>
       GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
+  @override
+  Future<List<Game>> search(String keyword) async => const [];
+}
+
+class _NekoFakeSource implements GameSource {
+  @override
+  String get id => 'nekogal';
+  @override
+  String get name => 'NekoGAL';
+  @override
+  String get baseUrl => 'https://fake';
+  @override
+  List<GameBrowseOption> get browseOptions =>
+      const [GameBrowseOption(key: 'pcgame', label: 'PC资源')];
+  @override
+  Future<GameList> browse(String optionKey, {int page = 1}) async => GameList(
+        items: [Game(id: '$optionKey-$page', title: '游戏$optionKey$page')],
+        page: page,
+        hasMore: false,
+      );
+  @override
+  Future<GameDetail> detail(String id) async =>
+      GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
+  @override
+  Future<List<Game>> search(String keyword) async => const [];
 }
 
 void main() {
@@ -60,5 +85,81 @@ void main() {
       matching: find.byType(IconButton),
     ));
     expect(next.onPressed, isNull);
+  });
+
+  testWidgets('grid uses 4 columns with 3:2 covers', (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider
+          .overrideWithValue(GameSourceManager(sources: [_FakeSource()])),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 4);
+
+    final surfaceWidth =
+        tester.view.physicalSize.width / tester.view.devicePixelRatio;
+    final expectedCellWidth = (surfaceWidth - 32 - 16 * 3) / 4;
+    final expectedExtent = expectedCellWidth * 2 / 3 + 44;
+    expect(delegate.mainAxisExtent, closeTo(expectedExtent, 0.5));
+
+    final card = find.byType(GameCard).first;
+    expect(tester.getSize(card).width, closeTo(expectedCellWidth, 0.5));
+
+    final cover = tester.getSize(find
+        .descendant(of: card, matching: find.byType(ClipRRect))
+        .first);
+    expect(cover.width / cover.height, closeTo(1.5, 0.01));
+  });
+
+  testWidgets('game card cover has a Hero tagged by source and id',
+      (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider
+          .overrideWithValue(GameSourceManager(sources: [_FakeSource()])),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'game_galgamezywz_latest-1');
+  });
+
+  testWidgets('switching to the second source shows its sections',
+      (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider.overrideWithValue(
+          GameSourceManager(sources: [_FakeSource(), _NekoFakeSource()])),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('galgame大玩家'), findsOneWidget);
+    expect(find.text('NekoGAL'), findsOneWidget);
+    expect(find.text('最近更新'), findsOneWidget);
+
+    await tester.tap(find.text('NekoGAL'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('PC资源'), findsOneWidget);
+    expect(find.text('最近更新'), findsNothing);
   });
 }

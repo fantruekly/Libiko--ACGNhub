@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/models/watch_record.dart';
-import 'package:acgnhub/core/models/work.dart';
-import 'package:acgnhub/core/services/watch_history.dart';
-import 'package:acgnhub/core/storage/database.dart';
-import 'package:acgnhub/core/video/video_source.dart';
+import 'package:libiko/core/models/watch_record.dart';
+import 'package:libiko/core/models/work.dart';
+import 'package:libiko/core/services/watch_history.dart';
+import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/core/video/video_source.dart';
 
 Work _work(String id) => Work(
       id: id,

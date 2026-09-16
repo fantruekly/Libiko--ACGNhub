@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/rule_source.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
+import 'package:libiko/core/video/rule_source.dart';
+import 'package:libiko/core/video/source_rule.dart';
 
 const _rule = SourceRule(
   name: '七色番',

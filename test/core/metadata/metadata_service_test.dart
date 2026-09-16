@@ -3,11 +3,11 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/metadata/bangumi_provider.dart';
-import 'package:acgnhub/core/metadata/metadata_cache.dart';
-import 'package:acgnhub/core/metadata/metadata_provider.dart';
-import 'package:acgnhub/core/metadata/metadata_service.dart';
-import 'package:acgnhub/core/models/work.dart';
+import 'package:libiko/core/metadata/bangumi_provider.dart';
+import 'package:libiko/core/metadata/metadata_cache.dart';
+import 'package:libiko/core/metadata/metadata_provider.dart';
+import 'package:libiko/core/metadata/metadata_service.dart';
+import 'package:libiko/core/models/work.dart';
 
 class _FakeCache implements MetadataCache {
   final Map<String, String> store = {};

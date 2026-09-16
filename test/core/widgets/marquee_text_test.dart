@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/widgets/marquee_text.dart';
+import 'package:libiko/core/widgets/marquee_text.dart';
 
 void main() {
   testWidgets('short text renders without scrolling', (tester) async {

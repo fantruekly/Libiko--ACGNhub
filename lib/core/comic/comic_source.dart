@@ -269,27 +269,27 @@ class _DbSettings extends MapBase<String, String> {
 }
 
 const _registryJs = r'''
-globalThis.__acgnhub_sources = globalThis.__acgnhub_sources || {};
-globalThis.__acgnhub_pending = globalThis.__acgnhub_pending || {};
+globalThis.__libiko_sources = globalThis.__libiko_sources || {};
+globalThis.__libiko_pending = globalThis.__libiko_pending || {};
 // Pass 1: instantiate just enough to read the declared metadata, without
 // calling init(). The manager allow-lists the key this returns before pass 2.
-globalThis.__acgnhub_declareSource = function (cls) {
+globalThis.__libiko_declareSource = function (cls) {
   const s = new cls();
-  globalThis.__acgnhub_pending[s.key] = cls;
+  globalThis.__libiko_pending[s.key] = cls;
   return {
     name: s.name, key: s.key, version: s.version, url: s.url,
     description: s.description
   };
 };
 // Pass 2: instantiate, run init(), and register. The key is already allowed.
-globalThis.__acgnhub_registerSource = function (key) {
-  const cls = globalThis.__acgnhub_pending[key];
+globalThis.__libiko_registerSource = function (key) {
+  const cls = globalThis.__libiko_pending[key];
   if (!cls) throw new Error('comic source not declared: ' + key);
   const s = new cls();
-  if (s.settings) s.__acgnhub_origSettings = Object.assign({}, s.settings);
+  if (s.settings) s.__libiko_origSettings = Object.assign({}, s.settings);
   const finish = function () {
-    globalThis.__acgnhub_sources[s.key] = s;
-    delete globalThis.__acgnhub_pending[s.key];
+    globalThis.__libiko_sources[s.key] = s;
+    delete globalThis.__libiko_pending[s.key];
     return {
       name: s.name, key: s.key, version: s.version, url: s.url,
       description: s.description,
@@ -342,8 +342,8 @@ globalThis.__acgnhub_registerSource = function (key) {
   }
   return finish();
 };
-globalThis.__acgnhub_instance = function (key) {
-  const s = globalThis.__acgnhub_sources[key];
+globalThis.__libiko_instance = function (key) {
+  const s = globalThis.__libiko_sources[key];
   if (!s) throw new Error('comic source not registered: ' + key);
   return Promise.resolve(s);
 };
@@ -422,7 +422,7 @@ class ComicSourceManager {
     await _ensureInitialized();
     _sources.clear();
     await _engine.evaluate(
-        'globalThis.__acgnhub_sources = {}; globalThis.__acgnhub_pending = {};');
+        'globalThis.__libiko_sources = {}; globalThis.__libiko_pending = {};');
     final dir = await _dir();
     for (final entity in dir.listSync()) {
       if (entity is! File || !entity.path.endsWith('.js')) continue;
@@ -465,18 +465,18 @@ class ComicSourceManager {
     // throw `SyntaxError: redeclaration of '<Class>'`.
     //
     // Pass 1 declares the source (reading its metadata, not running `init()`)
-    // and stashes its class under `__acgnhub_pending[key]`; pass 2 instantiates
+    // and stashes its class under `__libiko_pending[key]`; pass 2 instantiates
     // it, runs `init()`, and registers it. Source settings are namespaced by a
     // fixed prefix (`source_setting.`), so no per-source allow-listing is
     // needed before `init()` runs.
     final declared = await _engine.evaluate('(function(){\n$script\n;'
-        'return globalThis.__acgnhub_declareSource($className);\n})()');
+        'return globalThis.__libiko_declareSource($className);\n})()');
     if (declared is! Map) throw const FormatException('source metadata missing');
     final key = declared['key']?.toString().trim() ?? '';
     if (key.isEmpty) throw const FormatException('comic source is missing "key"');
     try {
       final meta = await _engine.evaluate(
-          'globalThis.__acgnhub_registerSource(${jsonEncode(key)})');
+          'globalThis.__libiko_registerSource(${jsonEncode(key)})');
       if (meta is! Map) {
         throw const FormatException('source metadata missing');
       }
@@ -484,7 +484,7 @@ class ComicSourceManager {
     } catch (_) {
       try {
         await _engine.evaluate(
-            'delete globalThis.__acgnhub_pending[${jsonEncode(key)}];');
+            'delete globalThis.__libiko_pending[${jsonEncode(key)}];');
       } catch (_) {
         // Best-effort cleanup; keep the original registration failure.
       }
@@ -553,7 +553,7 @@ class ComicSourceManager {
     final file = _sourceFile(dir, source.fileName);
     if (await file.exists()) await file.delete();
     await _engine.evaluate(
-        'delete globalThis.__acgnhub_sources[${jsonEncode(source.key)}];');
+        'delete globalThis.__libiko_sources[${jsonEncode(source.key)}];');
     _sources.removeWhere((s) => s.key == source.key);
   }
 
@@ -563,7 +563,7 @@ class ComicSourceManager {
     if (!source.canSearch) return const [];
     final result = await _engine.evaluate('''
       (async () => {
-        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+        const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
         return s.search.load(${jsonEncode(keyword)}, {}, $page);
       })()
     ''');
@@ -576,7 +576,7 @@ class ComicSourceManager {
     if (!source.canExplore) return const ExplorePage(comics: []);
     final result = await _engine.evaluate('''
       (async () => {
-        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+        const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
         const sec = (s.explore || [])[$sectionIndex];
         if (!sec) return { comics: [], maxPage: 1 };
         if (typeof sec.load === 'function') return await sec.load($page);
@@ -598,7 +598,7 @@ class ComicSourceManager {
     final opts = options ?? source.categoryOptionsFor(cat);
     final result = await _engine.evaluate('''
       (async () => {
-        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+        const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
         if (!s.categoryComics || typeof s.categoryComics.load !== 'function') {
           return { comics: [], maxPage: 1 };
         }
@@ -616,7 +616,7 @@ class ComicSourceManager {
     try {
       final ok = await _engine.evaluate('''
         (async () => {
-          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
           const result = await s.account.login(${jsonEncode(username)}, ${jsonEncode(password)});
           return result !== false;
         })()
@@ -641,7 +641,7 @@ class ComicSourceManager {
     try {
       final ok = await _engine.evaluate('''
         (async () => {
-          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
           return await s.account.loginWithCookies.validate(${jsonEncode(values)});
         })()
       ''');
@@ -661,7 +661,7 @@ class ComicSourceManager {
     try {
       await _engine.evaluate('''
         (async () => {
-          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
           if (s.account && typeof s.account.logout === 'function') {
             await s.account.logout();
           }
@@ -687,7 +687,7 @@ class ComicSourceManager {
     try {
       final result = await _engine.evaluate('''
         (async () => {
-          const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+          const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
           return !!s.isLogged;
         })()
       ''');
@@ -701,7 +701,7 @@ class ComicSourceManager {
     await _ensureInitialized();
     final result = await _engine.evaluate('''
       (async () => {
-        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+        const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
         return s.comic.loadInfo(${jsonEncode(id)});
       })()
     ''');
@@ -716,7 +716,7 @@ class ComicSourceManager {
     await _ensureInitialized();
     final result = await _engine.evaluate('''
       (async () => {
-        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+        const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
         return s.comic.loadEp(${jsonEncode(comicId)}, ${jsonEncode(epId)});
       })()
     ''');
@@ -732,7 +732,7 @@ class ComicSourceManager {
     if (!source.canOnImageLoad) return ImageLoadingConfig(url: url);
     final result = await _engine.evaluate('''
       (async () => {
-        const s = await globalThis.__acgnhub_instance(${jsonEncode(source.key)});
+        const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
         return s.comic.onImageLoad(${jsonEncode(url)}, ${jsonEncode(comicId)}, ${jsonEncode(epId)});
       })()
     ''');

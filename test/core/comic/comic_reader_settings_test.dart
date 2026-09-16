@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/comic/comic_reader_settings.dart';
-import 'package:acgnhub/core/storage/database.dart';
+import 'package:libiko/core/comic/comic_reader_settings.dart';
+import 'package:libiko/core/storage/database.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));

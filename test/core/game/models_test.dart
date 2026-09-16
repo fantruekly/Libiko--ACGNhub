@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/models.dart';
+import 'package:libiko/core/game/models.dart';
 
 void main() {
   test('Game fromJson/toJson round-trips', () {

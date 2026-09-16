@@ -9,7 +9,6 @@ import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
-import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
@@ -50,11 +49,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           _header(),
           Expanded(
             child: async.when(
-              loading: () => const ShimmerLoader(
-                  crossAxisCount: 6,
-                  itemCount: 12,
-                  aspectRatio: 0.58,
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+              loading: () => _loading(),
               error: (_, __) => EmptyState(
                 icon: Icons.cloud_off_rounded,
                 message: '加载失败',
@@ -66,6 +61,21 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _loading() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _infoCard(
+          Novel(
+              id: widget.novelId, title: widget.title, coverUrl: widget.cover),
+          widget.cover,
+        ),
+        const SizedBox(height: 24),
+        const Center(child: CircularProgressIndicator()),
+      ],
     );
   }
 
@@ -157,20 +167,23 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: 100,
-                  height: 132,
-                  child: cover != null
-                      ? CachedNetworkImage(
-                          imageUrl: cover,
-                          fit: BoxFit.cover,
-                          httpHeaders: novelImageHeaders,
-                          placeholder: (_, __) => _coverPlaceholder(),
-                          errorWidget: (_, __, ___) => _coverPlaceholder(),
-                        )
-                      : _coverPlaceholder(),
+              Hero(
+                tag: 'novel_${widget.sourceKey}_${widget.novelId}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 100,
+                    height: 132,
+                    child: cover != null
+                        ? CachedNetworkImage(
+                            imageUrl: cover,
+                            fit: BoxFit.cover,
+                            httpHeaders: novelImageHeaders,
+                            placeholder: (_, __) => _coverPlaceholder(),
+                            errorWidget: (_, __, ___) => _coverPlaceholder(),
+                          )
+                        : _coverPlaceholder(),
+                  ),
                 ),
               ),
               const SizedBox(width: 14),

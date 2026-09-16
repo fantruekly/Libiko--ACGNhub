@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/linovelib_source.dart';
+import 'package:libiko/core/novel/linovelib_source.dart';
 
 const _detailHtml = '''
 <html><head>

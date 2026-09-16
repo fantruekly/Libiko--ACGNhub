@@ -10,6 +10,7 @@ import '../../core/novel/novel_source.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/tab_strip.dart';
 import 'novel_detail_page.dart';
@@ -23,31 +24,36 @@ const _fg = Color(0xFF1C1C1E);
 class NovelCard extends StatelessWidget {
   final Novel novel;
   final VoidCallback? onTap;
-  const NovelCard({super.key, required this.novel, this.onTap});
+  final String? heroTag;
+  const NovelCard({super.key, required this.novel, this.onTap, this.heroTag});
 
   @override
   Widget build(BuildContext context) {
+    Widget image = RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: novel.coverUrl != null && novel.coverUrl!.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: novel.coverUrl!,
+                fit: BoxFit.cover,
+                memCacheWidth: 400,
+                fadeInDuration: Duration.zero,
+                httpHeaders: novelImageHeaders,
+                placeholder: (_, __) => _placeholder(),
+                errorWidget: (_, __, ___) => _placeholder(),
+              )
+            : _placeholder(),
+      ),
+    );
+    if (heroTag != null) {
+      image = Hero(tag: heroTag!, child: image);
+    }
     return GestureDetector(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: novel.coverUrl != null && novel.coverUrl!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: novel.coverUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 400,
-                      fadeInDuration: Duration.zero,
-                      httpHeaders: novelImageHeaders,
-                      placeholder: (_, __) => _placeholder(),
-                      errorWidget: (_, __, ___) => _placeholder(),
-                    )
-                  : _placeholder(),
-            ),
-          ),
+          Expanded(child: image),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
@@ -85,19 +91,34 @@ class NovelHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const DefaultTabController(
+    return DefaultTabController(
       length: 3,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TabStrip(labels: ['探索', '收藏', '历史']),
-          Expanded(
-            child: TabBarView(
-              children: [_ExploreTab(), _FavoritesTab(), _HistoryTab()],
+      child: Builder(builder: (context) {
+        final controller = DefaultTabController.of(context);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const TabStrip(labels: ['探索', '收藏', '历史']),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _heroTab(controller, 0, const _ExploreTab()),
+                  _heroTab(controller, 1, const _FavoritesTab()),
+                  _heroTab(controller, 2, const _HistoryTab()),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      }),
+    );
+  }
+
+  static Widget _heroTab(TabController controller, int index, Widget child) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) =>
+          HeroMode(enabled: controller.index == index, child: child),
     );
   }
 }
@@ -179,21 +200,33 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   }
 
   Widget _body(List<NovelBrowseGroup> groups) {
+    final sourceIndex =
+        ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId);
     if (_groupIndex < 0 || _groupIndex >= groups.length) {
       final async = ref.watch(novelHomeProvider(_sourceId));
-      return async.when(
-        loading: () => const ShimmerLoader(
-            crossAxisCount: 6,
-            itemCount: 12,
-            aspectRatio: 0.58,
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-        error: (_, __) => EmptyState(
-          icon: Icons.cloud_off_rounded,
-          message: '加载失败',
-          actionLabel: '重试',
-          onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
-        ),
-        data: (home) => _grid(flattenHome(home)),
+      return Column(
+        children: [
+          Expanded(
+            child: SlideSwitcher(
+              id: (_sourceId, '__home__'),
+              index: sourceIndex * 1000000,
+              child: async.when(
+                loading: () => const ShimmerLoader(
+                    crossAxisCount: 6,
+                    itemCount: 12,
+                    aspectRatio: 0.58,
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+                error: (_, __) => EmptyState(
+                  icon: Icons.cloud_off_rounded,
+                  message: '加载失败',
+                  actionLabel: '重试',
+                  onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+                ),
+                data: (home) => _grid(flattenHome(home)),
+              ),
+            ),
+          ),
+        ],
       );
     }
     final group = groups[_groupIndex];
@@ -202,25 +235,35 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     }
     final option = group.options[_optionIndex.clamp(0, group.options.length - 1)];
     final async = ref.watch(novelBrowseProvider((_sourceId, option.key, _page)));
-    return async.when(
-      loading: () => const ShimmerLoader(
-          crossAxisCount: 6,
-          itemCount: 12,
-          aspectRatio: 0.58,
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-      error: (_, __) => EmptyState(
-        icon: Icons.cloud_off_rounded,
-        message: '加载失败',
-        actionLabel: '重试',
-        onAction: () =>
-            ref.invalidate(novelBrowseProvider((_sourceId, option.key, _page))),
-      ),
-      data: (list) => Column(
-        children: [
-          Expanded(child: _grid(list.items)),
-          _pager(list.hasMore),
-        ],
-      ),
+    final pageData = async.valueOrNull;
+    return Column(
+      children: [
+        Expanded(
+          child: SlideSwitcher(
+            id: (_sourceId, option.key, _page),
+            index: sourceIndex * 1000000 +
+                (_groupIndex + 1) * 10000 +
+                _optionIndex * 100 +
+                _page,
+            child: async.when(
+              loading: () => const ShimmerLoader(
+                  crossAxisCount: 6,
+                  itemCount: 12,
+                  aspectRatio: 0.58,
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+              error: (_, __) => EmptyState(
+                icon: Icons.cloud_off_rounded,
+                message: '加载失败',
+                actionLabel: '重试',
+                onAction: () => ref.invalidate(
+                    novelBrowseProvider((_sourceId, option.key, _page))),
+              ),
+              data: (list) => _grid(list.items),
+            ),
+          ),
+        ),
+        if (pageData != null) _pager(pageData.hasMore),
+      ],
     );
   }
 
@@ -264,9 +307,10 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       itemCount: items.length,
       itemBuilder: (_, i) => NovelCard(
         novel: items[i],
+        heroTag: 'novel_${_sourceId}_${items[i].id}',
         onTap: () => Navigator.push(
           context,
-          noTransitionRoute(NovelDetailPage(
+          smoothRoute(NovelDetailPage(
             sourceKey: _sourceId,
             novelId: items[i].id,
             title: items[i].title,
@@ -299,9 +343,10 @@ class _FavoritesTab extends ConsumerWidget {
           title: favorites[i].title,
           coverUrl: favorites[i].cover,
         ),
+        heroTag: 'novel_${favorites[i].sourceKey}_${favorites[i].novelId}',
         onTap: () => Navigator.push(
           context,
-          noTransitionRoute(NovelDetailPage(
+          smoothRoute(NovelDetailPage(
             sourceKey: favorites[i].sourceKey,
             novelId: favorites[i].novelId,
             title: favorites[i].title,

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/linovelib_source.dart';
-import 'package:acgnhub/core/novel/models.dart';
+import 'package:libiko/core/novel/linovelib_source.dart';
+import 'package:libiko/core/novel/models.dart';
 
 const _pagedHtml = '''
 <div id="mlfy_main_text"><h1>第60話 規則（2）</h1>

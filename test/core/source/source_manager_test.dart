@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/source/source_adapter.dart';
-import 'package:acgnhub/core/source/source_manager.dart';
-import 'package:acgnhub/core/models/work.dart';
-import 'package:acgnhub/core/models/chapter.dart';
-import 'package:acgnhub/core/models/search_result.dart';
+import 'package:libiko/core/source/source_adapter.dart';
+import 'package:libiko/core/source/source_manager.dart';
+import 'package:libiko/core/models/work.dart';
+import 'package:libiko/core/models/chapter.dart';
+import 'package:libiko/core/models/search_result.dart';
 
 class _MockAdapter extends SourceAdapter {
   @override

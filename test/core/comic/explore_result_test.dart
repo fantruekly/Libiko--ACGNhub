@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/comic/explore_result.dart';
+import 'package:libiko/core/comic/explore_result.dart';
 
 void main() {
   test('parses a {comics, maxPage} result', () {

@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:acgnhub/core/novel/models.dart';
-import 'package:acgnhub/core/novel/novel_source.dart';
-import 'package:acgnhub/core/storage/database.dart';
-import 'package:acgnhub/modules/novel/novel_home.dart';
-import 'package:acgnhub/modules/novel/novel_providers.dart';
+import 'package:libiko/core/novel/models.dart';
+import 'package:libiko/core/novel/novel_source.dart';
+import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/modules/novel/novel_home.dart';
+import 'package:libiko/modules/novel/novel_providers.dart';
 
 class _FakeSource extends NovelSource {
   @override
@@ -74,6 +74,9 @@ void main() {
     await tester.tap(find.text('排行'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
+    // The 推荐 -> 排行 switch must actually run the slide transition
+    // (an outgoing + an incoming child), not silently swap.
+    expect(find.byType(SlideTransition), findsNWidgets(2));
     expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
     expect(find.text('第 1 页'), findsOneWidget);

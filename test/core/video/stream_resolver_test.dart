@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/stream_resolver.dart';
+import 'package:libiko/core/video/stream_resolver.dart';
 
 void main() {
   test('accepts a media URL whose path ends with .m3u8 or .mp4', () {

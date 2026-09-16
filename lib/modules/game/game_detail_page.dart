@@ -4,10 +4,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../../core/game/galgamezywz_source.dart';
+import '../../core/game/game_image.dart';
 import '../../core/game/models.dart';
 import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'game_providers.dart';
@@ -38,14 +37,10 @@ class GameDetailPage extends ConsumerWidget {
       backgroundColor: const Color(0xFFF2F2F7),
       body: Column(
         children: [
-          _header(context, async.valueOrNull),
+          _header(context),
           Expanded(
             child: async.when(
-              loading: () => const ShimmerLoader(
-                  crossAxisCount: 6,
-                  itemCount: 12,
-                  aspectRatio: 0.58,
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+              loading: () => _loading(),
               error: (_, __) => EmptyState(
                 icon: Icons.cloud_off_rounded,
                 message: '加载失败',
@@ -60,7 +55,22 @@ class GameDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _header(BuildContext context, GameDetail? detail) {
+  Widget _loading() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _infoCard(
+          Game(id: gameId, title: title, coverUrl: cover),
+          cover,
+          GameDetail(game: Game(id: gameId, title: title), sourceUrl: ''),
+        ),
+        const SizedBox(height: 24),
+        const Center(child: CircularProgressIndicator()),
+      ],
+    );
+  }
+
+  Widget _header(BuildContext context) {
     return DragToMoveArea(
       child: Container(
         height: 48,
@@ -85,14 +95,6 @@ class GameDetailPage extends ConsumerWidget {
                 style: const TextStyle(
                     fontSize: 15, fontWeight: FontWeight.w600, color: _fg),
               ),
-            ),
-            IconButton(
-              tooltip: '在原站打开',
-              icon: const Icon(Icons.open_in_new_rounded, size: 20),
-              color: _muted,
-              onPressed: detail == null
-                  ? null
-                  : () => _openSource(detail.sourceUrl),
             ),
             const WindowControls(),
           ],
@@ -134,9 +136,9 @@ class GameDetailPage extends ConsumerWidget {
           _gallery(context, detail.screenshots),
         ],
         const SizedBox(height: 20),
-        const Text('数据来源 game.galgamezywz.org',
+        Text('数据来源 ${_sourceHost(detail.sourceUrl)}',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: _muted)),
+            style: const TextStyle(fontSize: 11, color: _muted)),
       ],
     );
   }
@@ -161,9 +163,13 @@ class GameDetailPage extends ConsumerWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(width: 100, height: 132, child: _cover(coverUrl)),
+              Hero(
+                tag: 'game_${sourceKey}_$gameId',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child:
+                      SizedBox(width: 100, height: 132, child: _cover(coverUrl)),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -184,6 +190,26 @@ class GameDetailPage extends ConsumerWidget {
                           _tag(game.category!),
                         for (final t in game.tags) _tag(t),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        backgroundColor: const Color(0xFF007AFF),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: detail.sourceUrl.isEmpty
+                          ? null
+                          : () => _openSource(detail.sourceUrl),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                      label: const Text('在原站打开',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),
@@ -235,7 +261,7 @@ class GameDetailPage extends ConsumerWidget {
                 imageUrl: urls[i],
                 fit: BoxFit.cover,
                 memCacheWidth: 400,
-                httpHeaders: gameImageHeaders,
+                httpHeaders: gameImageHeadersFor(urls[i]),
                 placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
                 errorWidget: (_, __, ___) =>
                     Container(color: const Color(0xFFE5E5EA)),
@@ -269,10 +295,15 @@ class GameDetailPage extends ConsumerWidget {
       imageUrl: url,
       fit: BoxFit.cover,
       memCacheWidth: 300,
-      httpHeaders: gameImageHeaders,
+      httpHeaders: gameImageHeadersFor(url),
       placeholder: (_, __) => Container(color: const Color(0xFFE8EAF6)),
       errorWidget: (_, __, ___) => Container(color: const Color(0xFFE8EAF6)),
     );
+  }
+
+  String _sourceHost(String url) {
+    final host = Uri.tryParse(url)?.host ?? '';
+    return host.isEmpty ? url : host;
   }
 
   String _formatDate(DateTime d) {
@@ -331,7 +362,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
                 child: CachedNetworkImage(
                   imageUrl: widget.urls[i],
                   fit: BoxFit.contain,
-                  httpHeaders: gameImageHeaders,
+                  httpHeaders: gameImageHeadersFor(widget.urls[i]),
                   placeholder: (_, __) => const Center(
                       child: CircularProgressIndicator(color: Colors.white54)),
                   errorWidget: (_, __, ___) => const Center(

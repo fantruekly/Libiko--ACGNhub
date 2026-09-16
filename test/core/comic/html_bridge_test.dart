@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/comic/html_bridge.dart';
+import 'package:libiko/core/comic/html_bridge.dart';
 
 const _html = '''
 <html><body>

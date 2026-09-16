@@ -1,8 +1,8 @@
 // A self-contained test source: every "request" is answered from an inline
 // HTML string, so the e2e probe needs no network.
-class AcgnhubTestSource extends ComicSource {
+class LibikoTestSource extends ComicSource {
   name = "TestSource";
-  key = "acgnhub_test";
+  key = "libiko_test";
   version = "1.0.0";
 
   search = {

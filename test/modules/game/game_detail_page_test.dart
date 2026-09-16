@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/models.dart';
-import 'package:acgnhub/modules/game/game_detail_page.dart';
-import 'package:acgnhub/modules/game/game_providers.dart';
+import 'package:libiko/core/game/models.dart';
+import 'package:libiko/modules/game/game_detail_page.dart';
+import 'package:libiko/modules/game/game_providers.dart';
 
 void main() {
   testWidgets('renders title, meta, tags, paragraphs and source button',
@@ -45,8 +47,12 @@ void main() {
     expect(find.text('第一段简介。'), findsOneWidget);
     expect(find.text('第二段简介。'), findsOneWidget);
     expect(find.text('简介'), findsOneWidget);
-    expect(find.byTooltip('在原站打开'), findsOneWidget);
+    expect(find.text('在原站打开'), findsOneWidget);
+    expect(find.byTooltip('在原站打开'), findsNothing);
     expect(find.text('数据来源 game.galgamezywz.org'), findsOneWidget);
+
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'game_galgamezywz_1207');
   });
 
   testWidgets('shows a retry action on error', (tester) async {
@@ -64,5 +70,23 @@ void main() {
 
     expect(find.text('加载失败'), findsWidgets);
     expect(find.text('重试'), findsOneWidget);
+  });
+
+  testWidgets('GameDetailPage shows the cover Hero while loading',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        gameDetailProvider(('galgamezywz', '1207'))
+            .overrideWith((ref) => Completer<GameDetail>().future),
+      ],
+      child: const MaterialApp(
+        home: GameDetailPage(
+            sourceKey: 'galgamezywz', gameId: '1207', title: '金辉恋曲四重奏'),
+      ),
+    ));
+    await tester.pump();
+
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'game_galgamezywz_1207');
   });
 }

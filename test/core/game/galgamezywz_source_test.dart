@@ -2,20 +2,27 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/galgamezywz_source.dart';
+import 'package:libiko/core/game/galgamezywz_source.dart';
 
-const _listHtml = '''
-<div class="posts-warp">
-  <article class="post-item item-grid">
-    <a class="media-img" href="/game/1207" data-bg="https://game.galgamezywz.org/wp-content/uploads/cover.jpg"></a>
-    <h2 class="entry-title"><a href="/game/1207">金辉恋曲四重奏</a></h2>
-    <div class="entry-meta"><span class="meta-views">4.3K</span></div>
-  </article>
-</div>
-<nav class="page-nav"><ul class="pagination">
-  <li class="page-item"><a class="page-link page-next" href="/page/2">下一页</a></li>
-</ul></nav>
-''';
+String _listHtmlWith(int count, {String? next, int idBase = 0}) {
+  final items = StringBuffer();
+  for (var i = 0; i < count; i++) {
+    final id = idBase + i;
+    items.write(
+        '<article class="post-item item-grid">'
+        '<a class="media-img" href="/game/$id" data-bg="https://game.galgamezywz.org/wp-content/uploads/$id.jpg"></a>'
+        '<h2 class="entry-title"><a href="/game/$id">游戏$id</a></h2>'
+        '</article>');
+  }
+  final nav = next == null
+      ? '<nav class="page-nav"><ul class="pagination">'
+          '<li class="page-item disabled"><span class="page-link">N/N</span></li>'
+          '</ul></nav>'
+      : '<nav class="page-nav"><ul class="pagination">'
+          '<li class="page-item"><a class="page-link page-next" href="$next">下一页</a></li>'
+          '</ul></nav>';
+  return '<div class="posts-warp">$items</div>$nav';
+}
 
 const _detailHtml = '''
 <div class="archive-shop">
@@ -30,8 +37,9 @@ const _detailHtml = '''
 ''';
 
 class _FakeAdapter implements HttpClientAdapter {
-  _FakeAdapter(this.htmlByPath);
+  _FakeAdapter(this.htmlByPath, {this.failPaths = const {}});
   final Map<String, String> htmlByPath;
+  final Set<String> failPaths;
   final List<String> requested = [];
 
   @override
@@ -41,6 +49,9 @@ class _FakeAdapter implements HttpClientAdapter {
   Future<ResponseBody> fetch(RequestOptions options,
       Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     requested.add(options.path);
+    if (failPaths.contains(options.path)) {
+      throw DioException(requestOptions: options, message: 'boom');
+    }
     final html = htmlByPath[options.path] ?? '';
     return ResponseBody.fromString(html, 200, headers: {
       Headers.contentTypeHeader: ['text/plain; charset=utf-8'],
@@ -49,18 +60,112 @@ class _FakeAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  test('browse requests the option path and parses the list', () async {
+  test('browse page 1 requests two source pages and returns 24', () async {
     final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
-    final adapter = _FakeAdapter({'/lm/galgame': _listHtml});
+    final adapter = _FakeAdapter({
+      '/lm/galgame':
+          _listHtmlWith(12, next: '/lm/galgame/page/2', idBase: 100),
+      '/lm/galgame/page/2':
+          _listHtmlWith(12, next: '/lm/galgame/page/3', idBase: 200),
+    });
     dio.httpClientAdapter = adapter;
     final source = GalgameZywzSource(dio: dio);
 
     final list = await source.browse('galgame', page: 1);
-    expect(adapter.requested, ['/lm/galgame']);
-    expect(list.items.single.id, '1207');
-    expect(list.items.single.title, '金辉恋曲四重奏');
+    expect(adapter.requested, ['/lm/galgame', '/lm/galgame/page/2']);
+    expect(list.items, hasLength(24));
+    expect(list.items.first.id, '100');
+    expect(list.items.last.id, '211');
     expect(list.page, 1);
     expect(list.hasMore, isTrue);
+  });
+
+  test('browse page 2 requests the next two source pages', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/lm/galgame/page/3':
+          _listHtmlWith(12, next: '/lm/galgame/page/4', idBase: 300),
+      '/lm/galgame/page/4':
+          _listHtmlWith(12, next: '/lm/galgame/page/5', idBase: 400),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final list = await source.browse('galgame', page: 2);
+    expect(adapter.requested, ['/lm/galgame/page/3', '/lm/galgame/page/4']);
+    expect(list.items, hasLength(24));
+    expect(list.items.first.id, '300');
+    expect(list.page, 2);
+    expect(list.hasMore, isTrue);
+  });
+
+  test('browse stops early when a source page has no next link', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/lm/galgame':
+          _listHtmlWith(12, next: '/lm/galgame/page/2', idBase: 100),
+      '/lm/galgame/page/2': _listHtmlWith(12, idBase: 200),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final list = await source.browse('galgame', page: 1);
+    expect(adapter.requested, ['/lm/galgame', '/lm/galgame/page/2']);
+    expect(list.items, hasLength(24));
+    expect(list.hasMore, isFalse);
+  });
+
+  test('browse trims a 28-item page to 24', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/': _listHtmlWith(16, next: '/page/2', idBase: 100),
+      '/page/2': _listHtmlWith(12, next: '/page/3', idBase: 200),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final list = await source.browse('latest', page: 1);
+    expect(adapter.requested, ['/', '/page/2']);
+    expect(list.items, hasLength(24));
+    expect(list.items.first.id, '100');
+    expect(list.items.last.id, '207');
+    expect(list.hasMore, isTrue);
+  });
+
+  test('browse rethrows when the first source page fails', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter(
+      {
+        '/lm/galgame':
+            _listHtmlWith(12, next: '/lm/galgame/page/2', idBase: 100),
+      },
+      failPaths: {'/lm/galgame'},
+    );
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    expect(
+      () => source.browse('galgame', page: 1),
+      throwsA(isA<DioException>()),
+    );
+  });
+
+  test('browse ends the list when a later source page fails', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter(
+      {
+        '/lm/galgame':
+            _listHtmlWith(12, next: '/lm/galgame/page/2', idBase: 100),
+      },
+      failPaths: {'/lm/galgame/page/2'},
+    );
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final list = await source.browse('galgame', page: 1);
+    expect(adapter.requested, ['/lm/galgame', '/lm/galgame/page/2']);
+    expect(list.items, hasLength(12));
+    expect(list.hasMore, isFalse);
   });
 
   test('detail requests /game/<id> and parses fields', () async {
@@ -83,5 +188,28 @@ void main() {
     expect(source.browseOptions.map((o) => o.key),
         ['latest', 'wanjiareping', 'galgame', 'haoyoutuijian', 'wanjiazuiai']);
     expect(source.browseOptions.first.label, '最近更新');
+  });
+
+  test('search requests the keyword and parses results', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/?s=%E9%AD%94%E5%A5%B3': _listHtmlWith(2, idBase: 100),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    final results = await source.search('魔女');
+    expect(adapter.requested, ['/?s=%E9%AD%94%E5%A5%B3']);
+    expect(results.map((g) => g.id), ['100', '101']);
+  });
+
+  test('search returns empty without a request for a blank keyword', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({});
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    expect(await source.search('   '), isEmpty);
+    expect(adapter.requested, isEmpty);
   });
 }

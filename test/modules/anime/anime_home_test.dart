@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/metadata/metadata_provider.dart';
-import 'package:acgnhub/core/metadata/metadata_service.dart';
-import 'package:acgnhub/core/models/work.dart';
-import 'package:acgnhub/modules/anime/anime_home.dart';
-import 'package:acgnhub/modules/anime/anime_providers.dart';
+import 'package:libiko/core/metadata/metadata_provider.dart';
+import 'package:libiko/core/metadata/metadata_service.dart';
+import 'package:libiko/core/models/work.dart';
+import 'package:libiko/modules/anime/anime_home.dart';
+import 'package:libiko/modules/anime/anime_providers.dart';
 
 class _EmptyProvider implements MetadataProvider {
   _EmptyProvider(this.id);

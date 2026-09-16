@@ -206,9 +206,10 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
         final r = results[i];
         return NovelCard(
           novel: r.novel,
+          heroTag: 'novel_${r.sourceKey}_${r.novel.id}',
           onTap: () => Navigator.push(
             context,
-            noTransitionRoute(NovelDetailPage(
+            smoothRoute(NovelDetailPage(
               sourceKey: r.sourceKey,
               novelId: r.novel.id,
               title: r.novel.title,

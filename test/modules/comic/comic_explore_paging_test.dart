@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/comic/explore_result.dart';
-import 'package:acgnhub/core/comic/models.dart';
-import 'package:acgnhub/modules/comic/comic_providers.dart';
+import 'package:libiko/core/comic/explore_result.dart';
+import 'package:libiko/core/comic/models.dart';
+import 'package:libiko/modules/comic/comic_providers.dart';
 
 List<Comic> _comics(String prefix, int count) =>
     [for (var i = 0; i < count; i++) Comic(id: '$prefix$i', title: '$prefix$i')];

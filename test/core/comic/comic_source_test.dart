@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/comic/comic_source.dart';
+import 'package:libiko/core/comic/comic_source.dart';
 
 const _validSource = '''
 class TestSource extends ComicSource {

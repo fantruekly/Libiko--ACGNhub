@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/novel/models.dart';
-import 'package:acgnhub/core/novel/novel_history.dart';
-import 'package:acgnhub/core/storage/database.dart';
-import 'package:acgnhub/modules/novel/novel_detail_page.dart';
-import 'package:acgnhub/modules/novel/novel_providers.dart';
+import 'package:libiko/core/novel/models.dart';
+import 'package:libiko/core/novel/novel_history.dart';
+import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/modules/novel/novel_detail_page.dart';
+import 'package:libiko/modules/novel/novel_providers.dart';
 
 class _HistNotifier extends NovelHistoryNotifier {
   @override
@@ -81,5 +83,43 @@ void main() {
     await tester.tap(find.text('收藏'));
     await tester.pumpAndSettle();
     expect(find.text('已收藏'), findsOneWidget);
+  });
+
+  testWidgets('NovelDetailPage wraps the cover in a Hero', (tester) async {
+    const detail = NovelDetail(
+      novel: Novel(id: '5340', title: '不相容的異種族妻子們'),
+      volumes: [],
+    );
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        novelDetailProvider(('linovelib', '5340'))
+            .overrideWith((ref) async => detail),
+      ],
+      child: const MaterialApp(
+        home: NovelDetailPage(
+            sourceKey: 'linovelib', novelId: '5340', title: '不相容的異種族妻子們'),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'novel_linovelib_5340');
+  });
+
+  testWidgets('NovelDetailPage shows the cover Hero while loading',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        novelDetailProvider(('linovelib', '5340'))
+            .overrideWith((ref) => Completer<NovelDetail>().future),
+      ],
+      child: const MaterialApp(
+        home: NovelDetailPage(
+            sourceKey: 'linovelib', novelId: '5340', title: '不相容的異種族妻子們'),
+      ),
+    ));
+    await tester.pump();
+
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'novel_linovelib_5340');
   });
 }

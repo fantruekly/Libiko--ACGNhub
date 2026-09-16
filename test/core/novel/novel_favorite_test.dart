@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/novel/novel_favorite.dart';
-import 'package:acgnhub/core/storage/database.dart';
+import 'package:libiko/core/novel/novel_favorite.dart';
+import 'package:libiko/core/storage/database.dart';
 
 NovelFavorite _fav(String novelId, int ms) => NovelFavorite(
       sourceKey: 's1',

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/widgets/chip_bar.dart';
+import 'package:libiko/core/widgets/chip_bar.dart';
 
 const _pillKey = ValueKey('chip-bar-pill');
 

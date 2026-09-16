@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/models/follow_record.dart';
-import 'package:acgnhub/core/models/work.dart';
+import 'package:libiko/core/models/follow_record.dart';
+import 'package:libiko/core/models/work.dart';
 
 void main() {
   const work = Work(

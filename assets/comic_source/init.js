@@ -1,4 +1,4 @@
-// ACGNhub comic-source JS API. Re-implements the Venera API shape on top of the
+// Libiko comic-source JS API. Re-implements the Venera API shape on top of the
 // Dart `sendMessage` bridge.
 (function () {
   const call = (obj) => sendMessage(obj);
@@ -138,7 +138,7 @@
     loadSetting(key) {
       const v = call({ method: 'setting', op: 'get', key: 'source_setting.' + this.key + '.' + key });
       if (v !== null && v !== undefined && v !== '') return v;
-      const source = this.__acgnhub_origSettings || this.settings;
+      const source = this.__libiko_origSettings || this.settings;
       const decl = source ? source[key] : null;
       if (decl === null || decl === undefined) return null;
       if (typeof decl === 'object') {

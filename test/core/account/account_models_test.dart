@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/account/account_models.dart';
+import 'package:libiko/core/account/account_models.dart';
 
 void main() {
   test('AccountUser round-trips through JSON', () {

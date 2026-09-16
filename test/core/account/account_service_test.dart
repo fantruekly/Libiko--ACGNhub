@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/account/account_api.dart';
-import 'package:acgnhub/core/account/account_models.dart';
-import 'package:acgnhub/core/account/account_service.dart';
-import 'package:acgnhub/core/storage/database.dart';
+import 'package:libiko/core/account/account_api.dart';
+import 'package:libiko/core/account/account_models.dart';
+import 'package:libiko/core/account/account_service.dart';
+import 'package:libiko/core/storage/database.dart';
 
 class _FakeApi implements AccountApi {
   _FakeApi({this.meThrows401 = false, this.refreshOk = true});

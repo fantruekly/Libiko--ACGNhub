@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/comic/js_engine.dart';
+import 'package:libiko/core/comic/js_engine.dart';
 
 void main() {
   test(

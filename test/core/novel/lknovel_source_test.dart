@@ -2,8 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/lknovel_source.dart';
-import 'package:acgnhub/core/novel/models.dart';
+import 'package:libiko/core/novel/lknovel_source.dart';
+import 'package:libiko/core/novel/models.dart';
 
 const _bookJson = {
   'book_id': 1338,

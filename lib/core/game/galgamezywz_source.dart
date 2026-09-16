@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
+import 'game_paging.dart';
 import 'game_source.dart';
 import 'models.dart';
 
@@ -10,9 +11,7 @@ const String galgameZywzUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-const Map<String, String> gameImageHeaders = {
-  'Referer': '$galgameZywzBaseUrl/',
-};
+const int galgameZywzSourcePageSize = 12;
 
 const Map<String, String> _categorySlugs = {
   'wanjiareping': 'wanjiareping',
@@ -257,17 +256,33 @@ class GalgameZywzSource implements GameSource {
       ];
 
   @override
-  Future<GameList> browse(String optionKey, {int page = 1}) async {
-    final html = await _get(galgameZywzBrowsePath(optionKey, page));
-    final items = parseGameList(html);
-    final hasMore = parseHasNextPage(html, itemCount: items.length);
-    return GameList(items: items, page: page, hasMore: hasMore);
+  Future<GameList> browse(String optionKey, {int page = 1}) {
+    return buildGamePage(
+      page: page,
+      sourcePageSize: galgameZywzSourcePageSize,
+      fetch: (serverPage) async {
+        final html = await _get(galgameZywzBrowsePath(optionKey, serverPage));
+        final items = parseGameList(html);
+        return GameSourcePage(
+          items: items,
+          hasMore: parseHasNextPage(html, itemCount: items.length),
+        );
+      },
+    );
   }
 
   @override
   Future<GameDetail> detail(String id) async {
     final html = await _get('/game/$id');
     return parseGameDetail(html, '$galgameZywzBaseUrl/game/$id');
+  }
+
+  @override
+  Future<List<Game>> search(String keyword) async {
+    final k = keyword.trim();
+    if (k.isEmpty) return const [];
+    final html = await _get('/?s=${Uri.encodeQueryComponent(k)}');
+    return parseGameList(html);
   }
 
   Future<String> _get(String path) async {

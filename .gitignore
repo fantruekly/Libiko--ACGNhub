@@ -46,3 +46,19 @@ app.*.map.json
 
 # Backend runtime data
 /server/data/
+
+# Backend build output
+/server/build/
+
+# Release packaging output
+/dist/
+
+# Android signing secrets
+/android/key.properties
+*.jks
+*.keystore
+
+/.superpowers/
+/opendesign/
+/agent.md
+/SPEC.md

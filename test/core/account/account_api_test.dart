@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/account/account_api.dart';
+import 'package:libiko/core/account/account_api.dart';
 
 /// A Dio adapter that records the last request and returns a canned response.
 class _FakeAdapter implements HttpClientAdapter {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/comic/models.dart';
+import 'package:libiko/core/comic/models.dart';
 
 void main() {
   test('Comic.fromJs maps the source result', () {

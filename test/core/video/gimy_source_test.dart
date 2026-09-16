@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/gimy_source.dart';
+import 'package:libiko/core/video/gimy_source.dart';
 
 class _RecordingAdapter implements HttpClientAdapter {
   RequestOptions? last;

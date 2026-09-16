@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../core/game/galgamezywz_source.dart';
+import '../../core/game/game_image.dart';
 import '../../core/game/game_source.dart';
 import '../../core/game/models.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
 import 'game_detail_page.dart';
+import 'game_grid.dart';
 import 'game_providers.dart';
 
 const _accent = Color(0xFF007AFF);
@@ -19,31 +21,36 @@ const _fg = Color(0xFF1C1C1E);
 class GameCard extends StatelessWidget {
   final Game game;
   final VoidCallback? onTap;
-  const GameCard({super.key, required this.game, this.onTap});
+  final String? heroTag;
+  const GameCard({super.key, required this.game, this.onTap, this.heroTag});
 
   @override
   Widget build(BuildContext context) {
+    Widget image = RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: game.coverUrl != null && game.coverUrl!.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: game.coverUrl!,
+                fit: BoxFit.cover,
+                memCacheWidth: 400,
+                fadeInDuration: Duration.zero,
+                httpHeaders: gameImageHeadersFor(game.coverUrl),
+                placeholder: (_, __) => _placeholder(),
+                errorWidget: (_, __, ___) => _placeholder(),
+              )
+            : _placeholder(),
+      ),
+    );
+    if (heroTag != null) {
+      image = Hero(tag: heroTag!, child: image);
+    }
     return GestureDetector(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: game.coverUrl != null && game.coverUrl!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: game.coverUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 400,
-                      fadeInDuration: Duration.zero,
-                      httpHeaders: gameImageHeaders,
-                      placeholder: (_, __) => _placeholder(),
-                      errorWidget: (_, __, ___) => _placeholder(),
-                    )
-                  : _placeholder(),
-            ),
-          ),
+          Expanded(child: image),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
@@ -147,26 +154,39 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
       return const EmptyState(icon: Icons.games_rounded, message: '暂无内容');
     }
     final option = options[_optionIndex.clamp(0, options.length - 1)];
+    final sourceIndex =
+        ref.watch(gameSourcesProvider).indexWhere((s) => s.id == _sourceId);
     final key = (_sourceId, option.key, _page);
     final async = ref.watch(gameBrowseProvider(key));
-    return async.when(
-      loading: () => const ShimmerLoader(
-          crossAxisCount: 6,
-          itemCount: 12,
-          aspectRatio: 0.58,
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-      error: (_, __) => EmptyState(
-        icon: Icons.cloud_off_rounded,
-        message: '加载失败',
-        actionLabel: '重试',
-        onAction: () => ref.invalidate(gameBrowseProvider(key)),
-      ),
-      data: (list) => Column(
-        children: [
-          Expanded(child: _grid(list.items)),
-          _pager(list.hasMore),
-        ],
-      ),
+    final pageData = async.valueOrNull;
+    return Column(
+      children: [
+        Expanded(
+          child: SlideSwitcher(
+            id: key,
+            index: sourceIndex * 10000 + _optionIndex * 100 + _page,
+            child: async.when(
+              loading: () => LayoutBuilder(builder: (context, constraints) {
+                final cellW = gameGridCellWidth(constraints.maxWidth);
+                return ShimmerLoader(
+                    crossAxisCount: gameGridColumns,
+                    itemCount: 8,
+                    aspectRatio:
+                        cellW / gameGridCellExtent(constraints.maxWidth),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
+              }),
+              error: (_, __) => EmptyState(
+                icon: Icons.cloud_off_rounded,
+                message: '加载失败',
+                actionLabel: '重试',
+                onAction: () => ref.invalidate(gameBrowseProvider(key)),
+              ),
+              data: (list) => _grid(list.items),
+            ),
+          ),
+        ),
+        if (pageData != null) _pager(pageData.hasMore),
+      ],
     );
   }
 
@@ -203,26 +223,29 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
     if (items.isEmpty) {
       return const EmptyState(icon: Icons.games_rounded, message: '暂无内容');
     }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6,
-          mainAxisSpacing: 20,
-          crossAxisSpacing: 16,
-          childAspectRatio: 0.58),
-      itemCount: items.length,
-      itemBuilder: (_, i) => GameCard(
-        game: items[i],
-        onTap: () => Navigator.push(
-          context,
-          noTransitionRoute(GameDetailPage(
-            sourceKey: _sourceId,
-            gameId: items[i].id,
-            title: items[i].title,
-            cover: items[i].coverUrl,
-          )),
+    return LayoutBuilder(builder: (context, constraints) {
+      return GridView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: gameGridColumns,
+            mainAxisSpacing: 20,
+            crossAxisSpacing: gameGridSpacing,
+            mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+        itemCount: items.length,
+        itemBuilder: (_, i) => GameCard(
+          game: items[i],
+          heroTag: 'game_${_sourceId}_${items[i].id}',
+          onTap: () => Navigator.push(
+            context,
+            smoothRoute(GameDetailPage(
+              sourceKey: _sourceId,
+              gameId: items[i].id,
+              title: items[i].title,
+              cover: items[i].coverUrl,
+            )),
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
