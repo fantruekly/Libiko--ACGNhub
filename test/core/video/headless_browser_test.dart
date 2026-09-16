@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/video/headless_browser.dart';
+import 'package:libiko/core/video/headless_browser_android.dart';
 import 'package:libiko/core/video/headless_browser_windows.dart';
 
 void main() {
@@ -32,5 +33,13 @@ void main() {
 
   test('factory returns the Windows implementation on desktop', () {
     expect(createHeadlessBrowser(desktop: true), isA<WindowsHeadlessBrowser>());
+  });
+
+  test('factory returns a usable Android implementation on mobile', () async {
+    final browser = createHeadlessBrowser(desktop: false);
+    expect(browser, isA<AndroidHeadlessBrowser>());
+    expect(await browser.eval('1 + 1'), isNull);
+    await browser.load('about:blank');
+    await browser.dispose();
   });
 }
