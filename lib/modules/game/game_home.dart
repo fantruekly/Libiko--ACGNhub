@@ -8,6 +8,7 @@ import '../../core/game/models.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
 import 'game_detail_page.dart';
 import 'game_grid.dart';
@@ -153,6 +154,8 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
       return const EmptyState(icon: Icons.games_rounded, message: '暂无内容');
     }
     final option = options[_optionIndex.clamp(0, options.length - 1)];
+    final sourceIndex =
+        ref.watch(gameSourcesProvider).indexWhere((s) => s.id == _sourceId);
     final key = (_sourceId, option.key, _page);
     final async = ref.watch(gameBrowseProvider(key));
     return async.when(
@@ -172,7 +175,13 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
       ),
       data: (list) => Column(
         children: [
-          Expanded(child: _grid(list.items)),
+          Expanded(
+            child: SlideSwitcher(
+              id: (_sourceId, option.key, _page),
+              index: sourceIndex * 10000 + _optionIndex * 100 + _page,
+              child: _grid(list.items),
+            ),
+          ),
           _pager(list.hasMore),
         ],
       ),
