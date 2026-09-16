@@ -29,11 +29,23 @@ const String _mediaSnifferJs = r'''
   var of = window.fetch;
   if (of) {
     window.fetch = function (input) {
+      var u = '';
+      try { u = (input && input.url) ? input.url : input; } catch (e) {}
+      var p = of.apply(this, arguments);
       try {
-        var u = (input && input.url) ? input.url : input;
         if (media(u, '')) report(u, '');
+        if (p && typeof p.then === 'function') {
+          return p.then(function (r) {
+            try {
+              var mime = (r && r.headers && r.headers.get) ? (r.headers.get('content-type') || '') : '';
+              var ru = (r && r.url) ? r.url : u;
+              if (media(ru, mime)) report(ru, mime);
+            } catch (e) {}
+            return r;
+          });
+        }
       } catch (e) {}
-      return of.apply(this, arguments);
+      return p;
     };
   }
   var oo = XMLHttpRequest.prototype.open;
@@ -59,6 +71,7 @@ const String _mediaSnifferJs = r'''
     if (d && d.set) {
       Object.defineProperty(HTMLMediaElement.prototype, 'src', {
         configurable: true,
+        enumerable: d.enumerable,
         get: d.get,
         set: function (v) {
           try { if (media(v, '')) report(v, ''); } catch (e) {}
