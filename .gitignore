@@ -58,14 +58,9 @@ app.*.map.json
 /android/key.properties
 *.jks
 *.keystore
-<<<<<<< Updated upstream
 
 /.superpowers/
 /opendesign/
 /agent.md
 /SPEC.md
 /docs/
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> parent of d35ca50 (docs: deleteDesigndoc)
