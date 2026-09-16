@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
+import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -80,7 +80,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   }
 
   Widget _header() {
-    return DragToMoveArea(
+    return DesktopDragArea(
       child: Container(
         height: 48,
         padding: const EdgeInsets.only(left: 4),

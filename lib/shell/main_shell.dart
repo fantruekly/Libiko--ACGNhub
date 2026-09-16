@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
+import '../core/platform.dart';
+import '../core/widgets/desktop_drag_area.dart';
 import '../core/widgets/glass_surface.dart';
 import '../core/widgets/window_controls.dart';
 import '../modules/anime/anime_home.dart';
@@ -116,7 +117,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _titleBar(bool collapsed) {
-    return DragToMoveArea(
+    return DesktopDragArea(
       child: GlassSurface(
         borderRadius: BorderRadius.zero,
         blur: 18,
@@ -178,7 +179,7 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
               ),
-              const WindowControls(),
+              if (isDesktop) const WindowControls(),
             ],
           ),
         ),

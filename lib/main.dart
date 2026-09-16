@@ -6,13 +6,13 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/account/account_service.dart';
 import 'core/account/sync_service.dart';
+import 'core/platform.dart';
 import 'core/storage/database.dart';
 import 'shell/main_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
-  await windowManager.ensureInitialized();
   await AppDatabase.init();
 
   final container = ProviderContainer();
@@ -21,17 +21,20 @@ void main() async {
       .load()
       .then((_) => container.read(syncProvider).sync()));
 
-  const windowOptions = WindowOptions(
-    size: Size(1280, 800),
-    minimumSize: Size(960, 640),
-    center: true,
-    title: 'Libiko',
-    titleBarStyle: TitleBarStyle.hidden,
-  );
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
+  if (isDesktop) {
+    await windowManager.ensureInitialized();
+    const windowOptions = WindowOptions(
+      size: Size(1280, 800),
+      minimumSize: Size(960, 640),
+      center: true,
+      title: 'Libiko',
+      titleBarStyle: TitleBarStyle.hidden,
+    );
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
 
   runApp(UncontrolledProviderScope(
       container: container, child: const LibikoApp()));

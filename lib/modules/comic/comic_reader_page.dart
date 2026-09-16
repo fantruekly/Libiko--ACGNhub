@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_reader_settings.dart';
 import '../../core/comic/models.dart';
 import '../../core/comic/reader_nav.dart';
+import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_providers.dart';
 
@@ -270,7 +270,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       top: 0,
       left: 0,
       right: 0,
-      child: DragToMoveArea(
+            child: DesktopDragArea(
         child: Container(
           height: 48,
           padding: const EdgeInsets.only(left: 4),

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../core/game/game_image.dart';
 import '../../core/game/models.dart';
+import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
@@ -71,7 +71,7 @@ class GameDetailPage extends ConsumerWidget {
   }
 
   Widget _header(BuildContext context) {
-    return DragToMoveArea(
+    return DesktopDragArea(
       child: Container(
         height: 48,
         padding: const EdgeInsets.only(left: 4),
@@ -376,7 +376,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
             top: 0,
             left: 0,
             right: 0,
-            child: DragToMoveArea(
+            child: DesktopDragArea(
               child: Container(
                 height: 48,
                 padding: const EdgeInsets.only(left: 4),

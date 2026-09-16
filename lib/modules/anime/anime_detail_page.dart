@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_selector/file_selector.dart';
-import 'package:window_manager/window_manager.dart';
 import '../../core/account/sync_service.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
 import '../../core/services/follow_manager.dart';
+import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/rating_stars.dart';
@@ -310,7 +310,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Widget _header(Work w, ColorScheme cs) {
-    return DragToMoveArea(
+    return DesktopDragArea(
       child: Container(
         height: 48,
         padding: const EdgeInsets.only(left: 4),

@@ -1,11 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
 import '../../core/comic/models.dart';
+import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
@@ -54,7 +54,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
 
   Widget _header() {
     final cs = Theme.of(context).colorScheme;
-    return DragToMoveArea(
+    return DesktopDragArea(
       child: Container(
         height: 48,
         padding: const EdgeInsets.only(left: 4),
