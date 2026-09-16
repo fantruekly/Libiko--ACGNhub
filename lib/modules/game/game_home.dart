@@ -158,33 +158,35 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
         ref.watch(gameSourcesProvider).indexWhere((s) => s.id == _sourceId);
     final key = (_sourceId, option.key, _page);
     final async = ref.watch(gameBrowseProvider(key));
-    return async.when(
-      loading: () => LayoutBuilder(builder: (context, constraints) {
-        final cellW = gameGridCellWidth(constraints.maxWidth);
-        return ShimmerLoader(
-            crossAxisCount: gameGridColumns,
-            itemCount: 8,
-            aspectRatio: cellW / gameGridCellExtent(constraints.maxWidth),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
-      }),
-      error: (_, __) => EmptyState(
-        icon: Icons.cloud_off_rounded,
-        message: '加载失败',
-        actionLabel: '重试',
-        onAction: () => ref.invalidate(gameBrowseProvider(key)),
-      ),
-      data: (list) => Column(
-        children: [
-          Expanded(
-            child: SlideSwitcher(
-              id: (_sourceId, option.key, _page),
-              index: sourceIndex * 10000 + _optionIndex * 100 + _page,
-              child: _grid(list.items),
+    final pageData = async.valueOrNull;
+    return Column(
+      children: [
+        Expanded(
+          child: SlideSwitcher(
+            id: key,
+            index: sourceIndex * 10000 + _optionIndex * 100 + _page,
+            child: async.when(
+              loading: () => LayoutBuilder(builder: (context, constraints) {
+                final cellW = gameGridCellWidth(constraints.maxWidth);
+                return ShimmerLoader(
+                    crossAxisCount: gameGridColumns,
+                    itemCount: 8,
+                    aspectRatio:
+                        cellW / gameGridCellExtent(constraints.maxWidth),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
+              }),
+              error: (_, __) => EmptyState(
+                icon: Icons.cloud_off_rounded,
+                message: '加载失败',
+                actionLabel: '重试',
+                onAction: () => ref.invalidate(gameBrowseProvider(key)),
+              ),
+              data: (list) => _grid(list.items),
             ),
           ),
-          _pager(list.hasMore),
-        ],
-      ),
+        ),
+        if (pageData != null) _pager(pageData.hasMore),
+      ],
     );
   }
 
