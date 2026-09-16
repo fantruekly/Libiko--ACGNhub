@@ -10,6 +10,7 @@ import '../../core/novel/novel_source.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/tab_strip.dart';
 import 'novel_detail_page.dart';
@@ -199,21 +200,27 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   }
 
   Widget _body(List<NovelBrowseGroup> groups) {
+    final sourceIndex =
+        ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId);
     if (_groupIndex < 0 || _groupIndex >= groups.length) {
       final async = ref.watch(novelHomeProvider(_sourceId));
-      return async.when(
-        loading: () => const ShimmerLoader(
-            crossAxisCount: 6,
-            itemCount: 12,
-            aspectRatio: 0.58,
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-        error: (_, __) => EmptyState(
-          icon: Icons.cloud_off_rounded,
-          message: '加载失败',
-          actionLabel: '重试',
-          onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+      return SlideSwitcher(
+        id: (_sourceId, '__home__'),
+        index: sourceIndex * 1000000,
+        child: async.when(
+          loading: () => const ShimmerLoader(
+              crossAxisCount: 6,
+              itemCount: 12,
+              aspectRatio: 0.58,
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+          error: (_, __) => EmptyState(
+            icon: Icons.cloud_off_rounded,
+            message: '加载失败',
+            actionLabel: '重试',
+            onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+          ),
+          data: (home) => _grid(flattenHome(home)),
         ),
-        data: (home) => _grid(flattenHome(home)),
       );
     }
     final group = groups[_groupIndex];
@@ -222,25 +229,35 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     }
     final option = group.options[_optionIndex.clamp(0, group.options.length - 1)];
     final async = ref.watch(novelBrowseProvider((_sourceId, option.key, _page)));
-    return async.when(
-      loading: () => const ShimmerLoader(
-          crossAxisCount: 6,
-          itemCount: 12,
-          aspectRatio: 0.58,
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-      error: (_, __) => EmptyState(
-        icon: Icons.cloud_off_rounded,
-        message: '加载失败',
-        actionLabel: '重试',
-        onAction: () =>
-            ref.invalidate(novelBrowseProvider((_sourceId, option.key, _page))),
-      ),
-      data: (list) => Column(
-        children: [
-          Expanded(child: _grid(list.items)),
-          _pager(list.hasMore),
-        ],
-      ),
+    final pageData = async.valueOrNull;
+    return Column(
+      children: [
+        Expanded(
+          child: SlideSwitcher(
+            id: (_sourceId, option.key, _page),
+            index: sourceIndex * 1000000 +
+                (_groupIndex + 1) * 10000 +
+                _optionIndex * 100 +
+                _page,
+            child: async.when(
+              loading: () => const ShimmerLoader(
+                  crossAxisCount: 6,
+                  itemCount: 12,
+                  aspectRatio: 0.58,
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+              error: (_, __) => EmptyState(
+                icon: Icons.cloud_off_rounded,
+                message: '加载失败',
+                actionLabel: '重试',
+                onAction: () => ref.invalidate(
+                    novelBrowseProvider((_sourceId, option.key, _page))),
+              ),
+              data: (list) => _grid(list.items),
+            ),
+          ),
+        ),
+        if (pageData != null) _pager(pageData.hasMore),
+      ],
     );
   }
 
