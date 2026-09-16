@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:acgnhub_server/src/api.dart';
-import 'package:acgnhub_server/src/auth.dart';
-import 'package:acgnhub_server/src/database.dart';
+import 'package:libiko_server/src/api.dart';
+import 'package:libiko_server/src/auth.dart';
+import 'package:libiko_server/src/database.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 

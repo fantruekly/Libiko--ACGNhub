@@ -13,7 +13,7 @@ WORKDIR /app
 COPY --from=build /root/.pub-cache /root/.pub-cache
 COPY --from=build /app /app
 ENV PORT=8080
-ENV ACGHUB_DB_PATH=/data/acgnhub.db
+ENV LIBIKO_DB_PATH=/data/libiko.db
 VOLUME /data
 EXPOSE 8080
 CMD ["dart", "run", "bin/server.dart"]

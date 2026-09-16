@@ -1,5 +1,5 @@
-name: acgnhub_server
-description: ACGNhub account and sync backend
+name: libiko_server
+description: Libiko account and sync backend
 publish_to: none
 version: 0.1.0
 

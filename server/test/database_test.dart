@@ -1,4 +1,4 @@
-import 'package:acgnhub_server/src/database.dart';
+import 'package:libiko_server/src/database.dart';
 import 'package:sqlite3/sqlite3.dart' hide Database;
 import 'package:test/test.dart';
 

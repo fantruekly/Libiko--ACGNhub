@@ -1,4 +1,4 @@
-import 'package:acgnhub_server/src/auth.dart';
+import 'package:libiko_server/src/auth.dart';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:test/test.dart';
 
