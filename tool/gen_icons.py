@@ -1,8 +1,9 @@
 """Generate platform app icons from the source artwork.
 
-Source: assets/branding/app_icon.png (full-bleed square artwork). It is
-downscaled into the Windows / Android / web icon slots as-is; the launcher or
-shell applies its own corner masking, so no transparency is added here.
+Source: assets/branding/app_icon.png (square artwork with transparent rounded
+corners). It is downscaled into the Windows / Android / web icon slots as-is;
+whatever transparency the source already has is preserved, so the launcher or
+shell can apply its own corner masking.
 
 Run from the repo root:  python tool/gen_icons.py
 """
