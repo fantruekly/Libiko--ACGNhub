@@ -70,8 +70,7 @@ String buildEpisodesScript(SourceRule rule) => '''
 })()
 ''';
 
-/// Loads a URL in a headless WebView and evaluates an extraction script.
-/// Mirrors [StreamResolver]'s lifecycle: create, run, load, dispose.
+/// Loads a URL in a [HeadlessBrowser] and evaluates an extraction script.
 class WebviewScraper {
   /// Normalizes an `executeScript` result to a list. The webview returns the
   /// decoded JSON value; accept a `List` directly and tolerate a JSON string.

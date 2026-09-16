@@ -21,7 +21,15 @@ class StreamResolver {
       sub = browser.mediaUrls.listen((url) {
         if (url.isNotEmpty && !completer.isCompleted) completer.complete(url);
       });
-      await browser.load(playPageUrl);
+      // Navigation runs concurrently with the media wait so that [timeout]
+      // bounds the whole operation, as it did before the HeadlessBrowser
+      // refactor. Media requested during the page load is still captured
+      // because the subscription above is already active.
+      unawaited(() async {
+        try {
+          await browser.load(playPageUrl, timeout: timeout);
+        } catch (_) {}
+      }());
       final url = await completer.future.timeout(timeout, onTimeout: () {
         debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');
         return null;
