@@ -1,186 +1,333 @@
-## Task 4: galgamezywz 详情解析
+## Task 4: GameSearchPage
 
 **Files:**
-- Modify: `lib/core/game/galgamezywz_source.dart`（追加详情解析）
-- Test: `test/core/game/galgamezywz_parser_test.dart`（追加详情用例）
+- Create: `lib/modules/game/game_search.dart`
+- Test: `test/modules/game/game_search_page_test.dart`
 
 **Interfaces:**
-- Consumes: Task 3 的辅助函数（`_absUrl` / `_textOf` / `parseCount` / `gameIdFromHref`）。
-- Produces: `GameDetail parseGameDetail(String html, String sourceUrl)`。
+- Consumes: `gameSearchSourceProvider` / `gameSourcesProvider`（Task 3）、`GameCard`（`game_home.dart`）、`gameGridColumns`/`gameGridSpacing`/`gameGridCellWidth`/`gameGridCellExtent`（Task 2）、`smoothRoute` / `EmptyState` / `ShimmerLoader`。
 
-- [ ] **Step 1: Write the failing test**
+### Step 1: 写测试（先失败）
 
-在 `test/core/game/galgamezywz_parser_test.dart` 末尾追加（`main()` 内）：
+Create `test/modules/game/game_search_page_test.dart`:
 
 ```dart
-  test('parseGameDetail extracts meta, paragraphs, tags and screenshots', () {
-    final detail = parseGameDetail(_detailHtml, '$galgameZywzBaseUrl/game/1207');
-    expect(detail.game.id, '1207');
-    expect(detail.game.title, '金辉恋曲四重奏');
-    expect(detail.game.coverUrl,
-        'https://game.galgamezywz.org/wp-content/uploads/cover.jpg');
-    expect(detail.game.category, '玩家热评游戏');
-    expect(detail.game.tags, ['汉化', 'PC']);
-    expect(detail.game.views, 4300);
-    expect(detail.game.publishedAt, DateTime.parse('2026-09-11'));
-    expect(detail.updatedAt, DateTime.parse('2026-09-12'));
-    expect(detail.size, '14.3GB');
-    expect(detail.platform, 'PC+安卓直装');
-    expect(detail.paragraphs, ['第一段简介。', '第二段简介。']);
-    expect(detail.screenshots, [
-      'https://game.galgamezywz.org/wp-content/uploads/1.jpg',
-    ]);
-    expect(detail.sourceUrl, '$galgameZywzBaseUrl/game/1207');
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/game/game_source.dart';
+import 'package:acgnhub/core/game/models.dart';
+import 'package:acgnhub/modules/game/game_providers.dart';
+import 'package:acgnhub/modules/game/game_search.dart';
+
+class _FakeSource implements GameSource {
+  _FakeSource(this.results, {this.delay = Duration.zero, String id = 'fake'})
+      : _id = id;
+  final List<Game> results;
+  final Duration delay;
+  final String _id;
+  @override
+  String get id => _id;
+  @override
+  String get name => _id;
+  @override
+  String get baseUrl => 'https://x';
+  @override
+  List<GameBrowseOption> get browseOptions => const [];
+  @override
+  Future<GameList> browse(String optionKey, {int page = 1}) async =>
+      GameList(items: const [], page: page, hasMore: false);
+  @override
+  Future<GameDetail> detail(String id) async =>
+      GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://x/$id');
+  @override
+  Future<List<Game>> search(String keyword) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    return results;
+  }
+}
+
+Widget _app(List<Game> results) => ProviderScope(
+      overrides: [
+        gameSourceManagerProvider.overrideWithValue(
+            GameSourceManager(sources: [_FakeSource(results)])),
+      ],
+      child: const MaterialApp(home: GameSearchPage(initialKeyword: '关键词')),
+    );
+
+void main() {
+  testWidgets('renders results from the sources', (tester) async {
+    await tester.pumpWidget(_app(const [Game(id: '1', title: '结果游戏')]));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('结果游戏'), findsOneWidget);
   });
+
+  testWidgets('shows a prompt before searching', (tester) async {
+    await tester.pumpWidget(const ProviderScope(
+      child: MaterialApp(home: GameSearchPage()),
+    ));
+    expect(find.text('输入关键词搜索游戏'), findsOneWidget);
+  });
+
+  testWidgets('shows empty message when there are no results', (tester) async {
+    await tester.pumpWidget(_app(const []));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('没有找到游戏'), findsOneWidget);
+  });
+}
 ```
 
-并在文件顶部（`_listNoNextHtml` 之后）加入 fixture：
+Run: `C:\flutter\bin\flutter.bat test test/modules/game/game_search_page_test.dart`
+Expected: FAIL（找不到 `game_search.dart`）。
+
+### Step 2: 实现 `game_search.dart`
+
+Create `lib/modules/game/game_search.dart`:
 
 ```dart
-const _detailHtml = '''
-<div class="archive-shop">
-  <div class="img-box"><img class="lazy" src="https://game.galgamezywz.org/wp-content/uploads/cover.jpg"></div>
-  <div class="info-box">
-    <ul class="article-meta">
-      <li>资源分类: <a href="https://game.galgamezywz.org/lm/wanjiareping">玩家热评游戏</a></li>
-      <li>浏览热度: (4.3K)</li>
-      <li>发布时间: 2026-09-11</li>
-      <li>最近更新: 2026-09-12</li>
-      <li>游戏大小: 14.3GB</li>
-      <li>游戏平台: PC+安卓直装</li>
-    </ul>
-  </div>
-</div>
-<h1 class="post-title">金辉恋曲四重奏</h1>
-<div class="entry-tags">
-  <a rel="tag" href="https://game.galgamezywz.org/bq/hanhua">汉化</a>
-  <a rel="tag" href="https://game.galgamezywz.org/bq/pc">PC</a>
-</div>
-<article class="post-content">
-  <p>第一段简介。</p>
-  <p>第二段简介。</p>
-  <img src="https://game.galgamezywz.org/wp-content/uploads/1.jpg" class="aligncenter wp-image-1">
-  <img src="https://game.galgamezywz.org/wp-content/uploads/1.jpg" class="aligncenter">
-  <img src="data:image/gif;base64,AAAA">
-</article>
-''';
-```
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-- [ ] **Step 2: Run test to verify it fails**
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/shimmer_loader.dart';
+import '../../core/widgets/smooth_route.dart';
+import 'game_detail_page.dart';
+import 'game_grid.dart';
+import 'game_home.dart';
+import 'game_providers.dart';
 
-Run: `flutter test test/core/game/galgamezywz_parser_test.dart`
-Expected: FAIL（`parseGameDetail` 未定义）。
+const _muted = Color(0xFF5A5A5F);
 
-- [ ] **Step 3: Write minimal implementation**
+class GameSearchPage extends ConsumerStatefulWidget {
+  final String? initialKeyword;
+  const GameSearchPage({super.key, this.initialKeyword});
 
-在 `lib/core/game/galgamezywz_source.dart` 末尾追加：
-
-```dart
-String _valueAfterColon(String text) {
-  final ascii = text.indexOf(':');
-  final wide = text.indexOf('：');
-  final cut = ascii >= 0 ? ascii : wide;
-  if (cut < 0) return text.trim();
-  return text.substring(cut + 1).trim();
+  @override
+  ConsumerState<GameSearchPage> createState() => _GameSearchPageState();
 }
 
-DateTime? _dateAfterColon(String text) =>
-    DateTime.tryParse(_valueAfterColon(text));
+class _GameSearchPageState extends ConsumerState<GameSearchPage> {
+  final _ctrl = TextEditingController();
+  String _keyword = '';
 
-GameDetail parseGameDetail(String html, String sourceUrl) {
-  final doc = html_parser.parse(html);
-  final id = gameIdFromHref(sourceUrl) ?? '';
-  final title = _textOf(doc.querySelector('h1.post-title'));
-  final titleFallback = _textOf(doc.querySelector('.entry-title'));
-  final img = doc.querySelector('.archive-shop .img-box img');
-  final cover = _absUrl(img?.attributes['src'] ?? img?.attributes['data-src']);
-
-  String? category;
-  int? views;
-  DateTime? publishedAt;
-  DateTime? updatedAt;
-  String? size;
-  String? platform;
-  for (final li
-      in doc.querySelectorAll('.archive-shop .info-box .article-meta li')) {
-    final text = _textOf(li);
-    if (text.contains('资源分类')) {
-      final a = _textOf(li.querySelector('a'));
-      category = a.isNotEmpty ? a : _valueAfterColon(text);
-    } else if (text.contains('浏览热度')) {
-      views = parseCount(text);
-    } else if (text.contains('发布时间')) {
-      publishedAt = _dateAfterColon(text);
-    } else if (text.contains('最近更新')) {
-      updatedAt = _dateAfterColon(text);
-    } else if (text.contains('游戏大小')) {
-      size = _valueAfterColon(text);
-    } else if (text.contains('游戏平台')) {
-      platform = _valueAfterColon(text);
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialKeyword?.trim() ?? '';
+    if (initial.isNotEmpty) {
+      _ctrl.text = initial;
+      _keyword = initial;
     }
   }
 
-  final tags = <String>[
-    for (final a in doc.querySelectorAll('.entry-tags a[rel="tag"]'))
-      if (_textOf(a).isNotEmpty) _textOf(a),
-  ];
+  void _search() {
+    final k = _ctrl.text.trim();
+    if (k.isEmpty) return;
+    setState(() => _keyword = k);
+  }
 
-  final paragraphs = <String>[];
-  final screenshots = <String>[];
-  final content = doc.querySelector('article.post-content');
-  if (content != null) {
-    final ps = content.querySelectorAll('p');
-    if (ps.isEmpty) {
-      final t = _textOf(content);
-      if (t.isNotEmpty) paragraphs.add(t);
-    } else {
-      for (final p in ps) {
-        final t = _textOf(p);
-        if (t.isNotEmpty) paragraphs.add(t);
-      }
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _searchBar(cs),
+            Expanded(child: _body()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _searchBar(ColorScheme cs) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFFFFF),
+        border:
+            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.pop(context),
+            splashRadius: 20,
+          ),
+          Expanded(
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2F2F7),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.search_rounded,
+                      size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      autofocus: widget.initialKeyword == null,
+                      style: TextStyle(fontSize: 15, color: cs.onSurface),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '搜索游戏...',
+                        hintStyle: TextStyle(color: _muted, fontSize: 15),
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      onSubmitted: (_) => _search(),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  if (_ctrl.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        _ctrl.clear();
+                        setState(() {});
+                      },
+                      child: Icon(Icons.close_rounded,
+                          size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+              onPressed: _search,
+              child: const Text('搜索', style: TextStyle(fontSize: 14))),
+        ],
+      ),
+    );
+  }
+
+  Widget _body() {
+    if (_keyword.isEmpty) {
+      return const EmptyState(
+          icon: Icons.search_rounded, message: '输入关键词搜索游戏');
     }
+    final sources = ref.watch(gameSourcesProvider);
+    final results = <GameSearchResult>[];
     final seen = <String>{};
-    for (final im in content.querySelectorAll('img')) {
-      final src = _absUrl(im.attributes['src'] ?? im.attributes['data-src']);
-      if (src.isEmpty || src.startsWith('data:')) continue;
-      if (cover.isNotEmpty && src == cover) continue;
-      if (seen.add(src)) screenshots.add(src);
+    var pending = 0;
+    var failed = 0;
+    Object? lastError;
+    for (final source in sources) {
+      final async =
+          ref.watch(gameSearchSourceProvider((source.id, _keyword)));
+      async.when(
+        data: (list) {
+          for (final r in list) {
+            if (seen.add(r.game.title.trim())) results.add(r);
+          }
+        },
+        loading: () {
+          pending++;
+        },
+        error: (error, __) {
+          failed++;
+          lastError = error;
+        },
+      );
     }
+    if (results.isEmpty && pending > 0) {
+      return LayoutBuilder(builder: (context, constraints) {
+        final cellW = gameGridCellWidth(constraints.maxWidth);
+        return ShimmerLoader(
+            crossAxisCount: gameGridColumns,
+            itemCount: 8,
+            aspectRatio: cellW / gameGridCellExtent(constraints.maxWidth),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
+      });
+    }
+    if (results.isEmpty) {
+      if (sources.isNotEmpty && failed == sources.length) {
+        return EmptyState(
+          icon: Icons.error_outline_rounded,
+          message: lastError?.toString() ?? '搜索失败',
+          actionLabel: '重试',
+          onAction: () {
+            for (final source in sources) {
+              ref.invalidate(gameSearchSourceProvider((source.id, _keyword)));
+            }
+          },
+        );
+      }
+      return const EmptyState(
+          icon: Icons.search_off_rounded, message: '没有找到游戏');
+    }
+    return Column(
+      children: [
+        if (pending > 0)
+          const LinearProgressIndicator(
+            minHeight: 2,
+            color: Color(0xFF007AFF),
+            backgroundColor: Color(0xFFE5E5EA),
+          ),
+        Expanded(child: _grid(results)),
+      ],
+    );
   }
 
-  final game = Game(
-    id: id,
-    title: title.isNotEmpty ? title : titleFallback,
-    coverUrl: cover.isEmpty ? null : cover,
-    category: (category == null || category.isEmpty) ? null : category,
-    tags: tags,
-    publishedAt: publishedAt,
-    views: views,
-    extra: {'url': sourceUrl},
-  );
-
-  return GameDetail(
-    game: game,
-    size: (size == null || size.isEmpty) ? null : size,
-    platform: (platform == null || platform.isEmpty) ? null : platform,
-    updatedAt: updatedAt,
-    paragraphs: paragraphs,
-    screenshots: screenshots,
-    sourceUrl: sourceUrl,
-  );
+  Widget _grid(List<GameSearchResult> results) {
+    return LayoutBuilder(builder: (context, constraints) {
+      return GridView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: gameGridColumns,
+            mainAxisSpacing: 20,
+            crossAxisSpacing: gameGridSpacing,
+            mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+        itemCount: results.length,
+        itemBuilder: (_, i) {
+          final r = results[i];
+          return GameCard(
+            game: r.game,
+            heroTag: 'game_${r.sourceKey}_${r.game.id}',
+            onTap: () => Navigator.push(
+              context,
+              smoothRoute(GameDetailPage(
+                sourceKey: r.sourceKey,
+                gameId: r.game.id,
+                title: r.game.title,
+                cover: r.game.coverUrl,
+              )),
+            ),
+          );
+        },
+      );
+    });
+  }
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+Run: `C:\flutter\bin\flutter.bat test test/modules/game/game_search_page_test.dart`
+Expected: PASS（3 tests）。
 
-Run: `flutter test test/core/game/galgamezywz_parser_test.dart`
-Expected: PASS（6 tests）。
+### Step 3: 静态检查 + 提交
 
-- [ ] **Step 5: Commit**
+Run: `C:\flutter\bin\flutter.bat analyze`
+Expected: `No issues found!`
 
 ```bash
-git add lib/core/game/galgamezywz_source.dart test/core/game/galgamezywz_parser_test.dart
-git commit -m "feat(game): parse galgamezywz detail page"
+git add lib/modules/game/game_search.dart test/modules/game/game_search_page_test.dart
+git commit -m "feat(game): add the game search page"
 ```
 
 ---

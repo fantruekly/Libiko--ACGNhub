@@ -1,47 +1,33 @@
-# Task 2 Report: GameSource 抽象与管理器
+# Task 2 Report: 抽取共享网格度量
 
 ## What I implemented
-- `lib/core/game/game_source.dart` — `abstract class GameSource` (id/name/baseUrl/browseOptions/browse/detail) and `GameSourceManager` (sources getter returning unmodifiable list, `register` with duplicate-id `ArgumentError` guard, `byId` lookup). Mirrors `lib/core/novel/novel_source.dart`.
-- `test/core/game/game_source_test.dart` — fake source + 2 tests (registered sources exposed, duplicate ids rejected).
+- Created `lib/modules/game/game_grid.dart` with public shared grid metrics:
+  `gameGridColumns` (4), `gameGridSpacing` (16), `gameGridTitleExtent` (44),
+  `gameGridCellWidth(double maxWidth)`, `gameGridCellExtent(double maxWidth)`.
+- Modified `lib/modules/game/game_home.dart`:
+  - Added `import 'game_grid.dart';` (between `game_detail_page.dart` and `game_providers.dart`).
+  - Deleted the private `_gridColumns` / `_gridSpacing` / `_gridTitleExtent` constants and
+    `_gridCellWidth` / `_gridCellExtent` functions.
+  - Replaced all references in `_body` (loading shimmer) and `_grid` with the public names.
+- Behavior unchanged: identical formulas and values.
 
-Both files written verbatim from the brief's provided code.
-
-## What I tested and test results
-Command: `C:\flutter\bin\flutter.bat test test/core/game/game_source_test.dart`
-Result: `00:00 +2: All tests passed!` (2 tests).
-
-## TDD Evidence
-### RED
-Command: `C:\flutter\bin\flutter.bat test test/core/game/game_source_test.dart`
-Output (excerpt):
-```
-test/core/game/game_source_test.dart:2:8: Error: Error when reading 'lib/core/game/game_source.dart': 系统找不到指定的文件。
-test/core/game/game_source_test.dart:5:30: Error: Type 'GameSource' not found.
-test/core/game/game_source_test.dart:25:15: Error: Method not found: 'GameSourceManager'.
-00:00 +0 -1: Some tests failed.
-```
-Why expected: implementation file did not yet exist, so `GameSource`/`GameSourceManager` could not resolve — the brief's Step 2 anticipated exactly this failure.
-
-### GREEN
-Command: `C:\flutter\bin\flutter.bat test test/core/game/game_source_test.dart`
-Output:
-```
-00:00 +0: manager exposes registered sources
-00:00 +1: manager rejects duplicate ids
-00:00 +2: All tests passed!
-```
+## Commands + results
+- `C:\flutter\bin\flutter.bat test test/modules/game/game_home_test.dart`
+  → `00:00 +4: All tests passed!` (includes `grid uses 4 columns with 3:2 covers`).
+- `C:\flutter\bin\flutter.bat analyze`
+  → `No issues found! (ran in 2.1s)`.
 
 ## Files changed
-- `lib/core/game/game_source.dart` (new)
-- `test/core/game/game_source_test.dart` (new)
+- `lib/modules/game/game_grid.dart` (new, 9 lines)
+- `lib/modules/game/game_home.dart` (7 insertions, 16 deletions)
 
-Commit: `29c1b2c feat(game): add GameSource abstraction and manager` (branch `dev`).
+Commit: `6c68857 refactor(game): share the game grid metrics`
 
-## Self-review findings
-- Completeness: exactly the brief's two files and API surface.
-- Quality: matches `novel_source.dart` naming/structure and duplicate-id guard.
-- Discipline: no extra files, no dependencies added, no comments beyond those in the brief's provided code (three doc comments on the abstract class members).
-- Testing: tests exercise real manager behavior (listing, lookup, duplicate rejection) and output is pristine.
+## Self-review
+- Completeness: file created; private metrics removed; all references updated (grep for
+  `_gridColumns|_gridSpacing|_gridTitleExtent|_gridCellWidth|_gridCellExtent` in `lib/` → no matches).
+- Discipline: only the two code files staged/committed; no comments added; formulas identical so behavior unchanged.
+- Testing: home test passes including the 4-column 3:2 assertion; analyze clean.
 
-## Issues or concerns
-None.
+## Concerns
+- None. Pre-existing unstaged changes under `.superpowers/sdd/` were left untouched (not part of this task).

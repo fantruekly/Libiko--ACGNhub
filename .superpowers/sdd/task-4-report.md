@@ -1,100 +1,74 @@
-# Task 4 Report: galgamezywz 详情解析
+# Task 4 Report: GameSearchPage
+
+## Status
+DONE_WITH_CONCERNS
 
 ## What I implemented
+- `lib/modules/game/game_search.dart` — `GameSearchPage` (ConsumerStatefulWidget) mirroring
+  `novel_search.dart`:
+  - Search bar with back button, `搜索游戏...` hint, clear button, submit/changed handlers,
+    and a `搜索` action button.
+  - `initialKeyword` seeds the controller and triggers the initial search.
+  - Progressive per-source aggregation: watches `gameSearchSourceProvider((source.id, keyword))`
+    for every source in `gameSourcesProvider`, dedupes by trimmed title, shows a 2px
+    `LinearProgressIndicator` while any source is still pending.
+  - Pending-only state → 4-column 3:2 `ShimmerLoader` sized via
+    `gameGridCellWidth` / `gameGridCellExtent`.
+  - Empty prompt (`输入关键词搜索游戏`), no-results (`没有找到游戏`), and all-sources-failed
+    error state with `重试` invalidating the per-source providers.
+  - Results grid: 4 columns, `gameGridSpacing`, `gameGridCellExtent`, `GameCard` with
+    `heroTag: 'game_${sourceKey}_${gameId}'`, tapping navigates via `smoothRoute` to
+    `GameDetailPage`.
+- `test/modules/game/game_search_page_test.dart` — widget tests for the above.
 
-Appended to `lib/core/game/galgamezywz_source.dart`:
-- `String _valueAfterColon(String text)` — extracts the trimmed value after an ASCII `:` or full-width `：`.
-- `DateTime? _dateAfterColon(String text)` — parses a date from `_valueAfterColon`.
-- `GameDetail parseGameDetail(String html, String sourceUrl)` — parses the detail page:
-  - id from `sourceUrl` via `gameIdFromHref`
-  - title from `h1.post-title` (fallback `.entry-title`)
-  - cover from `.archive-shop .img-box img` `src`/`data-src` via `_absUrl`
-  - meta rows from `.archive-shop .info-box .article-meta li` matched by prefix: 资源分类 (inner `a`), 浏览热度 (`parseCount`), 发布时间, 最近更新, 游戏大小, 游戏平台
-  - tags from `.entry-tags a[rel="tag"]`
-  - paragraphs from `article.post-content p` (fallback whole-text if no `p`)
-  - screenshots from `article.post-content img src` (skip `data:`, dedupe, exclude cover)
-
-Appended to `test/core/game/galgamezywz_parser_test.dart`:
-- fixture `_detailHtml` (verbatim from the brief)
-- test `parseGameDetail extracts meta, paragraphs, tags and screenshots`
-
-No `GalgameZywzSource` class was added (that belongs to a later task). No new dependencies. No comments added.
-
-## What I tested and test results
-
-Command: `C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_parser_test.dart`
-Result: `00:00 +6: All tests passed!` (6 tests, including the 5 pre-existing listing/pagination tests).
-
-Also ran: `C:\flutter\bin\flutter.bat analyze lib/core/game/galgamezywz_source.dart test/core/game/galgamezywz_parser_test.dart`
-Result: `No issues found!`
-
-## TDD Evidence
-
-### RED
-Command:
+## Test results
+`C:\flutter\bin\flutter.bat test test/modules/game/game_search_page_test.dart`
 ```
-C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_parser_test.dart
-```
-Output (excerpt):
-```
-Failed to load ".../galgamezywz_parser_test.dart":
-Compilation failed ... test/core/game/galgamezywz_parser_test.dart:129:20:
-Error: Method not found: 'parseGameDetail'.
-      final detail = parseGameDetail(_detailHtml, '$galgameZywzBaseUrl/game/1207');
-                     ^^^^^^^^^^^^^^^
-00:00 +0 -1: Some tests failed.
-```
-Why expected: the test references `parseGameDetail`, which did not exist yet in the source file. This is the intended failing state before implementation.
-
-### GREEN
-Command:
-```
-C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_parser_test.dart
-```
-Output (excerpt):
-```
-00:00 +0: gameIdFromHref extracts the numeric id
-00:00 +1: parseCount parses K/M suffixes and raw numbers
-00:00 +2: galgameZywzBrowsePath maps options to paths
-00:00 +3: parseGameList keeps items with a /game/<id> link and skips others
-00:00 +4: parseHasNextPage follows the next link, else the item-count fallback
-00:00 +5: parseGameDetail extracts meta, paragraphs, tags and screenshots
-00:00 +6: All tests passed!
+00:00 +0: renders results from the sources
+00:00 +1: shows a prompt before searching
+00:00 +2: shows empty message when there are no results
+00:00 +3: shows fast source results without waiting for a slow source
+00:00 +4: All tests passed!
 ```
 
-## Files changed
-
-- `lib/core/game/galgamezywz_source.dart` (+95)
-- `test/core/game/galgamezywz_parser_test.dart` (+48)
-
-Commit: `9b29830 feat(game): parse galgamezywz detail page`
-
-## Self-review findings
-
-- Completeness: matches the brief; `parseGameDetail` plus the two private helpers only. No `GalgameZywzSource` class, no extra files.
-- Quality: follows the existing pattern of top-level parse functions and `_absUrl`/`_textOf` reuse.
-- Discipline: no comments, no new deps, listing/pagination code and tests untouched.
-- Testing: the new test exercises real parsing against the fixture; full file passes; analyzer clean.
-
-## Issues / concerns
-
-**Deviation from the brief's verbatim implementation (required to pass the brief's own test).**
-
-The brief's provided screenshot loop was:
-```dart
-final src = _absUrl(im.attributes['src'] ?? im.attributes['data-src']);
-if (src.isEmpty || src.startsWith('data:')) continue;
+`C:\flutter\bin\flutter.bat analyze`
 ```
-`_absUrl` is called first, so a `data:` URI (`data:image/gif;base64,AAAA`) does not start with `http`/`//`/`/` and gets rewritten to `https://game.galgamezywz.org/data:image/gif;base64,AAAA`. The subsequent `startsWith('data:')` check therefore never matches, and the fixture's data URI leaked into `screenshots` (observed failing output: actual had 2 entries vs. expected 1). This contradicts the brief's stated intent to "skip `data:`".
-
-Minimal fix applied (checks the raw attribute before `_absUrl`):
-```dart
-final raw = im.attributes['src'] ?? im.attributes['data-src'];
-if (raw == null || raw.isEmpty || raw.startsWith('data:')) continue;
-final src = _absUrl(raw);
-if (cover.isNotEmpty && src == cover) continue;
-if (seen.add(src)) screenshots.add(src);
+No issues found! (ran in 1.9s)
 ```
-Behavior for all non-`data:` URLs is unchanged; the fixture now passes. This is the only deviation from the brief's provided code.
 
-Also note: pre-existing uncommitted modifications to `.superpowers/sdd/*` files were present in the working tree; they were left untouched and not staged.
+## TDD evidence
+- **RED:** After creating only the test, `flutter test` failed to compile:
+  `Error when reading 'lib/modules/game/game_search.dart': 系统找不到指定的文件`
+  and `Method not found: 'GameSearchPage'` (2 occurrences).
+- **GREEN:** After creating `game_search.dart`, all tests passed.
+
+## Files changed (commit caf6ea5)
+- `lib/modules/game/game_search.dart` (new, 223 lines)
+- `test/modules/game/game_search_page_test.dart` (new, 93 lines)
+
+Commit: `caf6ea5 feat(game): add the game search page` on branch `dev`.
+Only these two files were staged; the pre-existing modified `.superpowers/sdd/*`
+files were left untouched.
+
+## Deviation from brief (concern)
+The brief's Step 1 test defines `_FakeSource` with an optional `delay` parameter but
+never supplies it, so `flutter analyze` reported one warning:
+`unused_element_parameter` at `game_search_page_test.dart:10:35` — contradicting the
+brief's stated expectation of `No issues found!`.
+
+To satisfy the "analyze clean" requirement without weakening the provided tests, I added
+the 4th test (`shows fast source results without waiting for a slow source`) that the
+mirrored `novel_search_page_test.dart` already contains. It uses `delay` to assert the
+progressive per-source behavior (fast source renders immediately, slow source does not
+until it resolves). Result: 4 tests instead of the brief's stated 3, analyze clean.
+
+## Self-review
+- Completeness: search bar + progressive aggregation + pending/empty/error states +
+  4-column 3:2 grid + heroTag + smoothRoute detail — all present.
+- Discipline: only the two target files changed; no comments added; no new dependencies.
+- Testing: RED → GREEN; analyze clean.
+
+## Concerns
+1. Test count is 4, not the brief's stated 3, due to the analyzer-warning fix above.
+   If strict 3-test parity is required, the alternative is to delete the `delay` parameter
+   from `_FakeSource` (also a brief deviation) — flag for the plan owner.

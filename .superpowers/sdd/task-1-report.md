@@ -1,90 +1,73 @@
-# Task 1 Report: 游戏数据模型
+# Task 1 Report: GameSource.search
 
 ## What I implemented
+Added keyword search to the game module:
 
-Created the game data models in `lib/core/game/models.dart`, mirroring the existing
-`lib/core/novel/models.dart` conventions:
+- `GameSource` interface: new member `Future<List<Game>> search(String keyword)` (documented, after `detail`).
+- `GalgameZywzSource.search`: trims the keyword, returns `const []` when blank, otherwise `GET /?s=<Uri.encodeQueryComponent(keyword)>` and reuses `parseGameList`.
+- `NekogalSource.search`: same shape, reuses `parseNekogalList`.
+- Added `search` override to every fake `GameSource`:
+  - `test/core/game/game_source_test.dart` (`_FakeSource`)
+  - `test/modules/game/game_home_test.dart` (`_FakeSource`, `_NekoFakeSource`)
+  - `test/modules/game/game_providers_test.dart` (`_FakeSource`)
+- Added source search tests to `test/core/game/galgamezywz_source_test.dart` (keyword + blank keyword) and `test/core/game/nekogal_source_test.dart` (keyword).
 
-- `_stringList(dynamic)` helper — coerces a raw list into a de-duplicated-free `List<String>`,
-  dropping empty entries; returns `const []` for non-lists.
-- `Game` — fields `id/title/coverUrl/summary/category/tags/publishedAt/views/extra`, with
-  `const` constructor, `Game.fromJson`, and `toJson` (omits null/empty optional fields).
-- `GameBrowseOption(key,label)`.
-- `GameList(items,page,hasMore)`.
-- `GameDetail(game,size,platform,updatedAt,paragraphs,screenshots,sourceUrl)`.
+## Test results
+All five listed test files pass (25 tests total):
 
-No comments added. No new dependencies. No other files touched.
+```
+00:01 +25: All tests passed!
+```
 
-## What I tested and test results
+`flutter analyze`:
 
-`test/core/game/models_test.dart` (verbatim from the brief) contains two tests:
-
-1. `Game fromJson/toJson round-trips` — constructs a fully-populated `Game`, serializes and
-   deserializes it, and asserts every field including tags and `extra`.
-2. `Game.fromJson tolerates missing optional fields` — parses only `id`/`title` and asserts all
-   optional fields are null/empty.
-
-Result: **2 tests passed**, `All tests passed!`
-Analyzer: `flutter analyze lib/core/game/models.dart test/core/game/models_test.dart` →
-`No issues found!`
-
-Note: `flutter` is not on PATH in this shell; used the full path
-`C:\flutter\bin\flutter.bat`.
+```
+Analyzing ACGNhub...
+No issues found! (ran in 2.3s)
+```
 
 ## TDD Evidence
 
 ### RED
-
 Command:
 ```
-& "C:\flutter\bin\flutter.bat" test test/core/game/models_test.dart
+C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart test/core/game/nekogal_source_test.dart
 ```
-
-Output (key excerpt):
+Output (excerpt):
 ```
-Failed to load "D:/ACGNhub/test/core/game/models_test.dart":
-Compilation failed for testPath=D:/ACGNhub/test/core/game/models_test.dart: test/core/game/models_test.dart:2:8: Error: Error when reading 'lib/core/game/models.dart': 系统找不到指定的路径。
-test/core/game/models_test.dart:6:15: Error: Method not found: 'Game'.
-test/core/game/models_test.dart:17:18: Error: Undefined name 'Game'.
-test/core/game/models_test.dart:30:15: Error: Undefined name 'Game'.
-00:00 +0 -1: Some tests failed.
+test/core/game/galgamezywz_source_test.dart:212:25: Error: The method 'search' isn't defined for the type 'GalgameZywzSource'.
+      expect(await source.search('   '), isEmpty);
+test/core/game/nekogal_source_test.dart:146:34: Error: The method 'search' isn't defined for the type 'NekogalSource'.
+      final results = await source.search('魔女');
+00:00 +0 -2: Some tests failed.
 ```
-
-Why expected: the implementation file `lib/core/game/models.dart` did not exist yet, so the
-`package:acgnhub/core/game/models.dart` import could not be resolved and `Game` was undefined.
-This is the correct RED for Step 1/2.
 
 ### GREEN
-
 Command:
 ```
-& "C:\flutter\bin\flutter.bat" test test/core/game/models_test.dart
+C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart test/core/game/nekogal_source_test.dart test/core/game/game_source_test.dart test/modules/game/game_home_test.dart test/modules/game/game_providers_test.dart
 ```
-
-Output:
+Output (excerpt):
 ```
-00:00 +0: loading D:/ACGNhub/test/core/game/models_test.dart
-00:00 +0: Game fromJson/toJson round-trips
-00:00 +1: Game.fromJson tolerates missing optional fields
-00:00 +2: All tests passed!
+... search requests the keyword and parses results
+... search requests the keyword and parses results
+00:01 +25: All tests passed!
 ```
 
 ## Files changed
-
-- `lib/core/game/models.dart` (new)
-- `test/core/game/models_test.dart` (new)
+- `lib/core/game/game_source.dart`
+- `lib/core/game/galgamezywz_source.dart`
+- `lib/core/game/nekogal_source.dart`
+- `test/core/game/galgamezywz_source_test.dart`
+- `test/core/game/nekogal_source_test.dart`
+- `test/core/game/game_source_test.dart`
+- `test/modules/game/game_home_test.dart`
+- `test/modules/game/game_providers_test.dart`
 
 ## Self-review findings
-
-- Completeness: implemented exactly the interfaces listed in the brief (`Game`, `GameBrowseOption`,
-  `GameList`, `GameDetail`), no more, no less.
-- Quality: matches `lib/core/novel/models.dart` patterns (`_stringList`, `fromJson`/`toJson`
-  conditional emission, `const` constructors).
-- Discipline: no overbuilding, no extra files committed, no comments added, no new dependencies.
-- Testing: tests assert real round-trip and tolerant-parsing behavior; test output clean
-  (only the pre-existing `pub outdated` dependency notice from `flutter test`).
+- Completeness: interface + both sources + all four fakes updated; both source search tests added. Yes.
+- Discipline: only the 8 listed files changed; no comments added beyond the brief's own interface doc line (`/// 关键词搜索（仅第一页）。`), which the brief specifies verbatim and which matches the existing doc-comment style of `GameSource`.
+- Testing: RED (compile error for missing `search`) -> GREEN (25 pass); other game tests compile and pass; analyze clean.
 
 ## Issues or concerns
-
-- None blocking. Minor environment note: Flutter SDK is at `C:\flutter` and not on PATH; future
-  tasks must invoke `C:\flutter\bin\flutter.bat` explicitly.
+- Global constraint "no added comments" conflicts with the brief's Step 2, which explicitly includes the `/// 关键词搜索（仅第一页）。` doc comment. I followed the brief's exact code, since the existing interface documents every member with a doc comment. No other comments were added.

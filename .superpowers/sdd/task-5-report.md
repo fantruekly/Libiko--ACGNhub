@@ -1,77 +1,89 @@
-# Task 5 Report: GalgameZywzSource 类（HTTP 接线）
+# Task 5 Report: 主壳搜索入口
+
+## Status: DONE_WITH_CONCERNS
 
 ## What I implemented
 
-- Appended `class GalgameZywzSource implements GameSource` to `lib/core/game/galgamezywz_source.dart`.
-- Added imports `package:dio/dio.dart` and `game_source.dart` at the top of the file (final order: `package:dio/dio.dart`, `package:html/dom.dart as dom`, `package:html/parser.dart as html_parser`, `game_source.dart`, `models.dart`).
-- The class wires `browse`/`detail` to the existing pure parse functions via a private `_get` helper, declares identity (`id='galgamezywz'`, `name='galgame大玩家'`), `baseUrl`, and the five `browseOptions`.
-- Created `test/core/game/galgamezywz_source_test.dart` with a fake `HttpClientAdapter` injected into `Dio` to verify request paths and parsing without network.
+Wired the game tab into the main shell's title-bar search entry.
 
-No existing parse functions or their tests were altered. The stray `_sourceWith` helper mentioned in the task notes was NOT included; each test constructs `Dio` + fake adapter inline as the brief specifies.
+- `lib/shell/main_shell.dart`
+  - Added `import '../modules/game/game_search.dart';`
+  - Widened the search-button condition from `_currentIndex <= 2` to `_currentIndex <= 3`.
+  - Extended the route builder so index 3 pushes `const GameSearchPage()` (index 0/1/2 unchanged: anime/comic/novel).
+- `test/shell/main_shell_test.dart`
+  - Added `import 'package:acgnhub/modules/game/game_search.dart';`
+  - Added widget test `game tab exposes the search entry`: select the 游戏 sidebar item, assert exactly one title-bar `IconButton` with `Icons.search_rounded`, tap it, assert `GameSearchPage` is shown.
 
-## What I tested and test results
-
-- `test/core/game/galgamezywz_source_test.dart` — 3 tests passed:
-  - `browse` requests `/lm/galgame` and parses the list.
-  - `detail` requests `/game/1207` and parses fields.
-  - identity and browse options exposed.
-- `test/core/game/galgamezywz_parser_test.dart` — 6 tests passed (no regression).
-- `flutter analyze lib/core/game/galgamezywz_source.dart test/core/game/galgamezywz_source_test.dart` — No issues found.
-
-## TDD Evidence
+## TDD evidence
 
 ### RED
+With only the test added (shell unchanged), `flutter test test/shell/main_shell_test.dart`:
 
-Command:
 ```
-C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart
-```
-
-Output (excerpt):
-```
-test/core/game/galgamezywz_source_test.dart:56:20: Error: Method not found: 'GalgameZywzSource'.
-    final source = GalgameZywzSource(dio: dio);
-                   ^^^^^^^^^^^^^^^^^
-...
-00:00 +0 -1: Some tests failed.
+00:01 +1 -1: game tab exposes the search entry [E]
+Expected: exactly one matching candidate
+  Actual: _WidgetPredicateWidgetFinder:<Found 0 widgets with widget matching predicate: []>
+  ... test/shell/main_shell_test.dart:77:5
 ```
 
-Why expected: `GalgameZywzSource` did not exist yet, so the test file failed to compile. This is the intended failing state before implementation.
+(The search button predicate found 0 widgets for index 3 — expected, since the condition was still `<= 2`.)
 
 ### GREEN
+After the shell change, same command:
 
-Command:
 ```
-C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart
-```
-
-Output:
-```
-00:00 +0: browse requests the option path and parses the list
-00:00 +1: detail requests /game/<id> and parses fields
-00:00 +2: exposes identity and browse options
-00:00 +3: All tests passed!
+00:00 +1: game tab exposes the search entry
+00:01 +2: All tests passed!
 ```
 
-Regression:
+### Full regression + analyze
+
 ```
-C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_parser_test.dart
-...
-00:00 +6: All tests passed!
+flutter test      -> 00:15 +339 ~1: All tests passed!   (1 pre-existing skip)
+flutter analyze   -> No issues found! (ran in 2.5s)
 ```
 
 ## Files changed
 
-- `lib/core/game/galgamezywz_source.dart` (added 2 imports, appended `GalgameZywzSource` class)
-- `test/core/game/galgamezywz_source_test.dart` (new)
+```
+lib/shell/main_shell.dart        (+7 -2)
+test/shell/main_shell_test.dart  (+24)
+```
 
-## Self-review findings
+Commit: `0d90efe feat(shell): open game search from the title bar` (branch `dev`, exactly the two files staged).
 
-- Completeness: exactly the brief's code and test; no extras.
-- Quality: follows `lib/core/novel/linovelib_source.dart`'s source-class patterns (dio `BaseOptions`, headers, `_get`, browse/detail).
-- Discipline: no overbuilding, no extra files, no comments added.
-- Testing: tests verify request paths and parsed results against canned HTML; output pristine.
+## Deviation from the brief (concern)
 
-## Issues or concerns
+The brief's Step 1 test used `await tester.pump();` after tapping the search button and expected PASS. That literal code **fails** here:
 
-None.
+```
+Expected: exactly one matching candidate
+  Actual: _TypeWidgetFinder:<Found 0 widgets with type "GameSearchPage": []>
+```
+
+Root cause: the title bar is wrapped in `window_manager`'s `DragToMoveArea`, whose internal `GestureDetector` declares `onDoubleTap`. Flutter's `DoubleTapGestureRecognizer` delays a single tap by `kDoubleTapTimeout` (300 ms) to disambiguate from a double tap, so `onPressed` has not fired by the time a bare `pump()` builds its frame.
+
+Evidence (debug instrumentation): the widget only appears after ≥300 ms of pumped time, and `find.byType(GameSearchPage, skipOffstage: false)` is still 0 at t=200 ms. `tester.pumpAndSettle()` also passes.
+
+Fix applied — smallest change that keeps the brief's shape and is deterministic:
+
+```dart
+await tester.tap(searchButton);
+await tester.pump(const Duration(milliseconds: 400));
+await tester.pump();
+expect(find.byType(GameSearchPage), findsOneWidget);
+```
+
+No production behavior changed for this; it is a test-timing correction only. Flagging because it diverges from the brief's exact text.
+
+## Self-review
+
+- Completeness: condition widened to `<= 3`; `GameSearchPage` branch added; import added; shell test added. Yes.
+- Discipline: only `lib/shell/main_shell.dart` and `test/shell/main_shell_test.dart` committed; no comments added; no new dependencies.
+- Testing: RED confirmed before the source change, GREEN after; full suite 339 pass / 1 pre-existing skip; `analyze` clean.
+- Note: pre-existing unstaged changes under `.superpowers/sdd/` (progress/briefs/reports) were left untouched and NOT committed.
+
+## Concerns
+
+1. The brief's literal `pump()` assertion cannot pass due to the `DragToMoveArea` double-tap timeout; test uses `pump(400ms) + pump()` instead. Documented above.
+2. Manual verification (real Windows run, live sources, Hero, empty/error states) is explicitly reserved for the user per the brief and was not performed.

@@ -462,3 +462,98 @@ Game module v1: COMPLETE (bc6ff0e..d6b390f). Pushed to origin/dev; user merges v
   MUST-VERIFY (human, live site): manual Windows run - tab content, section switching, paging, detail fields, gallery viewer, external browser, offline retry; specifically multi-posts-warp scoping on '/' and UTF-8 decode of Chinese.
   Deferred Minors: parseGameList fallback to documentElement; _get non-200 dead branch; _sourceId hardcoded; launchUrl result ignored; views double->null; container-model tests; parseCount M/lowercase/boundary tests; GameDetail fromJson absent; game_home_test lacks chip/card tap; viewer route smoothRoute (ok).
 
+
+## Game page-size 48/page feature (plan 2026-09-15-game-page-size.md, base 968f464)
+
+Spec: docs/superpowers/specs/2026-09-15-game-page-size-design.md
+
+Task 1: complete (commits 968f464..6444fc8 + corrections bf651d4, 6444fc8; review clean after fixes)
+  Fixes: numeric test fixtures + restore numeric /game/(\\d+) regex (bf651d4); later-page failure -> hasMore=false + exception-path tests (6444fc8).
+  Minor (deferred): empty-page branch untested; surplus >12/source-page dropped (spec-mandated).
+Game page-size 48/page feature: COMPLETE (968f464..6444fc8 + spec clarification). Full suite 300 pass/1 skip, analyze clean.
+  MUST-VERIFY (human, live site): game home 48/page, no blank rows, paging, last-page disabled.
+
+
+## Game card layout feature (plan 2026-09-15-game-card-layout.md, base 1ef9eed)
+
+Spec: docs/superpowers/specs/2026-09-15-game-card-layout-design.md (supersedes the 48/page spec; pageSize 48->24)
+
+Task 1: complete (commits 1ef9eed..2789864 + test hardening 2789864; review clean after 1 fix)
+  pageSize 48->24 (2 source pages/app page); game grid 4-col 3:2 via LayoutBuilder mainAxisExtent.
+  Fix: test now derives expected cell width from the real surface and measures the rendered cover (was self-fulfilling).
+  Minor (deferred): ShimmerLoader spacing mismatch (pre-existing, shared widget, out of scope).
+Game card layout feature: COMPLETE (1ef9eed..2789864). Full suite 301 pass/1 skip, analyze clean.
+  MUST-VERIFY (human, live site): game home 4-col 3:2 uncropped, 24/page (6 rows), no blank rows, paging, last page disabled.
+
+
+## Card open-transition feature (plan 2026-09-15-card-open-transition.md, base 3d8c4f4)
+
+Spec: docs/superpowers/specs/2026-09-15-card-open-transition-design.md
+
+Task 1 (novel): complete (commit 3d8c4f4..ec727fd, review clean)
+  NovelCard heroTag + HeroMode per tab + explore/favorites/search Hero + smoothRoute; detail cover Hero.
+  Minor (deferred): AnimatedBuilder rebuilds per frame (matches anime pattern); no end-to-end tag-pairing test; duplicate grid results would collide.
+
+Task 2 (game): complete (commit ec727fd..4b7e51b, review clean; + fix wave ba19d24, d762bcf, re-review clean)
+  GameCard heroTag + home card tag + smoothRoute; detail cover Hero.
+  Cross-cutting fix: novel & game detail loading now renders the info card immediately (from the passed title/cover) so the cover Hero exists on frame one and the flight plays on cold opens (anime approach); removed unused ShimmerLoader imports; added loading-state Hero tests.
+  Minor (deferred): fabricated empty GameDetail during loading; novel favorite button interactive during loading.
+Card open-transition feature: COMPLETE (3d8c4f4..d762bcf + spec update). Full suite 307 pass/1 skip, analyze clean.
+  MUST-VERIFY (human, live site): novel/game card -> detail cover flight (cold open), back-flight, no Hero tag collision across novel tabs.
+
+
+## Nekogal second source feature (plan 2026-09-15-nekogal-source.md, base c29ab9b)
+
+Spec: docs/superpowers/specs/2026-09-15-nekogal-source-design.md
+
+Task 1 (shared paging): complete (commit c29ab9b..e11f36d, review clean)
+  game_paging.dart (gamePageSize=24, GameSourcePage, buildGamePage); GalgameZywzSource.browse uses it; galgameZywzPageSize removed.
+  Minor (deferred): parse exceptions now swallowed into hasMore=false (spec-level, unavoidable with the fetch callback).
+
+Task 2 (image headers): complete (commit e11f36d..4c6c90f, review clean)
+  game_image.dart gameImageHeadersFor(url); 4 call sites updated; removed unused galgamezywz_source imports from game_home/game_detail_page.
+  Minor (deferred): duplicated galgamezywz base URL literal; substring 'nekogal' matching (spec-mandated).
+
+Task 3 (NekogalSource): complete (commit 4c6c90f..ceac00d, review clean)
+  nekogal_source.dart (parser + source) + parser/source tests; registered in game_providers.
+  Minor (deferred): parseNekogalCount '1.2K'->12 (brief-mandated); empty data-src blocks src fallback; date regex needs 2-digit month/day; empty '#' tag.
+ALL 3 TASKS COMPLETE. Next: final whole-branch review.
+
+Final whole-branch review (c29ab9b..ceac00d): 'With fixes'. 2 Important (hardcoded source attribution shown on NekoGAL; no two-source coverage) + 1 Minor guard (sourcePageSize divides gamePageSize).
+Fix 9b118e4: attribution derived from sourceUrl host; provider test (default manager = [galgamezywz, nekogal]) + home two-source chip/switch test; assert in buildGamePage + rewritten trim test. Re-review ceac00d..9b118e4: Approved.
+Nekogal second source feature: COMPLETE (c29ab9b..9b118e4). Full suite 325 pass/1 skip, analyze clean.
+  MUST-VERIFY (human, live site): game home shows 2 source chips; NekoGAL sections PC/HH/SR/模拟器 load + page 24; pan.nekogal.top covers load; detail fields (title/cover/paragraphs/screenshots/tags/date) correct; '在原站打开' opens nekogal.
+  Deferred Minors: parseNekogalCount '1.2K'->12; empty data-src blocks src fallback; date regex needs 2-digit month/day; empty '#' tag; duplicated base-URL literal; substring 'nekogal' matching; extra['url'] unused.
+
+
+## Bug fix: nekogal 加载失败 (2026-09-15)
+Root cause (probe test/nekogal_probe_test.dart): www.nekogal.com INTERMITTENTLY rejects Dart/BoringSSL TLS handshakes (SSLV3_ALERT_HANDSHAKE_FAILURE, alert 40) - TLS 1.2 works, TLS 1.3 fails on some backends; same URL alternated fail/fail/fail/OK/OK/OK. Dart cannot pin TLS 1.2, so the first source-page fetch threw -> provider error -> 加载失败. galgamezywz unaffected (200).
+Fix 8ef0386: NekogalSource._get retries up to 4 attempts (200ms apart) on connection-level DioExceptions (no HTTP response); HTTP status errors are not retried. Regression test uses a flaky adapter (first 2 connection attempts fail).
+Live verified: browse(pcgame)=24, browse(pegame)=24, detail(6661) title + 7 paragraphs + tags. Full suite 326 pass/1 skip, analyze clean. Pushed origin/dev.
+  New observation (deferred): detail 发布时间 empty (date=null) - the date span exists (title='2026年09月14日 20:56发布') but parseNekogalDetail's '.article-header span' selector doesn't pick it up.
+
+Fix 5665b51 (nekogal detail date): real date span parent is '.px12-sm.muted-2-color.text-ellipsis' (title='2026年09月14日 20:56发布'), NOT '.article-header' - the old fixture mirrored the wrong selector so the test was green while the live site showed no date. Replaced with _findPublishedDate(doc) scanning [title] for /(\\d{4})年(\\d{1,2})月(\\d{1,2})日/; fixture updated to real markup (RED->GREEN). Live verified detail(6661).publishedAt=2026-09-14. Full suite 326 pass/1 skip, analyze clean. Pushed origin/dev.
+
+
+## Game search feature (plan 2026-09-15-game-search.md, base b4f6d76)
+
+Spec: docs/superpowers/specs/2026-09-15-game-search-design.md
+
+Task 1 (GameSource.search): complete (commit b4f6d76..a0066b5, review clean)
+  search on interface + both sources (/?s=<encoded>, reuse parsers, blank->[]); 4 test fakes updated; source search tests.
+  Minor (deferred): nekogal blank-keyword short-circuit not directly tested.
+
+Task 2 (shared grid): complete (commit a0066b5..6c68857, review clean)
+  game_grid.dart extracted (4-col 3:2 metrics); game_home uses it.
+
+Task 3 (search providers): complete (commit 6c68857..2447927, review clean)
+  GameSearchResult + gameSearchTimeout + gameSearchSourceProvider + gameSearchProvider (dedupe/isolation/all-fail).
+  Minor (deferred): aggregate blank/empty-source branches + first-wins sourceKey not pinned.
+
+Task 4 (GameSearchPage): complete (commit 2447927..caf6ea5, review clean)
+  game_search.dart (search bar + progressive per-source 4-col 3:2 results + heroTag + smoothRoute); 4 tests (added progressive-source test to resolve the brief's unused delay warning).
+
+Task 5 (shell entry): complete (commit caf6ea5..0d90efe, review clean)
+  main_shell search button widened to index<=3 -> GameSearchPage; shell test (400ms pump due to DragToMoveArea double-tap timeout).
+ALL 5 TASKS COMPLETE. Next: final whole-branch review.
+

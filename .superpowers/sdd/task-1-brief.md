@@ -1,174 +1,129 @@
-## Task 1: 游戏数据模型
+## Task 1: GameSource.search
 
 **Files:**
-- Create: `lib/core/game/models.dart`
-- Test: `test/core/game/models_test.dart`
+- Modify: `lib/core/game/game_source.dart`
+- Modify: `lib/core/game/galgamezywz_source.dart`
+- Modify: `lib/core/game/nekogal_source.dart`
+- Modify: `test/core/game/game_source_test.dart`（假源补 search）
+- Modify: `test/modules/game/game_home_test.dart`（两个假源补 search）
+- Modify: `test/modules/game/game_providers_test.dart`（假源补 search）
+- Test: `test/core/game/galgamezywz_source_test.dart`
+- Test: `test/core/game/nekogal_source_test.dart`
 
 **Interfaces:**
-- Consumes: 无。
-- Produces: `Game`（字段 `id/title/coverUrl/summary/category/tags/publishedAt/views/extra`，`Game.fromJson`、`toJson`）、`GameBrowseOption(key,label)`、`GameList(items,page,hasMore)`、`GameDetail(game,size,platform,updatedAt,paragraphs,screenshots,sourceUrl)`。
+- Produces: `Future<List<Game>> GameSource.search(String keyword)`。
 
-- [ ] **Step 1: Write the failing test**
+### Step 1: 写源搜索测试（先失败）
 
-Create `test/core/game/models_test.dart`:
+在 `test/core/game/galgamezywz_source_test.dart` 的 `main()` 内追加：
 
 ```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/models.dart';
+  test('search requests the keyword and parses results', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({
+      '/?s=%E9%AD%94%E5%A5%B3': _listHtmlWith(2, idBase: 100),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
 
-void main() {
-  test('Game fromJson/toJson round-trips', () {
-    final g = Game(
-      id: '1207',
-      title: '金辉恋曲四重奏',
-      coverUrl: 'https://x/cover.jpg',
-      summary: 'sum',
-      category: '玩家热评游戏',
-      tags: const ['汉化', 'PC'],
-      publishedAt: DateTime.utc(2026, 9, 11),
-      views: 4300,
-      extra: const {'url': 'https://game.galgamezywz.org/game/1207'},
-    );
-    final back = Game.fromJson(g.toJson());
-    expect(back.id, '1207');
-    expect(back.title, '金辉恋曲四重奏');
-    expect(back.coverUrl, 'https://x/cover.jpg');
-    expect(back.summary, 'sum');
-    expect(back.category, '玩家热评游戏');
-    expect(back.tags, ['汉化', 'PC']);
-    expect(back.publishedAt, DateTime.utc(2026, 9, 11));
-    expect(back.views, 4300);
-    expect(back.extra['url'], 'https://game.galgamezywz.org/game/1207');
+    final results = await source.search('魔女');
+    expect(adapter.requested, ['/?s=%E9%AD%94%E5%A5%B3']);
+    expect(results.map((g) => g.id), ['100', '101']);
   });
 
-  test('Game.fromJson tolerates missing optional fields', () {
-    final g = Game.fromJson(const {'id': '1', 'title': 'T'});
-    expect(g.coverUrl, isNull);
-    expect(g.summary, isNull);
-    expect(g.category, isNull);
-    expect(g.tags, isEmpty);
-    expect(g.publishedAt, isNull);
-    expect(g.views, isNull);
+  test('search returns empty without a request for a blank keyword', () async {
+    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
+    final adapter = _FakeAdapter({});
+    dio.httpClientAdapter = adapter;
+    final source = GalgameZywzSource(dio: dio);
+
+    expect(await source.search('   '), isEmpty);
+    expect(adapter.requested, isEmpty);
   });
-}
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `flutter test test/core/game/models_test.dart`
-Expected: FAIL（`Error: Couldn't resolve the package 'acgnhub/core/game/models.dart'` 或找不到 `Game`）。
-
-- [ ] **Step 3: Write minimal implementation**
-
-Create `lib/core/game/models.dart`:
+在 `test/core/game/nekogal_source_test.dart` 的 `main()` 内追加：
 
 ```dart
-List<String> _stringList(dynamic raw) {
-  if (raw is List) {
-    return raw
-        .map((e) => e?.toString() ?? '')
-        .where((e) => e.isNotEmpty)
-        .toList();
+  test('search requests the keyword and parses results', () async {
+    final dio = Dio(BaseOptions(baseUrl: nekogalBaseUrl));
+    final adapter = _FakeAdapter({
+      '/?s=%E9%AD%94%E5%A5%B3': _listPageHtml(2, base: 100),
+    });
+    dio.httpClientAdapter = adapter;
+    final source = NekogalSource(dio: dio);
+
+    final results = await source.search('魔女');
+    expect(adapter.requested, ['/?s=%E9%AD%94%E5%A5%B3']);
+    expect(results.map((g) => g.id), ['100', '101']);
+  });
+```
+
+Run:
+- `C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart`
+- `C:\flutter\bin\flutter.bat test test/core/game/nekogal_source_test.dart`
+Expected: FAIL（`search` 未定义 / 编译错误）。
+
+### Step 2: 接口 + 两源实现
+
+`lib/core/game/game_source.dart`：在 `detail` 之后加入：
+
+```dart
+  /// 关键词搜索（仅第一页）。
+  Future<List<Game>> search(String keyword);
+```
+
+`lib/core/game/galgamezywz_source.dart`：在 `GalgameZywzSource` 内（`detail` 之前或之后）加入：
+
+```dart
+  @override
+  Future<List<Game>> search(String keyword) async {
+    final k = keyword.trim();
+    if (k.isEmpty) return const [];
+    final html = await _get('/?s=${Uri.encodeQueryComponent(k)}');
+    return parseGameList(html);
   }
-  return const [];
-}
-
-class Game {
-  final String id;
-  final String title;
-  final String? coverUrl;
-  final String? summary;
-  final String? category;
-  final List<String> tags;
-  final DateTime? publishedAt;
-  final int? views;
-  final Map<String, dynamic> extra;
-
-  const Game({
-    required this.id,
-    required this.title,
-    this.coverUrl,
-    this.summary,
-    this.category,
-    this.tags = const [],
-    this.publishedAt,
-    this.views,
-    this.extra = const {},
-  });
-
-  factory Game.fromJson(Map<String, dynamic> json) => Game(
-        id: json['id']?.toString() ?? '',
-        title: json['title']?.toString() ?? '',
-        coverUrl: json['coverUrl']?.toString(),
-        summary: json['summary']?.toString(),
-        category: json['category']?.toString(),
-        tags: _stringList(json['tags']),
-        publishedAt: json['publishedAt'] == null
-            ? null
-            : DateTime.tryParse(json['publishedAt'].toString()),
-        views: json['views'] is int
-            ? json['views'] as int
-            : int.tryParse('${json['views']}'),
-        extra: (json['extra'] as Map?)?.cast<String, dynamic>() ?? const {},
-      );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        if (coverUrl != null) 'coverUrl': coverUrl,
-        if (summary != null) 'summary': summary,
-        if (category != null) 'category': category,
-        if (tags.isNotEmpty) 'tags': tags,
-        if (publishedAt != null) 'publishedAt': publishedAt!.toIso8601String(),
-        if (views != null) 'views': views,
-        if (extra.isNotEmpty) 'extra': extra,
-      };
-}
-
-class GameBrowseOption {
-  final String key;
-  final String label;
-  const GameBrowseOption({required this.key, required this.label});
-}
-
-class GameList {
-  final List<Game> items;
-  final int page;
-  final bool hasMore;
-  const GameList({required this.items, required this.page, required this.hasMore});
-}
-
-class GameDetail {
-  final Game game;
-  final String? size;
-  final String? platform;
-  final DateTime? updatedAt;
-  final List<String> paragraphs;
-  final List<String> screenshots;
-  final String sourceUrl;
-
-  const GameDetail({
-    required this.game,
-    this.size,
-    this.platform,
-    this.updatedAt,
-    this.paragraphs = const [],
-    this.screenshots = const [],
-    required this.sourceUrl,
-  });
-}
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+`lib/core/game/nekogal_source.dart`：在 `NekogalSource` 内加入：
 
-Run: `flutter test test/core/game/models_test.dart`
-Expected: PASS（2 tests）。
+```dart
+  @override
+  Future<List<Game>> search(String keyword) async {
+    final k = keyword.trim();
+    if (k.isEmpty) return const [];
+    final html = await _get('/?s=${Uri.encodeQueryComponent(k)}');
+    return parseNekogalList(html);
+  }
+```
 
-- [ ] **Step 5: Commit**
+### Step 3: 给所有假源补 search
+
+在这三处 `_FakeSource`（`test/core/game/game_source_test.dart`、`test/modules/game/game_home_test.dart`、`test/modules/game/game_providers_test.dart`）以及 `test/modules/game/game_home_test.dart` 的 `_NekoFakeSource` 中，各加入：
+
+```dart
+  @override
+  Future<List<Game>> search(String keyword) async => const [];
+```
+
+（`game_providers_test.dart` 的假源后续在 Task 3 会改成返回结果；此处先补 `const []` 让其编译。）
+
+### Step 4: 运行测试
+
+Run:
+- `C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart`
+- `C:\flutter\bin\flutter.bat test test/core/game/nekogal_source_test.dart`
+- `C:\flutter\bin\flutter.bat test test/core/game/game_source_test.dart`
+- `C:\flutter\bin\flutter.bat test test/modules/game/game_home_test.dart`
+- `C:\flutter\bin\flutter.bat test test/modules/game/game_providers_test.dart`
+- `C:\flutter\bin\flutter.bat analyze`
+Expected: 均 PASS；analyze `No issues found!`。
+
+### Step 5: 提交
 
 ```bash
-git add lib/core/game/models.dart test/core/game/models_test.dart
-git commit -m "feat(game): add game data models"
+git add lib/core/game/game_source.dart lib/core/game/galgamezywz_source.dart lib/core/game/nekogal_source.dart test/core/game/galgamezywz_source_test.dart test/core/game/nekogal_source_test.dart test/core/game/game_source_test.dart test/modules/game/game_home_test.dart test/modules/game/game_providers_test.dart
+git commit -m "feat(game): add keyword search to both game sources"
 ```
 
 ---
