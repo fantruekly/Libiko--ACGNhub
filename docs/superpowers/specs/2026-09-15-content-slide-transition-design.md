@@ -60,7 +60,8 @@ class _SlideSwitcherState extends State<SlideSwitcher> {
       layoutBuilder: (currentChild, previousChildren) => Stack(
         fit: StackFit.expand,
         children: [
-          ...previousChildren,
+          for (final child in previousChildren)
+            HeroMode(enabled: false, child: child),
           if (currentChild != null) currentChild,
         ],
       ),
@@ -122,18 +123,25 @@ class _SlideSwitcherState extends State<SlideSwitcher> {
 ### 轻小说（`lib/modules/novel/novel_home.dart` 的 `_ExploreTabState._body`）
 
 - 顶部：`final sourceIndex = ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId);`
-- 「推荐」分支（`_groupIndex == -1`）：
+- **两个分支必须返回相同形状**（`Column` 的首个子元素是 `Expanded(child: SlideSwitcher(...))`），否则 `_groupIndex` 在 `-1` 与 `>=0` 间切换时子元素 runtimeType 变化 → `SlideSwitcher` 被重建 → 不滑动。
+- 「推荐」分支（`_groupIndex < 0`）：
 
 ```dart
       final async = ref.watch(novelHomeProvider(_sourceId));
-      return SlideSwitcher(
-        id: (_sourceId, '__home__'),
-        index: sourceIndex * 1000000,
-        child: async.when(
-          loading: () => ...骨架屏...,
-          error: (_, __) => ...失败...,
-          data: (home) => _grid(flattenHome(home)),
-        ),
+      return Column(
+        children: [
+          Expanded(
+            child: SlideSwitcher(
+              id: (_sourceId, '__home__'),
+              index: sourceIndex * 1000000,
+              child: async.when(
+                loading: () => ...骨架屏...,
+                error: (_, __) => ...失败...,
+                data: (home) => _grid(flattenHome(home)),
+              ),
+            ),
+          ),
+        ],
       );
 ```
 
