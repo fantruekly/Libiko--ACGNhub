@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../../core/account/sync_service.dart';
 import '../../core/models/work.dart';
+import '../../core/platform.dart';
 import '../../core/services/watch_history.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
@@ -83,7 +84,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
     ref.read(syncProvider).schedule();
   }
 
-  MaterialDesktopVideoControlsThemeData _controlsTheme(BuildContext context, {bool showEpisodes = true}) {
+  MaterialDesktopVideoControlsThemeData _desktopControlsTheme(BuildContext context, {bool showEpisodes = true}) {
     return MaterialDesktopVideoControlsThemeData(
       controlsHoverDuration: const Duration(seconds: 3),
       topButtonBar: [
@@ -119,6 +120,40 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
     );
   }
 
+  MaterialVideoControlsThemeData _mobileControlsTheme(BuildContext context,
+      {bool showEpisodes = true}) {
+    return MaterialVideoControlsThemeData(
+      topButtonBar: [
+        MaterialCustomButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        Expanded(
+          child: Text(
+            widget.work.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                height: 1.3),
+          ),
+        ),
+      ],
+      bottomButtonBar: [
+        const MaterialPositionIndicator(),
+        const Spacer(),
+        if (showEpisodes)
+          MaterialCustomButton(
+            icon: const Icon(Icons.list_rounded),
+            onPressed: () => setState(() => _panelOpen = !_panelOpen),
+          ),
+        const MaterialFullscreenButton(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,16 +161,19 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: MaterialDesktopVideoControlsTheme(
-              normal: _controlsTheme(context),
-              fullscreen: _controlsTheme(context, showEpisodes: false),
-              child: Video(
-                controller: _controller,
-                fit: BoxFit.contain,
-                fill: Colors.black,
-                controls: MaterialDesktopVideoControls,
-              ),
-            ),
+            child: isDesktop
+                ? MaterialDesktopVideoControlsTheme(
+                    normal: _desktopControlsTheme(context),
+                    fullscreen:
+                        _desktopControlsTheme(context, showEpisodes: false),
+                    child: _video(),
+                  )
+                : MaterialVideoControlsTheme(
+                    normal: _mobileControlsTheme(context),
+                    fullscreen:
+                        _mobileControlsTheme(context, showEpisodes: false),
+                    child: _video(),
+                  ),
           ),
           if (_resolving)
             const Positioned.fill(
@@ -164,6 +202,15 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
       ),
     );
   }
+
+  Widget _video() => Video(
+        controller: _controller,
+        fit: BoxFit.contain,
+        fill: Colors.black,
+        controls: isDesktop
+            ? MaterialDesktopVideoControls
+            : MaterialVideoControls,
+      );
 
   Widget _episodePanel() {
     return Positioned(
