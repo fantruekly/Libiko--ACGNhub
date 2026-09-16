@@ -22,7 +22,7 @@ class BangumiProvider implements MetadataProvider {
               connectTimeout: const Duration(seconds: 20),
               receiveTimeout: const Duration(seconds: 20),
               headers: {
-                'User-Agent': 'Libiko/0.1 (https://github.com/libiko)',
+                'User-Agent': 'Libiko/0.1',
                 'Accept': 'application/json',
               },
             )),

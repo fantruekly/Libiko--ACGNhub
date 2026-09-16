@@ -46,3 +46,6 @@ app.*.map.json
 
 # Backend runtime data
 /server/data/
+
+# Backend build output
+/server/build/
