@@ -1,333 +1,96 @@
-## Task 4: GameSearchPage
+## Task 4: 漫画发现页接入
 
 **Files:**
-- Create: `lib/modules/game/game_search.dart`
-- Test: `test/modules/game/game_search_page_test.dart`
+- Modify: `lib/modules/comic/comic_home.dart`
+- Test: `test/modules/comic/comic_explore_paging_test.dart`（回归）
 
-**Interfaces:**
-- Consumes: `gameSearchSourceProvider` / `gameSourcesProvider`（Task 3）、`GameCard`（`game_home.dart`）、`gameGridColumns`/`gameGridSpacing`/`gameGridCellWidth`/`gameGridCellExtent`（Task 2）、`smoothRoute` / `EmptyState` / `ShimmerLoader`。
+### Step 1: 接入
 
-### Step 1: 写测试（先失败）
+1) import 加入 `import '../../core/widgets/slide_switcher.dart';`
 
-Create `test/modules/game/game_search_page_test.dart`:
+2) 调用点（第 133 行）改为：
 
 ```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/game_source.dart';
-import 'package:acgnhub/core/game/models.dart';
-import 'package:acgnhub/modules/game/game_providers.dart';
-import 'package:acgnhub/modules/game/game_search.dart';
-
-class _FakeSource implements GameSource {
-  _FakeSource(this.results, {this.delay = Duration.zero, String id = 'fake'})
-      : _id = id;
-  final List<Game> results;
-  final Duration delay;
-  final String _id;
-  @override
-  String get id => _id;
-  @override
-  String get name => _id;
-  @override
-  String get baseUrl => 'https://x';
-  @override
-  List<GameBrowseOption> get browseOptions => const [];
-  @override
-  Future<GameList> browse(String optionKey, {int page = 1}) async =>
-      GameList(items: const [], page: page, hasMore: false);
-  @override
-  Future<GameDetail> detail(String id) async =>
-      GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://x/$id');
-  @override
-  Future<List<Game>> search(String keyword) async {
-    if (delay > Duration.zero) await Future<void>.delayed(delay);
-    return results;
-  }
-}
-
-Widget _app(List<Game> results) => ProviderScope(
-      overrides: [
-        gameSourceManagerProvider.overrideWithValue(
-            GameSourceManager(sources: [_FakeSource(results)])),
-      ],
-      child: const MaterialApp(home: GameSearchPage(initialKeyword: '关键词')),
-    );
-
-void main() {
-  testWidgets('renders results from the sources', (tester) async {
-    await tester.pumpWidget(_app(const [Game(id: '1', title: '结果游戏')]));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('结果游戏'), findsOneWidget);
-  });
-
-  testWidgets('shows a prompt before searching', (tester) async {
-    await tester.pumpWidget(const ProviderScope(
-      child: MaterialApp(home: GameSearchPage()),
-    ));
-    expect(find.text('输入关键词搜索游戏'), findsOneWidget);
-  });
-
-  testWidgets('shows empty message when there are no results', (tester) async {
-    await tester.pumpWidget(_app(const []));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('没有找到游戏'), findsOneWidget);
-  });
-}
+            Expanded(child: _explore(selected, section, part, sources.indexOf(selected))),
 ```
 
-Run: `C:\flutter\bin\flutter.bat test test/modules/game/game_search_page_test.dart`
-Expected: FAIL（找不到 `game_search.dart`）。
-
-### Step 2: 实现 `game_search.dart`
-
-Create `lib/modules/game/game_search.dart`:
+3) `_explore` 签名（第 209 行）改为：
 
 ```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+  Widget _explore(ComicSource source, int section, int part, int sourceIndex) {
+```
 
-import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/shimmer_loader.dart';
-import '../../core/widgets/smooth_route.dart';
-import 'game_detail_page.dart';
-import 'game_grid.dart';
-import 'game_home.dart';
-import 'game_providers.dart';
+4) 把 `_explore` 里的 `Expanded(child: async.when(...))`（第 224–268 行）替换为：
 
-const _muted = Color(0xFF5A5A5F);
-
-class GameSearchPage extends ConsumerStatefulWidget {
-  final String? initialKeyword;
-  const GameSearchPage({super.key, this.initialKeyword});
-
-  @override
-  ConsumerState<GameSearchPage> createState() => _GameSearchPageState();
-}
-
-class _GameSearchPageState extends ConsumerState<GameSearchPage> {
-  final _ctrl = TextEditingController();
-  String _keyword = '';
-
-  @override
-  void initState() {
-    super.initState();
-    final initial = widget.initialKeyword?.trim() ?? '';
-    if (initial.isNotEmpty) {
-      _ctrl.text = initial;
-      _keyword = initial;
-    }
-  }
-
-  void _search() {
-    final k = _ctrl.text.trim();
-    if (k.isEmpty) return;
-    setState(() => _keyword = k);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _searchBar(cs),
-            Expanded(child: _body()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _searchBar(ColorScheme cs) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
-        border:
-            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => Navigator.pop(context),
-            splashRadius: 20,
-          ),
-          Expanded(
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F7),
-                borderRadius: BorderRadius.circular(10),
+```dart
+        Expanded(
+          child: SlideSwitcher(
+            id: (source.key, section, part, _page),
+            index: sourceIndex * 1000000 +
+                section * 10000 +
+                part * 100 +
+                _page,
+            child: async.when(
+              loading: () => const ShimmerLoader(
+                crossAxisCount: 6,
+                itemCount: 12,
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      autofocus: widget.initialKeyword == null,
-                      style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: '搜索游戏...',
-                        hintStyle: TextStyle(color: _muted, fontSize: 15),
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      onSubmitted: (_) => _search(),
-                      onChanged: (_) => setState(() {}),
+              error: (_, __) => EmptyState(
+                icon: Icons.cloud_off_rounded,
+                message: '加载失败',
+                actionLabel: '重试',
+                onAction: () {
+                  clearExploreCache(source.key, section);
+                  ref.invalidate(comicSourcePageProvider);
+                  ref.invalidate(
+                      comicExploreAllProvider((source.key, section)));
+                  ref.invalidate(comicExploreProvider(
+                      (source.key, section, part, _page)));
+                },
+              ),
+              data: (data) {
+                if (data.comics.isEmpty) {
+                  return const EmptyState(
+                      icon: Icons.image_not_supported_rounded, message: '暂无内容');
+                }
+                return _comicGrid(
+                  count: data.comics.length,
+                  itemBuilder: (i) => ComicCard(
+                    title: data.comics[i].title,
+                    cover: data.comics[i].cover,
+                    heroTag: 'comic_${source.key}_${data.comics[i].id}',
+                    onTap: () => Navigator.push(
+                      context,
+                      smoothRoute(ComicDetailPage(
+                        sourceKey: source.key,
+                        comicId: data.comics[i].id,
+                        title: data.comics[i].title,
+                        cover: data.comics[i].cover,
+                      )),
                     ),
                   ),
-                  if (_ctrl.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _ctrl.clear();
-                        setState(() {});
-                      },
-                      child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
-                    ),
-                ],
-              ),
+                );
+              },
             ),
           ),
-          const SizedBox(width: 8),
-          TextButton(
-              onPressed: _search,
-              child: const Text('搜索', style: TextStyle(fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
-  Widget _body() {
-    if (_keyword.isEmpty) {
-      return const EmptyState(
-          icon: Icons.search_rounded, message: '输入关键词搜索游戏');
-    }
-    final sources = ref.watch(gameSourcesProvider);
-    final results = <GameSearchResult>[];
-    final seen = <String>{};
-    var pending = 0;
-    var failed = 0;
-    Object? lastError;
-    for (final source in sources) {
-      final async =
-          ref.watch(gameSearchSourceProvider((source.id, _keyword)));
-      async.when(
-        data: (list) {
-          for (final r in list) {
-            if (seen.add(r.game.title.trim())) results.add(r);
-          }
-        },
-        loading: () {
-          pending++;
-        },
-        error: (error, __) {
-          failed++;
-          lastError = error;
-        },
-      );
-    }
-    if (results.isEmpty && pending > 0) {
-      return LayoutBuilder(builder: (context, constraints) {
-        final cellW = gameGridCellWidth(constraints.maxWidth);
-        return ShimmerLoader(
-            crossAxisCount: gameGridColumns,
-            itemCount: 8,
-            aspectRatio: cellW / gameGridCellExtent(constraints.maxWidth),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
-      });
-    }
-    if (results.isEmpty) {
-      if (sources.isNotEmpty && failed == sources.length) {
-        return EmptyState(
-          icon: Icons.error_outline_rounded,
-          message: lastError?.toString() ?? '搜索失败',
-          actionLabel: '重试',
-          onAction: () {
-            for (final source in sources) {
-              ref.invalidate(gameSearchSourceProvider((source.id, _keyword)));
-            }
-          },
-        );
-      }
-      return const EmptyState(
-          icon: Icons.search_off_rounded, message: '没有找到游戏');
-    }
-    return Column(
-      children: [
-        if (pending > 0)
-          const LinearProgressIndicator(
-            minHeight: 2,
-            color: Color(0xFF007AFF),
-            backgroundColor: Color(0xFFE5E5EA),
-          ),
-        Expanded(child: _grid(results)),
-      ],
-    );
-  }
-
-  Widget _grid(List<GameSearchResult> results) {
-    return LayoutBuilder(builder: (context, constraints) {
-      return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: gameGridColumns,
-            mainAxisSpacing: 20,
-            crossAxisSpacing: gameGridSpacing,
-            mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
-        itemCount: results.length,
-        itemBuilder: (_, i) {
-          final r = results[i];
-          return GameCard(
-            game: r.game,
-            heroTag: 'game_${r.sourceKey}_${r.game.id}',
-            onTap: () => Navigator.push(
-              context,
-              smoothRoute(GameDetailPage(
-                sourceKey: r.sourceKey,
-                gameId: r.game.id,
-                title: r.game.title,
-                cover: r.game.coverUrl,
-              )),
-            ),
-          );
-        },
-      );
-    });
-  }
-}
+        ),
 ```
 
-Run: `C:\flutter\bin\flutter.bat test test/modules/game/game_search_page_test.dart`
-Expected: PASS（3 tests）。
+（`_paginationBar` 保持在 `SlideSwitcher` 之外。）
 
-### Step 3: 静态检查 + 提交
+### Step 2: 运行回归
 
-Run: `C:\flutter\bin\flutter.bat analyze`
-Expected: `No issues found!`
+Run:
+- `C:\flutter\bin\flutter.bat test test/modules/comic/comic_explore_paging_test.dart`
+- `C:\flutter\bin\flutter.bat analyze`
+Expected: PASS；analyze 无问题。
+
+### Step 3: 提交
 
 ```bash
-git add lib/modules/game/game_search.dart test/modules/game/game_search_page_test.dart
-git commit -m "feat(game): add the game search page"
+git add lib/modules/comic/comic_home.dart
+git commit -m "feat(comic): slide the grid when switching sections or pages"
 ```
 
 ---

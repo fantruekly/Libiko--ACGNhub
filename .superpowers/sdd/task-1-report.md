@@ -1,73 +1,108 @@
-# Task 1 Report: GameSource.search
+# Task 1 Report: SlideSwitcher 组件
 
 ## What I implemented
-Added keyword search to the game module:
 
-- `GameSource` interface: new member `Future<List<Game>> search(String keyword)` (documented, after `detail`).
-- `GalgameZywzSource.search`: trims the keyword, returns `const []` when blank, otherwise `GET /?s=<Uri.encodeQueryComponent(keyword)>` and reuses `parseGameList`.
-- `NekogalSource.search`: same shape, reuses `parseNekogalList`.
-- Added `search` override to every fake `GameSource`:
-  - `test/core/game/game_source_test.dart` (`_FakeSource`)
-  - `test/modules/game/game_home_test.dart` (`_FakeSource`, `_NekoFakeSource`)
-  - `test/modules/game/game_providers_test.dart` (`_FakeSource`)
-- Added source search tests to `test/core/game/galgamezywz_source_test.dart` (keyword + blank keyword) and `test/core/game/nekogal_source_test.dart` (keyword).
+Created a reusable, direction-aware slide transition widget plus its widget test.
+
+- `lib/core/widgets/slide_switcher.dart` — `SlideSwitcher` (`StatefulWidget`) with
+  `id: Object`, `index: int`, `child: Widget`, `duration: Duration = 250ms`. It wraps
+  `AnimatedSwitcher` with a `Stack` layout and a `SlideTransition` transition builder.
+  Direction is derived in `didUpdateWidget`: an index increase → incoming from the right
+  (`dx = +1`), a decrease → incoming from the left (`dx = -1`); an `id`-only change defaults
+  forward. The child is keyed by `ValueKey(widget.id)` so a same-`id` rebuild does not create
+  a new switcher entry.
+- `test/core/widgets/slide_switcher_test.dart` — 3 `testWidgets` cases: forward direction
+  (`dx > 0`), backward direction (`dx < 0`), and no animation on same-`id` rebuild.
+
+Implementation was written exactly as specified in the brief (and identical to the design
+spec's component code).
 
 ## Test results
-All five listed test files pass (25 tests total):
 
 ```
-00:01 +25: All tests passed!
+flutter test test/core/widgets/slide_switcher_test.dart
+→ 00:00 +3: All tests passed!
+
+flutter analyze
+→ No issues found! (ran in 7.1s)
 ```
 
-`flutter analyze`:
+## TDD evidence
+
+**RED** (Step 1, test created before implementation):
 
 ```
-Analyzing ACGNhub...
-No issues found! (ran in 2.3s)
+test/core/widgets/slide_switcher_test.dart:3:8: Error: Error when reading
+  'lib/core/widgets/slide_switcher.dart': 系统找不到指定的文件。
+test/core/widgets/slide_switcher_test.dart:7:15: Error: Method not found: 'SlideSwitcher'.
+00:00 +0 -1: Some tests failed.
 ```
 
-## TDD Evidence
+**Intermediate** (implementation as specified, brief's third assertion unmodified):
 
-### RED
-Command:
 ```
-C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart test/core/game/nekogal_source_test.dart
-```
-Output (excerpt):
-```
-test/core/game/galgamezywz_source_test.dart:212:25: Error: The method 'search' isn't defined for the type 'GalgameZywzSource'.
-      expect(await source.search('   '), isEmpty);
-test/core/game/nekogal_source_test.dart:146:34: Error: The method 'search' isn't defined for the type 'NekogalSource'.
-      final results = await source.search('魔女');
-00:00 +0 -2: Some tests failed.
+00:00 +2 -1: Some tests failed.
+Expected: no matching candidates
+  Actual: _TypeWidgetFinder:<Found 1 widget with type "SlideTransition": ...>
 ```
 
-### GREEN
-Command:
+**GREEN** (after correcting the third assertion — see Deviations):
+
 ```
-C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart test/core/game/nekogal_source_test.dart test/core/game/game_source_test.dart test/modules/game/game_home_test.dart test/modules/game/game_providers_test.dart
+00:00 +3: All tests passed!
 ```
-Output (excerpt):
+
+The forward/backward assertions genuinely distinguish direction: at 50 ms into the
+transition the incoming child's `SlideTransition.position.value.dx` is `> 0` for an index
+increase and `< 0` for a decrease.
+
+## Deviations from the brief
+
+The brief's Step 1 test and Step 2 implementation are mutually inconsistent:
+
+- The brief's Step 1 third test asserts `expect(find.byType(SlideTransition), findsNothing)`.
+- The brief's Step 2 implementation (and the design spec, `...design.md:85`) wraps the
+  current child via `AnimatedSwitcher.transitionBuilder`. Flutter's `AnimatedSwitcher`
+  **always** renders `_currentEntry?.transition` through that builder, so exactly one
+  `SlideTransition` exists even at rest — `findsNothing` can never hold.
+
+The documented intent (test name "does not animate when only the child rebuilds"; design
+spec line 85: `id` 相同而仅内容重建…不触发过渡) is that no animation *runs*, not that the
+transition widget is absent. I kept the implementation **verbatim** and corrected only the
+third test's assertion to encode that intent:
+
+```dart
+await tester.pump();
+expect(tester.hasRunningAnimations, isFalse);
+final transition = tester.widget<SlideTransition>(find.byType(SlideTransition));
+expect(transition.position.value, Offset.zero);
+expect(find.text('内容1'), findsOneWidget);
 ```
-... search requests the keyword and parses results
-... search requests the keyword and parses results
-00:01 +25: All tests passed!
-```
+
+The first two tests are byte-for-byte as given in the brief. No other deviation.
 
 ## Files changed
-- `lib/core/game/game_source.dart`
-- `lib/core/game/galgamezywz_source.dart`
-- `lib/core/game/nekogal_source.dart`
-- `test/core/game/galgamezywz_source_test.dart`
-- `test/core/game/nekogal_source_test.dart`
-- `test/core/game/game_source_test.dart`
-- `test/modules/game/game_home_test.dart`
-- `test/modules/game/game_providers_test.dart`
 
-## Self-review findings
-- Completeness: interface + both sources + all four fakes updated; both source search tests added. Yes.
-- Discipline: only the 8 listed files changed; no comments added beyond the brief's own interface doc line (`/// 关键词搜索（仅第一页）。`), which the brief specifies verbatim and which matches the existing doc-comment style of `GameSource`.
-- Testing: RED (compile error for missing `search`) -> GREEN (25 pass); other game tests compile and pass; analyze clean.
+- `lib/core/widgets/slide_switcher.dart` (new, 58 lines)
+- `test/core/widgets/slide_switcher_test.dart` (new, 64 lines)
 
-## Issues or concerns
-- Global constraint "no added comments" conflicts with the brief's Step 2, which explicitly includes the `/// 关键词搜索（仅第一页）。` doc comment. I followed the brief's exact code, since the existing interface documents every member with a doc comment. No other comments were added.
+Commit: `88529ae feat(ui): add a direction-aware slide switcher` (branch `dev`).
+
+## Self-review
+
+- **Completeness:** widget + test created per brief; the widget exposes the specified
+  constructor/interface for Tasks 2–4 (`id`, `index`, `child`, `duration`).
+- **Discipline:** only the two files staged and committed; the other dirty
+  `.superpowers/sdd/*` files were left untouched; no comments added; no new dependencies.
+- **Testing:** RED → GREEN confirmed; the two direction assertions distinguish
+  forward/backward; `flutter analyze` clean.
+
+## Concerns
+
+- The brief's third assertion was impossible against the brief's own implementation; I
+  corrected the assertion (not the component) and flagged it here. If the reviewer prefers
+  a different encoding of "no animation" (e.g. asserting the switcher has no outgoing
+  children), the implementation does not need to change.
+- `hasRunningAnimations` is false after the same-`id` rebuild, which confirms no new
+  animation was started; combined with `position.value == Offset.zero` it captures the
+  intended behavior without weakening the check.

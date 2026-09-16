@@ -1,129 +1,158 @@
-## Task 1: GameSource.search
+## Task 1: SlideSwitcher 组件
 
 **Files:**
-- Modify: `lib/core/game/game_source.dart`
-- Modify: `lib/core/game/galgamezywz_source.dart`
-- Modify: `lib/core/game/nekogal_source.dart`
-- Modify: `test/core/game/game_source_test.dart`（假源补 search）
-- Modify: `test/modules/game/game_home_test.dart`（两个假源补 search）
-- Modify: `test/modules/game/game_providers_test.dart`（假源补 search）
-- Test: `test/core/game/galgamezywz_source_test.dart`
-- Test: `test/core/game/nekogal_source_test.dart`
+- Create: `lib/core/widgets/slide_switcher.dart`
+- Test: `test/core/widgets/slide_switcher_test.dart`
 
 **Interfaces:**
-- Produces: `Future<List<Game>> GameSource.search(String keyword)`。
+- Produces: `class SlideSwitcher extends StatefulWidget { SlideSwitcher({Key? key, required Object id, required int index, required Widget child, Duration duration = const Duration(milliseconds: 250)}) }`。
 
-### Step 1: 写源搜索测试（先失败）
+### Step 1: 写测试（先失败）
 
-在 `test/core/game/galgamezywz_source_test.dart` 的 `main()` 内追加：
+Create `test/core/widgets/slide_switcher_test.dart`:
 
 ```dart
-  test('search requests the keyword and parses results', () async {
-    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
-    final adapter = _FakeAdapter({
-      '/?s=%E9%AD%94%E5%A5%B3': _listHtmlWith(2, idBase: 100),
-    });
-    dio.httpClientAdapter = adapter;
-    final source = GalgameZywzSource(dio: dio);
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:acgnhub/core/widgets/slide_switcher.dart';
 
-    final results = await source.search('魔女');
-    expect(adapter.requested, ['/?s=%E9%AD%94%E5%A5%B3']);
-    expect(results.map((g) => g.id), ['100', '101']);
+Widget _app(int index) => MaterialApp(
+      home: Scaffold(
+        body: SlideSwitcher(
+          id: index,
+          index: index,
+          child: SizedBox.expand(child: Text('内容$index')),
+        ),
+      ),
+    );
+
+void main() {
+  testWidgets('slides forward from the right when the index increases',
+      (tester) async {
+    await tester.pumpWidget(_app(0));
+    await tester.pumpWidget(_app(1));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final incoming = tester.widget<SlideTransition>(find.ancestor(
+      of: find.text('内容1'),
+      matching: find.byType(SlideTransition),
+    ));
+    expect(incoming.position.value.dx, greaterThan(0));
+
+    await tester.pumpAndSettle();
+    expect(find.text('内容1'), findsOneWidget);
+    expect(find.text('内容0'), findsNothing);
   });
 
-  test('search returns empty without a request for a blank keyword', () async {
-    final dio = Dio(BaseOptions(baseUrl: galgameZywzBaseUrl));
-    final adapter = _FakeAdapter({});
-    dio.httpClientAdapter = adapter;
-    final source = GalgameZywzSource(dio: dio);
+  testWidgets('slides backward from the left when the index decreases',
+      (tester) async {
+    await tester.pumpWidget(_app(2));
+    await tester.pumpWidget(_app(1));
+    await tester.pump(const Duration(milliseconds: 50));
 
-    expect(await source.search('   '), isEmpty);
-    expect(adapter.requested, isEmpty);
+    final incoming = tester.widget<SlideTransition>(find.ancestor(
+      of: find.text('内容1'),
+      matching: find.byType(SlideTransition),
+    ));
+    expect(incoming.position.value.dx, lessThan(0));
+
+    await tester.pumpAndSettle();
+    expect(find.text('内容1'), findsOneWidget);
+    expect(find.text('内容2'), findsNothing);
   });
-```
 
-在 `test/core/game/nekogal_source_test.dart` 的 `main()` 内追加：
-
-```dart
-  test('search requests the keyword and parses results', () async {
-    final dio = Dio(BaseOptions(baseUrl: nekogalBaseUrl));
-    final adapter = _FakeAdapter({
-      '/?s=%E9%AD%94%E5%A5%B3': _listPageHtml(2, base: 100),
-    });
-    dio.httpClientAdapter = adapter;
-    final source = NekogalSource(dio: dio);
-
-    final results = await source.search('魔女');
-    expect(adapter.requested, ['/?s=%E9%AD%94%E5%A5%B3']);
-    expect(results.map((g) => g.id), ['100', '101']);
+  testWidgets('does not animate when only the child rebuilds', (tester) async {
+    await tester.pumpWidget(_app(1));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(_app(1));
+    await tester.pumpAndSettle();
+    expect(find.byType(SlideTransition), findsNothing);
+    expect(find.text('内容1'), findsOneWidget);
   });
+}
 ```
 
-Run:
-- `C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart`
-- `C:\flutter\bin\flutter.bat test test/core/game/nekogal_source_test.dart`
-Expected: FAIL（`search` 未定义 / 编译错误）。
+Run: `C:\flutter\bin\flutter.bat test test/core/widgets/slide_switcher_test.dart`
+Expected: FAIL（找不到 `slide_switcher.dart`）。
 
-### Step 2: 接口 + 两源实现
+### Step 2: 实现
 
-`lib/core/game/game_source.dart`：在 `detail` 之后加入：
+Create `lib/core/widgets/slide_switcher.dart`:
 
 ```dart
-  /// 关键词搜索（仅第一页）。
-  Future<List<Game>> search(String keyword);
-```
+import 'package:flutter/material.dart';
 
-`lib/core/game/galgamezywz_source.dart`：在 `GalgameZywzSource` 内（`detail` 之前或之后）加入：
+class SlideSwitcher extends StatefulWidget {
+  final Object id;
+  final int index;
+  final Widget child;
+  final Duration duration;
 
-```dart
+  const SlideSwitcher({
+    super.key,
+    required this.id,
+    required this.index,
+    required this.child,
+    this.duration = const Duration(milliseconds: 250),
+  });
+
   @override
-  Future<List<Game>> search(String keyword) async {
-    final k = keyword.trim();
-    if (k.isEmpty) return const [];
-    final html = await _get('/?s=${Uri.encodeQueryComponent(k)}');
-    return parseGameList(html);
+  State<SlideSwitcher> createState() => _SlideSwitcherState();
+}
+
+class _SlideSwitcherState extends State<SlideSwitcher> {
+  bool _forward = true;
+
+  @override
+  void didUpdateWidget(SlideSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index != oldWidget.index) {
+      _forward = widget.index > oldWidget.index;
+    } else if (widget.id != oldWidget.id) {
+      _forward = true;
+    }
   }
-```
 
-`lib/core/game/nekogal_source.dart`：在 `NekogalSource` 内加入：
-
-```dart
   @override
-  Future<List<Game>> search(String keyword) async {
-    final k = keyword.trim();
-    if (k.isEmpty) return const [];
-    final html = await _get('/?s=${Uri.encodeQueryComponent(k)}');
-    return parseNekogalList(html);
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: widget.duration,
+      switchInCurve: Curves.easeInOutCubic,
+      switchOutCurve: Curves.easeInOutCubic,
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        fit: StackFit.expand,
+        children: [
+          ...previousChildren,
+          if (currentChild != null) currentChild,
+        ],
+      ),
+      transitionBuilder: (child, animation) {
+        final incoming = child.key == ValueKey(widget.id);
+        final dir =
+            incoming ? (_forward ? 1.0 : -1.0) : (_forward ? -1.0 : 1.0);
+        return SlideTransition(
+          position: Tween<Offset>(begin: Offset(dir, 0), end: Offset.zero)
+              .animate(animation),
+          child: child,
+        );
+      },
+      child: KeyedSubtree(key: ValueKey(widget.id), child: widget.child),
+    );
   }
+}
 ```
 
-### Step 3: 给所有假源补 search
+Run: `C:\flutter\bin\flutter.bat test test/core/widgets/slide_switcher_test.dart`
+Expected: PASS（3 tests）。
 
-在这三处 `_FakeSource`（`test/core/game/game_source_test.dart`、`test/modules/game/game_home_test.dart`、`test/modules/game/game_providers_test.dart`）以及 `test/modules/game/game_home_test.dart` 的 `_NekoFakeSource` 中，各加入：
+### Step 3: 静态检查 + 提交
 
-```dart
-  @override
-  Future<List<Game>> search(String keyword) async => const [];
-```
-
-（`game_providers_test.dart` 的假源后续在 Task 3 会改成返回结果；此处先补 `const []` 让其编译。）
-
-### Step 4: 运行测试
-
-Run:
-- `C:\flutter\bin\flutter.bat test test/core/game/galgamezywz_source_test.dart`
-- `C:\flutter\bin\flutter.bat test test/core/game/nekogal_source_test.dart`
-- `C:\flutter\bin\flutter.bat test test/core/game/game_source_test.dart`
-- `C:\flutter\bin\flutter.bat test test/modules/game/game_home_test.dart`
-- `C:\flutter\bin\flutter.bat test test/modules/game/game_providers_test.dart`
-- `C:\flutter\bin\flutter.bat analyze`
-Expected: 均 PASS；analyze `No issues found!`。
-
-### Step 5: 提交
+Run: `C:\flutter\bin\flutter.bat analyze`
+Expected: `No issues found!`
 
 ```bash
-git add lib/core/game/game_source.dart lib/core/game/galgamezywz_source.dart lib/core/game/nekogal_source.dart test/core/game/galgamezywz_source_test.dart test/core/game/nekogal_source_test.dart test/core/game/game_source_test.dart test/modules/game/game_home_test.dart test/modules/game/game_providers_test.dart
-git commit -m "feat(game): add keyword search to both game sources"
+git add lib/core/widgets/slide_switcher.dart test/core/widgets/slide_switcher_test.dart
+git commit -m "feat(ui): add a direction-aware slide switcher"
 ```
 
 ---

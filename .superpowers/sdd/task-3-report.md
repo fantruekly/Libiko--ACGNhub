@@ -1,53 +1,36 @@
-# Task 3 Report: 游戏搜索 Providers
-
-## Status
-DONE
+# Task 3 Report: 轻小说探索页接入 SlideSwitcher
 
 ## What I implemented
-Added to `lib/modules/game/game_providers.dart`:
-- `class GameSearchResult { Game game; String sourceKey; }` with const constructor.
-- `const Duration gameSearchTimeout = Duration(seconds: 10)`.
-- `gameSearchSourceProvider` — `FutureProvider.family<List<GameSearchResult>, (String, String)>`: trims keyword, returns `[]` on blank keyword or unknown source, delegates to `source.search(k)` with `.timeout(gameSearchTimeout)`, maps each game to a `GameSearchResult` tagged with the source id.
-- `gameSearchProvider` — `FutureProvider.family<List<GameSearchResult>, String>`: trims keyword, returns `[]` on blank/empty source list, runs all sources concurrently via `Future.wait` with per-source try/catch (failure isolation), dedupes by `game.title.trim()`, throws `StateError` when every source failed.
 
-Updated `test/modules/game/game_providers_test.dart`:
-- `_FakeSource.search` now returns `[Game(id: 's-$keyword', title: '搜索结果$keyword')]`.
-- Added `_TitleSource` and `_FailingSource` fakes.
-- Added 5 tests: source delegation, blank-keyword empty, merge/dedupe by title, failing-source isolation, all-fail throws `StateError`.
+Modified `lib/modules/novel/novel_home.dart`:
 
-## TDD Evidence
+1. Added import `import '../../core/widgets/slide_switcher.dart';` (placed alphabetically between `shimmer_loader.dart` and `smooth_route.dart`).
+2. At the top of `_ExploreTabState._body`, added:
+   ```dart
+   final sourceIndex =
+       ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId);
+   ```
+3. 「推荐」branch (`_groupIndex < 0`): replaced `return async.when(...)` with `return SlideSwitcher(id: (_sourceId, '__home__'), index: sourceIndex * 1000000, child: async.when(...))`, wrapping the entire `async.when` so it stays mounted across loading→data.
+4. Group branch: replaced `return async.when(...)` with `final pageData = async.valueOrNull;` then `return Column(children: [Expanded(child: SlideSwitcher(id: (_sourceId, option.key, _page), index: ..., child: async.when(...))), if (pageData != null) _pager(pageData.hasMore)])`. The pager stays outside the switcher as a sibling.
 
-### RED (before implementation)
-Command: `C:\flutter\bin\flutter.bat test test/modules/game/game_providers_test.dart`
-Result: compilation failed —
-```
-Method not found: 'gameSearchSourceProvider'.
-Method not found: 'gameSearchProvider'.
-Some tests failed.
-```
+## Commands + results
 
-### GREEN (after implementation)
-Command: `C:\flutter\bin\flutter.bat test test/modules/game/game_providers_test.dart`
-Result:
-```
-+9: All tests passed!
-```
-All 9 tests pass (4 pre-existing + 5 new).
-
-## Static analysis
-Command: `C:\flutter\bin\flutter.bat analyze`
-Result: `No issues found! (ran in 2.1s)`
+- `C:\flutter\bin\flutter.bat test test/modules/novel/novel_home_tabs_test.dart` → `+2: All tests passed!`
+- `C:\flutter\bin\flutter.bat test test/modules/novel/novel_home_pager_test.dart` → `+1: All tests passed!`
+- `C:\flutter\bin\flutter.bat analyze` → `No issues found! (ran in 3.1s)`
 
 ## Files changed
-- `lib/modules/game/game_providers.dart`
-- `test/modules/game/game_providers_test.dart`
 
-Commit: `2447927 feat(game): add game search providers` (2 files changed, 149 insertions(+), 1 deletion(-))
+- `lib/modules/novel/novel_home.dart` (only file committed)
+
+Commit: `fda1d82 feat(novel): slide the grid when switching sections or pages` (branch `dev`)
 
 ## Self-review
-- Completeness: `GameSearchResult`, `gameSearchTimeout`, both providers added; all 5 search tests added. Yes.
-- Discipline: only the two specified files were committed; no comments added; no new dependencies; only the game module touched. Yes.
-- Testing: RED -> GREEN confirmed; dedupe, per-source isolation, and all-fail covered; analyze clean. Yes.
+
+- Completeness: import added; `sourceIndex` computed; both branches wrapped; pager outside the switcher. ✅
+- Discipline: only `novel_home.dart` staged/committed; no comments added. ✅
+- Testing: both regression tests pass; analyze clean. ✅
 
 ## Concerns
-None. (Pre-existing uncommitted changes under `.superpowers/sdd/` were left untouched and not staged.)
+
+None. Pre-existing unstaged modifications under `.superpowers/sdd/` were left untouched and not committed.

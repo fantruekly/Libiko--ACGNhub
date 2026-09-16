@@ -557,3 +557,36 @@ Task 5 (shell entry): complete (commit caf6ea5..0d90efe, review clean)
   main_shell search button widened to index<=3 -> GameSearchPage; shell test (400ms pump due to DragToMoveArea double-tap timeout).
 ALL 5 TASKS COMPLETE. Next: final whole-branch review.
 
+
+## Game detail source-button feature (plan 2026-09-15-game-detail-source-button.md, base 3667a13)
+
+Spec: docs/superpowers/specs/2026-09-15-game-detail-source-button-design.md
+
+
+## Content slide-transition feature (plan 2026-09-15-content-slide-transition.md, base a03bd00)
+
+Spec: docs/superpowers/specs/2026-09-15-content-slide-transition-design.md
+
+Task 1 (SlideSwitcher): complete (commit a03bd00..88529ae, review clean; justified deviation: brief's 3rd assertion impossible, fixed to hasRunningAnimations==false + position zero)
+  lib/core/widgets/slide_switcher.dart + test.
+  Minor (deferred): no outgoing-direction assertion; hasRunningAnimations binding-wide.
+
+Task 2 (game): complete (commit 88529ae..a25a690, review clean after 1 fix)
+  Fix a25a690: SlideSwitcher must wrap the WHOLE async.when (was inside data: branch -> unmounted on loading -> no slide); pager is a sibling. Docs 7fe4570 updated spec+plan for game/novel.
+  Minor (deferred): pager hidden during loading (matches prior behavior).
+
+Task 3 (novel): complete (commit a25a690..fda1d82, review clean)
+  Explore tab: switcher wraps whole async.when (推荐 + group branches); pager sibling outside.
+  Minor (deferred): index strides assume page<=100/option<=99.
+
+Task 4 (comic): complete (commit fda1d82..f74cb47, review clean)
+  _explore(source, section, part, sourceIndex); switcher wraps whole async.when; _paginationBar outside.
+Task 5 (full regression): 344 pass / 1 skip, analyze clean.
+ALL TASKS COMPLETE. Next: final whole-branch review.
+
+Final whole-branch review (a03bd00..f74cb47): 'With fixes'. 2 Important (novel 推荐<->分组 didn't slide - branch shape differed; latent duplicate-Hero crash during slide).
+Fix 8acccf5: novel _body both branches return Column([Expanded(SlideSwitcher(...)), if(pageData!=null) _pager]); SlideSwitcher layoutBuilder wraps previousChildren in HeroMode(enabled:false); novel_home_pager_test asserts 2 SlideTransitions mid-switch. Docs b00778f synced. Re-review f74cb47..8acccf5: Approved.
+Content slide-transition feature: COMPLETE (a03bd00..8acccf5). Full suite 344 pass/1 skip, analyze clean. Pushed origin/dev.
+  MUST-VERIFY (human): comic/novel/game - grid slides left/right on source/section/sub-category/page switch; pager stays fixed; no duplicate-Hero crash.
+  Deferred Minors: outgoing-direction test; hasRunningAnimations binding-wide; pager hidden during load; packed index assumes <100.
+

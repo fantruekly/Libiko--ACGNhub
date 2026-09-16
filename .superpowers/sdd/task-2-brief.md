@@ -1,50 +1,49 @@
-## Task 2: 抽取共享网格度量
+## Task 2: 游戏首页接入
 
 **Files:**
-- Create: `lib/modules/game/game_grid.dart`
 - Modify: `lib/modules/game/game_home.dart`
+- Test: `test/modules/game/game_home_test.dart`（回归）
 
-**Interfaces:**
-- Produces: `gameGridColumns` / `gameGridSpacing` / `gameGridTitleExtent` / `gameGridCellWidth(maxWidth)` / `gameGridCellExtent(maxWidth)`。
+### Step 1: 接入
 
-### Step 1: 新建 `game_grid.dart`
+1) import 加入 `import '../../core/widgets/slide_switcher.dart';`
 
-Create `lib/modules/game/game_grid.dart`:
+2) 在 `_body`（第 160 行起）中，`final option = ...` 之后加入：
 
 ```dart
-const int gameGridColumns = 4;
-const double gameGridSpacing = 16;
-const double gameGridTitleExtent = 44;
-
-double gameGridCellWidth(double maxWidth) =>
-    (maxWidth - 32 - gameGridSpacing * (gameGridColumns - 1)) / gameGridColumns;
-
-double gameGridCellExtent(double maxWidth) =>
-    gameGridCellWidth(maxWidth) * 2 / 3 + gameGridTitleExtent;
+    final sourceIndex =
+        ref.watch(gameSourcesProvider).indexWhere((s) => s.id == _sourceId);
 ```
 
-### Step 2: `game_home.dart` 改用共享度量
+3) 把 `data:` 分支（第 173–178 行）替换为：
 
-1) import 加入 `import 'game_grid.dart';`。
-2) 删除第 19–27 行的私有常量与函数（`_gridColumns`/`_gridSpacing`/`_gridTitleExtent`/`_gridCellWidth`/`_gridCellExtent`）。
-3) 在 `_body` 与 `_grid` 中把引用替换为共享名：
-   - `_gridColumns` → `gameGridColumns`
-   - `_gridSpacing` → `gameGridSpacing`
-   - `_gridCellWidth(` → `gameGridCellWidth(`
-   - `_gridCellExtent(` → `gameGridCellExtent(`
+```dart
+      data: (list) => Column(
+        children: [
+          Expanded(
+            child: SlideSwitcher(
+              id: (_sourceId, option.key, _page),
+              index: sourceIndex * 10000 + _optionIndex * 100 + _page,
+              child: _grid(list.items),
+            ),
+          ),
+          _pager(list.hasMore),
+        ],
+      ),
+```
 
-### Step 3: 运行回归
+### Step 2: 运行回归
 
 Run:
 - `C:\flutter\bin\flutter.bat test test/modules/game/game_home_test.dart`
 - `C:\flutter\bin\flutter.bat analyze`
 Expected: PASS；analyze 无问题。
 
-### Step 4: 提交
+### Step 3: 提交
 
 ```bash
-git add lib/modules/game/game_grid.dart lib/modules/game/game_home.dart
-git commit -m "refactor(game): share the game grid metrics"
+git add lib/modules/game/game_home.dart
+git commit -m "feat(game): slide the grid when switching sections or pages"
 ```
 
 ---
