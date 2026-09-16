@@ -74,6 +74,9 @@ void main() {
     await tester.tap(find.text('排行'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
+    // The 推荐 -> 排行 switch must actually run the slide transition
+    // (an outgoing + an incoming child), not silently swap.
+    expect(find.byType(SlideTransition), findsNWidgets(2));
     expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
     expect(find.text('第 1 页'), findsOneWidget);

@@ -40,7 +40,8 @@ class _SlideSwitcherState extends State<SlideSwitcher> {
       layoutBuilder: (currentChild, previousChildren) => Stack(
         fit: StackFit.expand,
         children: [
-          ...previousChildren,
+          for (final child in previousChildren)
+            HeroMode(enabled: false, child: child),
           if (currentChild != null) currentChild,
         ],
       ),
