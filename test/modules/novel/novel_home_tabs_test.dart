@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/novel/models.dart';
-import 'package:acgnhub/core/novel/novel_favorite.dart';
-import 'package:acgnhub/core/novel/novel_history.dart';
-import 'package:acgnhub/core/novel/novel_source.dart';
-import 'package:acgnhub/core/storage/database.dart';
-import 'package:acgnhub/modules/novel/novel_home.dart';
-import 'package:acgnhub/modules/novel/novel_providers.dart';
+import 'package:libiko/core/novel/models.dart';
+import 'package:libiko/core/novel/novel_favorite.dart';
+import 'package:libiko/core/novel/novel_history.dart';
+import 'package:libiko/core/novel/novel_source.dart';
+import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/modules/novel/novel_home.dart';
+import 'package:libiko/modules/novel/novel_providers.dart';
 
 class _FakeSource extends NovelSource {
   @override

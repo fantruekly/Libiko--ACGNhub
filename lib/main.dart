@@ -25,7 +25,7 @@ void main() async {
     size: Size(1280, 800),
     minimumSize: Size(960, 640),
     center: true,
-    title: 'ACGNhub',
+    title: 'Libiko',
     titleBarStyle: TitleBarStyle.hidden,
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -34,18 +34,18 @@ void main() async {
   });
 
   runApp(UncontrolledProviderScope(
-      container: container, child: const ACGNhubApp()));
+      container: container, child: const LibikoApp()));
 }
 
-class ACGNhubApp extends StatelessWidget {
+class LibikoApp extends StatelessWidget {
   static const _accent = Color(0xFF007AFF);
 
-  const ACGNhubApp({super.key});
+  const LibikoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ACGNhub',
+      title: 'Libiko',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: ThemeData(

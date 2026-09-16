@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/game_image.dart';
+import 'package:libiko/core/game/game_image.dart';
 
 void main() {
   test('selects the referer by host', () {

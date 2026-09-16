@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/metadata/jikan_provider.dart';
+import 'package:libiko/core/metadata/jikan_provider.dart';
 
 void main() {
   test('parseList maps a Jikan response to Work items', () {

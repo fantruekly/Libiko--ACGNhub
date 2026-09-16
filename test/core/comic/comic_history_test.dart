@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/comic/comic_history.dart';
-import 'package:acgnhub/core/storage/database.dart';
+import 'package:libiko/core/comic/comic_history.dart';
+import 'package:libiko/core/storage/database.dart';
 
 ComicHistoryEntry _entry(String comicId, String chapter, int page, int ms) =>
     ComicHistoryEntry(

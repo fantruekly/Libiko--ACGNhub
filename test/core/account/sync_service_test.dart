@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/account/account_api.dart';
-import 'package:acgnhub/core/account/account_models.dart';
-import 'package:acgnhub/core/account/sync_service.dart';
-import 'package:acgnhub/core/models/work.dart';
-import 'package:acgnhub/core/services/follow_manager.dart';
-import 'package:acgnhub/core/services/watch_history.dart';
-import 'package:acgnhub/core/storage/database.dart';
-import 'package:acgnhub/core/video/video_source.dart';
+import 'package:libiko/core/account/account_api.dart';
+import 'package:libiko/core/account/account_models.dart';
+import 'package:libiko/core/account/sync_service.dart';
+import 'package:libiko/core/models/work.dart';
+import 'package:libiko/core/services/follow_manager.dart';
+import 'package:libiko/core/services/watch_history.dart';
+import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/core/video/video_source.dart';
 
 Work _work(String id) => Work(
     id: id,

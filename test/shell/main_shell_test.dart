@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/modules/game/game_search.dart';
-import 'package:acgnhub/shell/app_sidebar.dart';
-import 'package:acgnhub/shell/main_shell.dart';
+import 'package:libiko/modules/game/game_search.dart';
+import 'package:libiko/shell/app_sidebar.dart';
+import 'package:libiko/shell/main_shell.dart';
 
 void main() {
   testWidgets('switching modules cross-fades while keeping every page mounted',

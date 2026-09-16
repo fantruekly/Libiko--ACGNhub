@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/metadata/anilist_provider.dart';
+import 'package:libiko/core/metadata/anilist_provider.dart';
 
 void main() {
   final media = {

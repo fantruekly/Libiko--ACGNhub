@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
-import 'package:acgnhub/core/video/rule_store.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
+import 'package:libiko/core/video/rule_store.dart';
+import 'package:libiko/core/video/source_rule.dart';
 
 SourceRule _rule(String name) => SourceRule(
       name: name,

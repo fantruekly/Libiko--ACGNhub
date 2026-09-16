@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/novel_reader_settings.dart';
+import 'package:libiko/core/novel/novel_reader_settings.dart';
 
 void main() {
   test('defaults', () {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/galgamezywz_source.dart';
+import 'package:libiko/core/game/galgamezywz_source.dart';
 
 const _listHtml = '''
 <section class="container">

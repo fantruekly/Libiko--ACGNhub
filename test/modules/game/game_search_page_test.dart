@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/game_source.dart';
-import 'package:acgnhub/core/game/models.dart';
-import 'package:acgnhub/modules/game/game_providers.dart';
-import 'package:acgnhub/modules/game/game_search.dart';
+import 'package:libiko/core/game/game_source.dart';
+import 'package:libiko/core/game/models.dart';
+import 'package:libiko/modules/game/game_providers.dart';
+import 'package:libiko/modules/game/game_search.dart';
 
 class _FakeSource implements GameSource {
   _FakeSource(this.results, {this.delay = Duration.zero, String id = 'fake'})

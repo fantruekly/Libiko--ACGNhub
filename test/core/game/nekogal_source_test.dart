@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/nekogal_source.dart';
+import 'package:libiko/core/game/nekogal_source.dart';
 
 String _listPageHtml(int count, {String? next, int base = 0}) {
   final items = StringBuffer();

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/game_source.dart';
-import 'package:acgnhub/core/game/models.dart';
+import 'package:libiko/core/game/game_source.dart';
+import 'package:libiko/core/game/models.dart';
 
 class _FakeSource implements GameSource {
   @override

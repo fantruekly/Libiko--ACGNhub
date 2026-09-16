@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/modules/anime/anime_rule.dart';
-import 'package:acgnhub/modules/anime/anime_source.dart';
-import 'package:acgnhub/core/models/work.dart';
+import 'package:libiko/modules/anime/anime_rule.dart';
+import 'package:libiko/modules/anime/anime_source.dart';
+import 'package:libiko/core/models/work.dart';
 
 void main() {
   group('AnimeSource', () {

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/metadata/bangumi_provider.dart';
-import 'package:acgnhub/core/metadata/metadata_provider.dart';
+import 'package:libiko/core/metadata/bangumi_provider.dart';
+import 'package:libiko/core/metadata/metadata_provider.dart';
 
 class _RecordingAdapter implements HttpClientAdapter {
   _RecordingAdapter(this.data);

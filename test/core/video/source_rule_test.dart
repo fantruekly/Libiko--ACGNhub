@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/video/source_rule.dart';
+import 'package:libiko/core/video/source_rule.dart';
 
 void main() {
   const validJson = '''

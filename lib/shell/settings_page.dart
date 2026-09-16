@@ -25,7 +25,7 @@ class SettingsPage extends StatelessWidget {
           const _SectionHeader(title: '关于'),
           const ListTile(
             leading: Icon(Icons.info_outline),
-            title: Text('ACGNhub'),
+            title: Text('Libiko'),
             subtitle: Text('v0.1.0 - 动漫聚合应用'),
           ),
         ],

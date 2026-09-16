@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/widgets/slide_switcher.dart';
+import 'package:libiko/core/widgets/slide_switcher.dart';
 
 Widget _app(int index) => MaterialApp(
       home: Scaffold(

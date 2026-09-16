@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/models/work.dart';
+import 'package:libiko/core/models/work.dart';
 
 void main() {
   group('Work', () {

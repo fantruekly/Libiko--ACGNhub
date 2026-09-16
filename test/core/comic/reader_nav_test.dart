@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/comic/reader_nav.dart';
+import 'package:libiko/core/comic/reader_nav.dart';
 
 void main() {
   test('chapterNav returns the neighbours in list order', () {

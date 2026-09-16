@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/models.dart';
-import 'package:acgnhub/modules/game/game_detail_page.dart';
-import 'package:acgnhub/modules/game/game_providers.dart';
+import 'package:libiko/core/game/models.dart';
+import 'package:libiko/modules/game/game_detail_page.dart';
+import 'package:libiko/modules/game/game_providers.dart';
 
 void main() {
   testWidgets('renders title, meta, tags, paragraphs and source button',

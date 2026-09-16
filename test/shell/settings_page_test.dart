@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/shell/settings_page.dart';
+import 'package:libiko/shell/settings_page.dart';
 
 void main() {
   testWidgets('settings page no longer shows the account/login UI',

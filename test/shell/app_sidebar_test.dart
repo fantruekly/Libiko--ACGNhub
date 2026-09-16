@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/shell/app_sidebar.dart';
+import 'package:libiko/shell/app_sidebar.dart';
 
 void main() {
   testWidgets('sidebar labels are 13px and the selected line animates',

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/game_paging.dart';
-import 'package:acgnhub/core/game/models.dart';
+import 'package:libiko/core/game/game_paging.dart';
+import 'package:libiko/core/game/models.dart';
 
 Game _g(String id) => Game(id: id, title: id);
 

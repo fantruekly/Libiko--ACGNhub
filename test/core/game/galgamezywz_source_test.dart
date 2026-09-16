@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/galgamezywz_source.dart';
+import 'package:libiko/core/game/galgamezywz_source.dart';
 
 String _listHtmlWith(int count, {String? next, int idBase = 0}) {
   final items = StringBuffer();

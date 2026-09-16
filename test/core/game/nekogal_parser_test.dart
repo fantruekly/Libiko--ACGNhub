@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/game/nekogal_source.dart';
+import 'package:libiko/core/game/nekogal_source.dart';
 
 const _listHtml = '''
 <div class="posts-row ajaxpager">

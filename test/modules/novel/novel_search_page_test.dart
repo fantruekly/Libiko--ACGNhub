@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/novel/models.dart';
-import 'package:acgnhub/core/novel/novel_source.dart';
-import 'package:acgnhub/modules/novel/novel_providers.dart';
-import 'package:acgnhub/modules/novel/novel_search.dart';
+import 'package:libiko/core/novel/models.dart';
+import 'package:libiko/core/novel/novel_source.dart';
+import 'package:libiko/modules/novel/novel_providers.dart';
+import 'package:libiko/modules/novel/novel_search.dart';
 
 class _FakeSource extends NovelSource {
   _FakeSource(this.results, {this.delay = Duration.zero, String id = 'fake'})

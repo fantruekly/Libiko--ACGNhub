@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/comic/crypto_util.dart';
+import 'package:libiko/core/comic/crypto_util.dart';
 
 List<int> _hex(String s) => [
       for (var i = 0; i < s.length; i += 2)

@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:acgnhub/core/models/follow_record.dart';
-import 'package:acgnhub/core/models/work.dart';
-import 'package:acgnhub/core/services/follow_manager.dart';
-import 'package:acgnhub/core/storage/database.dart';
+import 'package:libiko/core/models/follow_record.dart';
+import 'package:libiko/core/models/work.dart';
+import 'package:libiko/core/services/follow_manager.dart';
+import 'package:libiko/core/storage/database.dart';
 
 Work _work(String id) => Work(
       id: id,

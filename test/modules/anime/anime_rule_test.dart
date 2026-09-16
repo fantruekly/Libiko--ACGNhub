@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/modules/anime/anime_rule.dart';
+import 'package:libiko/modules/anime/anime_rule.dart';
 
 void main() {
   group('AnimeRule', () {

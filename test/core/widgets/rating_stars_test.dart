@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/widgets/rating_stars.dart';
+import 'package:libiko/core/widgets/rating_stars.dart';
 
 void main() {
   testWidgets('8.5 renders 4 full stars, 1 half star, and the numeric label',
