@@ -1,159 +1,146 @@
-## Task 1: SlideSwitcher 组件
+## Task 1: 移除设置页「账号」区块
 
 **Files:**
-- Create: `lib/core/widgets/slide_switcher.dart`
-- Test: `test/core/widgets/slide_switcher_test.dart`
-
-**Interfaces:**
-- Produces: `class SlideSwitcher extends StatefulWidget { SlideSwitcher({Key? key, required Object id, required int index, required Widget child, Duration duration = const Duration(milliseconds: 250)}) }`。
+- Modify: `lib/shell/settings_page.dart`
+- Test: `test/shell/settings_page_test.dart`
 
 ### Step 1: 写测试（先失败）
 
-Create `test/core/widgets/slide_switcher_test.dart`:
+Create `test/shell/settings_page_test.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:acgnhub/core/widgets/slide_switcher.dart';
-
-Widget _app(int index) => MaterialApp(
-      home: Scaffold(
-        body: SlideSwitcher(
-          id: index,
-          index: index,
-          child: SizedBox.expand(child: Text('内容$index')),
-        ),
-      ),
-    );
+import 'package:acgnhub/shell/settings_page.dart';
 
 void main() {
-  testWidgets('slides forward from the right when the index increases',
+  testWidgets('settings page no longer shows the account/login UI',
       (tester) async {
-    await tester.pumpWidget(_app(0));
-    await tester.pumpWidget(_app(1));
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpWidget(const MaterialApp(home: SettingsPage()));
 
-    final incoming = tester.widget<SlideTransition>(find.ancestor(
-      of: find.text('内容1'),
-      matching: find.byType(SlideTransition),
-    ));
-    expect(incoming.position.value.dx, greaterThan(0));
+    expect(find.text('账号'), findsNothing);
+    expect(find.text('服务器地址'), findsNothing);
+    expect(find.text('登录'), findsNothing);
+    expect(find.text('注册'), findsNothing);
+    expect(find.text('退出登录'), findsNothing);
 
-    await tester.pumpAndSettle();
-    expect(find.text('内容1'), findsOneWidget);
-    expect(find.text('内容0'), findsNothing);
-  });
-
-  testWidgets('slides backward from the left when the index decreases',
-      (tester) async {
-    await tester.pumpWidget(_app(2));
-    await tester.pumpWidget(_app(1));
-    await tester.pump(const Duration(milliseconds: 50));
-
-    final incoming = tester.widget<SlideTransition>(find.ancestor(
-      of: find.text('内容1'),
-      matching: find.byType(SlideTransition),
-    ));
-    expect(incoming.position.value.dx, lessThan(0));
-
-    await tester.pumpAndSettle();
-    expect(find.text('内容1'), findsOneWidget);
-    expect(find.text('内容2'), findsNothing);
-  });
-
-  testWidgets('does not animate when only the child rebuilds', (tester) async {
-    await tester.pumpWidget(_app(1));
-    await tester.pumpAndSettle();
-    await tester.pumpWidget(_app(1));
-    await tester.pumpAndSettle();
-    expect(find.byType(SlideTransition), findsNothing);
-    expect(find.text('内容1'), findsOneWidget);
+    expect(find.text('缓存'), findsOneWidget);
+    expect(find.text('关于'), findsOneWidget);
   });
 }
 ```
 
-Run: `C:\flutter\bin\flutter.bat test test/core/widgets/slide_switcher_test.dart`
-Expected: FAIL（找不到 `slide_switcher.dart`）。
+Run: `C:\flutter\bin\flutter.bat test test/shell/settings_page_test.dart`
+Expected: FAIL —— 当前设置页含「账号」「服务器地址」「登录」等。
 
-### Step 2: 实现
+### Step 2: 移除账号区块
 
-Create `lib/core/widgets/slide_switcher.dart`:
+在 `lib/shell/settings_page.dart`：
+
+1) 删除 `body` 中的这三行（第 15–17 行）：
+
+```dart
+          const _SectionHeader(title: '账号'),
+          const _AccountSection(),
+          const Divider(),
+```
+
+2) 删除 `_AccountSection` 与 `_AccountSectionState` 两个类（第 43–204 行）。
+
+3) 删除不再使用的 import（第 2–4 行）：
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+```
+```dart
+import '../core/account/account_service.dart';
+```
+
+删除后 `lib/shell/settings_page.dart` 应为：
 
 ```dart
 import 'package:flutter/material.dart';
 
-class SlideSwitcher extends StatefulWidget {
-  final Object id;
-  final int index;
-  final Widget child;
-  final Duration duration;
-
-  const SlideSwitcher({
-    super.key,
-    required this.id,
-    required this.index,
-    required this.child,
-    this.duration = const Duration(milliseconds: 250),
-  });
-
-  @override
-  State<SlideSwitcher> createState() => _SlideSwitcherState();
-}
-
-class _SlideSwitcherState extends State<SlideSwitcher> {
-  bool _forward = true;
-
-  @override
-  void didUpdateWidget(SlideSwitcher oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.index != oldWidget.index) {
-      _forward = widget.index > oldWidget.index;
-    } else if (widget.id != oldWidget.id) {
-      _forward = true;
-    }
-  }
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: widget.duration,
-      switchInCurve: Curves.easeInOutCubic,
-      switchOutCurve: Curves.easeInOutCubic,
-      layoutBuilder: (currentChild, previousChildren) => Stack(
-        fit: StackFit.expand,
+    return Scaffold(
+      appBar: AppBar(title: const Text('设置')),
+      body: ListView(
         children: [
-          ...previousChildren,
-          if (currentChild != null) currentChild,
+          const _SectionHeader(title: '缓存'),
+          ListTile(
+            leading: const Icon(Icons.delete_outline),
+            title: const Text('清除图片缓存'),
+            onTap: () async {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('缓存已清除')),
+                );
+              }
+            },
+          ),
+          const Divider(),
+          const _SectionHeader(title: '关于'),
+          const ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text('ACGNhub'),
+            subtitle: Text('v0.1.0 - 动漫聚合应用'),
+          ),
         ],
       ),
-      transitionBuilder: (child, animation) {
-        final incoming = child.key == ValueKey(widget.id);
-        final dir =
-            incoming ? (_forward ? 1.0 : -1.0) : (_forward ? -1.0 : 1.0);
-        return SlideTransition(
-          position: Tween<Offset>(begin: Offset(dir, 0), end: Offset.zero)
-              .animate(animation),
-          child: child,
-        );
-      },
-      child: KeyedSubtree(key: ValueKey(widget.id), child: widget.child),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
     );
   }
 }
 ```
 
-Run: `C:\flutter\bin\flutter.bat test test/core/widgets/slide_switcher_test.dart`
-Expected: PASS（3 tests）。
+### Step 3: 运行测试确认通过
 
-### Step 3: 静态检查 + 提交
+Run:
+- `C:\flutter\bin\flutter.bat test test/shell/settings_page_test.dart`
+- `C:\flutter\bin\flutter.bat analyze`
+Expected: PASS；analyze `No issues found!`。
 
-Run: `C:\flutter\bin\flutter.bat analyze`
-Expected: `No issues found!`
+### Step 4: 全量回归 + 提交
+
+Run: `C:\flutter\bin\flutter.bat test`
+Expected: 全部 PASS。
 
 ```bash
-git add lib/core/widgets/slide_switcher.dart test/core/widgets/slide_switcher_test.dart
-git commit -m "feat(ui): add a direction-aware slide switcher"
+git add lib/shell/settings_page.dart test/shell/settings_page_test.dart
+git commit -m "feat(settings): remove the account/login section"
 ```
 
 ---
 
+## 手动验证（合并前，由用户执行）
+
+运行应用 → 打开「设置」：不再有「账号」区块（服务器地址/登录/注册/退出）；「缓存」「关于」仍在。
+
+## 自查记录（Self-Review）
+
+- **Spec 覆盖**：删除账号区块 + 两个类 + 两个 import → Task 1；回归测试 → Step 1。
+- **类型一致性**：`SettingsPage` 仍为 `StatelessWidget`；`_SectionHeader` 保留；删除后无 `ref`/`AccountState` 引用。
+- **占位符**：无 TBD/TODO；给出完整目标文件内容与命令。

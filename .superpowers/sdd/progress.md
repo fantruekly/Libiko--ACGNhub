@@ -590,3 +590,13 @@ Content slide-transition feature: COMPLETE (a03bd00..8acccf5). Full suite 344 pa
   MUST-VERIFY (human): comic/novel/game - grid slides left/right on source/section/sub-category/page switch; pager stays fixed; no duplicate-Hero crash.
   Deferred Minors: outgoing-direction test; hasRunningAnimations binding-wide; pager hidden during load; packed index assumes <100.
 
+
+## Settings remove-login feature (plan 2026-09-16-settings-remove-login.md, base 8a1d31a)
+
+Spec: docs/superpowers/specs/2026-09-16-settings-remove-login-design.md
+
+Task 1 (remove settings account section): complete (commit 8a1d31a..e2e374e, review clean)
+  settings_page.dart: removed 账号 block + _AccountSection/_AccountSectionState + riverpod/account_service imports; kept 缓存/关于. New test/shell/settings_page_test.dart asserts login UI gone + sections present. Full suite 345 pass/1 skip, analyze clean.
+Settings remove-login feature: COMPLETE (8a1d31a..e2e374e). Pushed origin/dev.
+  Minor (deferred): test's removal failure mode is a ProviderScope exception rather than a clean expect.
+

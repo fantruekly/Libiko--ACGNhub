@@ -1,108 +1,59 @@
-# Task 1 Report: SlideSwitcher 组件
+# Task 1 Report: 移除设置页「账号」区块
 
 ## What I implemented
 
-Created a reusable, direction-aware slide transition widget plus its widget test.
+Removed the account/login UI from the settings page only, leaving the underlying
+`core/account/*` services and anime sync untouched.
 
-- `lib/core/widgets/slide_switcher.dart` — `SlideSwitcher` (`StatefulWidget`) with
-  `id: Object`, `index: int`, `child: Widget`, `duration: Duration = 250ms`. It wraps
-  `AnimatedSwitcher` with a `Stack` layout and a `SlideTransition` transition builder.
-  Direction is derived in `didUpdateWidget`: an index increase → incoming from the right
-  (`dx = +1`), a decrease → incoming from the left (`dx = -1`); an `id`-only change defaults
-  forward. The child is keyed by `ValueKey(widget.id)` so a same-`id` rebuild does not create
-  a new switcher entry.
-- `test/core/widgets/slide_switcher_test.dart` — 3 `testWidgets` cases: forward direction
-  (`dx > 0`), backward direction (`dx < 0`), and no animation on same-`id` rebuild.
-
-Implementation was written exactly as specified in the brief (and identical to the design
-spec's component code).
-
-## Test results
-
-```
-flutter test test/core/widgets/slide_switcher_test.dart
-→ 00:00 +3: All tests passed!
-
-flutter analyze
-→ No issues found! (ran in 7.1s)
-```
+- `lib/shell/settings_page.dart`
+  - Deleted the body entries `_SectionHeader(title: '账号')`, `_AccountSection()`, and the `Divider()` that followed.
+  - Deleted the `_AccountSection` (ConsumerStatefulWidget) and `_AccountSectionState` classes entirely.
+  - Removed the now-unused imports: `package:flutter_riverpod/flutter_riverpod.dart` and `../core/account/account_service.dart`.
+  - Kept the 「缓存」 and 「关于」 sections and `_SectionHeader` unchanged.
+  - The file now matches the brief's Step 2 target content exactly (no comments added).
+- `test/shell/settings_page_test.dart` (new)
+  - Widget test asserting the account/login text (`账号`, `服务器地址`, `登录`, `注册`, `退出登录`) is absent, while `缓存` and `关于` each render once.
 
 ## TDD evidence
 
-**RED** (Step 1, test created before implementation):
+### RED (Step 1, before the edit)
+Command: `C:\flutter\bin\flutter.bat test test/shell/settings_page_test.dart`
 
-```
-test/core/widgets/slide_switcher_test.dart:3:8: Error: Error when reading
-  'lib/core/widgets/slide_switcher.dart': 系统找不到指定的文件。
-test/core/widgets/slide_switcher_test.dart:7:15: Error: Method not found: 'SlideSwitcher'.
-00:00 +0 -1: Some tests failed.
-```
+The test failed as expected. Two failures surfaced:
+- `Bad state: No ProviderScope found` thrown while building `_AccountSection` (settings_page.dart:16).
+- `TestFailure`: `Expected: no matching candidates / Actual: Found 1 widget with text "账号"` (test line 10).
 
-**Intermediate** (implementation as specified, brief's third assertion unmodified):
+Result: `00:00 +0 -1: Some tests failed.` — RED confirmed.
 
-```
-00:00 +2 -1: Some tests failed.
-Expected: no matching candidates
-  Actual: _TypeWidgetFinder:<Found 1 widget with type "SlideTransition": ...>
-```
+### GREEN (Step 3, after the edit)
+Command: `C:\flutter\bin\flutter.bat test test/shell/settings_page_test.dart`
 
-**GREEN** (after correcting the third assertion — see Deviations):
+Result: `00:00 +1: All tests passed!` — GREEN.
 
-```
-00:00 +3: All tests passed!
-```
+## Test results
 
-The forward/backward assertions genuinely distinguish direction: at 50 ms into the
-transition the incoming child's `SlideTransition.position.value.dx` is `> 0` for an index
-increase and `< 0` for a decrease.
-
-## Deviations from the brief
-
-The brief's Step 1 test and Step 2 implementation are mutually inconsistent:
-
-- The brief's Step 1 third test asserts `expect(find.byType(SlideTransition), findsNothing)`.
-- The brief's Step 2 implementation (and the design spec, `...design.md:85`) wraps the
-  current child via `AnimatedSwitcher.transitionBuilder`. Flutter's `AnimatedSwitcher`
-  **always** renders `_currentEntry?.transition` through that builder, so exactly one
-  `SlideTransition` exists even at rest — `findsNothing` can never hold.
-
-The documented intent (test name "does not animate when only the child rebuilds"; design
-spec line 85: `id` 相同而仅内容重建…不触发过渡) is that no animation *runs*, not that the
-transition widget is absent. I kept the implementation **verbatim** and corrected only the
-third test's assertion to encode that intent:
-
-```dart
-await tester.pump();
-expect(tester.hasRunningAnimations, isFalse);
-final transition = tester.widget<SlideTransition>(find.byType(SlideTransition));
-expect(transition.position.value, Offset.zero);
-expect(find.text('内容1'), findsOneWidget);
-```
-
-The first two tests are byte-for-byte as given in the brief. No other deviation.
+- Focused test: PASS (`All tests passed!`).
+- `C:\flutter\bin\flutter.bat analyze`: `No issues found! (ran in 2.3s)`.
+- Full suite `C:\flutter\bin\flutter.bat test`: `+345 ~1: All tests passed!` (345 passed; 1 skipped, the pre-existing `js_engine_smoke_test.dart` skip for the unavailable flutter_qjs native library under `flutter test`).
 
 ## Files changed
 
-- `lib/core/widgets/slide_switcher.dart` (new, 58 lines)
-- `test/core/widgets/slide_switcher_test.dart` (new, 64 lines)
+Committed in `e2e374e` — `feat(settings): remove the account/login section` (branch `dev`):
 
-Commit: `88529ae feat(ui): add a direction-aware slide switcher` (branch `dev`).
+```
+ lib/shell/settings_page.dart       | 169 -------------------------------------
+ test/shell/settings_page_test.dart |  19 +++++
+ 2 files changed, 19 insertions(+), 169 deletions(-)
+```
 
 ## Self-review
 
-- **Completeness:** widget + test created per brief; the widget exposes the specified
-  constructor/interface for Tasks 2–4 (`id`, `index`, `child`, `duration`).
-- **Discipline:** only the two files staged and committed; the other dirty
-  `.superpowers/sdd/*` files were left untouched; no comments added; no new dependencies.
-- **Testing:** RED → GREEN confirmed; the two direction assertions distinguish
-  forward/backward; `flutter analyze` clean.
+- Completeness: 账号 section block removed; both `_AccountSection`/`_AccountSectionState` classes removed; both unused imports removed; 缓存/关于 kept; test added. Yes.
+- Discipline: only the two allowed files were staged/committed. `main.dart`, `lib/core/account/*`, and the anime module were not touched. No new dependencies. No comments added.
+- Testing: RED → GREEN demonstrated; full suite passes; analyze clean.
 
 ## Concerns
 
-- The brief's third assertion was impossible against the brief's own implementation; I
-  corrected the assertion (not the component) and flagged it here. If the reviewer prefers
-  a different encoding of "no animation" (e.g. asserting the switcher has no outgoing
-  children), the implementation does not need to change.
-- `hasRunningAnimations` is false after the same-`id` rebuild, which confirms no new
-  animation was started; combined with `position.value == Offset.zero` it captures the
-  intended behavior without weakening the check.
+- Pre-existing uncommitted working-tree changes to `.superpowers/sdd/progress.md` and `.superpowers/sdd/task-1-brief.md` were left untouched and NOT committed (outside task scope).
+- The full-suite skip (`~1`) is pre-existing and unrelated to this change.
+- Manual verification (run the app → 设置) is deferred to the user per the brief.
