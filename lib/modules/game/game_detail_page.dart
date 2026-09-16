@@ -37,7 +37,7 @@ class GameDetailPage extends ConsumerWidget {
       backgroundColor: const Color(0xFFF2F2F7),
       body: Column(
         children: [
-          _header(context, async.valueOrNull),
+          _header(context),
           Expanded(
             child: async.when(
               loading: () => _loading(),
@@ -70,7 +70,7 @@ class GameDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _header(BuildContext context, GameDetail? detail) {
+  Widget _header(BuildContext context) {
     return DragToMoveArea(
       child: Container(
         height: 48,
@@ -95,14 +95,6 @@ class GameDetailPage extends ConsumerWidget {
                 style: const TextStyle(
                     fontSize: 15, fontWeight: FontWeight.w600, color: _fg),
               ),
-            ),
-            IconButton(
-              tooltip: '在原站打开',
-              icon: const Icon(Icons.open_in_new_rounded, size: 20),
-              color: _muted,
-              onPressed: detail == null
-                  ? null
-                  : () => _openSource(detail.sourceUrl),
             ),
             const WindowControls(),
           ],
@@ -198,6 +190,26 @@ class GameDetailPage extends ConsumerWidget {
                           _tag(game.category!),
                         for (final t in game.tags) _tag(t),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        backgroundColor: const Color(0xFF007AFF),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: detail.sourceUrl.isEmpty
+                          ? null
+                          : () => _openSource(detail.sourceUrl),
+                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                      label: const Text('在原站打开',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),
