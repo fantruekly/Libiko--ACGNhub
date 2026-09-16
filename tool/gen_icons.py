@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "assets", "branding", "app_icon.png")
-MAGIC = (255, 0, 254)
+MAGIC = (255, 0, 254, 255)
 
 
 def load_source() -> Image.Image:
@@ -25,7 +25,7 @@ def load_source() -> Image.Image:
     for corner in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]:
         ImageDraw.floodfill(im, corner, MAGIC, thresh=60)
     arr = np.array(im)
-    mask = (arr[:, :, 0] == MAGIC[0]) & (arr[:, :, 1] == MAGIC[1]) & (arr[:, :, 2] == MAGIC[2])
+    mask = (arr[:, :, 0] == 255) & (arr[:, :, 1] == 0) & (arr[:, :, 2] == 254)
     arr[mask, 3] = 0
     return Image.fromarray(arr, "RGBA")
 
