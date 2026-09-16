@@ -52,7 +52,6 @@ app.*.map.json
 
 # Release packaging output
 /dist/
-<<<<<<< HEAD
 
 # Android signing secrets
 /android/key.properties
