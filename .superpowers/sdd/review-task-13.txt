@@ -1,3 +1,0 @@
-﻿b0f1eab feat(anime): add video player page with playback controls
- lib/modules/anime/anime_player.dart | 152 ++++++++++++++++++++++++++++++++++++
- 1 file changed, 152 insertions(+)

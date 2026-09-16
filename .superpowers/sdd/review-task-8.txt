@@ -1,5 +1,0 @@
-﻿fe4c097 feat(anime): add AnimeRule model and XPathParser stub
----
- lib/modules/anime/anime_rule.dart       | 145 ++++++++++++++++++++++++++++++++
- test/modules/anime/anime_rule_test.dart |  72 ++++++++++++++++
- 2 files changed, 217 insertions(+)
