@@ -12,7 +12,9 @@ const String linovelibUserAgent =
     '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 const Map<String, String> novelImageHeaders = {
-  'Referer': 'https://www.linovelib.com/',
+  'User-Agent': linovelibUserAgent,
+  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  'Referer': '$linovelibBaseUrl/',
 };
 
 final RegExp _novelHref = RegExp(r'/novel/(\d+)\.html');
