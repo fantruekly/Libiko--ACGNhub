@@ -13,6 +13,7 @@ import '../modules/game/game_home.dart';
 import '../modules/game/game_search.dart';
 import 'settings_page.dart';
 import 'app_sidebar.dart';
+import 'app_bottom_bar.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -64,15 +65,13 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final collapsed = _sidebarState.collapsed;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
-      body: Column(
-        children: [
-          _titleBar(collapsed),
-          Expanded(
-            child: Row(
-              children: [
+    final content = Column(
+      children: [
+        _titleBar(collapsed),
+        Expanded(
+          child: Row(
+            children: [
+              if (isDesktop)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOutCubic,
@@ -90,29 +89,39 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                 ),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      for (var i = 0; i < _pages.length; i++)
-                        IgnorePointer(
-                          ignoring: i != _currentIndex,
-                          child: AnimatedOpacity(
-                            key: ValueKey('module-page-$i'),
-                            opacity: i == _currentIndex ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            child: _pages[i],
-                          ),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    for (var i = 0; i < _pages.length; i++)
+                      IgnorePointer(
+                        ignoring: i != _currentIndex,
+                        child: AnimatedOpacity(
+                          key: ValueKey('module-page-$i'),
+                          opacity: i == _currentIndex ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          child: _pages[i],
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7),
+      body: content,
+      bottomNavigationBar: isDesktop
+          ? null
+          : AppBottomBar(
+              selectedIndex: _currentIndex,
+              onChanged: (i) => setState(() => _currentIndex = i),
+            ),
     );
   }
 
@@ -129,15 +138,18 @@ class _MainShellState extends State<MainShell> {
           ),
           child: Row(
             children: [
-              SizedBox(
-                width: 72,
-                child: Center(
-                  child: _SidebarToggleButton(
-                    collapsed: collapsed,
-                    onTap: () => _sidebarState.toggle(),
+              if (isDesktop)
+                SizedBox(
+                  width: 72,
+                  child: Center(
+                    child: _SidebarToggleButton(
+                      collapsed: collapsed,
+                      onTap: () => _sidebarState.toggle(),
+                    ),
                   ),
-                ),
-              ),
+                )
+              else
+                const SizedBox(width: 8),
               Text(
                 _titles[_currentIndex],
                 style: const TextStyle(
