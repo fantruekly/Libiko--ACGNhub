@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'headless_browser.dart';
+import 'webview_scraper.dart';
 
 /// Resolves a video source's play page to a playable stream: the page is loaded
 /// in a hidden browser and the app waits for it to request the media stream. The
@@ -16,7 +17,7 @@ class StreamResolver {
     final browser = createHeadlessBrowser();
     StreamSubscription<MediaCandidate>? sub;
     try {
-      await browser.start();
+      await browser.start(userAgent: kBrowserUserAgent);
       final completer = Completer<MediaCandidate?>();
       sub = browser.mediaUrls.listen((candidate) {
         if (candidate.url.isNotEmpty && !completer.isCompleted) {
