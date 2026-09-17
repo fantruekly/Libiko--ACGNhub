@@ -160,11 +160,16 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
             child: async.when(
               loading: () => LayoutBuilder(builder: (context, constraints) {
                 final cellW = gameGridCellWidth(constraints.maxWidth);
+                final mobileCellW = constraints.maxWidth - 32;
+                final mobileAspect = mobileCellW /
+                    (mobileCellW * 2 / 3 + gameGridTitleExtent);
                 return ShimmerLoader(
                     crossAxisCount: gameGridColumns,
+                    mobileColumns: 1,
                     itemCount: 8,
-                    aspectRatio:
-                        cellW / gameGridCellExtent(constraints.maxWidth),
+                    aspectRatio: isDesktop
+                        ? cellW / gameGridCellExtent(constraints.maxWidth)
+                        : mobileAspect,
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
               }),
               error: (_, __) => EmptyState(

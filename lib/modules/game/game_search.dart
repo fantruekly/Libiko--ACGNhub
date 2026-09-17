@@ -162,10 +162,16 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
     if (results.isEmpty && pending > 0) {
       return LayoutBuilder(builder: (context, constraints) {
         final cellW = gameGridCellWidth(constraints.maxWidth);
+        final mobileCellW = constraints.maxWidth - 32;
+        final mobileAspect =
+            mobileCellW / (mobileCellW * 2 / 3 + gameGridTitleExtent);
         return ShimmerLoader(
             crossAxisCount: gameGridColumns,
+            mobileColumns: 1,
             itemCount: 8,
-            aspectRatio: cellW / gameGridCellExtent(constraints.maxWidth),
+            aspectRatio: isDesktop
+                ? cellW / gameGridCellExtent(constraints.maxWidth)
+                : mobileAspect,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
       });
     }

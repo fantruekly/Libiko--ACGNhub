@@ -126,13 +126,15 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _titleBar(bool collapsed) {
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
     return DesktopDragArea(
       child: GlassSurface(
         borderRadius: BorderRadius.zero,
         blur: 18,
         color: const Color(0xF2FFFFFF),
         child: Container(
-          height: 48,
+          height: 48 + topInset,
+          padding: EdgeInsets.only(top: topInset),
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: _border, width: 0.5)),
           ),
