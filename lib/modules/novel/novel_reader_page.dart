@@ -183,7 +183,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   /// 64px bottom bar), so an illustration fills the page vertically with the
   /// sides left blank, like a comic page.
   double _illustrationHeight(BuildContext context) {
-    final h = MediaQuery.sizeOf(context).height - 56 - 64 - 24;
+    final insets = MediaQuery.paddingOf(context);
+    final topBar = 56 + (isDesktop ? 0.0 : insets.top);
+    final bottomBar = 64 + (isDesktop ? 0.0 : insets.bottom);
+    final h = MediaQuery.sizeOf(context).height - topBar - bottomBar - 24;
     return h.clamp(200, 4000).toDouble();
   }
 

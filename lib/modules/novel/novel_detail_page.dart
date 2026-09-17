@@ -327,17 +327,20 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     return overflows;
   }
 
-  Widget _tag(String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-            color: const Color(0xFFE8F0FE),
-            borderRadius: BorderRadius.circular(20)),
-        child: Text(text,
-            style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w500)),
-      );
+  Widget _tag(String text) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+          color: cs.secondaryContainer,
+          borderRadius: BorderRadius.circular(20)),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 11,
+              color: cs.onSecondaryContainer,
+              fontWeight: FontWeight.w500)),
+    );
+  }
 
   void _openChapter(NovelChapterRef chapter, String? cover) {
     Navigator.push(

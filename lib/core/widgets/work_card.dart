@@ -10,8 +10,6 @@ class WorkCard extends StatelessWidget {
 
   const WorkCard({super.key, required this.work, this.onTap, this.subtitle});
 
-  static const _accent = Color(0xFF007AFF);
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -19,7 +17,7 @@ class WorkCard extends StatelessWidget {
     Widget cover = RatioCover(
       url: work.coverUrl,
       fadeInDuration: const Duration(milliseconds: 200),
-      placeholderBuilder: (_) => _placeholder(work),
+      placeholderBuilder: (_) => _placeholder(work, cs),
     );
 
     return GestureDetector(
@@ -52,7 +50,7 @@ class WorkCard extends StatelessWidget {
               subtitle!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF5A5A5F)),
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             ),
           ],
         ],
@@ -60,7 +58,7 @@ class WorkCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(Work work) {
+  Widget _placeholder(Work work, ColorScheme cs) {
     final hash = work.title.hashCode.abs();
     final bgColors = const [
       Color(0xFFF3E5F5),
@@ -74,7 +72,7 @@ class WorkCard extends StatelessWidget {
         child: Text(
           work.title.characters.first,
           style: TextStyle(
-              color: _accent.withValues(alpha: 0.2),
+              color: cs.primary.withValues(alpha: 0.2),
               fontSize: 28,
               fontWeight: FontWeight.w400),
         ),

@@ -274,11 +274,13 @@ class GameDetailPage extends ConsumerWidget {
   Widget _tag(String text, ColorScheme cs) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-            color: const Color(0xFFE8F0FE),
+            color: cs.secondaryContainer,
             borderRadius: BorderRadius.circular(20)),
         child: Text(text,
             style: TextStyle(
-                fontSize: 11, color: cs.primary, fontWeight: FontWeight.w500)),
+                fontSize: 11,
+                color: cs.onSecondaryContainer,
+                fontWeight: FontWeight.w500)),
       );
 
   Widget _cover(String? url) {

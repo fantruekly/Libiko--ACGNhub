@@ -182,11 +182,11 @@ class _MainShellState extends State<MainShell> {
                   onTap: _openSettings,
                   child: CircleAvatar(
                     radius: 15,
-                    backgroundColor: const Color(0xFFE8F0FE),
+                    backgroundColor: cs.secondaryContainer,
                     child: Text('A',
                         style: TextStyle(
                             fontSize: 13,
-                            color: cs.primary,
+                            color: cs.onSecondaryContainer,
                             fontWeight: FontWeight.w600)),
                   ),
                 ),

@@ -134,7 +134,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
                         setState(() {});
                       },
                       child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
+                          size: 16, color: cs.onSurfaceVariant),
                     ),
                 ],
               ),

@@ -218,13 +218,15 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F0FE),
+        color: cs.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         label,
         style: TextStyle(
-            fontSize: 11, color: cs.primary, fontWeight: FontWeight.w500),
+            fontSize: 11,
+            color: cs.onSecondaryContainer,
+            fontWeight: FontWeight.w500),
       ),
     );
   }
