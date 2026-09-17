@@ -21,10 +21,10 @@ class PillButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.md),
         hoverColor: cs.primary.withValues(alpha: 0.12),
         child: Container(
-          constraints: const BoxConstraints(minWidth: 104, maxWidth: 160),
+          width: double.infinity,
           height: 40,
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: MarqueeText(
             text: label,
             style: TextStyle(

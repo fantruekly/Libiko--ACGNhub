@@ -7,6 +7,7 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/platform.dart';
+import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
@@ -141,9 +142,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                   style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
             ),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            TwoColumnButtonGrid(
               children: [
                 for (final ch in vol.chapters)
                   PillButton(label: ch.title, onTap: () => _openChapter(ch, cover)),

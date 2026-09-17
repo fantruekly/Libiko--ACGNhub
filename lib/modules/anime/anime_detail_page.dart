@@ -9,6 +9,7 @@ import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
 import '../../core/services/follow_manager.dart';
+import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
@@ -948,9 +949,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 4),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
+      child: TwoColumnButtonGrid(
         children: [
           for (final ep in eps)
             PillButton(label: ep.title, onTap: () => _playEpisode(ep)),

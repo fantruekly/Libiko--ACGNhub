@@ -6,6 +6,7 @@ import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
 import '../../core/comic/models.dart';
 import '../../core/platform.dart';
+import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
@@ -311,9 +312,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
             const SizedBox(height: 12),
             if (chapters.isEmpty)
               _canLoadEp()
-                  ? Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
+                  ? TwoColumnButtonGrid(
                       children: [_chapterButton('', '开始阅读')],
                     )
                   : Text('暂无章节',
@@ -321,9 +320,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                           fontSize: 13,
                           color: cs.onSurface.withValues(alpha: 0.4)))
             else
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
+              TwoColumnButtonGrid(
                 children: [
                   for (final chapter in chapters)
                     _chapterButton(chapter.key, chapter.value),
