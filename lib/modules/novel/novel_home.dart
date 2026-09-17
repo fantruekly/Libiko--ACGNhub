@@ -7,8 +7,11 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_source.dart';
+import '../../core/platform.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -29,21 +32,10 @@ class NovelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget image = RepaintBoundary(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: novel.coverUrl != null && novel.coverUrl!.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: novel.coverUrl!,
-                fit: BoxFit.cover,
-                memCacheWidth: 400,
-                fadeInDuration: Duration.zero,
-                httpHeaders: novelImageHeaders,
-                placeholder: (_, __) => _placeholder(),
-                errorWidget: (_, __, ___) => _placeholder(),
-              )
-            : _placeholder(),
-      ),
+    Widget image = RatioCover(
+      url: novel.coverUrl,
+      httpHeaders: novelImageHeaders,
+      placeholderBuilder: (_) => _placeholder(),
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -53,7 +45,7 @@ class NovelCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: image),
+          if (isDesktop) Expanded(child: image) else image,
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
@@ -213,6 +205,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
               child: async.when(
                 loading: () => const ShimmerLoader(
                     crossAxisCount: 6,
+                    mobileColumns: 3,
                     itemCount: 12,
                     aspectRatio: 0.58,
                     padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
@@ -300,11 +293,11 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     if (items.isEmpty) {
       return const EmptyState(icon: Icons.menu_book_rounded, message: '暂无内容');
     }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6, mainAxisSpacing: 20, crossAxisSpacing: 16, childAspectRatio: 0.58),
+    return AdaptiveGridView(
       itemCount: items.length,
+      mobileColumns: 3,
+      desktopAspectRatio: 0.58,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (_, i) => NovelCard(
         novel: items[i],
         heroTag: 'novel_${_sourceId}_${items[i].id}',
@@ -332,11 +325,11 @@ class _FavoritesTab extends ConsumerWidget {
       return const EmptyState(
           icon: Icons.favorite_border_rounded, message: '还没有收藏');
     }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6, mainAxisSpacing: 20, crossAxisSpacing: 16, childAspectRatio: 0.58),
+    return AdaptiveGridView(
       itemCount: favorites.length,
+      mobileColumns: 3,
+      desktopAspectRatio: 0.58,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (_, i) => NovelCard(
         novel: Novel(
           id: favorites[i].novelId,

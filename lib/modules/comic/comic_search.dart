@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -137,6 +138,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     return async.when(
       loading: () => const ShimmerLoader(
         crossAxisCount: 6,
+        mobileColumns: 3,
         itemCount: 12,
         padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
       ),
@@ -157,15 +159,10 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
   }
 
   Widget _resultsGrid(List<ComicSearchResult> results) {
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 6,
-        mainAxisSpacing: 20,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.60,
-      ),
+    return AdaptiveGridView(
       itemCount: results.length,
+      mobileColumns: 3,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (context, index) {
         final result = results[index];
         return ComicCard(

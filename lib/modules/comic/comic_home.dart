@@ -6,8 +6,11 @@ import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_source.dart';
 import '../../core/comic/explore_result.dart';
+import '../../core/platform.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -89,7 +92,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     final sourcesAsync = ref.watch(comicSourcesProvider);
 
     return sourcesAsync.when(
-      loading: () => const ShimmerLoader(crossAxisCount: 6),
+      loading: () => const ShimmerLoader(crossAxisCount: 6, mobileColumns: 3),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
@@ -232,6 +235,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             child: async.when(
               loading: () => const ShimmerLoader(
                 crossAxisCount: 6,
+                mobileColumns: 3,
                 itemCount: 12,
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
               ),
@@ -477,15 +481,10 @@ Widget _comicGrid({
   required int count,
   required Widget Function(int) itemBuilder,
 }) {
-  return GridView.builder(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 6,
-      mainAxisSpacing: 20,
-      crossAxisSpacing: 16,
-      childAspectRatio: 0.60,
-    ),
+  return AdaptiveGridView(
     itemCount: count,
+    mobileColumns: 3,
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
     itemBuilder: (_, i) => itemBuilder(i),
   );
 }
@@ -531,20 +530,9 @@ class ComicCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    Widget image = RepaintBoundary(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: cover != null && cover!.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: cover!,
-                fit: BoxFit.cover,
-                memCacheWidth: 400,
-                fadeInDuration: const Duration(milliseconds: 200),
-                placeholder: (_, __) => _placeholder(),
-                errorWidget: (_, __, ___) => _placeholder(),
-              )
-            : _placeholder(),
-      ),
+    Widget image = RatioCover(
+      url: cover,
+      placeholderBuilder: (_) => _placeholder(),
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -555,7 +543,7 @@ class ComicCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: image),
+          if (isDesktop) Expanded(child: image) else image,
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
