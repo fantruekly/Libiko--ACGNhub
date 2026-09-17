@@ -39,6 +39,18 @@ void main() {
     expect(eps[1].playUrl, 'https://cdn.test/play/2');
   });
 
+  test('mapEpisodes keeps road-prefixed titles from multiple roads', () {
+    final eps = RuleVideoSource.mapEpisodes(_rule, [
+      {'title': '线路1 第1集', 'href': '/play/1'},
+      {'title': '线路1 第2集', 'href': '/play/2'},
+      {'title': '线路2 第1集', 'href': '/play/3'},
+    ]);
+    expect(eps, hasLength(3));
+    expect(eps[0].title, '线路1 第1集');
+    expect(eps[2].title, '线路2 第1集');
+    expect(eps[2].playUrl, 'https://www.7sefun.top/play/3');
+  });
+
   test('mapSearch returns empty for non-list input', () {
     expect(RuleVideoSource.mapSearch(_rule, null), isEmpty);
     expect(RuleVideoSource.mapSearch(_rule, 'oops'), isEmpty);

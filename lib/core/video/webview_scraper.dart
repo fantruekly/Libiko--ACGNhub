@@ -50,20 +50,24 @@ String buildSearchScript(SourceRule rule) => '''
 })()
 ''';
 
-/// JS that returns a JSON array of `{title, href}` for the rule's first road.
+/// JS that returns a JSON array of `{title, href}` for every chapter road.
 String buildEpisodesScript(SourceRule rule) => '''
 (function () {
   $_helpersJs
   var out = [];
   var roads = __ev(${jsonEncode(rule.chapterRoads)}, document);
-  if (roads.length) {
-    var links = __ev(__rel(${jsonEncode(rule.chapterResult)}), roads[0]);
+  for (var r = 0; r < roads.length; r++) {
+    var links = __ev(__rel(${jsonEncode(rule.chapterResult)}), roads[r]);
     for (var i = 0; i < links.length; i++) {
       var e = links[i];
-      out.push({
-        title: (e.textContent || '').trim(),
-        href: ((e.getAttribute && e.getAttribute('href')) || '').trim()
-      });
+      var t = (e.textContent || '').trim();
+      var h = ((e.getAttribute && e.getAttribute('href')) || '').trim();
+      if (h) {
+        out.push({
+          title: (roads.length > 1 ? '线路' + (r + 1) + ' ' : '') + t,
+          href: h
+        });
+      }
     }
   }
   return out;
