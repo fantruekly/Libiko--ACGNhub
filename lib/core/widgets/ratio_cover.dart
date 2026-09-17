@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../images/cover_ratio_cache.dart';
 import '../platform.dart';
@@ -76,8 +77,8 @@ class _RatioCoverState extends State<RatioCover> {
     super.dispose();
   }
 
-  /// Builds the provider for [width] logical pixels, decoding at
-  /// `width * devicePixelRatio` (clamped) so the bitmap is never upscaled.
+  /// Builds the provider for a decode width in device pixels (already
+  /// multiplied by the device pixel ratio).
   void _useWidth(int width) {
     if (_provider != null && _providerWidth == width) return;
     final url = _url;
@@ -133,6 +134,17 @@ class _RatioCoverState extends State<RatioCover> {
     final ratio = w / h;
     unawaited(_cache.remember(_url, ratio).catchError((Object _) {}));
     if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _resolved) return;
+        setState(() {
+          _ratio = ratio;
+          _resolved = true;
+        });
+      });
+      return;
+    }
     setState(() {
       _ratio = ratio;
       _resolved = true;
