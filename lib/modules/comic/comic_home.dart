@@ -9,6 +9,7 @@ import '../../core/comic/explore_result.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/pager_bar.dart';
 import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
@@ -301,37 +302,13 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
   }
 
   Widget _paginationBar(ComicExplorePage data) {
-    final cs = Theme.of(context).colorScheme;
     final label = data.maxPage == null
         ? '第 ${data.page} 页'
         : '第 ${data.page} / ${data.maxPage} 页';
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            tooltip: '上一页',
-            icon: const Icon(Icons.chevron_left_rounded),
-            onPressed:
-                data.page > 1 ? () => setState(() => _page = data.page - 1) : null,
-          ),
-          const SizedBox(width: 16),
-          Text(label, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-          const SizedBox(width: 16),
-          IconButton(
-            tooltip: '下一页',
-            icon: const Icon(Icons.chevron_right_rounded),
-            onPressed: data.hasNext
-                ? () => setState(() => _page = data.page + 1)
-                : null,
-          ),
-        ],
-      ),
+    return PagerBar(
+      label: label,
+      onPrevious: data.page > 1 ? () => setState(() => _page = data.page - 1) : null,
+      onNext: data.hasNext ? () => setState(() => _page = data.page + 1) : null,
     );
   }
 }

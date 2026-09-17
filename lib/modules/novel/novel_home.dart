@@ -10,6 +10,7 @@ import '../../core/novel/novel_source.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/pager_bar.dart';
 import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
@@ -279,32 +280,10 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   }
 
   Widget _pager(bool hasMore) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            tooltip: '上一页',
-            icon: const Icon(Icons.chevron_left_rounded),
-            onPressed: _page > 1 ? () => setState(() => _page--) : null,
-          ),
-          const SizedBox(width: 16),
-          Text('第 $_page 页',
-              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-          const SizedBox(width: 16),
-          IconButton(
-            tooltip: '下一页',
-            icon: const Icon(Icons.chevron_right_rounded),
-            onPressed: hasMore ? () => setState(() => _page++) : null,
-          ),
-        ],
-      ),
+    return PagerBar(
+      label: '第 $_page 页',
+      onPrevious: _page > 1 ? () => setState(() => _page--) : null,
+      onNext: hasMore ? () => setState(() => _page++) : null,
     );
   }
 
