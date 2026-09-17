@@ -61,6 +61,31 @@ void main() {
     final ar = tester.widget<AspectRatio>(find.byType(AspectRatio));
     expect(ar.aspectRatio, 0.75);
   });
+
+  testWidgets('a reused element picks up a new url', (tester) async {
+    final cache = CoverRatioCache();
+    await cache.remember('https://x/a.jpg', 0.5);
+    await cache.remember('https://x/b.jpg', 1.5);
+    Widget build(String url) => MaterialApp(
+          home: SizedBox(
+            width: 200,
+            child: RatioCover(
+              url: url,
+              enabled: true,
+              cache: cache,
+              placeholderBuilder: _placeholder,
+            ),
+          ),
+        );
+    await tester.pumpWidget(build('https://x/a.jpg'));
+    await tester.pumpAndSettle();
+    expect(
+        tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio, 0.5);
+    await tester.pumpWidget(build('https://x/b.jpg'));
+    await tester.pumpAndSettle();
+    expect(
+        tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio, 1.5);
+  });
 }
 
 Widget _placeholder(BuildContext _) => const Text('ph');

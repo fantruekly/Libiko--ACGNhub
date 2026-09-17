@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -37,6 +39,7 @@ class RatioCover extends StatefulWidget {
 class _RatioCoverState extends State<RatioCover> {
   late double _ratio = widget.fallbackRatio;
   bool _resolved = false;
+  ImageProvider? _provider;
   ImageStream? _stream;
   ImageStreamListener? _listener;
 
@@ -47,6 +50,22 @@ class _RatioCoverState extends State<RatioCover> {
   @override
   void initState() {
     super.initState();
+    _buildProvider();
+    if (!_active) return;
+    _loadCached();
+    _listenForSize();
+  }
+
+  @override
+  void didUpdateWidget(covariant RatioCover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.url == oldWidget.url && widget.enabled == oldWidget.enabled) {
+      return;
+    }
+    _stopListening();
+    _ratio = widget.fallbackRatio;
+    _resolved = false;
+    _buildProvider();
     if (!_active) return;
     _loadCached();
     _listenForSize();
@@ -54,17 +73,36 @@ class _RatioCoverState extends State<RatioCover> {
 
   @override
   void dispose() {
+    _stopListening();
+    super.dispose();
+  }
+
+  void _buildProvider() {
+    final url = _url;
+    _provider = url.isEmpty
+        ? null
+        : CachedNetworkImageProvider(
+            url,
+            maxWidth: 400,
+            headers: widget.httpHeaders,
+          );
+  }
+
+  void _stopListening() {
     final stream = _stream;
     final listener = _listener;
     if (stream != null && listener != null) {
       stream.removeListener(listener);
     }
-    super.dispose();
+    _stream = null;
+    _listener = null;
   }
 
   Future<void> _loadCached() async {
-    final cached = await _cache.ratioOf(_url);
-    if (!mounted || cached == null) return;
+    if (_resolved) return;
+    final url = _url;
+    final cached = await _cache.ratioOf(url);
+    if (!mounted || _resolved || cached == null || url != _url) return;
     setState(() {
       _ratio = cached;
       _resolved = true;
@@ -72,9 +110,8 @@ class _RatioCoverState extends State<RatioCover> {
   }
 
   void _listenForSize() {
-    if (_url.isEmpty) return;
-    final provider =
-        CachedNetworkImageProvider(_url, headers: widget.httpHeaders);
+    final provider = _provider;
+    if (provider == null) return;
     final listener = ImageStreamListener(
       (info, _) => _measure(info),
       onError: (_, __) {},
@@ -89,7 +126,7 @@ class _RatioCoverState extends State<RatioCover> {
     final h = info.image.height;
     if (w <= 0 || h <= 0) return;
     final ratio = w / h;
-    _cache.remember(_url, ratio);
+    unawaited(_cache.remember(_url, ratio).catchError((Object _) {}));
     if (!mounted) return;
     setState(() {
       _ratio = ratio;
@@ -97,20 +134,43 @@ class _RatioCoverState extends State<RatioCover> {
     });
   }
 
+  Widget _frameBuilder(
+    BuildContext context,
+    Widget child,
+    int? frame,
+    bool wasSynchronouslyLoaded,
+  ) {
+    if (wasSynchronouslyLoaded) return child;
+    return AnimatedSwitcher(
+      duration: widget.fadeInDuration,
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          ...previousChildren,
+          if (currentChild != null) currentChild,
+        ],
+      ),
+      child: frame == null
+          ? KeyedSubtree(
+              key: const ValueKey('placeholder'),
+              child: widget.placeholderBuilder(context),
+            )
+          : KeyedSubtree(key: const ValueKey('image'), child: child),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasUrl = _url.isNotEmpty;
-    final Widget image = hasUrl
-        ? CachedNetworkImage(
-            imageUrl: _url,
+    final provider = _provider;
+    final Widget image = provider == null
+        ? widget.placeholderBuilder(context)
+        : Image(
+            image: provider,
             fit: BoxFit.cover,
-            memCacheWidth: 400,
-            fadeInDuration: widget.fadeInDuration,
-            httpHeaders: widget.httpHeaders,
-            placeholder: (_, __) => widget.placeholderBuilder(context),
-            errorWidget: (_, __, ___) => widget.placeholderBuilder(context),
-          )
-        : widget.placeholderBuilder(context);
+            frameBuilder: _frameBuilder,
+            errorBuilder: (context, _, __) =>
+                widget.placeholderBuilder(context),
+          );
 
     final framed = ClipRRect(
       borderRadius: BorderRadius.circular(10),
