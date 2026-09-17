@@ -533,6 +533,7 @@ class ComicCard extends StatelessWidget {
     Widget image = RatioCover(
       url: cover,
       placeholderBuilder: (_) => _placeholder(),
+      fadeInDuration: const Duration(milliseconds: 200),
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
