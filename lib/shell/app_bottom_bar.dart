@@ -119,31 +119,32 @@ class _BarItemState extends State<_BarItem>
           final iconColor =
               Color.lerp(cs.onSurfaceVariant, cs.onSecondaryContainer, t)!;
           final labelColor = Color.lerp(cs.onSurfaceVariant, cs.primary, t)!;
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                key: ValueKey('bar-capsule-${widget.label}'),
-                width: 32 + 32 * t,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Color.lerp(Colors.transparent, cs.secondaryContainer, t),
-                  borderRadius: BorderRadius.circular(16),
+          return Container(
+            key: ValueKey('bar-capsule-${widget.label}'),
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: Color.lerp(Colors.transparent, cs.secondaryContainer, t),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(widget.icon, size: 24, color: iconColor),
+                const SizedBox(height: 2),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.2,
+                    fontWeight:
+                        widget.selected ? FontWeight.w600 : FontWeight.w500,
+                    color: labelColor,
+                  ),
                 ),
-                child: Icon(widget.icon, size: 24, color: iconColor),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.3,
-                  fontWeight:
-                      widget.selected ? FontWeight.w600 : FontWeight.w500,
-                  color: labelColor,
-                ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
