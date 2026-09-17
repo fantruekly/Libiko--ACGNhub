@@ -19,17 +19,16 @@ class AppBottomBar extends StatelessWidget {
     (Icons.auto_stories_rounded, '轻小说'),
     (Icons.games_rounded, '游戏'),
   ];
-  static const _accent = Color(0xFF007AFF);
-  static const _fg = Color(0xFF1C1C1E);
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GlassSurface(
       borderRadius: BorderRadius.zero,
       blur: 18,
-      color: const Color(0xE6FFFFFF),
-      border: const Border(
-        top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5),
+      color: cs.surface.withValues(alpha: 0.92),
+      border: Border(
+        top: BorderSide(color: cs.outlineVariant, width: 0.5),
       ),
       child: SafeArea(
         top: false,
@@ -69,7 +68,8 @@ class _BarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final idle = AppBottomBar._fg.withValues(alpha: 0.45);
+    final cs = Theme.of(context).colorScheme;
+    final idle = cs.onSurfaceVariant;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -78,7 +78,7 @@ class _BarItem extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOutCubic,
         builder: (context, t, _) {
-          final color = Color.lerp(idle, AppBottomBar._accent, t)!;
+          final color = Color.lerp(idle, cs.primary, t)!;
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

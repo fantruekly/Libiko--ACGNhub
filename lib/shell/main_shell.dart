@@ -77,7 +77,8 @@ class _MainShellState extends State<MainShell> {
                   curve: Curves.easeInOutCubic,
                   width: collapsed ? 0 : 72,
                   clipBehavior: Clip.hardEdge,
-                  decoration: const BoxDecoration(color: Color(0xFFF9F9FC)),
+                  decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow),
                   child: OverflowBox(
                     alignment: Alignment.centerLeft,
                     minWidth: 72,
@@ -114,7 +115,7 @@ class _MainShellState extends State<MainShell> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: content,
       bottomNavigationBar: isDesktop
           ? null
