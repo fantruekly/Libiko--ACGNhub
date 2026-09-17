@@ -19,7 +19,7 @@ class AnimeHomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Builder(
         builder: (context) {
           final controller = DefaultTabController.of(context);
@@ -41,7 +41,6 @@ class AnimeHomePage extends ConsumerWidget {
                 tabs: const [
                   Tab(text: '本季新番'),
                   Tab(text: '热门推荐'),
-                  Tab(text: '今日放送'),
                   Tab(text: '追番'),
                   Tab(text: '历史记录'),
                 ],
@@ -51,9 +50,8 @@ class AnimeHomePage extends ConsumerWidget {
                   children: [
                     _heroTab(controller, 0, const _FeedView(feed: AnimeFeed.season)),
                     _heroTab(controller, 1, const _FeedView(feed: AnimeFeed.trending)),
-                    _heroTab(controller, 2, const _FeedView(feed: AnimeFeed.today)),
-                    _heroTab(controller, 3, const AnimeFollowView()),
-                    _heroTab(controller, 4, const AnimeHistoryView()),
+                    _heroTab(controller, 2, const AnimeFollowView()),
+                    _heroTab(controller, 3, const AnimeHistoryView()),
                   ],
                 ),
               ),
