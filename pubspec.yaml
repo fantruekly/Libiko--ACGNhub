@@ -61,4 +61,5 @@ flutter:
     - assets/rules/
     - assets/source_rules/
     - assets/comic_source/
+    - assets/comic_source/builtin/
     - assets/anime_seed.json
