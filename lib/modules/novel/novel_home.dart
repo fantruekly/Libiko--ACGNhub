@@ -20,10 +20,6 @@ import 'novel_detail_page.dart';
 import 'novel_providers.dart';
 import 'novel_reader_page.dart';
 
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-const _fg = Color(0xFF1C1C1E);
-
 class NovelCard extends StatelessWidget {
   final Novel novel;
   final VoidCallback? onTap;
@@ -32,10 +28,11 @@ class NovelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     Widget image = RatioCover(
       url: novel.coverUrl,
       httpHeaders: novelImageHeaders,
-      placeholderBuilder: (_) => _placeholder(),
+      placeholderBuilder: (_) => _placeholder(cs),
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -53,8 +50,8 @@ class NovelCard extends StatelessWidget {
               novel.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w500, height: 1.45, color: _fg),
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w500, height: 1.45, color: cs.onSurface),
             ),
           ),
         ],
@@ -62,7 +59,7 @@ class NovelCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(ColorScheme cs) {
     final hash = novel.title.hashCode.abs();
     const bg = [Color(0xFFF3E5F5), Color(0xFFEDE7F6), Color(0xFFE8EAF6), Color(0xFFE0F2F1)];
     return Container(
@@ -71,7 +68,7 @@ class NovelCard extends StatelessWidget {
         child: Text(
           novel.title.isEmpty ? '书' : novel.title.characters.first,
           style: TextStyle(
-              color: _accent.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w400),
+              color: cs.primary.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w400),
         ),
       ),
     );
@@ -261,11 +258,12 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   }
 
   Widget _pager(bool hasMore) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -277,7 +275,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
           ),
           const SizedBox(width: 16),
           Text('第 $_page 页',
-              style: const TextStyle(fontSize: 13, color: _muted)),
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
           const SizedBox(width: 16),
           IconButton(
             tooltip: '下一页',
@@ -356,6 +354,7 @@ class _HistoryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final records = ref.watch(novelHistoryProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -364,11 +363,11 @@ class _HistoryTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Row(
             children: [
-              const Text('历史记录',
+              Text('历史记录',
                   style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: _fg,
+                      color: cs.onSurface,
                       height: 1.4)),
               const Spacer(),
               TextButton(
@@ -395,6 +394,7 @@ class _HistoryTab extends ConsumerWidget {
 }
 
 Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
+  final cs = Theme.of(context).colorScheme;
   return InkWell(
     borderRadius: BorderRadius.circular(10),
     onTap: () => Navigator.push(
@@ -416,7 +416,7 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
             child: SizedBox(
               width: 56,
               height: 76,
-              child: _cover(entry.cover),
+              child: _cover(entry.cover, cs),
             ),
           ),
           const SizedBox(width: 12),
@@ -428,20 +428,20 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
                   entry.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w500, color: _fg),
+                  style: TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w500, color: cs.onSurface),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '读到 ${entry.chapterTitle}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: _muted),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _relativeTime(entry.updatedAt),
-                  style: const TextStyle(fontSize: 12, color: _muted),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -452,17 +452,17 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
   );
 }
 
-Widget _cover(String? url) {
+Widget _cover(String? url, ColorScheme cs) {
   if (url == null || url.isEmpty) {
-    return Container(color: const Color(0xFFE5E5EA));
+    return Container(color: cs.outlineVariant);
   }
   return CachedNetworkImage(
     imageUrl: url,
     fit: BoxFit.cover,
     memCacheWidth: 200,
     httpHeaders: novelImageHeaders,
-    placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
-    errorWidget: (_, __, ___) => Container(color: const Color(0xFFE5E5EA)),
+    placeholder: (_, __) => Container(color: cs.outlineVariant),
+    errorWidget: (_, __, ___) => Container(color: cs.outlineVariant),
   );
 }
 

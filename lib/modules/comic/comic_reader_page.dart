@@ -12,8 +12,6 @@ import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_providers.dart';
 
-const _muted = Color(0xFF5A5A5F);
-
 class ComicReaderPage extends ConsumerStatefulWidget {
   final String sourceKey;
   final String comicId;
@@ -66,6 +64,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final epAsync = ref.watch(
         comicEpProvider((widget.sourceKey, widget.comicId, _chapterId)));
     final details =
@@ -80,8 +79,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         children: [
           Positioned.fill(
             child: epAsync.when(
-              loading: () => const Center(
-                  child: CircularProgressIndicator(color: _muted)),
+              loading: () => Center(
+                  child: CircularProgressIndicator(color: cs.onSurfaceVariant)),
               error: (_, __) => GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _toggleChrome,
@@ -100,10 +99,11 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   }
 
   Widget _continuous(ComicEp ep, ComicDetails? details) {
+    final cs = Theme.of(context).colorScheme;
     final images = ep.images;
     if (images.isEmpty) {
-      return const Center(
-          child: Text('本章暂无图片', style: TextStyle(color: _muted)));
+      return Center(
+          child: Text('本章暂无图片', style: TextStyle(color: cs.onSurfaceVariant)));
     }
     _scheduleInitialOrLanding(images.length);
     final nav = _nav(details);
@@ -173,10 +173,11 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   }
 
   Widget _horizontal(ComicEp ep, ComicDetails? details) {
+    final cs = Theme.of(context).colorScheme;
     final images = ep.images;
     if (images.isEmpty) {
-      return const Center(
-          child: Text('本章暂无图片', style: TextStyle(color: _muted)));
+      return Center(
+          child: Text('本章暂无图片', style: TextStyle(color: cs.onSurfaceVariant)));
     }
     _scheduleInitialOrLanding(images.length);
     final nav = _nav(details);
@@ -202,8 +203,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         },
         itemBuilder: (context, index) {
           if (index >= images.length) {
-            return const Center(
-                child: CircularProgressIndicator(color: _muted));
+            return Center(
+                child: CircularProgressIndicator(color: cs.onSurfaceVariant));
           }
           return _ZoomablePage(
             onPrev: () => _flipTo(-1),
@@ -267,6 +268,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   }
 
   Widget _topBar(ComicDetails? details) {
+    final cs = Theme.of(context).colorScheme;
     return Positioned(
       top: 0,
       left: 0,
@@ -277,10 +279,10 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
           padding: EdgeInsets.only(
               left: 4,
               top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFFFFF),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFFFF),
             border: Border(
-                bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+                bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
           ),
           child: Row(
             children: [
@@ -294,10 +296,10 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                   details?.title ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF1C1C1E)),
+                      color: cs.onSurface),
                 ),
               ),
               if (isDesktop) const WindowControls(),
@@ -310,6 +312,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
 
   Widget _bottomBar(
       ComicEp? ep, ComicDetails? details, ComicReaderSettings settings) {
+    final cs = Theme.of(context).colorScheme;
     final total = ep?.images.length ?? 0;
     final chapterTitle = details?.chapters[_chapterId] ?? '';
     return Positioned(
@@ -319,10 +322,10 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       child: Container(
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFFFFF),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF),
           border:
-              Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+              Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
         child: Row(
           children: [
@@ -337,13 +340,13 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                 chapterTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: _muted),
+                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
               ),
             ),
             const Spacer(),
             Text(
               '${total == 0 ? 0 : _page + 1} / $total',
-              style: const TextStyle(fontSize: 13, color: _muted),
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),
             const SizedBox(width: 4),
             IconButton(
@@ -365,6 +368,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   }
 
   void _openChapterList(ComicDetails? details) {
+    final cs = Theme.of(context).colorScheme;
     final chapters = details?.chapters.entries.toList() ?? const [];
     showModalBottomSheet<void>(
       context: context,
@@ -376,7 +380,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
           return ListTile(
             title: Text(entry.value),
             selected: entry.key == _chapterId,
-            selectedColor: const Color(0xFF007AFF),
+            selectedColor: cs.primary,
             onTap: () {
               Navigator.pop(ctx);
               _goToChapter(entry.key);
@@ -561,14 +565,15 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   }
 
   Widget _chapterError() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.error_outline_rounded, color: _muted, size: 40),
+          Icon(Icons.error_outline_rounded, color: cs.onSurfaceVariant, size: 40),
           const SizedBox(height: 12),
-          const Text('章节加载失败',
-              style: TextStyle(color: Color(0xFF1C1C1E))),
+          Text('章节加载失败',
+              style: TextStyle(color: cs.onSurface)),
           const SizedBox(height: 12),
           FilledButton(
             onPressed: () => ref.invalidate(comicEpProvider(
@@ -642,20 +647,24 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
   }
 
   Widget _loading() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 48),
-      child: Center(child: CircularProgressIndicator(color: _muted)),
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Center(
+          child: CircularProgressIndicator(color: cs.onSurfaceVariant)),
     );
   }
 
   Widget _retry() {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.broken_image_outlined, color: _muted, size: 36),
+            Icon(Icons.broken_image_outlined,
+                color: cs.onSurfaceVariant, size: 36),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => setState(_resolve),

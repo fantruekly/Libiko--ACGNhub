@@ -17,6 +17,7 @@ class AnimeHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     return DefaultTabController(
       length: 5,
       child: Builder(
@@ -25,10 +26,10 @@ class AnimeHomePage extends ConsumerWidget {
           return Column(
             children: [
               TabBar(
-                labelColor: const Color(0xFF007AFF),
-                unselectedLabelColor: const Color(0xFF5A5A5F),
-                indicatorColor: const Color(0xFF007AFF),
-                dividerColor: const Color(0xFFE5E5EA),
+                labelColor: cs.primary,
+                unselectedLabelColor: cs.onSurfaceVariant,
+                indicatorColor: cs.primary,
+                dividerColor: cs.outlineVariant,
                 labelStyle: Theme.of(context)
                     .textTheme
                     .titleSmall!
@@ -85,7 +86,6 @@ class _FeedView extends ConsumerStatefulWidget {
 
 class _FeedViewState extends ConsumerState<_FeedView>
     with AutomaticKeepAliveClientMixin {
-  static const _accent = Color(0xFF007AFF);
   static const _perPage = 20;
 
   final List<Work> _extra = [];
@@ -201,7 +201,7 @@ class _FeedViewState extends ConsumerState<_FeedView>
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: _accent.withValues(alpha: 0.4),
+                            color: cs.primary.withValues(alpha: 0.4),
                           ),
                         ),
                       ),

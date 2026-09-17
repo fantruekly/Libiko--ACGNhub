@@ -16,10 +16,6 @@ import 'game_detail_page.dart';
 import 'game_grid.dart';
 import 'game_providers.dart';
 
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-const _fg = Color(0xFF1C1C1E);
-
 class GameCard extends StatelessWidget {
   final Game game;
   final VoidCallback? onTap;
@@ -28,11 +24,12 @@ class GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     Widget image = RatioCover(
       url: game.coverUrl,
       httpHeaders: gameImageHeadersFor(game.coverUrl),
       fallbackRatio: 3 / 2,
-      placeholderBuilder: (_) => _placeholder(),
+      placeholderBuilder: (_) => _placeholder(cs),
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -50,11 +47,11 @@ class GameCard extends StatelessWidget {
               game.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   height: 1.45,
-                  color: _fg),
+                  color: cs.onSurface),
             ),
           ),
         ],
@@ -62,7 +59,7 @@ class GameCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(ColorScheme cs) {
     final hash = game.title.hashCode.abs();
     const bg = [
       Color(0xFFF3E5F5),
@@ -76,7 +73,7 @@ class GameCard extends StatelessWidget {
         child: Text(
           game.title.isEmpty ? '游' : game.title.characters.first,
           style: TextStyle(
-              color: _accent.withValues(alpha: 0.2),
+              color: cs.primary.withValues(alpha: 0.2),
               fontSize: 28,
               fontWeight: FontWeight.w400),
         ),
@@ -188,11 +185,12 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
   }
 
   Widget _pager(bool hasMore) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -204,7 +202,7 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
           ),
           const SizedBox(width: 16),
           Text('第 $_page 页',
-              style: const TextStyle(fontSize: 13, color: _muted)),
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
           const SizedBox(width: 16),
           IconButton(
             tooltip: '下一页',

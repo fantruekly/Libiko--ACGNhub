@@ -12,10 +12,6 @@ import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'game_providers.dart';
 
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-const _fg = Color(0xFF1C1C1E);
-
 class GameDetailPage extends ConsumerWidget {
   final String sourceKey;
   final String gameId;
@@ -32,6 +28,7 @@ class GameDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final key = (sourceKey, gameId);
     final async = ref.watch(gameDetailProvider(key));
     return Scaffold(
@@ -41,7 +38,7 @@ class GameDetailPage extends ConsumerWidget {
           _header(context),
           Expanded(
             child: async.when(
-              loading: () => _loading(),
+              loading: () => _loading(cs),
               error: (_, __) => EmptyState(
                 icon: Icons.cloud_off_rounded,
                 message: '加载失败',
@@ -56,7 +53,7 @@ class GameDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _loading() {
+  Widget _loading(ColorScheme cs) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -64,6 +61,7 @@ class GameDetailPage extends ConsumerWidget {
           Game(id: gameId, title: title, coverUrl: cover),
           cover,
           GameDetail(game: Game(id: gameId, title: title), sourceUrl: ''),
+          cs,
         ),
         const SizedBox(height: 24),
         const Center(child: CircularProgressIndicator()),
@@ -72,21 +70,22 @@ class GameDetailPage extends ConsumerWidget {
   }
 
   Widget _header(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
     return DesktopDragArea(
       child: Container(
         height: 48 + topInset,
         padding: EdgeInsets.only(left: 4, top: topInset),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFFFFF),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF),
           border:
-              Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+              Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
         child: Row(
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
-              color: _fg,
+              color: cs.onSurface,
               onPressed: () => Navigator.pop(context),
             ),
             Expanded(
@@ -94,8 +93,8 @@ class GameDetailPage extends ConsumerWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600, color: _fg),
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface),
               ),
             ),
             if (isDesktop) const WindowControls(),
@@ -112,6 +111,7 @@ class GameDetailPage extends ConsumerWidget {
   }
 
   Widget _content(BuildContext context, GameDetail detail) {
+    final cs = Theme.of(context).colorScheme;
     final game = detail.game;
     final coverUrl = (game.coverUrl?.isNotEmpty ?? false)
         ? game.coverUrl
@@ -119,33 +119,33 @@ class GameDetailPage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _infoCard(game, coverUrl, detail),
+        _infoCard(game, coverUrl, detail, cs),
         if (detail.paragraphs.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _sectionTitle('简介'),
+          _sectionTitle('简介', cs),
           const SizedBox(height: 8),
           for (final p in detail.paragraphs)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(p,
-                  style: const TextStyle(fontSize: 13, height: 1.6, color: _fg)),
+                  style: TextStyle(fontSize: 13, height: 1.6, color: cs.onSurface)),
             ),
         ],
         if (detail.screenshots.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _sectionTitle('截图'),
+          _sectionTitle('截图', cs),
           const SizedBox(height: 8),
           _gallery(context, detail.screenshots),
         ],
         const SizedBox(height: 20),
         Text('数据来源 ${_sourceHost(detail.sourceUrl)}',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, color: _muted)),
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
       ],
     );
   }
 
-  Widget _infoCard(Game game, String? coverUrl, GameDetail detail) {
+  Widget _infoCard(Game game, String? coverUrl, GameDetail detail, ColorScheme cs) {
     final meta = <(String, String)>[
       if (game.publishedAt != null) ('发布时间', _formatDate(game.publishedAt!)),
       if (detail.updatedAt != null) ('最近更新', _formatDate(detail.updatedAt!)),
@@ -179,18 +179,18 @@ class GameDetailPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(game.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
-                            color: _fg)),
+                            color: cs.onSurface)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
                         if (game.category != null && game.category!.isNotEmpty)
-                          _tag(game.category!),
-                        for (final t in game.tags) _tag(t),
+                          _tag(game.category!, cs),
+                        for (final t in game.tags) _tag(t, cs),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -219,10 +219,11 @@ class GameDetailPage extends ConsumerWidget {
                     SizedBox(
                         width: 72,
                         child: Text(label,
-                            style: const TextStyle(fontSize: 12, color: _muted))),
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onSurfaceVariant))),
                     Expanded(
                         child: Text(value,
-                            style: const TextStyle(fontSize: 12, color: _fg))),
+                            style: TextStyle(fontSize: 12, color: cs.onSurface))),
                   ],
                 ),
               ),
@@ -233,6 +234,7 @@ class GameDetailPage extends ConsumerWidget {
   }
 
   Widget _gallery(BuildContext context, List<String> urls) {
+    final cs = Theme.of(context).colorScheme;
     return SizedBox(
       height: 112.5,
       child: ListView.separated(
@@ -254,9 +256,9 @@ class GameDetailPage extends ConsumerWidget {
                 fit: BoxFit.cover,
                 memCacheWidth: 400,
                 httpHeaders: gameImageHeadersFor(urls[i]),
-                placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
+                placeholder: (_, __) => Container(color: cs.outlineVariant),
                 errorWidget: (_, __, ___) =>
-                    Container(color: const Color(0xFFE5E5EA)),
+                    Container(color: cs.outlineVariant),
               ),
             ),
           ),
@@ -265,18 +267,18 @@ class GameDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _sectionTitle(String text) => Text(text,
-      style: const TextStyle(
-          fontSize: 16, fontWeight: FontWeight.w600, color: _fg));
+  Widget _sectionTitle(String text, ColorScheme cs) => Text(text,
+      style: TextStyle(
+          fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface));
 
-  Widget _tag(String text) => Container(
+  Widget _tag(String text, ColorScheme cs) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
             color: const Color(0xFFE8F0FE),
             borderRadius: BorderRadius.circular(20)),
         child: Text(text,
-            style: const TextStyle(
-                fontSize: 11, color: _accent, fontWeight: FontWeight.w500)),
+            style: TextStyle(
+                fontSize: 11, color: cs.primary, fontWeight: FontWeight.w500)),
       );
 
   Widget _cover(String? url) {

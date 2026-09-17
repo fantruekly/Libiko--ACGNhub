@@ -8,9 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/comic/comic_source.dart';
 import 'comic_providers.dart';
 
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-
 class ComicSourcePage extends ConsumerStatefulWidget {
   const ComicSourcePage({super.key});
 
@@ -112,6 +109,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   }
 
   List<Widget> _sourceSection(AsyncValue<List<ComicSource>> async) {
+    final cs = Theme.of(context).colorScheme;
     return async.when(
       loading: () => const [
         Padding(
@@ -122,7 +120,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       error: (_, __) => [
         Row(
           children: [
-            const Text('加载失败', style: TextStyle(fontSize: 14, color: _muted)),
+            Text('加载失败', style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant)),
             const SizedBox(width: 8),
             TextButton(
               onPressed: () => ref.invalidate(comicSourcesProvider),
@@ -133,11 +131,11 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       ],
       data: (sources) {
         if (sources.isEmpty) {
-          return const [
+          return [
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text('还没有添加漫画源',
-                  style: TextStyle(fontSize: 14, color: _muted)),
+                  style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant)),
             ),
           ];
         }
@@ -150,6 +148,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   }
 
   Widget _sourceTile(ComicSource source, {Key? key, int? reorderIndex}) {
+    final cs = Theme.of(context).colorScheme;
     final caps = <String>[
       if (source.canSearch) '搜索',
       if (source.canExplore) '发现',
@@ -183,7 +182,8 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
         trailing: reorderIndex != null
             ? ReorderableDragStartListener(
                 index: reorderIndex,
-                child: const Icon(Icons.drag_handle_rounded, color: _muted),
+                child: Icon(Icons.drag_handle_rounded,
+                    color: cs.onSurfaceVariant),
               )
             : Row(
                 mainAxisSize: MainAxisSize.min,
@@ -214,6 +214,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   }
 
   Widget _capChip(String label) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -222,8 +223,8 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       ),
       child: Text(
         label,
-        style: const TextStyle(
-            fontSize: 11, color: _accent, fontWeight: FontWeight.w500),
+        style: TextStyle(
+            fontSize: 11, color: cs.primary, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -447,6 +448,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       future: _manager.isLogged(source),
       builder: (context, snapshot) {
         if (snapshot.data != true) return const SizedBox.shrink();
+        final cs = Theme.of(context).colorScheme;
         final username = _manager.savedUsername(source);
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -455,7 +457,8 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
               Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: Text(username,
-                    style: const TextStyle(fontSize: 12, color: _muted)),
+                    style: TextStyle(
+                        fontSize: 12, color: cs.onSurfaceVariant)),
               ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -632,6 +635,7 @@ class _AccountDialogState extends ConsumerState<_AccountDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AlertDialog(
       title: Text(widget.source.name),
       content: SingleChildScrollView(
@@ -644,7 +648,7 @@ class _AccountDialogState extends ConsumerState<_AccountDialog> {
                     fontSize: 13,
                     color: _logged
                         ? const Color(0xFF34C759)
-                        : const Color(0xFF5A5A5F))),
+                        : cs.onSurfaceVariant)),
             if (!_logged) ...[
               const SizedBox(height: 12),
               for (var i = 0; i < _controllers.length; i++)

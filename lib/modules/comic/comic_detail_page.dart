@@ -16,9 +16,6 @@ import '../../core/widgets/window_controls.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
 
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-
 class ComicDetailPage extends ConsumerStatefulWidget {
   final String sourceKey;
   final String comicId;
@@ -60,10 +57,10 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
       child: Container(
         height: 48 + topInset,
         padding: EdgeInsets.only(left: 4, top: topInset),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFFFFF),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF),
           border:
-              Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+              Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
         child: Row(
           children: [
@@ -131,7 +128,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         blur: 0,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: const [
           BoxShadow(
               color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -183,7 +180,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                       spacing: 6,
                       runSpacing: 6,
                       children: [
-                        for (final tag in details.tags) _tagChip(tag),
+                        for (final tag in details.tags) _tagChip(tag, cs),
                       ],
                     ),
                   const SizedBox(height: 10),
@@ -228,15 +225,15 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     );
   }
 
-  Widget _tagChip(String label) {
+  Widget _tagChip(String label, ColorScheme cs) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-          color: _accent.withValues(alpha: 0.1),
+          color: cs.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(6)),
       child: Text(label,
-          style: const TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w600, color: _accent)),
+          style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w600, color: cs.primary)),
     );
   }
 
@@ -271,10 +268,10 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 _expanded ? '收起' : '展开',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: _accent),
+                    color: cs.primary),
               ),
             ),
           ),
@@ -291,7 +288,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         blur: 0,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: const [
           BoxShadow(
               color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -308,7 +305,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                         color: cs.onSurface)),
                 const SizedBox(width: 10),
                 Text('共 ${chapters.length} 话',
-                    style: const TextStyle(fontSize: 12, color: _muted)),
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ],
             ),
             const SizedBox(height: 12),

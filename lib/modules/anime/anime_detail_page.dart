@@ -134,12 +134,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 children: [
                   _infoSection(
                       w, cs, score, episodes, seasonYear, format, status),
-                  const TabBar(
-                    labelColor: Color(0xFF007AFF),
-                    unselectedLabelColor: Color(0xFF5A5A5F),
-                    indicatorColor: Color(0xFF007AFF),
-                    dividerColor: Color(0xFFE5E5EA),
-                    tabs: [Tab(text: '概览'), Tab(text: '角色'), Tab(text: '关联')],
+                  TabBar(
+                    labelColor: cs.primary,
+                    unselectedLabelColor: cs.onSurfaceVariant,
+                    indicatorColor: cs.primary,
+                    dividerColor: cs.outlineVariant,
+                    tabs: const [Tab(text: '概览'), Tab(text: '角色'), Tab(text: '关联')],
                   ),
                   Expanded(
                     child: TabBarView(
@@ -162,7 +162,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Widget _overviewTab(Work w, ColorScheme cs) {
     return CustomScrollView(
       slivers: [
-        if (w.tags.isNotEmpty) _tagsRow(w.tags),
+        if (w.tags.isNotEmpty) _tagsRow(w.tags, cs),
         _summarySection(w.summary, cs),
         _playSection(w, cs),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -316,10 +316,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       child: Container(
         height: 48 + topInset,
         padding: EdgeInsets.only(left: 4, top: topInset),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFFFFF),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF),
           border:
-              Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+              Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
         child: Row(
           children: [
@@ -361,7 +361,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         blur: 0,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: const [
           BoxShadow(
               color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -409,7 +409,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       width: 100,
                       child: LinearProgressIndicator(
                         minHeight: 2,
-                        color: const Color(0xFF007AFF).withValues(alpha: 0.3),
+                        color: cs.primary.withValues(alpha: 0.3),
                       ),
                     )
                   else ...[
@@ -425,7 +425,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       children: [
                         if (episodes != null)
                           _metaChip(Icons.live_tv_rounded, '$episodes 话',
-                              const Color(0xFF007AFF)),
+                              cs.primary),
                         if (seasonYear != null)
                           _metaChip(Icons.calendar_today_rounded, '$seasonYear',
                               const Color(0xFF5856D6)),
@@ -506,7 +506,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _tagsRow(List<String> tags) {
+  Widget _tagsRow(List<String> tags, ColorScheme cs) {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -521,7 +521,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       color: Colors.white.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: const Color(0xFFE5E5EA), width: 0.5),
+                          color: cs.outlineVariant, width: 0.5),
                     ),
                     child: Text(
                       t,
@@ -545,7 +545,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           blur: 0,
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
-          border: Border.all(color: const Color(0xFFE5E5EA)),
+          border: Border.all(color: cs.outlineVariant),
           boxShadow: const [
             BoxShadow(
                 color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -564,7 +564,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   width: 100,
                   child: LinearProgressIndicator(
                     minHeight: 2,
-                    color: const Color(0xFF007AFF).withValues(alpha: 0.3),
+                    color: cs.primary.withValues(alpha: 0.3),
                   ),
                 )
               else if (summary == null || summary.isEmpty)
@@ -760,7 +760,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           blur: 0,
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
-          border: Border.all(color: const Color(0xFFE5E5EA)),
+          border: Border.all(color: cs.outlineVariant),
           boxShadow: const [
             BoxShadow(
                 color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -778,12 +778,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   const SizedBox(width: 10),
                   if (loading)
                     Text('搜索中 $doneCount/${_sourceResults.length}',
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF5A5A5F)))
+                        style: TextStyle(
+                            fontSize: 12, color: cs.onSurfaceVariant))
                   else
                     Text('共 ${results.length} 条',
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF5A5A5F))),
+                        style: TextStyle(
+                            fontSize: 12, color: cs.onSurfaceVariant)),
                   const Spacer(),
                   if (loading)
                     const SizedBox(
@@ -829,14 +829,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (final (item, source) in results)
-                      _resourceCard(item, source),
+                      _resourceCard(item, source, cs),
                   ],
                 ),
               if (failed.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
                   '${failed.length} 个源无结果或失败（${failed.map((r) => r.source.name).join('、')}）',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF5A5A5F)),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ],
             ],
@@ -846,7 +846,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _resourceCard(VideoItem item, VideoSource source) {
+  Widget _resourceCard(VideoItem item, VideoSource source, ColorScheme cs) {
     final expanded = identical(_expandedItem, item);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -858,14 +858,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
             child: InkWell(
               onTap: () => _expandItem(item, source),
               borderRadius: BorderRadius.circular(12),
-              hoverColor: const Color(0x14007AFF),
+              hoverColor: cs.primary.withValues(alpha: 0.08),
               child: Container(
                 height: 52,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E5EA)),
+                  border: Border.all(color: cs.outlineVariant),
                 ),
                 child: Row(
                   children: [
@@ -874,8 +874,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                         item.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 14, color: Color(0xFF1C1C1E)),
+                        style: TextStyle(
+                            fontSize: 14, color: cs.onSurface),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -883,15 +883,15 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF007AFF).withValues(alpha: 0.08),
+                        color: cs.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         source.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF007AFF)),
+                            color: cs.primary),
                       ),
                     ),
                   ],
@@ -899,13 +899,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               ),
             ),
           ),
-          if (expanded) _episodeArea(),
+          if (expanded) _episodeArea(cs),
         ],
       ),
     );
   }
 
-  Widget _episodeArea() {
+  Widget _episodeArea(ColorScheme cs) {
     if (_episodesLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
@@ -940,10 +940,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
     final eps = _episodes ?? const <VideoEpisode>[];
     if (eps.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 8),
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
         child: Text('暂无剧集',
-            style: TextStyle(fontSize: 12, color: Color(0xFF5A5A5F))),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       );
     }
     return Padding(

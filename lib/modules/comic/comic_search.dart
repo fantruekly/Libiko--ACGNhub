@@ -9,8 +9,6 @@ import 'comic_detail_page.dart';
 import 'comic_home.dart';
 import 'comic_providers.dart';
 
-const _muted = Color(0xFF5A5A5F);
-
 class ComicSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
   const ComicSearchPage({super.key, this.initialKeyword});
@@ -96,10 +94,11 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
                       controller: _ctrl,
                       autofocus: widget.initialKeyword == null,
                       style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         border: InputBorder.none,
                         hintText: '搜索漫画...',
-                        hintStyle: TextStyle(color: _muted, fontSize: 15),
+                        hintStyle:
+                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),

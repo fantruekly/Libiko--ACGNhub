@@ -20,9 +20,6 @@ import 'comic_providers.dart';
 import 'comic_reader_page.dart';
 import 'comic_source_page.dart';
 
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-
 class ComicHomePage extends ConsumerStatefulWidget {
   const ComicHomePage({super.key});
 
@@ -285,14 +282,15 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
   }
 
   Widget _paginationBar(ComicExplorePage data) {
+    final cs = Theme.of(context).colorScheme;
     final label = data.maxPage == null
         ? '第 ${data.page} 页'
         : '第 ${data.page} / ${data.maxPage} 页';
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -304,7 +302,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                 data.page > 1 ? () => setState(() => _page = data.page - 1) : null,
           ),
           const SizedBox(width: 16),
-          Text(label, style: const TextStyle(fontSize: 13, color: _muted)),
+          Text(label, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
           const SizedBox(width: 16),
           IconButton(
             tooltip: '下一页',
@@ -419,7 +417,7 @@ Widget _historyRow(BuildContext context, ComicHistoryEntry entry) {
             child: SizedBox(
               width: 56,
               height: 76,
-              child: _cover(entry.cover),
+              child: _cover(entry.cover, cs),
             ),
           ),
           const SizedBox(width: 12),
@@ -441,12 +439,12 @@ Widget _historyRow(BuildContext context, ComicHistoryEntry entry) {
                   '看到 ${entry.chapterTitle}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: _muted),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _relativeTime(entry.readAt),
-                  style: const TextStyle(fontSize: 12, color: _muted),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -489,16 +487,16 @@ Widget _comicGrid({
   );
 }
 
-Widget _cover(String? url) {
+Widget _cover(String? url, ColorScheme cs) {
   if (url == null || url.isEmpty) {
-    return Container(color: const Color(0xFFE5E5EA));
+    return Container(color: cs.outlineVariant);
   }
   return CachedNetworkImage(
     imageUrl: url,
     fit: BoxFit.cover,
     memCacheWidth: 200,
-    placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
-    errorWidget: (_, __, ___) => Container(color: const Color(0xFFE5E5EA)),
+    placeholder: (_, __) => Container(color: cs.outlineVariant),
+    errorWidget: (_, __, ___) => Container(color: cs.outlineVariant),
   );
 }
 
@@ -532,7 +530,7 @@ class ComicCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     Widget image = RatioCover(
       url: cover,
-      placeholderBuilder: (_) => _placeholder(),
+      placeholderBuilder: (_) => _placeholder(cs),
       fadeInDuration: const Duration(milliseconds: 200),
     );
     if (heroTag != null) {
@@ -565,7 +563,7 @@ class ComicCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(ColorScheme cs) {
     final hash = title.hashCode.abs();
     final bgColors = const [
       Color(0xFFF3E5F5),
@@ -579,7 +577,7 @@ class ComicCard extends StatelessWidget {
         child: Text(
           title.isEmpty ? '?' : title.characters.first,
           style: TextStyle(
-              color: _accent.withValues(alpha: 0.2),
+              color: cs.primary.withValues(alpha: 0.2),
               fontSize: 28,
               fontWeight: FontWeight.w400),
         ),

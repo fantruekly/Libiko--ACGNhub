@@ -12,8 +12,6 @@ import '../../core/widgets/marquee_text.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 
-const _accent = Color(0xFF007AFF);
-
 class _Palette {
   final Color bg;
   final Color fg;
@@ -278,6 +276,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   }
 
   void _openCatalog(NovelDetail? detail) {
+    final cs = Theme.of(context).colorScheme;
     final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
     showModalBottomSheet<void>(
       context: context,
@@ -309,8 +308,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                     dense: true,
                     title: MarqueeText(text: c.title),
                     trailing: c.id == _chapterId
-                        ? const Icon(Icons.check_rounded,
-                            size: 18, color: _accent)
+                        ? Icon(Icons.check_rounded, size: 18, color: cs.primary)
                         : null,
                     onTap: () {
                       Navigator.pop(context);

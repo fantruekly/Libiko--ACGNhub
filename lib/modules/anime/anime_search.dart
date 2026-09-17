@@ -115,11 +115,11 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
                       controller: _ctrl,
                       autofocus: widget.initialKeyword == null,
                       style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         border: InputBorder.none,
                         hintText: '搜索动漫...',
                         hintStyle:
-                            TextStyle(color: Color(0xFF5A5A5F), fontSize: 15),
+                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),

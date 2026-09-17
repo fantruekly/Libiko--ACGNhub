@@ -27,10 +27,6 @@ class _MainShellState extends State<MainShell> {
   late final SidebarState _sidebarState;
 
   static const _titles = ['动漫', '漫画', '轻小说', '游戏'];
-  static const _fg = Color(0xFF1C1C1E);
-  static const _muted = Color(0xFF5A5A5F);
-  static const _border = Color(0xFFE5E5EA);
-  static const _accent = Color(0xFF007AFF);
 
   final _pages = <Widget>[
     const AnimeHomePage(),
@@ -127,6 +123,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _titleBar(bool collapsed) {
+    final cs = Theme.of(context).colorScheme;
     final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
     return DesktopDragArea(
       child: GlassSurface(
@@ -136,8 +133,8 @@ class _MainShellState extends State<MainShell> {
         child: Container(
           height: 48 + topInset,
           padding: EdgeInsets.only(top: topInset),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: _border, width: 0.5)),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
           ),
           child: Row(
             children: [
@@ -155,17 +152,17 @@ class _MainShellState extends State<MainShell> {
                 const SizedBox(width: 8),
               Text(
                 _titles[_currentIndex],
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: _fg,
+                    color: cs.onSurface,
                     height: 1.4),
               ),
               const Spacer(),
               if (_currentIndex >= 0 && _currentIndex <= 3)
                 IconButton(
                   icon: const Icon(Icons.search_rounded, size: 20),
-                  color: _muted,
+                  color: cs.onSurfaceVariant,
                   splashRadius: 20,
                   onPressed: () => Navigator.push(
                       context,
@@ -183,13 +180,13 @@ class _MainShellState extends State<MainShell> {
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
                   onTap: _openSettings,
-                  child: const CircleAvatar(
+                  child: CircleAvatar(
                     radius: 15,
-                    backgroundColor: Color(0xFFE8F0FE),
+                    backgroundColor: const Color(0xFFE8F0FE),
                     child: Text('A',
                         style: TextStyle(
                             fontSize: 13,
-                            color: _accent,
+                            color: cs.primary,
                             fontWeight: FontWeight.w600)),
                   ),
                 ),
@@ -209,10 +206,9 @@ class _SidebarToggleButton extends StatelessWidget {
 
   const _SidebarToggleButton({required this.collapsed, required this.onTap});
 
-  static const _fg = Color(0xFF1C1C1E);
-
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -232,7 +228,7 @@ class _SidebarToggleButton extends StatelessWidget {
                 collapsed ? Icons.chevron_right_rounded : Icons.menu_rounded,
                 key: ValueKey<bool>(collapsed),
                 size: 22,
-                color: _fg.withValues(alpha: 0.55),
+                color: cs.onSurface.withValues(alpha: 0.55),
               ),
             ),
           ),

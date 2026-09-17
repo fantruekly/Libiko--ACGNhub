@@ -9,8 +9,6 @@ import 'novel_detail_page.dart';
 import 'novel_home.dart';
 import 'novel_providers.dart';
 
-const _muted = Color(0xFF5A5A5F);
-
 class NovelSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
   const NovelSearchPage({super.key, this.initialKeyword});
@@ -95,10 +93,11 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
                       controller: _ctrl,
                       autofocus: widget.initialKeyword == null,
                       style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         border: InputBorder.none,
                         hintText: '搜索轻小说...',
-                        hintStyle: TextStyle(color: _muted, fontSize: 15),
+                        hintStyle:
+                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -129,6 +128,7 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
   }
 
   Widget _body() {
+    final cs = Theme.of(context).colorScheme;
     if (_keyword.isEmpty) {
       return const EmptyState(
           icon: Icons.search_rounded, message: '输入关键词搜索轻小说');
@@ -185,10 +185,10 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
     return Column(
       children: [
         if (pending > 0)
-          const LinearProgressIndicator(
+          LinearProgressIndicator(
             minHeight: 2,
-            color: Color(0xFF007AFF),
-            backgroundColor: Color(0xFFE5E5EA),
+            color: cs.primary,
+            backgroundColor: cs.outlineVariant,
           ),
         Expanded(child: _grid(results)),
       ],
