@@ -40,6 +40,7 @@ class _RatioCoverState extends State<RatioCover> {
   late double _ratio = widget.fallbackRatio;
   bool _resolved = false;
   ImageProvider? _provider;
+  int _providerWidth = 0;
   ImageStream? _stream;
   ImageStreamListener? _listener;
 
@@ -50,10 +51,8 @@ class _RatioCoverState extends State<RatioCover> {
   @override
   void initState() {
     super.initState();
-    _buildProvider();
     if (!_active) return;
     _loadCached();
-    _listenForSize();
   }
 
   @override
@@ -65,10 +64,10 @@ class _RatioCoverState extends State<RatioCover> {
     _stopListening();
     _ratio = widget.fallbackRatio;
     _resolved = false;
-    _buildProvider();
+    _provider = null;
+    _providerWidth = 0;
     if (!_active) return;
     _loadCached();
-    _listenForSize();
   }
 
   @override
@@ -77,15 +76,21 @@ class _RatioCoverState extends State<RatioCover> {
     super.dispose();
   }
 
-  void _buildProvider() {
+  /// Builds the provider for [width] logical pixels, decoding at
+  /// `width * devicePixelRatio` (clamped) so the bitmap is never upscaled.
+  void _useWidth(int width) {
+    if (_provider != null && _providerWidth == width) return;
     final url = _url;
+    _stopListening();
+    _providerWidth = width;
     _provider = url.isEmpty
         ? null
         : CachedNetworkImageProvider(
             url,
-            maxWidth: 400,
+            maxWidth: width,
             headers: widget.httpHeaders,
           );
+    if (_active) _listenForSize();
   }
 
   void _stopListening() {
@@ -161,29 +166,39 @@ class _RatioCoverState extends State<RatioCover> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = _provider;
-    final Widget image = provider == null
-        ? widget.placeholderBuilder(context)
-        : Image(
-            image: provider,
-            fit: BoxFit.cover,
-            frameBuilder: _frameBuilder,
-            errorBuilder: (context, _, __) =>
-                widget.placeholderBuilder(context),
-          );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        final width = constraints.maxWidth.isFinite
+            ? (constraints.maxWidth * dpr).clamp(200, 1600).round()
+            : 400;
+        _useWidth(width);
 
-    final framed = ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: RepaintBoundary(child: image),
-    );
-    if (!_active) return framed;
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: _ratio, end: _ratio),
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      builder: (context, value, child) =>
-          AspectRatio(aspectRatio: value, child: child),
-      child: framed,
+        final provider = _provider;
+        final Widget image = provider == null
+            ? widget.placeholderBuilder(context)
+            : Image(
+                image: provider,
+                fit: BoxFit.cover,
+                frameBuilder: _frameBuilder,
+                errorBuilder: (context, _, __) =>
+                    widget.placeholderBuilder(context),
+              );
+
+        final framed = ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: RepaintBoundary(child: image),
+        );
+        if (!_active) return framed;
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: _ratio, end: _ratio),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          builder: (context, value, child) =>
+              AspectRatio(aspectRatio: value, child: child),
+          child: framed,
+        );
+      },
     );
   }
 }

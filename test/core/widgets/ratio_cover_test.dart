@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/images/cover_ratio_cache.dart';
@@ -60,6 +61,30 @@ void main() {
     await tester.pump();
     final ar = tester.widget<AspectRatio>(find.byType(AspectRatio));
     expect(ar.aspectRatio, 0.75);
+  });
+
+  testWidgets('decodes at the laid-out width times the device pixel ratio',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: 300,
+            height: 200,
+            child: RatioCover(
+              url: 'https://example.test/a.jpg',
+              enabled: false,
+              placeholderBuilder: _placeholder,
+            ),
+          ),
+        ),
+      ),
+    ));
+    final image = tester.widget<Image>(find.byType(Image));
+    final provider = image.image as CachedNetworkImageProvider;
+    final expected =
+        (300 * tester.view.devicePixelRatio).clamp(200, 1600).round();
+    expect(provider.maxWidth, expected);
   });
 
   testWidgets('a reused element picks up a new url', (tester) async {
