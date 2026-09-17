@@ -123,7 +123,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final status = w.extra['status'] as String?;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
           _header(w, cs),

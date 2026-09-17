@@ -32,7 +32,7 @@ class GameDetailPage extends ConsumerWidget {
     final key = (sourceKey, gameId);
     final async = ref.watch(gameDetailProvider(key));
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
           _header(context),

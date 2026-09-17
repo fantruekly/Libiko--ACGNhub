@@ -46,7 +46,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     final sourcesAsync = ref.watch(comicSourcesProvider);
     final hasSources = (sourcesAsync.valueOrNull ?? const []).isNotEmpty;
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: const Text('源管理'),
         actions: [
@@ -683,9 +683,12 @@ class _AccountDialogState extends ConsumerState<_AccountDialog> {
             child: const Text('退出登录'),
           )
         else
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: const Text('登录'),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _busy ? null : _submit,
+              child: const Text('登录'),
+            ),
           ),
       ],
     );

@@ -40,7 +40,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     final key = (widget.sourceKey, widget.novelId);
     final async = ref.watch(novelDetailProvider(key));
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
           _header(),

@@ -145,9 +145,12 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
-                  child: FilledButton(
-                    onPressed: () => _goToChapter(nav.next!),
-                    child: const Text('下一章'),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => _goToChapter(nav.next!),
+                      child: const Text('下一章'),
+                    ),
                   ),
                 ),
               );
@@ -575,10 +578,13 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
           Text('章节加载失败',
               style: TextStyle(color: cs.onSurface)),
           const SizedBox(height: 12),
-          FilledButton(
-            onPressed: () => ref.invalidate(comicEpProvider(
-                (widget.sourceKey, widget.comicId, _chapterId))),
-            child: const Text('重试'),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => ref.invalidate(comicEpProvider(
+                  (widget.sourceKey, widget.comicId, _chapterId))),
+              child: const Text('重试'),
+            ),
           ),
         ],
       ),
