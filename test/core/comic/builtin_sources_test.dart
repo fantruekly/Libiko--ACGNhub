@@ -76,4 +76,29 @@ void main() {
     await build().install();
     expect(await File(p.join(dir.path, 'user.js')).readAsString(), 'user');
   });
+
+  test('rejects a manifest file name that escapes the directory', () async {
+    assets['assets/comic_source/builtin/index.json'] = jsonEncode({
+      'version': '1',
+      'sources': [
+        {'name': 'Evil', 'fileName': '../evil.js', 'key': 'evil'},
+      ],
+    });
+    await build().install();
+    expect(await File(p.join(dir.parent.path, 'evil.js')).exists(), isFalse);
+    expect(await File(p.join(dir.path, '..', 'evil.js')).exists(), isFalse);
+  });
+
+  test('throws and leaves the marker unwritten on a malformed manifest',
+      () async {
+    assets['assets/comic_source/builtin/index.json'] = '{"sources": []}';
+    await expectLater(build().install(), throwsA(isA<FormatException>()));
+    expect(marker, isNull);
+  });
+
+  test('leaves the marker unwritten when an asset copy fails', () async {
+    assets.remove('assets/comic_source/builtin/a.js');
+    await expectLater(build().install(), throwsA(anything));
+    expect(marker, isNull);
+  });
 }

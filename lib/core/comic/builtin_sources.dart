@@ -54,7 +54,8 @@ class BuiltinSourceInstaller {
     for (final entry in sources) {
       if (entry is! Map) continue;
       final fileName = entry['fileName']?.toString() ?? '';
-      if (fileName.isEmpty) continue;
+      // Only a plain file name is accepted: no directories, no traversal.
+      if (fileName.isEmpty || p.basename(fileName) != fileName) continue;
       final script = await _loadAsset('$_assetPrefix$fileName');
       await File(p.join(dir.path, fileName)).writeAsString(script);
     }
