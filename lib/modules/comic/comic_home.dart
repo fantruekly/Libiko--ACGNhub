@@ -130,7 +130,27 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             _sourceHeader(sources, selected),
             _sectionChips(selected, section),
             if (parts.length > 1) _partChips(parts, part),
-            Expanded(child: _explore(selected, section, part, sources.indexOf(selected))),
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragEnd: parts.length > 1
+                    ? (details) {
+                        final v = details.primaryVelocity ?? 0;
+                        final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
+                        if (delta == 0) return;
+                        setState(() {
+                          final next =
+                              (_selectedPart + delta).clamp(0, parts.length - 1);
+                          if (next == _selectedPart) return;
+                          _selectedPart = next;
+                          _page = 1;
+                        });
+                      }
+                    : null,
+                child: _explore(
+                    selected, section, part, sources.indexOf(selected)),
+              ),
+            ),
           ],
         );
       },

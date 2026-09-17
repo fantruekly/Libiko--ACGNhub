@@ -196,23 +196,27 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       return Column(
         children: [
           Expanded(
-            child: SlideSwitcher(
-              id: (_sourceId, '__home__'),
-              index: sourceIndex * 1000000,
-              child: async.when(
-                loading: () => const ShimmerLoader(
-                    crossAxisCount: 6,
-                    mobileColumns: 3,
-                    itemCount: 12,
-                    aspectRatio: 0.58,
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-                error: (_, __) => EmptyState(
-                  icon: Icons.cloud_off_rounded,
-                  message: '加载失败',
-                  actionLabel: '重试',
-                  onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragEnd: null,
+              child: SlideSwitcher(
+                id: (_sourceId, '__home__'),
+                index: sourceIndex * 1000000,
+                child: async.when(
+                  loading: () => const ShimmerLoader(
+                      crossAxisCount: 6,
+                      mobileColumns: 3,
+                      itemCount: 12,
+                      aspectRatio: 0.58,
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+                  error: (_, __) => EmptyState(
+                    icon: Icons.cloud_off_rounded,
+                    message: '加载失败',
+                    actionLabel: '重试',
+                    onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+                  ),
+                  data: (home) => _grid(flattenHome(home)),
                 ),
-                data: (home) => _grid(flattenHome(home)),
               ),
             ),
           ),
@@ -229,26 +233,43 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     return Column(
       children: [
         Expanded(
-          child: SlideSwitcher(
-            id: (_sourceId, option.key, _page),
-            index: sourceIndex * 1000000 +
-                (_groupIndex + 1) * 10000 +
-                _optionIndex * 100 +
-                _page,
-            child: async.when(
-              loading: () => const ShimmerLoader(
-                  crossAxisCount: 6,
-                  itemCount: 12,
-                  aspectRatio: 0.58,
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-              error: (_, __) => EmptyState(
-                icon: Icons.cloud_off_rounded,
-                message: '加载失败',
-                actionLabel: '重试',
-                onAction: () => ref.invalidate(
-                    novelBrowseProvider((_sourceId, option.key, _page))),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragEnd: group.options.length > 1
+                ? (details) {
+                    final v = details.primaryVelocity ?? 0;
+                    final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
+                    if (delta == 0) return;
+                    setState(() {
+                      final next = (_optionIndex + delta)
+                          .clamp(0, group.options.length - 1);
+                      if (next == _optionIndex) return;
+                      _optionIndex = next;
+                      _page = 1;
+                    });
+                  }
+                : null,
+            child: SlideSwitcher(
+              id: (_sourceId, option.key, _page),
+              index: sourceIndex * 1000000 +
+                  (_groupIndex + 1) * 10000 +
+                  _optionIndex * 100 +
+                  _page,
+              child: async.when(
+                loading: () => const ShimmerLoader(
+                    crossAxisCount: 6,
+                    itemCount: 12,
+                    aspectRatio: 0.58,
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+                error: (_, __) => EmptyState(
+                  icon: Icons.cloud_off_rounded,
+                  message: '加载失败',
+                  actionLabel: '重试',
+                  onAction: () => ref.invalidate(
+                      novelBrowseProvider((_sourceId, option.key, _page))),
+                ),
+                data: (list) => _grid(list.items),
               ),
-              data: (list) => _grid(list.items),
             ),
           ),
         ),
