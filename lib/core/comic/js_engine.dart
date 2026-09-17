@@ -7,6 +7,7 @@ import 'package:fast_gbk/fast_gbk.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_qjs/flutter_qjs.dart';
 
+import '../ui/app_messenger.dart';
 import 'crypto_util.dart';
 import 'html_bridge.dart';
 
@@ -97,12 +98,23 @@ class JsEngine {
         return _setting(map);
       case 'cookie':
         return _cookie(map);
+      case 'ui':
+        return _ui(map);
       case 'log':
         debugPrint('[comic-source] ${map['message']}');
         return null;
       default:
         throw Exception('Unknown bridge method: ${map['method']}');
     }
+  }
+
+  dynamic _ui(Map<dynamic, dynamic> map) {
+    final message = map['message']?.toString() ?? '';
+    if (message.isNotEmpty) {
+      debugPrint('[comic-source:ui] $message');
+      showAppMessage(message);
+    }
+    return null;
   }
 
   /// Cookies stored for [url]'s host, joined into a single `Cookie` header.
@@ -119,7 +131,7 @@ class JsEngine {
 
     final values = <String>[];
     for (final entry in _cookieJar.entries) {
-      final keyHost = Uri.tryParse(entry.key.toString())?.host;
+      final keyHost = _normalizeCookieKey(entry.key.toString());
       final value = entry.value;
       if (value is List) {
         for (final cookie in value) {
@@ -291,8 +303,18 @@ class JsEngine {
     return store[key];
   }
 
+  /// A cookie jar key reduced to a host. Accepts full URLs and bare domains
+  /// (some sources call `setCookies("bzmgcn.com", ...)`).
+  static String _normalizeCookieKey(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return value;
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.host.isNotEmpty) return uri.host;
+    return value.replaceFirst(RegExp(r'^\.'), '');
+  }
+
   dynamic _cookie(Map<dynamic, dynamic> map) {
-    final url = map['url']?.toString() ?? '';
+    final url = _normalizeCookieKey(map['url']?.toString() ?? '');
     if (map['op'] == 'set') {
       final value = map['cookies'];
       if (value == null || (value is String && value.isEmpty)) {

@@ -3,6 +3,29 @@
 (function () {
   const call = (obj) => sendMessage(obj);
 
+  // ES2021/ES2022 shims used by some sources.
+  if (!String.prototype.replaceAll) {
+    String.prototype.replaceAll = function (search, replace) {
+      if (search instanceof RegExp) return this.split(search).join(replace);
+      return this.split(String(search)).join(replace);
+    };
+  }
+  if (!Array.prototype.at) {
+    Array.prototype.at = function (n) {
+      n = Math.trunc(n) || 0;
+      if (n < 0) n += this.length;
+      return (n < 0 || n >= this.length) ? undefined : this[n];
+    };
+  }
+
+  globalThis.UI = {
+    showMessage: function (message) {
+      return call({ method: 'ui', op: 'showMessage', message: String(message) });
+    },
+    showLoading: function () { return call({ method: 'ui', op: 'showLoading' }); },
+    cancelLoading: function () { return call({ method: 'ui', op: 'cancelLoading' }); },
+  };
+
   const _log = (args) =>
     call({ method: 'log', message: Array.prototype.map.call(args, String).join(' ') });
   globalThis.console = {
@@ -203,8 +226,9 @@
   };
 
   globalThis.APP = {
-    version: '1.5.0',
+    version: '1.6.0',
     locale: 'zh_CN',
+    platform: 'libiko',
   };
 
   globalThis.Cookie = Cookie;

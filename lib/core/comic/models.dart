@@ -57,7 +57,7 @@ class Comic {
   factory Comic.fromJs(Map<dynamic, dynamic> json) => Comic(
         id: json['id']?.toString() ?? '',
         title: json['title']?.toString() ?? '',
-        subtitle: json['subtitle']?.toString(),
+        subtitle: (json['subtitle'] ?? json['subTitle'])?.toString(),
         cover: json['cover']?.toString(),
         tags: _stringList(json['tags']),
         description: json['description']?.toString(),
@@ -106,7 +106,7 @@ class ComicDetails {
   factory ComicDetails.fromJs(Map<dynamic, dynamic> json) => ComicDetails(
         id: json['id']?.toString() ?? '',
         title: json['title']?.toString() ?? '',
-        subtitle: json['subtitle']?.toString(),
+        subtitle: (json['subtitle'] ?? json['subTitle'])?.toString(),
         cover: json['cover']?.toString(),
         tags: _stringList(json['tags']),
         description: json['description']?.toString(),

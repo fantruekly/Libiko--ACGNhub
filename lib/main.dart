@@ -8,6 +8,7 @@ import 'core/account/account_service.dart';
 import 'core/account/sync_service.dart';
 import 'core/platform.dart';
 import 'core/storage/database.dart';
+import 'core/ui/app_messenger.dart';
 import 'shell/main_shell.dart';
 
 void main() async {
@@ -49,6 +50,7 @@ class LibikoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Libiko',
+      scaffoldMessengerKey: appMessengerKey,
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: ThemeData(
