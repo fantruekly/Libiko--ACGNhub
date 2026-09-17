@@ -1,17 +1,22 @@
 import 'package:flutter/foundation.dart';
 
+import 'api_rule.dart';
 import 'source_rule.dart';
 import 'video_source.dart';
 import 'webview_scraper.dart';
 
 /// A [VideoSource] backed by a Kazumi-compatible [SourceRule]. The search and
 /// chapter pages are rendered in a headless WebView, then XPath-extracted.
+/// Rules whose `searchMode`/`chapterMode` is `api` are sent through
+/// [ApiRuleClient] instead.
 class RuleVideoSource implements VideoSource {
   final SourceRule rule;
   final WebviewScraper _scraper;
+  final ApiRuleClient _api;
 
-  RuleVideoSource(this.rule, {WebviewScraper? scraper})
-      : _scraper = scraper ?? WebviewScraper();
+  RuleVideoSource(this.rule, {WebviewScraper? scraper, ApiRuleClient? apiClient})
+      : _scraper = scraper ?? WebviewScraper(),
+        _api = apiClient ?? ApiRuleClient(rule);
 
   @override
   String get id => rule.id;
@@ -24,6 +29,9 @@ class RuleVideoSource implements VideoSource {
 
   @override
   Future<List<VideoItem>> search(String keyword) async {
+    if (rule.searchMode == 'api') {
+      return _api.search(keyword);
+    }
     final result = await _scraper.fetchJson(
       url: rule.buildSearchUrl(keyword),
       script: buildSearchScript(rule),
@@ -34,6 +42,9 @@ class RuleVideoSource implements VideoSource {
 
   @override
   Future<List<VideoEpisode>> episodes(String detailUrl) async {
+    if (rule.chapterMode == 'api') {
+      return _api.episodes(detailUrl);
+    }
     final result = await _scraper.fetchJson(
       url: detailUrl,
       script: buildEpisodesScript(rule),
