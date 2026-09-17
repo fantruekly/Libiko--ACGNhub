@@ -66,10 +66,10 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
+      decoration: BoxDecoration(
+        color: cs.surface,
         border:
-            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+            Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
       ),
       child: Row(
         children: [
@@ -83,13 +83,13 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F7),
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: [
                   Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
+                      size: 18, color: cs.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
