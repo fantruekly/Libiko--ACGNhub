@@ -7,6 +7,7 @@ import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_reader_settings.dart';
 import '../../core/comic/models.dart';
 import '../../core/comic/reader_nav.dart';
+import '../../core/platform.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_providers.dart';
@@ -272,8 +273,10 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       right: 0,
             child: DesktopDragArea(
         child: Container(
-          height: 48,
-          padding: const EdgeInsets.only(left: 4),
+          height: 48 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
+          padding: EdgeInsets.only(
+              left: 4,
+              top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
           decoration: const BoxDecoration(
             color: Color(0xFFFFFFFF),
             border: Border(
@@ -297,7 +300,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                       color: Color(0xFF1C1C1E)),
                 ),
               ),
-              const WindowControls(),
+              if (isDesktop) const WindowControls(),
             ],
           ),
         ),

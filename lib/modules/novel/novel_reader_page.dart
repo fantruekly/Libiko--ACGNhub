@@ -6,6 +6,7 @@ import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_reader_settings.dart';
+import '../../core/platform.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/marquee_text.dart';
 import '../../core/widgets/window_controls.dart';
@@ -194,8 +195,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
       left: 0,
       right: 0,
       child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        height: 56 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
+        padding: EdgeInsets.only(
+            left: 8,
+            right: 8,
+            top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
         decoration: BoxDecoration(
           color: palette.bar,
           border: Border(bottom: BorderSide(color: palette.border, width: 0.5)),
@@ -215,7 +219,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: palette.fg),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),
