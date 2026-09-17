@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/metadata/metadata_provider.dart';
 import 'package:libiko/core/metadata/metadata_service.dart';
 import 'package:libiko/core/models/work.dart';
+import 'package:libiko/core/widgets/tab_strip.dart';
 import 'package:libiko/modules/anime/anime_home.dart';
 import 'package:libiko/modules/anime/anime_providers.dart';
 
@@ -33,8 +34,11 @@ void main() {
     ));
     await tester.pump();
 
-    final labels =
-        tester.widgetList<Tab>(find.byType(Tab)).map((t) => t.text).toList();
+    final labels = tester
+        .widgetList<Text>(find.descendant(
+            of: find.byType(TabStrip), matching: find.byType(Text)))
+        .map((t) => t.data)
+        .toList();
     expect(labels, ['本季新番', '热门推荐', '追番', '历史记录']);
   });
 }

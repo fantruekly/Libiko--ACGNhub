@@ -9,6 +9,7 @@ import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/tab_strip.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/models/work.dart';
 
@@ -17,7 +18,6 @@ class AnimeHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
     return DefaultTabController(
       length: 4,
       child: Builder(
@@ -25,26 +25,7 @@ class AnimeHomePage extends ConsumerWidget {
           final controller = DefaultTabController.of(context);
           return Column(
             children: [
-              TabBar(
-                labelColor: cs.primary,
-                unselectedLabelColor: cs.onSurfaceVariant,
-                indicatorColor: cs.primary,
-                dividerColor: cs.outlineVariant,
-                labelStyle: Theme.of(context)
-                    .textTheme
-                    .titleSmall!
-                    .copyWith(fontSize: 15, fontWeight: FontWeight.w500),
-                unselectedLabelStyle: Theme.of(context)
-                    .textTheme
-                    .titleSmall!
-                    .copyWith(fontSize: 15, fontWeight: FontWeight.w400),
-                tabs: const [
-                  Tab(text: '本季新番'),
-                  Tab(text: '热门推荐'),
-                  Tab(text: '追番'),
-                  Tab(text: '历史记录'),
-                ],
-              ),
+              const TabStrip(labels: ['本季新番', '热门推荐', '追番', '历史记录']),
               Expanded(
                 child: TabBarView(
                   children: [
