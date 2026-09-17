@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/widgets/adaptive_grid.dart';
 
@@ -18,7 +17,6 @@ void main() {
       ),
     ));
     expect(find.byType(SliverGrid), findsOneWidget);
-    expect(find.byType(SliverMasonryGrid), findsNothing);
     final grid = tester.widget<SliverGrid>(find.byType(SliverGrid));
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
@@ -48,7 +46,7 @@ void main() {
     expect(delegate.crossAxisCount, 5);
   });
 
-  testWidgets('mobile uses SliverMasonryGrid with the given column count',
+  testWidgets('mobile uses a fixed-extent SliverGrid with the given columns',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: CustomScrollView(
@@ -62,8 +60,12 @@ void main() {
         ],
       ),
     ));
-    expect(find.byType(SliverMasonryGrid), findsOneWidget);
-    expect(find.byType(SliverGrid), findsNothing);
+    expect(find.byType(SliverGrid), findsOneWidget);
+    final grid = tester.widget<SliverGrid>(find.byType(SliverGrid));
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 3);
+    expect(delegate.mainAxisExtent, isNotNull);
   });
 
   testWidgets('box version also switches by platform', (tester) async {
@@ -75,7 +77,12 @@ void main() {
         itemBuilder: _cell,
       ),
     ));
-    expect(find.byType(MasonryGridView), findsOneWidget);
+    expect(find.byType(GridView), findsOneWidget);
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 1);
+    expect(delegate.mainAxisExtent, isNotNull);
   });
 }
 
