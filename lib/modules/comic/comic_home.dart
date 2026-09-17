@@ -79,6 +79,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
   int _selectedSection = 0;
   int _selectedPart = 0;
   int _page = 1;
+  ComicExplorePage? _lastPage;
 
   @override
   bool get wantKeepAlive => true;
@@ -178,6 +179,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                   _selectedSection = 0;
                   _selectedPart = 0;
                   _page = 1;
+                  _lastPage = null;
                 });
               },
             ),
@@ -208,6 +210,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
         _selectedSection = i;
         _selectedPart = 0;
         _page = 1;
+        _lastPage = null;
       }),
     );
   }
@@ -223,6 +226,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
       onSelected: (i) => setState(() {
         _selectedPart = i;
         _page = 1;
+        _lastPage = null;
       }),
     );
   }
@@ -270,6 +274,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                 },
               ),
               data: (data) {
+                _lastPage = data;
                 if (data.comics.isEmpty) {
                   return const EmptyState(
                       icon: Icons.image_not_supported_rounded, message: '暂无内容');
@@ -295,20 +300,19 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             ),
           ),
         ),
-        if (pageData != null && (pageData.hasNext || pageData.page > 1))
-          _paginationBar(pageData),
+        if (_lastPage != null) _paginationBar(_lastPage!),
       ],
     );
   }
 
   Widget _paginationBar(ComicExplorePage data) {
     final label = data.maxPage == null
-        ? '第 ${data.page} 页'
-        : '第 ${data.page} / ${data.maxPage} 页';
+        ? '第 $_page 页'
+        : '第 $_page / ${data.maxPage} 页';
     return PagerBar(
       label: label,
-      onPrevious: data.page > 1 ? () => setState(() => _page = data.page - 1) : null,
-      onNext: data.hasNext ? () => setState(() => _page = data.page + 1) : null,
+      onPrevious: _page > 1 ? () => setState(() => _page--) : null,
+      onNext: data.hasNext ? () => setState(() => _page++) : null,
     );
   }
 }

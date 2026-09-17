@@ -126,6 +126,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   int _groupIndex = -1;
   int _optionIndex = 0;
   int _page = 1;
+  bool? _lastHasMore;
 
   @override
   bool get wantKeepAlive => true;
@@ -160,6 +161,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
         _groupIndex = -1;
         _optionIndex = 0;
         _page = 1;
+        _lastHasMore = null;
       }),
     );
   }
@@ -173,6 +175,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
         _groupIndex = i - 1;
         _optionIndex = 0;
         _page = 1;
+        _lastHasMore = null;
       }),
     );
   }
@@ -185,6 +188,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       onSelected: (i) => setState(() {
         _optionIndex = i;
         _page = 1;
+        _lastHasMore = null;
       }),
     );
   }
@@ -230,7 +234,6 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     }
     final option = group.options[_optionIndex.clamp(0, group.options.length - 1)];
     final async = ref.watch(novelBrowseProvider((_sourceId, option.key, _page)));
-    final pageData = async.valueOrNull;
     return Column(
       children: [
         Expanded(
@@ -269,12 +272,15 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
                   onAction: () => ref.invalidate(
                       novelBrowseProvider((_sourceId, option.key, _page))),
                 ),
-                data: (list) => _grid(list.items),
+                data: (list) {
+                  _lastHasMore = list.hasMore;
+                  return _grid(list.items);
+                },
               ),
             ),
           ),
         ),
-        if (pageData != null) _pager(pageData.hasMore),
+        if (_lastHasMore != null) _pager(_lastHasMore!),
       ],
     );
   }
