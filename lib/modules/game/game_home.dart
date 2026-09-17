@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/game/game_image.dart';
 import '../../core/game/game_source.dart';
 import '../../core/game/models.dart';
+import '../../core/platform.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -26,21 +28,11 @@ class GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget image = RepaintBoundary(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: game.coverUrl != null && game.coverUrl!.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: game.coverUrl!,
-                fit: BoxFit.cover,
-                memCacheWidth: 400,
-                fadeInDuration: Duration.zero,
-                httpHeaders: gameImageHeadersFor(game.coverUrl),
-                placeholder: (_, __) => _placeholder(),
-                errorWidget: (_, __, ___) => _placeholder(),
-              )
-            : _placeholder(),
-      ),
+    Widget image = RatioCover(
+      url: game.coverUrl,
+      httpHeaders: gameImageHeadersFor(game.coverUrl),
+      fallbackRatio: 3 / 2,
+      placeholderBuilder: (_) => _placeholder(),
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -50,7 +42,7 @@ class GameCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: image),
+          if (isDesktop) Expanded(child: image) else image,
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
@@ -224,27 +216,36 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
       return const EmptyState(icon: Icons.games_rounded, message: '暂无内容');
     }
     return LayoutBuilder(builder: (context, constraints) {
-      return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: gameGridColumns,
-            mainAxisSpacing: 20,
-            crossAxisSpacing: gameGridSpacing,
-            mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+      Widget gameCell(BuildContext context, int i) => GameCard(
+            game: items[i],
+            heroTag: 'game_${_sourceId}_${items[i].id}',
+            onTap: () => Navigator.push(
+              context,
+              smoothRoute(GameDetailPage(
+                sourceKey: _sourceId,
+                gameId: items[i].id,
+                title: items[i].title,
+                cover: items[i].coverUrl,
+              )),
+            ),
+          );
+      if (isDesktop) {
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: gameGridColumns,
+              mainAxisSpacing: 20,
+              crossAxisSpacing: gameGridSpacing,
+              mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+          itemCount: items.length,
+          itemBuilder: gameCell,
+        );
+      }
+      return AdaptiveGridView(
         itemCount: items.length,
-        itemBuilder: (_, i) => GameCard(
-          game: items[i],
-          heroTag: 'game_${_sourceId}_${items[i].id}',
-          onTap: () => Navigator.push(
-            context,
-            smoothRoute(GameDetailPage(
-              sourceKey: _sourceId,
-              gameId: items[i].id,
-              title: items[i].title,
-              cover: items[i].coverUrl,
-            )),
-          ),
-        ),
+        mobileColumns: 1,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemBuilder: gameCell,
       );
     });
   }

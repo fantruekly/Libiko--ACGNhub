@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/platform.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -198,30 +200,40 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
 
   Widget _grid(List<GameSearchResult> results) {
     return LayoutBuilder(builder: (context, constraints) {
-      return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: gameGridColumns,
-            mainAxisSpacing: 20,
-            crossAxisSpacing: gameGridSpacing,
-            mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+      Widget gameCell(BuildContext context, int i) {
+        final r = results[i];
+        return GameCard(
+          game: r.game,
+          heroTag: 'game_${r.sourceKey}_${r.game.id}',
+          onTap: () => Navigator.push(
+            context,
+            smoothRoute(GameDetailPage(
+              sourceKey: r.sourceKey,
+              gameId: r.game.id,
+              title: r.game.title,
+              cover: r.game.coverUrl,
+            )),
+          ),
+        );
+      }
+
+      if (isDesktop) {
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: gameGridColumns,
+              mainAxisSpacing: 20,
+              crossAxisSpacing: gameGridSpacing,
+              mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+          itemCount: results.length,
+          itemBuilder: gameCell,
+        );
+      }
+      return AdaptiveGridView(
         itemCount: results.length,
-        itemBuilder: (_, i) {
-          final r = results[i];
-          return GameCard(
-            game: r.game,
-            heroTag: 'game_${r.sourceKey}_${r.game.id}',
-            onTap: () => Navigator.push(
-              context,
-              smoothRoute(GameDetailPage(
-                sourceKey: r.sourceKey,
-                gameId: r.game.id,
-                title: r.game.title,
-                cover: r.game.coverUrl,
-              )),
-            ),
-          );
-        },
+        mobileColumns: 1,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemBuilder: gameCell,
       );
     });
   }
