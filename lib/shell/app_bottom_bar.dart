@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../core/widgets/glass_surface.dart';
 
-/// The phone navigation bar. Four module buttons over a translucent surface.
+/// The phone navigation bar. Four module buttons over a translucent surface,
+/// with a Material-3 style animated selection capsule behind the active icon.
 class AppBottomBar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onChanged;
@@ -53,7 +54,7 @@ class AppBottomBar extends StatelessWidget {
   }
 }
 
-class _BarItem extends StatelessWidget {
+class _BarItem extends StatefulWidget {
   final IconData icon;
   final String label;
   final bool selected;
@@ -67,30 +68,78 @@ class _BarItem extends StatelessWidget {
   });
 
   @override
+  State<_BarItem> createState() => _BarItemState();
+}
+
+class _BarItemState extends State<_BarItem>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final CurvedAnimation _curve;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: widget.selected ? 1 : 0,
+    );
+    _curve = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
+  }
+
+  @override
+  void didUpdateWidget(covariant _BarItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selected != widget.selected) {
+      if (widget.selected) {
+        _controller.forward(from: 0);
+      } else {
+        _controller.reverse(from: 1);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final idle = cs.onSurfaceVariant;
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       behavior: HitTestBehavior.opaque,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0, end: selected ? 1 : 0),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOutCubic,
-        builder: (context, t, _) {
-          final color = Color.lerp(idle, cs.primary, t)!;
+      child: AnimatedBuilder(
+        animation: _curve,
+        builder: (context, _) {
+          final t = _curve.value;
+          final iconColor =
+              Color.lerp(cs.onSurfaceVariant, cs.onSecondaryContainer, t)!;
+          final labelColor = Color.lerp(cs.onSurfaceVariant, cs.primary, t)!;
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 24, color: color),
+              Container(
+                width: 32 + 32 * t,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Color.lerp(Colors.transparent, cs.secondaryContainer, t),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(widget.icon, size: 24, color: iconColor),
+              ),
               const SizedBox(height: 3),
               Text(
-                label,
+                widget.label,
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.3,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  color: color,
+                  fontWeight:
+                      widget.selected ? FontWeight.w600 : FontWeight.w500,
+                  color: labelColor,
                 ),
               ),
             ],
