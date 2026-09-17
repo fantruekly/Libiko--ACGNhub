@@ -78,6 +78,7 @@ void main() {
   });
 
   test('rejects a manifest file name that escapes the directory', () async {
+    assets['assets/comic_source/builtin/../evil.js'] = 'class Evil {}';
     assets['assets/comic_source/builtin/index.json'] = jsonEncode({
       'version': '1',
       'sources': [
@@ -86,7 +87,7 @@ void main() {
     });
     await build().install();
     expect(await File(p.join(dir.parent.path, 'evil.js')).exists(), isFalse);
-    expect(await File(p.join(dir.path, '..', 'evil.js')).exists(), isFalse);
+    expect(await File(p.join(dir.path, 'evil.js')).exists(), isFalse);
   });
 
   test('throws and leaves the marker unwritten on a malformed manifest',
