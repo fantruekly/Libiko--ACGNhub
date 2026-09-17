@@ -48,6 +48,7 @@ class AnimeHistoryView extends ConsumerWidget {
               : AdaptiveGridView(
                   itemCount: records.length,
                   mobileColumns: 3,
+                  mobileTitleExtent: 62,
                   itemBuilder: (_, i) {
                     final record = records[i];
                     return WorkCard(

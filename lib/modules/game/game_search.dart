@@ -238,6 +238,7 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
       return AdaptiveGridView(
         itemCount: results.length,
         mobileColumns: 1,
+        mobileCoverRatio: 3 / 2,
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemBuilder: gameCell,
       );

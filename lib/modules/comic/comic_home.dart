@@ -6,7 +6,6 @@ import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_source.dart';
 import '../../core/comic/explore_result.dart';
-import '../../core/platform.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
@@ -532,6 +531,7 @@ class ComicCard extends StatelessWidget {
       url: cover,
       placeholderBuilder: (_) => _placeholder(cs),
       fadeInDuration: const Duration(milliseconds: 200),
+      enabled: false,
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -542,7 +542,7 @@ class ComicCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isDesktop) Expanded(child: image) else image,
+          Expanded(child: image),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,

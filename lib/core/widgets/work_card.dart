@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/work.dart';
-import '../platform.dart';
 import 'ratio_cover.dart';
 
 class WorkCard extends StatelessWidget {
@@ -17,6 +16,7 @@ class WorkCard extends StatelessWidget {
     Widget cover = RatioCover(
       url: work.coverUrl,
       fadeInDuration: const Duration(milliseconds: 200),
+      enabled: false,
       placeholderBuilder: (_) => _placeholder(work, cs),
     );
 
@@ -25,10 +25,7 @@ class WorkCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isDesktop)
-            Expanded(child: Hero(tag: 'work_${work.id}', child: cover))
-          else
-            Hero(tag: 'work_${work.id}', child: cover),
+          Expanded(child: Hero(tag: 'work_${work.id}', child: cover)),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,

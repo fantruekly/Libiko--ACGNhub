@@ -30,6 +30,7 @@ class GameCard extends StatelessWidget {
       httpHeaders: gameImageHeadersFor(game.coverUrl),
       fallbackRatio: 3 / 2,
       placeholderBuilder: (_) => _placeholder(cs),
+      enabled: false,
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -39,7 +40,7 @@ class GameCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isDesktop) Expanded(child: image) else image,
+          Expanded(child: image),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
@@ -247,6 +248,7 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
       return AdaptiveGridView(
         itemCount: items.length,
         mobileColumns: 1,
+        mobileCoverRatio: 3 / 2,
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemBuilder: gameCell,
       );

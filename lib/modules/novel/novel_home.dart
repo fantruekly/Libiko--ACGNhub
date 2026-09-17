@@ -7,7 +7,6 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_source.dart';
-import '../../core/platform.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
@@ -33,6 +32,7 @@ class NovelCard extends StatelessWidget {
       url: novel.coverUrl,
       httpHeaders: novelImageHeaders,
       placeholderBuilder: (_) => _placeholder(cs),
+      enabled: false,
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -42,7 +42,7 @@ class NovelCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isDesktop) Expanded(child: image) else image,
+          Expanded(child: image),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,

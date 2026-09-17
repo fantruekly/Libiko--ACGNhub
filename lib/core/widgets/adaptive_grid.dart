@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../platform.dart';
 
@@ -7,9 +6,9 @@ const double _kMainAxisSpacing = 20;
 const double _kCrossAxisSpacing = 16;
 const double _kDesktopAspectRatio = 0.60;
 
-/// A grid of cards inside a [CustomScrollView]. Mobile lays the cards out as a
-/// masonry grid (each card keeps its own height); desktop keeps the fixed
-/// 6-column grid this app has always used.
+/// A grid of cards inside a [CustomScrollView]. Mobile lays the cards out on a
+/// fixed-extent grid (uniform cover ratio plus a fixed title area) so columns
+/// stay aligned; desktop keeps the fixed 6-column grid this app has always used.
 class SliverAdaptiveGrid extends StatelessWidget {
   final int itemCount;
   final int mobileColumns;
@@ -17,6 +16,8 @@ class SliverAdaptiveGrid extends StatelessWidget {
   final Widget Function(BuildContext, int) itemBuilder;
   final EdgeInsetsGeometry padding;
   final double desktopAspectRatio;
+  final double mobileCoverRatio;
+  final double mobileTitleExtent;
   final bool? desktop;
 
   const SliverAdaptiveGrid({
@@ -27,6 +28,8 @@ class SliverAdaptiveGrid extends StatelessWidget {
     this.desktopColumns = 6,
     this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 24),
     this.desktopAspectRatio = _kDesktopAspectRatio,
+    this.mobileCoverRatio = 2 / 3,
+    this.mobileTitleExtent = 44,
     this.desktop,
   });
 
@@ -49,12 +52,24 @@ class SliverAdaptiveGrid extends StatelessWidget {
     }
     return SliverPadding(
       padding: padding,
-      sliver: SliverMasonryGrid.count(
-        crossAxisCount: mobileColumns,
-        mainAxisSpacing: _kMainAxisSpacing,
-        crossAxisSpacing: _kCrossAxisSpacing,
-        childCount: itemCount,
-        itemBuilder: itemBuilder,
+      sliver: SliverLayoutBuilder(
+        builder: (context, constraints) {
+          final horizontal = padding.resolve(TextDirection.ltr).horizontal;
+          final cellWidth = (constraints.crossAxisExtent -
+                  horizontal -
+                  _kCrossAxisSpacing * (mobileColumns - 1)) /
+              mobileColumns;
+          return SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: mobileColumns,
+              mainAxisSpacing: _kMainAxisSpacing,
+              crossAxisSpacing: _kCrossAxisSpacing,
+              mainAxisExtent: cellWidth / mobileCoverRatio + mobileTitleExtent,
+            ),
+            delegate: SliverChildBuilderDelegate(itemBuilder,
+                childCount: itemCount),
+          );
+        },
       ),
     );
   }
@@ -68,6 +83,8 @@ class AdaptiveGridView extends StatelessWidget {
   final Widget Function(BuildContext, int) itemBuilder;
   final EdgeInsetsGeometry padding;
   final double desktopAspectRatio;
+  final double mobileCoverRatio;
+  final double mobileTitleExtent;
   final bool? desktop;
 
   const AdaptiveGridView({
@@ -78,6 +95,8 @@ class AdaptiveGridView extends StatelessWidget {
     this.desktopColumns = 6,
     this.padding = const EdgeInsets.fromLTRB(16, 8, 16, 24),
     this.desktopAspectRatio = _kDesktopAspectRatio,
+    this.mobileCoverRatio = 2 / 3,
+    this.mobileTitleExtent = 44,
     this.desktop,
   });
 
@@ -96,13 +115,25 @@ class AdaptiveGridView extends StatelessWidget {
         itemBuilder: itemBuilder,
       );
     }
-    return MasonryGridView.count(
-      padding: padding,
-      crossAxisCount: mobileColumns,
-      mainAxisSpacing: _kMainAxisSpacing,
-      crossAxisSpacing: _kCrossAxisSpacing,
-      itemCount: itemCount,
-      itemBuilder: itemBuilder,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontal = padding.resolve(TextDirection.ltr).horizontal;
+        final cellWidth = (constraints.maxWidth -
+                horizontal -
+                _kCrossAxisSpacing * (mobileColumns - 1)) /
+            mobileColumns;
+        return GridView.builder(
+          padding: padding,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: mobileColumns,
+            mainAxisSpacing: _kMainAxisSpacing,
+            crossAxisSpacing: _kCrossAxisSpacing,
+            mainAxisExtent: cellWidth / mobileCoverRatio + mobileTitleExtent,
+          ),
+          itemCount: itemCount,
+          itemBuilder: itemBuilder,
+        );
+      },
     );
   }
 }
