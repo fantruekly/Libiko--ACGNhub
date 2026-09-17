@@ -98,7 +98,7 @@ class AndroidHeadlessBrowser implements HeadlessBrowser {
   Stream<MediaCandidate> get mediaUrls => _media.stream;
 
   @override
-  Future<void> start({String? userAgent}) async {
+  Future<void> start({String? userAgent, String? extraScript}) async {
     final headless = HeadlessInAppWebView(
       initialSettings: InAppWebViewSettings(
         userAgent: userAgent,
@@ -115,6 +115,12 @@ class AndroidHeadlessBrowser implements HeadlessBrowser {
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
           forMainFrameOnly: false,
         ),
+        if (extraScript != null)
+          UserScript(
+            source: extraScript,
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+            forMainFrameOnly: false,
+          ),
       ]),
       onWebViewCreated: (controller) {
         controller.addJavaScriptHandler(

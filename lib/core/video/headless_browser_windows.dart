@@ -14,10 +14,11 @@ class WindowsHeadlessBrowser implements HeadlessBrowser {
   Stream<MediaCandidate> get mediaUrls => _media.stream;
 
   @override
-  Future<void> start({String? userAgent}) async {
+  Future<void> start({String? userAgent, String? extraScript}) async {
     final webview = HeadlessWebview();
     _webview = webview;
     await webview.run();
+    if (extraScript != null) await webview.executeScript(extraScript);
     try {
       await webview.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
     } catch (_) {}

@@ -74,6 +74,7 @@ class RuleVideoSource implements VideoSource {
         playUrl: url,
         userAgent: rule.userAgent,
         referer: rule.referer,
+        useLegacyParser: rule.useLegacyParser,
       ));
     }
     return eps;

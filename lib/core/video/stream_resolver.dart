@@ -14,11 +14,15 @@ class StreamResolver {
     String playPageUrl, {
     Duration timeout = const Duration(seconds: 30),
     String? userAgent,
+    bool legacy = false,
   }) async {
     final browser = createHeadlessBrowser();
     StreamSubscription<MediaCandidate>? sub;
     try {
-      await browser.start(userAgent: userAgent ?? kBrowserUserAgent);
+      await browser.start(
+        userAgent: userAgent ?? kBrowserUserAgent,
+        extraScript: legacy ? kLegacyIframeScript : null,
+      );
       final completer = Completer<MediaCandidate?>();
       sub = browser.mediaUrls.listen((candidate) {
         if (candidate.url.isNotEmpty && !completer.isCompleted) {

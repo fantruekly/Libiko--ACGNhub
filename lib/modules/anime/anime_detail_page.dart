@@ -714,7 +714,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
     final stream = await StreamResolver()
-        .resolve(ep.playUrl, userAgent: ep.userAgent);
+        .resolve(ep.playUrl, userAgent: ep.userAgent, legacy: ep.useLegacyParser);
     if (!mounted) return;
     Navigator.of(context).pop();
     if (stream == null) {

@@ -14,6 +14,7 @@ class SourceRule {
   final String chapterResult;
   final String? userAgent;
   final String? referer;
+  final bool useLegacyParser;
 
   const SourceRule({
     required this.name,
@@ -26,6 +27,7 @@ class SourceRule {
     required this.chapterResult,
     this.userAgent,
     this.referer,
+    this.useLegacyParser = false,
   });
 
   String get id => 'rule:$name';
@@ -54,6 +56,7 @@ class SourceRule {
               (json['referer'] as String).trim().isNotEmpty)
           ? (json['referer'] as String).trim()
           : null,
+      useLegacyParser: json['useLegacyParser'] == true,
     );
   }
 

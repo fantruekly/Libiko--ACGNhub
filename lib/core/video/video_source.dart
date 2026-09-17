@@ -18,6 +18,7 @@ class VideoEpisode {
   final String playUrl;
   final String? userAgent;
   final String? referer;
+  final bool useLegacyParser;
 
   const VideoEpisode(
       {required this.id,
@@ -25,7 +26,8 @@ class VideoEpisode {
       required this.index,
       required this.playUrl,
       this.userAgent,
-      this.referer});
+      this.referer,
+      this.useLegacyParser = false});
 }
 
 abstract class VideoSource {

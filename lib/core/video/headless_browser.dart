@@ -30,13 +30,31 @@ Map<String, String> playerHeadersFrom(Map<String, String> requestHeaders) {
   return out;
 }
 
+/// Reports iframe `src` URLs (for rules that expose the player via an iframe).
+const String kLegacyIframeScript = r'''
+(function () {
+  if (window.__libikoIframe) return;
+  window.__libikoIframe = true;
+  function report(u) {
+    try { if (u) window.flutter_inappwebview.callHandler('mediaSniffer', String(u), ''); } catch (e) {}
+  }
+  function scan() {
+    var ifr = document.querySelectorAll('iframe');
+    for (var i = 0; i < ifr.length; i++) { try { report(ifr[i].src); } catch (e) {} }
+  }
+  scan();
+  setInterval(scan, 1000);
+})();
+''';
+
 /// A hidden browser used to render source pages and sniff their media streams.
 /// Windows and Android have different native implementations; callers see only
 /// this interface.
 abstract class HeadlessBrowser {
   /// Creates and starts the browser. [userAgent] defaults to the browser UA
-  /// chosen by the implementation.
-  Future<void> start({String? userAgent});
+  /// chosen by the implementation. When [extraScript] is non-null it is injected
+  /// at document start.
+  Future<void> start({String? userAgent, String? extraScript});
 
   /// Media requests (.m3u8 / .mp4) the browser has observed, filtered by each
   /// implementation's own detection (native sniffing and/or [looksLikeMediaUrl]).
