@@ -19,6 +19,7 @@ import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
+import '../../core/video/title_match.dart';
 import '../../core/video/video_source.dart';
 import '../../core/video/video_sources.dart';
 import 'anime_providers.dart';
@@ -30,6 +31,8 @@ class _SourceResult {
   final VideoSource source;
   _SourceStatus status = _SourceStatus.loading;
   List<VideoItem> items = const [];
+  VideoItem? best;
+  List<VideoItem> alternatives = const [];
   int seq = 0;
   _SourceResult(this.source);
 }
@@ -634,6 +637,18 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       if (!mounted || gen != _searchGen) return;
       setState(() {
         r.items = items;
+        if (items.isEmpty) {
+          r.best = null;
+          r.alternatives = const [];
+        } else {
+          final idx =
+              bestMatchIndex(_work.title, [for (final it in items) it.title]);
+          r.best = items[idx];
+          r.alternatives = [
+            for (var i = 0; i < items.length; i++)
+              if (i != idx) items[i],
+          ];
+        }
         r.status = _SourceStatus.done;
         r.seq = ++_searchSeq;
       });
@@ -643,14 +658,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
   }
 
-  List<(VideoItem, VideoSource)> get _flatResults {
+  List<(VideoItem, VideoSource, List<VideoItem>)> get _flatResults {
     final done = _sourceResults
-        .where((r) => r.status == _SourceStatus.done)
+        .where((r) => r.status == _SourceStatus.done && r.best != null)
         .toList()
       ..sort((a, b) => a.seq.compareTo(b.seq));
     return [
-      for (final r in done)
-        for (final item in r.items) (item, r.source),
+      for (final r in done) (r.best!, r.source, r.alternatives),
     ];
   }
 
@@ -831,8 +845,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final (item, source) in results)
-                      _resourceCard(item, source, cs),
+                    for (final (item, source, alternatives) in results)
+                      _resourceCard(item, source, alternatives, cs),
                   ],
                 ),
               if (failed.isNotEmpty) ...[
@@ -849,8 +863,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _resourceCard(VideoItem item, VideoSource source, ColorScheme cs) {
-    final expanded = identical(_expandedItem, item);
+  Widget _resourceCard(
+      VideoItem item, VideoSource source, List<VideoItem> alternatives, ColorScheme cs) {
+    final expanded = identical(_expandedItem, item) ||
+        alternatives.any((a) => identical(a, _expandedItem));
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -902,7 +918,32 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               ),
             ),
           ),
-          if (expanded) _episodeArea(cs),
+          if (expanded) ...[
+            if (alternatives.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 4),
+                child: Text('更多结果',
+                    style:
+                        TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              ),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: 4),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final alt in alternatives)
+                      ActionChip(
+                        label: Text(alt.title, maxLines: 1),
+                        onPressed: () => _expandItem(alt, source),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            _episodeArea(cs),
+          ],
         ],
       ),
     );
