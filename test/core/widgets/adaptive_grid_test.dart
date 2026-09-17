@@ -65,7 +65,7 @@ void main() {
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
     expect(delegate.crossAxisCount, 3);
-    expect(delegate.mainAxisExtent, isNotNull);
+    expect(delegate.mainAxisExtent, closeTo(412, 1));
   });
 
   testWidgets('box version also switches by platform', (tester) async {
@@ -82,7 +82,7 @@ void main() {
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
     expect(delegate.crossAxisCount, 1);
-    expect(delegate.mainAxisExtent, isNotNull);
+    expect(delegate.mainAxisExtent, closeTo(1196, 1));
   });
 }
 

@@ -54,9 +54,7 @@ class SliverAdaptiveGrid extends StatelessWidget {
       padding: padding,
       sliver: SliverLayoutBuilder(
         builder: (context, constraints) {
-          final horizontal = padding.resolve(TextDirection.ltr).horizontal;
           final cellWidth = (constraints.crossAxisExtent -
-                  horizontal -
                   _kCrossAxisSpacing * (mobileColumns - 1)) /
               mobileColumns;
           return SliverGrid(
