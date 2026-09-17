@@ -73,6 +73,7 @@ class RuleVideoSource implements VideoSource {
         index: eps.length,
         playUrl: url,
         userAgent: rule.userAgent,
+        referer: rule.referer,
       ));
     }
     return eps;

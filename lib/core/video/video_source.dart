@@ -17,13 +17,15 @@ class VideoEpisode {
   final int index;
   final String playUrl;
   final String? userAgent;
+  final String? referer;
 
   const VideoEpisode(
       {required this.id,
       required this.title,
       required this.index,
       required this.playUrl,
-      this.userAgent});
+      this.userAgent,
+      this.referer});
 }
 
 abstract class VideoSource {

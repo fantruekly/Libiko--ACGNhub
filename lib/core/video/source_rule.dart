@@ -13,6 +13,7 @@ class SourceRule {
   final String chapterRoads;
   final String chapterResult;
   final String? userAgent;
+  final String? referer;
 
   const SourceRule({
     required this.name,
@@ -24,6 +25,7 @@ class SourceRule {
     required this.chapterRoads,
     required this.chapterResult,
     this.userAgent,
+    this.referer,
   });
 
   String get id => 'rule:$name';
@@ -48,6 +50,10 @@ class SourceRule {
       chapterRoads: req('chapterRoads'),
       chapterResult: req('chapterResult'),
       userAgent: (ua is String && ua.trim().isNotEmpty) ? ua.trim() : null,
+      referer: (json['referer'] is String &&
+              (json['referer'] as String).trim().isNotEmpty)
+          ? (json['referer'] as String).trim()
+          : null,
     );
   }
 

@@ -90,9 +90,14 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
       return;
     }
     setState(() => _resolving = false);
+    final headers = <String, String>{
+      if (episode.userAgent != null) 'User-Agent': episode.userAgent!,
+      if (episode.referer != null) 'Referer': episode.referer!,
+      ...stream.headers,
+    };
     await _player.open(Media(
       stream.url,
-      httpHeaders: stream.headers.isEmpty ? null : stream.headers,
+      httpHeaders: headers.isEmpty ? null : headers,
     ));
     if (gen == _gen) await history.record(work, episode);
     ref.read(syncProvider).schedule();
