@@ -170,6 +170,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
         right: 8.0,
         bottom: 24.0,
       ),
+      seekBarMargin: const EdgeInsets.only(
+        left: 16.0,
+        right: 16.0,
+        bottom: 24.0,
+      ),
     );
   }
 
