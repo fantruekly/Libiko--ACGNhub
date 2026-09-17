@@ -14,12 +14,14 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
   final Work work;
   final List<VideoEpisode> episodes;
   final int initialIndex;
+  final String? initialResolvedUrl;
 
   const VideoPlayerPage({
     super.key,
     required this.work,
     required this.episodes,
     required this.initialIndex,
+    this.initialResolvedUrl,
   });
 
   @override
@@ -33,6 +35,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
   int _currentIndex = 0;
   bool _panelOpen = false;
   bool _resolving = false;
+  bool _usedInitialUrl = false;
   int _gen = 0;
 
   @override
@@ -67,7 +70,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
       _error = null;
       _currentIndex = i;
     });
-    final url = await StreamResolver().resolve(episode.playUrl);
+    final useInitial = !_usedInitialUrl &&
+        i == widget.initialIndex &&
+        widget.initialResolvedUrl != null;
+    if (useInitial) _usedInitialUrl = true;
+    final url = useInitial
+        ? widget.initialResolvedUrl
+        : await StreamResolver().resolve(episode.playUrl);
     if (!mounted || gen != _gen) return;
     if (url == null) {
       setState(() {
