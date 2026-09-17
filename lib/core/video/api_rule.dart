@@ -265,8 +265,12 @@ class ApiRuleClient {
     final roads =
         hasRoads ? jsonPathAll(document, config.roadsPath) : <dynamic>[document];
     final episodes = <VideoEpisode>[];
+    final multipleRoads = roads.length > 1;
     for (var roadIndex = 0; roadIndex < roads.length; roadIndex++) {
       final road = roads[roadIndex];
+      final roadName = multipleRoads && config.roadNamePath.trim().isNotEmpty
+          ? _firstString(jsonPathAll(road, config.roadNamePath))
+          : '';
       var roadEpisodeIndex = 0;
       for (final node in jsonPathAll(road, config.episodesPath)) {
         final name = _firstString(jsonPathAll(node, config.episodeNamePath));
@@ -281,9 +285,13 @@ class ApiRuleClient {
           episodeIndex: roadEpisodeIndex,
         );
         if (url.isEmpty) continue;
+        final title =
+            (multipleRoads && roadName.isNotEmpty && name.isNotEmpty)
+                ? '$roadName $name'
+                : name;
         episodes.add(_episode(
           url,
-          name,
+          title,
           episodes.length,
         ));
         roadEpisodeIndex++;
