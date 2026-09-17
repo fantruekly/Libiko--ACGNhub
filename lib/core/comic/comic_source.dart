@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../storage/database.dart';
+import 'builtin_sources.dart';
 import 'explore_result.dart';
 import 'js_engine.dart';
 import 'models.dart';
@@ -350,18 +351,23 @@ globalThis.__libiko_instance = function (key) {
 ''';
 
 class ComicSourceManager {
-  ComicSourceManager({JsEngine? engine, Dio? dio})
-      : _dio = dio ??
+  ComicSourceManager({
+    JsEngine? engine,
+    Dio? dio,
+    BuiltinSourceInstaller? builtinInstaller,
+  })  : _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 15),
               validateStatus: (_) => true,
-            )) {
+            )),
+        _builtinInstaller = builtinInstaller ?? BuiltinSourceInstaller() {
     _engine = engine ?? JsEngine(settings: _appSettings);
   }
 
   late final JsEngine _engine;
   final Dio _dio;
+  final BuiltinSourceInstaller _builtinInstaller;
   final List<ComicSource> _sources = [];
   Future<void>? _initFuture;
 
@@ -420,6 +426,11 @@ class ComicSourceManager {
 
   Future<void> load() async {
     await _ensureInitialized();
+    try {
+      await _builtinInstaller.install();
+    } catch (e) {
+      debugPrint('[ComicSourceManager] builtin install failed: $e');
+    }
     _sources.clear();
     await _engine.evaluate(
         'globalThis.__libiko_sources = {}; globalThis.__libiko_pending = {};');
