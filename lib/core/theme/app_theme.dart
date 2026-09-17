@@ -14,9 +14,9 @@ class AppSemanticColors {
 }
 
 /// The app-wide pale-blue page background.
-const Color kAppBackground = Color(0xFFF2F7FF);
+const Color kAppBackground = Color(0xFFEAF3FF);
 
-const Color _seed = Color(0xFF3B9EFF);
+const Color _seed = Color(0xFF6BB6FF);
 
 /// The single source of truth for the app's Material 3 theme.
 ThemeData buildAppTheme() {
