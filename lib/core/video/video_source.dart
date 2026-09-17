@@ -16,12 +16,14 @@ class VideoEpisode {
   final String title;
   final int index;
   final String playUrl;
+  final String? userAgent;
 
   const VideoEpisode(
       {required this.id,
       required this.title,
       required this.index,
-      required this.playUrl});
+      required this.playUrl,
+      this.userAgent});
 }
 
 abstract class VideoSource {

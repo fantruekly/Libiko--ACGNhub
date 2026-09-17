@@ -181,9 +181,10 @@ class _RatioCoverState extends State<RatioCover> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final dpr = MediaQuery.devicePixelRatioOf(context);
-        final width = constraints.maxWidth.isFinite
+        final raw = constraints.maxWidth.isFinite
             ? (constraints.maxWidth * dpr).clamp(200, 1600).round()
             : 400;
+        final width = (((raw + 127) ~/ 128) * 128).clamp(200, 1600);
         _useWidth(width);
 
         final provider = _provider;

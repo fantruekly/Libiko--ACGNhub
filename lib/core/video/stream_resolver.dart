@@ -13,11 +13,12 @@ class StreamResolver {
   Future<MediaCandidate?> resolve(
     String playPageUrl, {
     Duration timeout = const Duration(seconds: 30),
+    String? userAgent,
   }) async {
     final browser = createHeadlessBrowser();
     StreamSubscription<MediaCandidate>? sub;
     try {
-      await browser.start(userAgent: kBrowserUserAgent);
+      await browser.start(userAgent: userAgent ?? kBrowserUserAgent);
       final completer = Completer<MediaCandidate?>();
       sub = browser.mediaUrls.listen((candidate) {
         if (candidate.url.isNotEmpty && !completer.isCompleted) {

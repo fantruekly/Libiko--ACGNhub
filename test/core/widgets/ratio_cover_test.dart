@@ -82,8 +82,8 @@ void main() {
     ));
     final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image as CachedNetworkImageProvider;
-    final expected =
-        (300 * tester.view.devicePixelRatio).clamp(200, 1600).round();
+    final raw = (300 * tester.view.devicePixelRatio).clamp(200, 1600).round();
+    final expected = (((raw + 127) ~/ 128) * 128).clamp(200, 1600);
     expect(provider.maxWidth, expected);
   });
 

@@ -72,6 +72,7 @@ class RuleVideoSource implements VideoSource {
         title: rawTitle.isEmpty ? '第${eps.length + 1}集' : rawTitle,
         index: eps.length,
         playUrl: url,
+        userAgent: rule.userAgent,
       ));
     }
     return eps;
