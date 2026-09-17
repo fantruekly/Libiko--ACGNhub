@@ -43,6 +43,7 @@ class _WindowControlsState extends State<WindowControls> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
+    if (!isDesktop) return const SizedBox.shrink();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
