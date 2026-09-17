@@ -4,27 +4,25 @@ import 'package:flutter/foundation.dart';
 
 import 'headless_browser.dart';
 
-/// Resolves a video source's play page to a playable stream URL: the page is
-/// loaded in a hidden browser and the app waits for it to request the media
-/// stream. The user never sees the source site — playback happens in the app's
-/// own media_kit player.
+/// Resolves a video source's play page to a playable stream: the page is loaded
+/// in a hidden browser and the app waits for it to request the media stream. The
+/// candidate carries the request headers the site used, so the player can replay
+/// them (some CDNs return 403 without the right Referer/User-Agent).
 class StreamResolver {
-  Future<String?> resolve(
+  Future<MediaCandidate?> resolve(
     String playPageUrl, {
     Duration timeout = const Duration(seconds: 30),
   }) async {
     final browser = createHeadlessBrowser();
-    StreamSubscription<String>? sub;
+    StreamSubscription<MediaCandidate>? sub;
     try {
       await browser.start();
-      final completer = Completer<String?>();
-      sub = browser.mediaUrls.listen((url) {
-        if (url.isNotEmpty && !completer.isCompleted) completer.complete(url);
+      final completer = Completer<MediaCandidate?>();
+      sub = browser.mediaUrls.listen((candidate) {
+        if (candidate.url.isNotEmpty && !completer.isCompleted) {
+          completer.complete(candidate);
+        }
       });
-      // Navigation runs concurrently with the media wait so that [timeout]
-      // bounds the whole operation, as it did before the HeadlessBrowser
-      // refactor. Media requested during the page load is still captured
-      // because the subscription above is already active.
       unawaited(() async {
         try {
           await browser.load(playPageUrl, timeout: timeout);
@@ -33,12 +31,12 @@ class StreamResolver {
           if (!completer.isCompleted) completer.complete(null);
         }
       }());
-      final url = await completer.future.timeout(timeout, onTimeout: () {
+      final candidate = await completer.future.timeout(timeout, onTimeout: () {
         debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');
         return null;
       });
-      debugPrint('[StreamResolver] resolved=$url');
-      return url;
+      debugPrint('[StreamResolver] resolved=${candidate?.url}');
+      return candidate;
     } catch (e) {
       debugPrint('[StreamResolver] failed for $playPageUrl: $e');
       return null;

@@ -6,12 +6,12 @@ import 'headless_browser.dart';
 
 /// [HeadlessBrowser] backed by the forked `webview_windows` headless WebView2.
 class WindowsHeadlessBrowser implements HeadlessBrowser {
-  final _media = StreamController<String>.broadcast();
+  final _media = StreamController<MediaCandidate>.broadcast();
   final _subs = <StreamSubscription<dynamic>>[];
   HeadlessWebview? _webview;
 
   @override
-  Stream<String> get mediaUrls => _media.stream;
+  Stream<MediaCandidate> get mediaUrls => _media.stream;
 
   @override
   Future<void> start({String? userAgent}) async {
@@ -38,7 +38,7 @@ class WindowsHeadlessBrowser implements HeadlessBrowser {
   void _emit(String url, {bool always = false}) {
     if (url.isEmpty || _media.isClosed) return;
     if (!always && !looksLikeMediaUrl(url)) return;
-    _media.add(url);
+    _media.add(MediaCandidate(url));
   }
 
   @override

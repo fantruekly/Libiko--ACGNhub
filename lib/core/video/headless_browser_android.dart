@@ -90,12 +90,12 @@ const String _mediaSnifferJs = r'''
 /// MIME type), and [shouldInterceptRequest] checks every subresource URL
 /// against [looksLikeMediaUrl]. Returning null leaves the request untouched.
 class AndroidHeadlessBrowser implements HeadlessBrowser {
-  final _media = StreamController<String>.broadcast();
+  final _media = StreamController<MediaCandidate>.broadcast();
   HeadlessInAppWebView? _headless;
   Completer<void>? _loaded;
 
   @override
-  Stream<String> get mediaUrls => _media.stream;
+  Stream<MediaCandidate> get mediaUrls => _media.stream;
 
   @override
   Future<void> start({String? userAgent}) async {
@@ -127,7 +127,7 @@ class AndroidHeadlessBrowser implements HeadlessBrowser {
             if (url.isNotEmpty &&
                 looksLikeMediaResponse(url, mime) &&
                 !_media.isClosed) {
-              _media.add(url);
+              _media.add(MediaCandidate(url));
             }
             return null;
           },
@@ -140,7 +140,10 @@ class AndroidHeadlessBrowser implements HeadlessBrowser {
       },
       shouldInterceptRequest: (controller, request) async {
         final url = request.url.toString();
-        if (looksLikeMediaUrl(url) && !_media.isClosed) _media.add(url);
+        if (looksLikeMediaUrl(url) && !_media.isClosed) {
+          _media.add(MediaCandidate(
+              url, headers: playerHeadersFrom(request.headers ?? const {})));
+        }
         return null;
       },
     );

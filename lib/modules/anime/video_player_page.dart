@@ -7,6 +7,7 @@ import '../../core/account/sync_service.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
 import '../../core/services/watch_history.dart';
+import '../../core/video/headless_browser.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
 
@@ -14,14 +15,14 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
   final Work work;
   final List<VideoEpisode> episodes;
   final int initialIndex;
-  final String? initialResolvedUrl;
+  final MediaCandidate? initialResolved;
 
   const VideoPlayerPage({
     super.key,
     required this.work,
     required this.episodes,
     required this.initialIndex,
-    this.initialResolvedUrl,
+    this.initialResolved,
   });
 
   @override
@@ -72,13 +73,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
     });
     final useInitial = !_usedInitialUrl &&
         i == widget.initialIndex &&
-        widget.initialResolvedUrl != null;
+        widget.initialResolved != null;
     if (useInitial) _usedInitialUrl = true;
-    final url = useInitial
-        ? widget.initialResolvedUrl
+    final stream = useInitial
+        ? widget.initialResolved
         : await StreamResolver().resolve(episode.playUrl);
     if (!mounted || gen != _gen) return;
-    if (url == null) {
+    if (stream == null) {
       setState(() {
         _resolving = false;
         _currentIndex = previous;
@@ -88,7 +89,10 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
       return;
     }
     setState(() => _resolving = false);
-    await _player.open(Media(url));
+    await _player.open(Media(
+      stream.url,
+      httpHeaders: stream.headers.isEmpty ? null : stream.headers,
+    ));
     if (gen == _gen) await history.record(work, episode);
     ref.read(syncProvider).schedule();
   }

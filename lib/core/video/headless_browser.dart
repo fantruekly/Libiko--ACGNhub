@@ -4,6 +4,32 @@ import 'headless_browser_android.dart';
 import 'headless_browser_windows.dart';
 import '../platform.dart';
 
+/// One media request observed by a headless browser: its URL plus the request
+/// headers it was made with (so the player can replay them and avoid 403s).
+class MediaCandidate {
+  final String url;
+  final Map<String, String> headers;
+
+  const MediaCandidate(this.url, {this.headers = const {}});
+}
+
+const Map<String, String> _playerHeaderNames = {
+  'referer': 'Referer',
+  'user-agent': 'User-Agent',
+  'origin': 'Origin',
+};
+
+/// Picks the request headers a player must replay: Referer, User-Agent and
+/// Origin. Keys are matched case-insensitively and returned canonicalised.
+Map<String, String> playerHeadersFrom(Map<String, String> requestHeaders) {
+  final out = <String, String>{};
+  for (final entry in requestHeaders.entries) {
+    final name = _playerHeaderNames[entry.key.toLowerCase()];
+    if (name != null && entry.value.isNotEmpty) out[name] = entry.value;
+  }
+  return out;
+}
+
 /// A hidden browser used to render source pages and sniff their media streams.
 /// Windows and Android have different native implementations; callers see only
 /// this interface.
@@ -12,9 +38,9 @@ abstract class HeadlessBrowser {
   /// chosen by the implementation.
   Future<void> start({String? userAgent});
 
-  /// Media URLs (.m3u8 / .mp4) the browser has observed, filtered by each
+  /// Media requests (.m3u8 / .mp4) the browser has observed, filtered by each
   /// implementation's own detection (native sniffing and/or [looksLikeMediaUrl]).
-  Stream<String> get mediaUrls;
+  Stream<MediaCandidate> get mediaUrls;
 
   /// Navigates to [url] and waits until the page finishes loading, at most
   /// [timeout]. Resolves normally on timeout.

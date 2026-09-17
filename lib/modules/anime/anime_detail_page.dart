@@ -697,10 +697,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
-    final url = await StreamResolver().resolve(ep.playUrl);
+    final stream = await StreamResolver().resolve(ep.playUrl);
     if (!mounted) return;
     Navigator.of(context).pop();
-    if (url == null) {
+    if (stream == null) {
       messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
       return;
     }
@@ -711,7 +711,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           work: _work,
           episodes: _episodes ?? const [],
           initialIndex: ep.index,
-          initialResolvedUrl: url,
+          initialResolved: stream,
         ),
       ),
     );
