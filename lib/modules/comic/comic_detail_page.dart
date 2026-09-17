@@ -6,6 +6,7 @@ import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
 import '../../core/comic/models.dart';
 import '../../core/platform.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
@@ -41,7 +42,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(),

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/game/game_image.dart';
 import '../../core/game/models.dart';
 import '../../core/platform.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -32,7 +33,7 @@ class GameDetailPage extends ConsumerWidget {
     final key = (sourceKey, gameId);
     final async = ref.watch(gameDetailProvider(key));
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(context),

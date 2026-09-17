@@ -7,6 +7,7 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/platform.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
@@ -41,7 +42,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     final key = (widget.sourceKey, widget.novelId);
     final async = ref.watch(novelDetailProvider(key));
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(),

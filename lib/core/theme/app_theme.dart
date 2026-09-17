@@ -13,6 +13,9 @@ class AppSemanticColors {
   static const Color rating = Color(0xFFFFB300);
 }
 
+/// The app-wide pale-blue page background.
+const Color kAppBackground = Color(0xFFF2F7FF);
+
 const Color _seed = Color(0xFF3B9EFF);
 
 /// The single source of truth for the app's Material 3 theme.
@@ -30,7 +33,7 @@ ThemeData buildAppTheme() {
       'Microsoft YaHei',
       'Segoe UI',
     ],
-    scaffoldBackgroundColor: const Color(0xFFF2F7FF),
+    scaffoldBackgroundColor: kAppBackground,
     appBarTheme: AppBarTheme(
       centerTitle: false,
       elevation: 0,

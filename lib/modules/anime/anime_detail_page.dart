@@ -8,6 +8,7 @@ import '../../core/account/sync_service.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/services/follow_manager.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
@@ -124,7 +125,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final status = w.extra['status'] as String?;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(w, cs),

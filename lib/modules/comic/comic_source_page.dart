@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_source.dart';
+import '../../core/theme/app_theme.dart';
 import 'comic_providers.dart';
 
 class ComicSourcePage extends ConsumerStatefulWidget {
@@ -46,7 +47,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     final sourcesAsync = ref.watch(comicSourcesProvider);
     final hasSources = (sourcesAsync.valueOrNull ?? const []).isNotEmpty;
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: kAppBackground,
       appBar: AppBar(
         title: const Text('源管理'),
         actions: [
