@@ -39,11 +39,14 @@ class AppBottomBar extends StatelessWidget {
             children: [
               for (var i = 0; i < _items.length; i++)
                 Expanded(
-                  child: _BarItem(
-                    icon: _items[i].$1,
-                    label: _items[i].$2,
-                    selected: selectedIndex == i,
-                    onTap: () => onChanged(i),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: _BarItem(
+                      icon: _items[i].$1,
+                      label: _items[i].$2,
+                      selected: selectedIndex == i,
+                      onTap: () => onChanged(i),
+                    ),
                   ),
                 ),
             ],
@@ -122,7 +125,7 @@ class _BarItemState extends State<_BarItem>
           return Container(
             key: ValueKey('bar-capsule-${widget.label}'),
             margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
               color: Color.lerp(Colors.transparent, cs.secondaryContainer, t),
               borderRadius: BorderRadius.circular(16),
