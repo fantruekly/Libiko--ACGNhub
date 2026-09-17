@@ -179,17 +179,12 @@ class _MainShellState extends State<MainShell> {
               const SizedBox(width: 4),
               Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: _openSettings,
-                  child: CircleAvatar(
-                    radius: 15,
-                    backgroundColor: cs.secondaryContainer,
-                    child: Text('A',
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSecondaryContainer,
-                            fontWeight: FontWeight.w600)),
-                  ),
+                child: IconButton(
+                  tooltip: '设置',
+                  icon: const Icon(Icons.settings_rounded, size: 20),
+                  color: cs.onSurfaceVariant,
+                  splashRadius: 20,
+                  onPressed: _openSettings,
                 ),
               ),
               if (isDesktop) const WindowControls(),

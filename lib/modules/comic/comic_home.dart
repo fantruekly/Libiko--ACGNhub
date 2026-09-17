@@ -185,12 +185,6 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
               },
             ),
           ),
-          IconButton(
-            tooltip: '源管理',
-            icon: const Icon(Icons.settings_rounded),
-            onPressed: () => _openSources(context),
-          ),
-          const SizedBox(width: 8),
         ],
       ),
     );
