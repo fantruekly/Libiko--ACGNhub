@@ -6,7 +6,12 @@
   // ES2021/ES2022 shims used by some sources.
   if (!String.prototype.replaceAll) {
     String.prototype.replaceAll = function (search, replace) {
-      if (search instanceof RegExp) return this.split(search).join(replace);
+      if (search instanceof RegExp) {
+        if (!search.global) {
+          throw new TypeError('replaceAll must be called with a global RegExp');
+        }
+        return this.replace(search, replace);
+      }
       return this.split(String(search)).join(replace);
     };
   }

@@ -131,7 +131,7 @@ class JsEngine {
 
     final values = <String>[];
     for (final entry in _cookieJar.entries) {
-      final keyHost = _normalizeCookieKey(entry.key.toString());
+      final keyHost = normalizeCookieKey(entry.key.toString());
       final value = entry.value;
       if (value is List) {
         for (final cookie in value) {
@@ -303,29 +303,35 @@ class JsEngine {
     return store[key];
   }
 
-  /// A cookie jar key reduced to a host. Accepts full URLs and bare domains
-  /// (some sources call `setCookies("bzmgcn.com", ...)`).
-  static String _normalizeCookieKey(String raw) {
+  /// A cookie jar key reduced to a host. Accepts full URLs, bare domains and
+  /// bare domains with a path (some sources call `setCookies("bzmgcn.com", ...)`).
+  @visibleForTesting
+  static String normalizeCookieKey(String raw) {
     final value = raw.trim();
     if (value.isEmpty) return value;
     final uri = Uri.tryParse(value);
     if (uri != null && uri.host.isNotEmpty) return uri.host;
-    return value.replaceFirst(RegExp(r'^\.'), '');
+    final bare = value.replaceFirst(RegExp(r'^\.'), '');
+    final withScheme = Uri.tryParse('http://$bare');
+    if (withScheme != null && withScheme.host.isNotEmpty) return withScheme.host;
+    return bare;
   }
 
   dynamic _cookie(Map<dynamic, dynamic> map) {
-    final url = _normalizeCookieKey(map['url']?.toString() ?? '');
+    final raw = map['url']?.toString() ?? '';
+    final url = normalizeCookieKey(raw);
     if (map['op'] == 'set') {
       final value = map['cookies'];
       if (value == null || (value is String && value.isEmpty)) {
         _cookieJar.remove(url);
+        _cookieJar.remove(raw);
       } else {
         _cookieJar[url] = value;
       }
       _saveCookies();
       return null;
     }
-    return _cookieJar[url];
+    return _cookieJar[url] ?? _cookieJar[raw];
   }
 
   void dispose() {
