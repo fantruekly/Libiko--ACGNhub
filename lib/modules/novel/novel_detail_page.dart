@@ -254,21 +254,14 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     final favorites = ref.watch(novelFavoritesProvider);
     final isFavorite = favorites.any((f) =>
         f.sourceKey == widget.sourceKey && f.novelId == widget.novelId);
+    final cs = Theme.of(context).colorScheme;
     return FilledButton.icon(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        backgroundColor:
-            isFavorite ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
-        foregroundColor: isFavorite ? const Color(0xFF5A5A5F) : Colors.white,
-        side: BorderSide(
-            color: isFavorite
-                ? const Color(0xFFD1D1D6)
-                : Colors.transparent),
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+      style: isFavorite
+          ? FilledButton.styleFrom(
+              backgroundColor: cs.surfaceContainerHighest,
+              foregroundColor: cs.onSurfaceVariant,
+            )
+          : null,
       onPressed: () {
         ref.read(novelFavoritesProvider.notifier).toggle(NovelFavorite(
               sourceKey: widget.sourceKey,
@@ -292,14 +285,6 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 44),
-          backgroundColor: _accent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
         onPressed: () => Navigator.push(
           context,
           smoothRoute(NovelReaderPage(

@@ -195,16 +195,6 @@ class GameDetailPage extends ConsumerWidget {
                     ),
                     const SizedBox(height: 10),
                     FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 36),
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        backgroundColor: const Color(0xFF007AFF),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
                       onPressed: detail.sourceUrl.isEmpty
                           ? null
                           : () => _openSource(detail.sourceUrl),

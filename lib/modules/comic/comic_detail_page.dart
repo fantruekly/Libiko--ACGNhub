@@ -201,17 +201,14 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     final favorites = ref.watch(comicFavoritesProvider);
     final isFavorite = favorites.any((f) =>
         f.sourceKey == widget.sourceKey && f.comicId == widget.comicId);
+    final cs = Theme.of(context).colorScheme;
     return FilledButton.icon(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        backgroundColor:
-            isFavorite ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
-        foregroundColor: isFavorite ? const Color(0xFF5A5A5F) : Colors.white,
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+      style: isFavorite
+          ? FilledButton.styleFrom(
+              backgroundColor: cs.surfaceContainerHighest,
+              foregroundColor: cs.onSurfaceVariant,
+            )
+          : null,
       onPressed: () {
         ref.read(comicFavoritesProvider.notifier).toggle(ComicFavorite(
               sourceKey: widget.sourceKey,
@@ -361,15 +358,6 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
       child: SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 44),
-            backgroundColor: _accent,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
           onPressed: () => _openReader(entry.chapterId, entry.page),
           icon: const Icon(Icons.menu_book_rounded, size: 18),
           label: const Text('继续阅读',

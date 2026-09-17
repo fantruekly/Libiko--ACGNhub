@@ -450,18 +450,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Widget _followButton(Work w) {
     return Consumer(builder: (context, ref, _) {
       final followed = ref.watch(followProvider).any((r) => r.work.id == w.id);
+      final cs = Theme.of(context).colorScheme;
       return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 36),
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          backgroundColor:
-              followed ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
-          foregroundColor: followed ? const Color(0xFF5A5A5F) : Colors.white,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+        style: followed
+            ? FilledButton.styleFrom(
+                backgroundColor: cs.surfaceContainerHighest,
+                foregroundColor: cs.onSurfaceVariant,
+              )
+            : null,
         onPressed: () {
           ref.read(followProvider.notifier).toggle(w);
           ref.read(syncProvider).schedule();
