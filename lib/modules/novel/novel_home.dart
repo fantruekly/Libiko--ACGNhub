@@ -250,6 +250,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
                       if (next == _optionIndex) return;
                       _optionIndex = next;
                       _page = 1;
+                      _lastHasMore = null;
                     });
                   }
                 : null,

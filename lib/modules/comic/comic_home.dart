@@ -146,6 +146,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                           if (next == _selectedPart) return;
                           _selectedPart = next;
                           _page = 1;
+                          _lastPage = null;
                         });
                       }
                     : null,
