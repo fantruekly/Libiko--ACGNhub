@@ -123,6 +123,7 @@ class _BarItemState extends State<_BarItem>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
+                key: ValueKey('bar-capsule-${widget.label}'),
                 width: 32 + 32 * t,
                 height: 28,
                 decoration: BoxDecoration(
