@@ -5,7 +5,6 @@ import '../platform.dart';
 
 const double _kMainAxisSpacing = 20;
 const double _kCrossAxisSpacing = 16;
-const int _kDesktopColumns = 6;
 const double _kDesktopAspectRatio = 0.60;
 
 /// A grid of cards inside a [CustomScrollView]. Mobile lays the cards out as a
@@ -14,6 +13,7 @@ const double _kDesktopAspectRatio = 0.60;
 class SliverAdaptiveGrid extends StatelessWidget {
   final int itemCount;
   final int mobileColumns;
+  final int desktopColumns;
   final Widget Function(BuildContext, int) itemBuilder;
   final EdgeInsetsGeometry padding;
   final double desktopAspectRatio;
@@ -24,6 +24,7 @@ class SliverAdaptiveGrid extends StatelessWidget {
     required this.itemCount,
     required this.mobileColumns,
     required this.itemBuilder,
+    this.desktopColumns = 6,
     this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 24),
     this.desktopAspectRatio = _kDesktopAspectRatio,
     this.desktop,
@@ -36,7 +37,7 @@ class SliverAdaptiveGrid extends StatelessWidget {
         padding: padding,
         sliver: SliverGrid(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _kDesktopColumns,
+            crossAxisCount: desktopColumns,
             mainAxisSpacing: _kMainAxisSpacing,
             crossAxisSpacing: _kCrossAxisSpacing,
             childAspectRatio: desktopAspectRatio,
@@ -63,6 +64,7 @@ class SliverAdaptiveGrid extends StatelessWidget {
 class AdaptiveGridView extends StatelessWidget {
   final int itemCount;
   final int mobileColumns;
+  final int desktopColumns;
   final Widget Function(BuildContext, int) itemBuilder;
   final EdgeInsetsGeometry padding;
   final double desktopAspectRatio;
@@ -73,6 +75,7 @@ class AdaptiveGridView extends StatelessWidget {
     required this.itemCount,
     required this.mobileColumns,
     required this.itemBuilder,
+    this.desktopColumns = 6,
     this.padding = const EdgeInsets.fromLTRB(16, 8, 16, 24),
     this.desktopAspectRatio = _kDesktopAspectRatio,
     this.desktop,
@@ -84,7 +87,7 @@ class AdaptiveGridView extends StatelessWidget {
       return GridView.builder(
         padding: padding,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _kDesktopColumns,
+          crossAxisCount: desktopColumns,
           mainAxisSpacing: _kMainAxisSpacing,
           crossAxisSpacing: _kCrossAxisSpacing,
           childAspectRatio: desktopAspectRatio,
