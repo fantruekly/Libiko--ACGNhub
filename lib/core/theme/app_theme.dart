@@ -13,7 +13,7 @@ class AppSemanticColors {
   static const Color rating = Color(0xFFFFB300);
 }
 
-const Color _seed = Color(0xFF007AFF);
+const Color _seed = Color(0xFF3B9EFF);
 
 /// The single source of truth for the app's Material 3 theme.
 ThemeData buildAppTheme() {
@@ -30,7 +30,7 @@ ThemeData buildAppTheme() {
       'Microsoft YaHei',
       'Segoe UI',
     ],
-    scaffoldBackgroundColor: scheme.surface,
+    scaffoldBackgroundColor: const Color(0xFFF2F7FF),
     appBarTheme: AppBarTheme(
       centerTitle: false,
       elevation: 0,
