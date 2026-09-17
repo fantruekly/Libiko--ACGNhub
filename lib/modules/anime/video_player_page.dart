@@ -165,6 +165,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
           ),
         const MaterialFullscreenButton(),
       ],
+      bottomButtonBarMargin: const EdgeInsets.only(
+        left: 16.0,
+        right: 8.0,
+        bottom: 24.0,
+      ),
     );
   }
 
