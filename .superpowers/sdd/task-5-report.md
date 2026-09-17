@@ -1,89 +1,65 @@
-# Task 5 Report: 主壳搜索入口
-
-## Status: DONE_WITH_CONCERNS
+# Task 5 Report: Touch controls on Android
 
 ## What I implemented
 
-Wired the game tab into the main shell's title-bar search entry.
+UI-only change to `lib/modules/anime/video_player_page.dart`:
 
-- `lib/shell/main_shell.dart`
-  - Added `import '../modules/game/game_search.dart';`
-  - Widened the search-button condition from `_currentIndex <= 2` to `_currentIndex <= 3`.
-  - Extended the route builder so index 3 pushes `const GameSearchPage()` (index 0/1/2 unchanged: anime/comic/novel).
-- `test/shell/main_shell_test.dart`
-  - Added `import 'package:acgnhub/modules/game/game_search.dart';`
-  - Added widget test `game tab exposes the search entry`: select the 游戏 sidebar item, assert exactly one title-bar `IconButton` with `Icons.search_rounded`, tap it, assert `GameSearchPage` is shown.
+1. **Import** `../../core/platform.dart` (for `isDesktop`).
+2. **Split the controls theme builder by platform**: renamed `_controlsTheme` to `_desktopControlsTheme` (body byte-for-byte unchanged) and added `_mobileControlsTheme` using the mobile set from the brief (`MaterialVideoControlsThemeData`, `MaterialCustomButton`, `MaterialPositionIndicator`, `MaterialFullscreenButton`). The episode-list toggle still drives `_panelOpen`.
+3. **Selected theme + controls in `build`**: the `Positioned.fill` child now branches on `isDesktop` — desktop keeps `MaterialDesktopVideoControlsTheme`; Android uses `MaterialVideoControlsTheme`. Extracted the `Video` widget into `_video()`, which passes `MaterialDesktopVideoControls` on desktop and `MaterialVideoControls` on Android.
 
-## TDD evidence
+The desktop path is behaviourally identical: same `MaterialDesktopVideoControlsThemeData`, same buttons (skip prev/play-pause/skip next/volume/position), same episode-panel toggle, same `MaterialDesktopVideoControls`.
 
-### RED
-With only the test added (shell unchanged), `flutter test test/shell/main_shell_test.dart`:
+## Verification
+
+### Analyzer
 
 ```
-00:01 +1 -1: game tab exposes the search entry [E]
-Expected: exactly one matching candidate
-  Actual: _WidgetPredicateWidgetFinder:<Found 0 widgets with widget matching predicate: []>
-  ... test/shell/main_shell_test.dart:77:5
+Analyzing ACGNhub...
+No issues found! (ran in 5.2s)
 ```
 
-(The search button predicate found 0 widgets for index 3 — expected, since the condition was still `<= 2`.)
-
-### GREEN
-After the shell change, same command:
+### Full test suite
 
 ```
-00:00 +1: game tab exposes the search entry
-00:01 +2: All tests passed!
+00:16 +347 ~1: All tests passed!
 ```
 
-### Full regression + analyze
+347 passed / 1 skipped (the pre-existing `flutter_qjs` native-library skip).
+
+### Android release build
 
 ```
-flutter test      -> 00:15 +339 ~1: All tests passed!   (1 pre-existing skip)
-flutter analyze   -> No issues found! (ran in 2.5s)
+Running Gradle task 'assembleRelease'...                           74.3s
+√ Built build\app\outputs\flutter-apk\app-release.apk (127.7MB)
 ```
+
+(Pre-existing warning: `flutter_qjs requires Android NDK 28.0.13004108` while the project pins NDK 27.0.12077973. Unrelated to this task; the build still succeeds.)
+
+### Windows release build
+
+```
+Building Windows application...                                    38.4s
+√ Built build\windows\x64\runner\Release\libiko.exe
+```
+
+(Pre-existing CMake `CMP0175` dev warnings from `flutter_inappwebview_windows` / `webview_windows`. Unrelated.)
 
 ## Files changed
 
-```
-lib/shell/main_shell.dart        (+7 -2)
-test/shell/main_shell_test.dart  (+24)
-```
+- `lib/modules/anime/video_player_page.dart` (+58 / −11)
 
-Commit: `0d90efe feat(shell): open game search from the title bar` (branch `dev`, exactly the two files staged).
+Commit: `4a98de8 feat(player): use touch video controls on android` (on `dev`).
 
-## Deviation from the brief (concern)
+## Self-review findings
 
-The brief's Step 1 test used `await tester.pump();` after tapping the search button and expected PASS. That literal code **fails** here:
+- Completeness: `build` selects both the theme wrapper and the `controls:` widget via `isDesktop`. Desktop path unchanged (same theme data, same buttons, same panel toggle).
+- Correctness: `_video()` passes `MaterialDesktopVideoControls` on desktop / `MaterialVideoControls` on Android. All mobile classes confirmed present in `media_kit_video` 1.3.1 (`MaterialVideoControls`, `MaterialVideoControlsTheme`, `MaterialVideoControlsThemeData`, `MaterialPositionIndicator`, `MaterialCustomButton`, `MaterialFullscreenButton`). `MaterialCustomButton` accepts `{icon, onPressed}` as used.
+- Discipline: only `video_player_page.dart` changed; resolution/playback code untouched; `.superpowers/` and `build/` not staged.
+- Verification: analyzer pristine, full suite green, both release builds succeeded.
 
-```
-Expected: exactly one matching candidate
-  Actual: _TypeWidgetFinder:<Found 0 widgets with type "GameSearchPage": []>
-```
+No issues found that required a fix.
 
-Root cause: the title bar is wrapped in `window_manager`'s `DragToMoveArea`, whose internal `GestureDetector` declares `onDoubleTap`. Flutter's `DoubleTapGestureRecognizer` delays a single tap by `kDoubleTapTimeout` (300 ms) to disambiguate from a double tap, so `onPressed` has not fired by the time a bare `pump()` builds its frame.
+## Issues / concerns
 
-Evidence (debug instrumentation): the widget only appears after ≥300 ms of pumped time, and `find.byType(GameSearchPage, skipOffstage: false)` is still 0 at t=200 ms. `tester.pumpAndSettle()` also passes.
-
-Fix applied — smallest change that keeps the brief's shape and is deterministic:
-
-```dart
-await tester.tap(searchButton);
-await tester.pump(const Duration(milliseconds: 400));
-await tester.pump();
-expect(find.byType(GameSearchPage), findsOneWidget);
-```
-
-No production behavior changed for this; it is a test-timing correction only. Flagging because it diverges from the brief's exact text.
-
-## Self-review
-
-- Completeness: condition widened to `<= 3`; `GameSearchPage` branch added; import added; shell test added. Yes.
-- Discipline: only `lib/shell/main_shell.dart` and `test/shell/main_shell_test.dart` committed; no comments added; no new dependencies.
-- Testing: RED confirmed before the source change, GREEN after; full suite 339 pass / 1 pre-existing skip; `analyze` clean.
-- Note: pre-existing unstaged changes under `.superpowers/sdd/` (progress/briefs/reports) were left untouched and NOT committed.
-
-## Concerns
-
-1. The brief's literal `pump()` assertion cannot pass due to the `DragToMoveArea` double-tap timeout; test uses `pump(400ms) + pump()` instead. Documented above.
-2. Manual verification (real Windows run, live sources, Hero, empty/error states) is explicitly reserved for the user per the brief and was not performed.
+- Interactive verification (brief steps 5 and 6: emulator playback, touch/fullscreen/episode-panel behaviour, and the Windows hover bar) is owned by the controller and was not performed here, per the scope boundary. Builds for both platforms succeeded.

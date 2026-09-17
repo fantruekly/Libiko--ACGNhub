@@ -1,27 +1,123 @@
-## Task 5: 全量回归
+﻿### Task 5: Touch controls on Android
 
-- [ ] **Step 1: 全量测试 + 分析**
+**Files:**
+- Modify: `lib/modules/anime/video_player_page.dart`
 
-Run: `C:\flutter\bin\flutter.bat test`；`C:\flutter\bin\flutter.bat analyze`
-Expected: 全部 PASS；analyze `No issues found!`。
+**Interfaces:**
+- Consumes: `isDesktop` from `lib/core/platform.dart`.
+- Produces: nothing other tasks depend on.
 
-- [ ] **Step 2: 提交（如有改动）**
+- [ ] **Step 1: Add the platform import**
 
-无改动则跳过。
+In `lib/modules/anime/video_player_page.dart` add:
+```dart
+import '../../core/platform.dart';
+```
+
+- [ ] **Step 2: Split the controls theme builder by platform**
+
+Rename the existing `_controlsTheme` to `_desktopControlsTheme` (body unchanged) and add:
+```dart
+  MaterialVideoControlsThemeData _mobileControlsTheme(BuildContext context,
+      {bool showEpisodes = true}) {
+    return MaterialVideoControlsThemeData(
+      topButtonBar: [
+        MaterialCustomButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        Expanded(
+          child: Text(
+            widget.work.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                height: 1.3),
+          ),
+        ),
+      ],
+      bottomButtonBar: [
+        const MaterialPositionIndicator(),
+        const Spacer(),
+        if (showEpisodes)
+          MaterialCustomButton(
+            icon: const Icon(Icons.list_rounded),
+            onPressed: () => setState(() => _panelOpen = !_panelOpen),
+          ),
+        const MaterialFullscreenButton(),
+      ],
+    );
+  }
+```
+
+- [ ] **Step 3: Pick the theme and controls in `build`**
+
+Replace the `Positioned.fill` child in `build` with:
+```dart
+          Positioned.fill(
+            child: isDesktop
+                ? MaterialDesktopVideoControlsTheme(
+                    normal: _desktopControlsTheme(context),
+                    fullscreen:
+                        _desktopControlsTheme(context, showEpisodes: false),
+                    child: _video(),
+                  )
+                : MaterialVideoControlsTheme(
+                    normal: _mobileControlsTheme(context),
+                    fullscreen:
+                        _mobileControlsTheme(context, showEpisodes: false),
+                    child: _video(),
+                  ),
+          ),
+```
+and add this helper to the state class:
+```dart
+  Widget _video() => Video(
+        controller: _controller,
+        fit: BoxFit.contain,
+        fill: Colors.black,
+        controls: isDesktop
+            ? MaterialDesktopVideoControls
+            : MaterialVideoControls,
+      );
+```
+
+- [ ] **Step 4: Run analyzer and tests**
+
+Run:
+```powershell
+C:\flutter\bin\flutter.bat analyze
+C:\flutter\bin\flutter.bat test
+```
+Expected: `No issues found!`; all tests pass.
+
+- [ ] **Step 5: Verify on the emulator**
+
+Run:
+```powershell
+C:\flutter\bin\flutter.bat build apk --release
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb install -r build\app\outputs\flutter-apk\app-release.apk
+```
+Then play an episode and confirm: touch controls appear, tap toggles them, the fullscreen button rotates to landscape, and the episode-list button opens the panel.
+
+- [ ] **Step 6: Verify Windows is untouched**
+
+Run:
+```powershell
+C:\flutter\bin\flutter.bat build windows --release
+```
+Launch it and confirm the desktop controls (hover bar, volume, position indicator, min/max/close) are unchanged.
+
+- [ ] **Step 7: Commit**
+
+```powershell
+git add lib/modules/anime/video_player_page.dart
+git commit -m "feat(player): use touch video controls on android"
+```
 
 ---
 
-## 手动验证（合并前，由用户执行）
-
-在 Windows 上运行应用：
-1. 游戏首页：切源/分区、翻页时网格左右滑动；底部分页栏不动。
-2. 轻小说探索页：切源/分区/子分类、翻页时网格左右滑动；分页栏不动。
-3. 漫画发现页：切源/分区/分部、翻页时网格左右滑动；分页栏不动。
-4. 顶部分页栏文字（第 N 页）随翻页更新但不滑动。
-
-## 自查记录（Self-Review）
-
-- **Spec 覆盖**：`SlideSwitcher` → Task 1；三处接入 → Task 2/3/4；回归 → Task 5。
-- **类型一致性**：`SlideSwitcher` 的 `id: Object`、`index: int`、`child: Widget`、`duration: Duration`；`_explore` 新增 `int sourceIndex` 参数与调用点一致；`ValueKey(widget.id)` 对任意 `Object` 有效（记录类型可作 key）。
-- **占位符**：无 TBD/TODO；每步给出完整代码与命令。
-- **注意**：`id` 用记录（record）作为 `Object` key；页码作为 `index` 最低位，保证翻页方向正确。

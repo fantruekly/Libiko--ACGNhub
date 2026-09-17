@@ -600,3 +600,166 @@ Task 1 (remove settings account section): complete (commit 8a1d31a..e2e374e, rev
 Settings remove-login feature: COMPLETE (8a1d31a..e2e374e). Pushed origin/dev.
   Minor (deferred): test's removal failure mode is a ProviderScope exception rather than a clean expect.
 
+
+## Android playback adaptation (plan 2026-09-16-android-playback.md, base a86615f)
+
+Spec: docs/superpowers/specs/2026-09-16-android-playback-design.md
+
+Task 1 (add flutter_inappwebview): complete (commits a86615f..b1b4511, review clean)
+  pubspec.yaml/.lock add flutter_inappwebview ^6.1.5; b1b4511 commits regenerated Windows+macOS plugin registrants (now register flutter_inappwebview_windows). APK 127.3MB built, Windows release build OK, analyze clean.
+  Minor (deferred): b1b4511 message says build(windows) but also touched macos; macOS registrant committed without a macOS build; flutter_inappwebview_windows adds a second WebView2 wrapper on Windows (no behavioural smoke test yet).
+Task 2 (extract looksLikeMediaUrl into HeadlessBrowser abstraction): complete (commit b1b4511..5e7a795, review clean)
+  New lib/core/video/headless_browser.dart (abstract class + top-level looksLikeMediaUrl); stream_resolver.dart points at the shared helper, static removed; test/core/video/stream_resolver_test.dart -> headless_browser_test.dart. 345 pass / 1 skip, analyze clean.
+  Minor (deferred): test does not cover the Uri.tryParse(...) == null fallback branch (pre-existing gap).
+Task 3 (Windows impl + factory, switch callers): complete (commits 5e7a795..590c509, review clean after fix)
+  New headless_browser_windows.dart (wraps webview_windows HeadlessWebview), temporary Android stub, createHeadlessBrowser factory; StreamResolver + WebviewScraper rewritten onto the abstraction. 346 pass / 1 skip, analyze clean, Windows release build OK, app launches (smoke).
+  Fix 590c509 (human ruling): resolve no longer blocks on navigation - load is fired concurrently so timeout still bounds the whole operation (was plan-mandated 15s nav wait + 30s media wait = ~45s).
+  Minor (deferred): abstraction imports its own implementations (import cycle; factory file would be cleaner); load() silently no-ops when _webview == null; _emit filtering untested; Android stub's mediaUrls contract inconsistent (replaced in Task 4); load errors swallowed without debugPrint.
+  MUST-VERIFY (human): Windows interactive anime playback still resolves/starts after the refactor.
+Task 4 (android headless browser): complete (commit 590c509..7945a97, review clean)
+  headless_browser_android.dart implements HeadlessBrowser with flutter_inappwebview HeadlessInAppWebView + shouldInterceptRequest + evaluateJavascript. 347 pass / 1 skip, analyze clean, APK built + installed on emulator.
+  EMULATOR VERIFICATION (controller-run, emulator libiko_test):
+    PASS - app runs; rule-source search returned results for 七色番/MXdm/akianime/moonci/gugu3 (proves page render + evaluateJavascript on Android).
+    PASS - source episodes load (AGE动漫 第01-11集, gimy 3 eps).
+    PASS - stream resolution: logcat "[StreamResolver] resolved=https://cdn.yzzyvip-29.com/.../index.m3u8" via shouldInterceptRequest; player page opened and media_kit created a 1920x1080 surface.
+    LIMIT - mpv then failed to open the CDN .ts segment in the emulator ("Failed to open .../3000k/hls/*.ts") - emulator network, not the resolution code.
+    LIMIT - agedm.io's player never emitted a media request headlessly (source-specific; other sources work).
+  Minor (deferred): start() has no re-entry guard (leaks a previous HeadlessInAppWebView); eval() does not catch JS errors; dispose() during an in-flight load leaves the completer to time out; the Android factory test only exercises pre-start no-op paths.
+  MUST-VERIFY (human): actual video playback on a real phone (emulator CDN fetch failed).
+Task 5 (android touch controls): complete (commit 7945a97..4a98de8, review clean)
+  video_player_page.dart: isDesktop picks MaterialDesktopVideoControlsTheme/Controls vs MaterialVideoControlsTheme/Controls; _desktopControlsTheme body unchanged; _video() helper added. 347 pass / 1 skip, analyze clean, APK + Windows builds succeed, APK installs on emulator.
+  Minor (deferred): title Text + episode-toggle button duplicated between the two theme builders (plan-mandated); mobile title fontSize 15 vs desktop 16 (plan-mandated).
+  NOT DONE (controller, environment): interactive touch-controls check in the player - reaching the player needs a successful resolve, and only gimy's player emitted a media request while the emulator cannot fetch the media CDN. Structural verification (reviewer) + both builds stand in.
+  MUST-VERIFY (human): touch controls (tap toggle, fullscreen rotation, episode panel) in the player on a real phone.
+Task 6 (end-to-end verification): covered by the Task 4 emulator run (rule-source search + episodes + stream resolution all exercised on Android).
+Final whole-branch review (a86615f..4a98de8): verdict "With fixes".
+  Fix 60088c8: added looksLikeMediaResponse + injected mediaSniffer JS (fetch/XHR/HTMLMediaElement.src -> addJavaScriptHandler) for extension-less HLS; StreamResolver now logs load failures and completes null immediately.
+  Fix 79899f8: fetch hook now chains the response and reads its content-type; HTMLMediaElement.src descriptor keeps enumerable.
+  Re-review: Finding B fully resolved; Finding A resolved after 79899f8 (controller-verified the applied code).
+  Deferred Minors for triage: import cycle (factory file would be cleaner); eval() does not honour its "null on failure" doc; load() silently no-ops when not started; Android start() has no re-entry guard; dispose() during in-flight load leaves the completer to time out; the "usable Android" test is vacuous; createHeadlessBrowser maps Linux/macOS to the Windows impl; flutter_inappwebview_windows adds a second unused WebView2 wrapper on Windows; b1b4511 message scope; duplicated player theme UI (plan-mandated); Uri.tryParse null branch untested; mp2t MIME can make a bare .ts segment a resolve candidate.
+Android playback adaptation: implementation COMPLETE (a86615f..79899f8). 349 pass / 1 skip, analyze clean, APK + Windows builds succeed.
+  MUST-VERIFY (human): real-phone playback (emulator could not fetch the media CDN) and the touch controls in the player.
+  MUST-VERIFY (human): Windows interactive anime playback after the HeadlessBrowser refactor.
+
+## Mobile UI redesign (plan 2026-09-16-mobile-ui-redesign.md, base 79899f8)
+
+Spec: docs/superpowers/specs/2026-09-16-mobile-ui-redesign-design.md
+
+UI Task 1 (add flutter_staggered_grid_view ^0.7.0): complete (commit 79899f8..ff84829, review clean)
+  Both Android + Windows release builds succeed; no Dart changed.
+  Minor (deferred): the package is in maintenance-only stasis (~3 years old).
+UI Task 2 (CoverRatioCache): complete (commit ff84829..4ac41fe, review clean)
+  lib/core/images/cover_ratio_cache.dart + 4 tests. Memory-before-prefs, swallows prefs failures, rejects non-finite/non-positive. 353 pass / 1 skip, analyze clean.
+  Minor (deferred): unbounded growth (no eviction - brief-scoped out); read-path validation untested; empty-url short-circuit untested; concurrent remember can persist out of order; stored-but-unusable pref is not deleted.
+UI Task 3 (RatioCover widget): complete (commits 4ac41fe..b0bf3ed, review clean after fix)
+  lib/core/widgets/ratio_cover.dart: resolves the ratio (cache first, else measures the decoded image), animates between them, plain image on desktop (no AspectRatio, cache untouched). 357 pass / 1 skip, analyze clean.
+  Fix b0bf3ed: added didUpdateWidget (url/enabled change resets + re-measures - unkeyed element reuse was showing the previous cover's ratio); one shared ImageProvider for display+measurement (was double-decoding full-size).
+  Minor (deferred): didUpdateWidget ignores httpHeaders/cache changes; enabled-toggle briefly re-animates from fallback; cache write runs before the mounted check; covers are now cached on disk at 400px under a separate key (non-destructive).
+UI Task 4 (AdaptiveGridView / SliverAdaptiveGrid): complete (commits b0bf3ed..6330ad5, review clean after fix)
+  lib/core/widgets/adaptive_grid.dart + 4 tests. Mobile = SliverMasonryGrid/MasonryGridView with the caller's mobileColumns; desktop = the existing fixed grid (default 6 cols, 20/16 spacing, aspect 0.60 overridable). 361 pass / 1 skip, analyze clean.
+  Fix 6330ad5 (review Critical): desktop columns were hardcoded to 6, which would have changed anime_search's 5-column desktop grid - added desktopColumns (default 6). anime_search must pass desktopColumns: 5 in UI Task 6.
+  Minor (deferred): the class doc still says "6-column grid"; spacing has no override (matches every current grid).
+UI Task 5 (mobile shell / bottom bar): complete (commit 6330ad5..87627f5, review clean)
+  lib/shell/app_bottom_bar.dart (translucent GlassSurface, 4 modules, blue selection, SafeArea) + main_shell.dart platform split (mobile: no sidebar, no toggle, bottomNavigationBar; desktop unchanged) + test. 362 pass / 1 skip, analyze clean, APK built+installed; emulator confirms sidebar gone, bar translucent, selection switches pages.
+  Minor (deferred): accent/fg colours duplicated vs main_shell; SidebarState still constructed on mobile (wasted prefs read); MainShell mobile wiring untested; initially-selected item animates from grey.
+UI Task 6 (anime module grids): complete (commit 87627f5..495a498, review clean)
+  WorkCard uses RatioCover (desktop keeps Expanded+Hero, mobile intrinsic height); anime_home/follow/history/search use SliverAdaptiveGrid/AdaptiveGridView (3 mobile columns; search passes desktopColumns:5); ShimmerLoader gained mobileColumns. 362 pass / 1 skip, analyze clean; emulator shows 3-column masonry.
+  Deviations (correct): anime_follow's original padding (16,16,16,24) preserved explicitly (the brief omitted it -> would have regressed Windows by 8px).
+  Concerns: only an android-x64 release APK could be built this session (host OOM with the emulator running) - the universal APK is unverified; follow/history/search screens not screenshotted (empty tabs, top-bar search tap unresponsive under synthetic input).
+  Minor (deferred): WorkCard desktop nests ClipRRect>RepaintBoundary (was RepaintBoundary>ClipRRect; equivalent); shimmer mobile is a fixed-ratio grid while content is masonry.
+UI Task 7 (comic + novel grids): complete (commits 495a498..00f09d2, review clean after fix)
+  ComicCard/NovelCard use RatioCover; all comic/novel grids -> AdaptiveGridView (3 mobile cols; novels desktopAspectRatio 0.58; every desktop padding preserved); shimmer call sites pass mobileColumns:3. 362 pass / 1 skip, analyze clean; comic tab verified 3-column masonry on the emulator (via a temporary probe source, since comic ships with no default source).
+  Fix 00f09d2 (review Important): ComicCard's cover fade had silently dropped 200ms -> Duration.zero on desktop - restored.
+  Minor (deferred): novel_home:242 shimmer omits mobileColumns (defaults to 3); report overstated the shimmer coverage.
+UI Task 8 (game module): complete (commit 00f09d2..7d81ca2, review clean)
+  GameCard uses RatioCover (fallbackRatio 3/2, headers, Duration.zero, Hero kept); game_home/game_search keep the original desktop delegate (4 cols, mainAxisExtent) and use AdaptiveGridView(mobileColumns:1) on mobile. 362 pass / 1 skip, analyze clean; emulator shows one full-width card per row.
+  Minor (deferred): gameCell is block-bodied in search vs expression-bodied in home.
+
+UI Task 9 (verification): controller-run on the emulator libiko_test (Android 15).
+  PASS - bottom bar: 4 equal items (uiautomator y=2098..2274), tapping switches modules, selected item blue.
+  PASS - game tab: one full-width card per row, heights follow the cover.
+  PASS - novel tab: 3-column masonry, cover-driven heights.
+  PASS - anime tab (Task 6): 3-column masonry.
+  PASS - no Flutter layout/overflow exceptions in logcat.
+  FINDING (pre-existing, now more visible): the mobile top bar has no top safe-area padding, so the app title/clock share a row and the search button sits in the status-bar band - synthetic taps on it do not navigate (blocked three subagent verifications). Needs a decision.
+  NOT DONE: Windows interactive regression (build + launch smoke only).
+Final whole-branch review (79899f8..7d81ca2): verdict "With fixes".
+  Fix 025872b: mobile top bar now pads by the status-bar inset inside the GlassSurface (search was unreachable under the status bar - it blocked 3 on-device verifications); game loading skeletons now use mobileColumns:1 with a landscape mobile aspect ratio.
+  VERIFIED: search button bounds [833,136][965,267] sit just below the status bar [0,0][1080,136]; tapping (899,201) opened the anime search page. 362 pass / 1 skip, analyze clean.
+  Deferred Minors for triage: CoverRatioCache never evicts (LRU cap suggested); RatioCover.didUpdateWidget ignores httpHeaders/cache; cache write before the mounted check; comic_detail_page's shared ShimmerLoader now shows 3 columns on mobile (skeleton-only, page was a non-goal); novel_home:242 shimmer omits mobileColumns; adaptive_grid doc says "6-column grid"; AppBottomBar duplicates colours + initially-selected item animates from grey; SidebarState still constructed on mobile; no MainShell mobile test; CoverRatioCache edge cases untested; flutter_staggered_grid_view 0.7.0 maintenance-only; gameCell style asymmetry; all four cards now render Image+CachedNetworkImageProvider instead of CachedNetworkImage (so "Windows byte-for-byte" should read "visually unchanged").
+Mobile UI redesign: implementation COMPLETE (79899f8..025872b). 362 pass / 1 skip, analyze clean, Android + Windows builds OK.
+  MUST-VERIFY (human): real-phone look (status bar/notch, masonry heights, bottom bar feel); the comic/novel/anime search pages on a real phone; Windows visual regression.
+
+## Android polish + builtin comic sources + M3 migration (2026-09-17)
+
+Spec: docs/superpowers/specs/2026-09-17-android-polish-manga-m3-design.md
+Plans (in execution order):
+- A: docs/superpowers/plans/2026-09-17-android-top-bar.md (base 025872b, 4 tasks)
+- B: docs/superpowers/plans/2026-09-17-android-playback-fix.md (5 tasks)
+- C: docs/superpowers/plans/2026-09-17-builtin-comic-sources.md (6 tasks)
+- D: docs/superpowers/plans/2026-09-17-material3-migration.md (7 tasks)
+
+A Task 1 (window controls guard): complete (commit 025872b..831afde, review clean)
+A Task 2 (detail-page top bars): complete (commit 831afde..3cd506c, review clean)
+A Task 3 (reader-page top bars): complete (commit 3cd506c..3a03726, review clean)
+  DONE_WITH_CONCERNS: `novel_reader_page.dart:188` `_illustrationHeight` still subtracts a fixed 56 (not the mobile bar's +inset) — cosmetic/scrollable, out of scope, deferred.
+A Task 4 (emulator verification): controller-run. x64 release APK built (89.4MB), installed, launched; no Flutter exceptions in logcat. Screenshot at .superpowers/sdd/a-task4-main.png.
+  MUST-VERIFY (human): detail/reader pages show no window buttons and clear the status bar.
+PLAN A: implementation COMPLETE (025872b..3a03726).
+
+B Task 1 (cleartext config): complete (commit 3a03726..5805a92, review clean). Debug APK built.
+B Task 2 (android headless browser): complete (commit 5805a92..cd21309, review clean).
+  Minor (deferred, plan-level): `forMainFrameOnly: false` is a no-op on Android (doc scopes it to iOS/macOS); Android already injects into all frames, so the meaningful fix is `mixedContentMode`.
+B Task 3 (preserve URL scheme, TDD): complete (commit cd21309..b95b146, review clean). RED→GREEN evidence in report; 29/29 video tests.
+  Minor (deferred): guard narrowed `startsWith('http')` → explicit `http://`/`https://` (a relative `httpsomething` now joins the base — arguably more correct); `GimySource._abs` has no direct test.
+B Task 4 (reuse resolved URL): complete (commit b95b146..1e18328, review clean). One-shot flag logic verified correct.
+B Task 5 (android playback verification): controller-run smoke — x64 release APK built + installed with all B changes.
+  MUST-VERIFY (human): actual playback from AGE动漫/Gimy/a rule source, one resolve per initial episode; Windows playback regression. (Prior session: the emulator cannot fetch the media CDN, so playback is not automatable here.)
+PLAN B: implementation COMPLETE (3a03726..1e18328).
+
+C Task 1 (bundle sources): complete (commit 1e18328..f35ad93, review clean). 6 vendored Venera sources + index.json + pubspec asset entry; debug APK built.
+C Task 2 (BuiltinSourceInstaller, TDD): complete (commit f35ad93..14616ca, review clean). 4/4 tests, real filesystem I/O.
+  Minor (deferred): unvalidated manifest `fileName` joined into the path (trusted asset, low risk); no test for malformed manifest / marker-unwritten-on-failure.
+C Task 3 (wire installer): complete (commit 14616ca..cd3f0e8, review clean). 366 pass / 1 skip.
+C Task 4 (JS bridge additions): complete (commit cd3f0e8..0e88ddf, review clean). UI global, bare-domain cookies, ES2022 shims, subTitle fallback, app messenger key.
+  Minor (deferred): `replaceAll` regex shim mishandles capture groups (only string-arg `replaceAll` is used by the 6 bundled sources — verified); showLoading/cancelLoading inert.
+C Task 5 (verify sources on Android): controller-run on emulator-5554 (fresh install clears comic_source/, proxy 10.0.2.2:10888).
+  PASS - all 6 built-ins install and appear (再漫画/包子漫画/Komiic/MangaDex/漫画柜/拷贝漫画).
+  PASS - 再漫画 FULL pipeline: explore grid (real covers) -> detail (title/author/tags/desc/3 chapters) -> reader (real manhwa pages, "1 / 5"). Screenshots c5-*.png.
+  PASS - 包子漫画 explore (熱門漫畫/推薦國漫/韓漫/日漫 + real covers); Komiic explore (real covers); MangaDex explore (Popular/Recent/Updated + real covers).
+  PARTIAL - 漫画柜 explore: titles load, some covers render as letter placeholders (image hotlink protection).
+  PARTIAL - 拷贝漫画 explore: only 3 items then blank (its 推荐 section is sparse/paged).
+  No Flutter exceptions in logcat throughout.
+  MUST-VERIFY (human): detail/chapter/reader for 包子漫画/Komiic/MangaDex/漫画柜/拷贝漫画; the 漫画柜 cover placeholders and 拷贝漫画 sparse explore.
+C Task 6 (full verification): controller-run. `flutter analyze` clean; `flutter test` 366 pass / 1 skip; `flutter build windows --release` OK.
+  MUST-VERIFY (human): Windows in-app source list (installer should run there too) + a Windows source search.
+PLAN C: implementation COMPLETE (1e18328..0e88ddf).
+
+D Task 1 (central theme): complete (commit 0e88ddf..bd0fec7, review clean). `lib/core/theme/app_theme.dart` + main.dart uses `buildAppTheme()`.
+  Watch (D7): global FilledButton is now `Size(0,40)` intrinsic (was `Size(infinity,48)`); unstyled full-width FilledButtons (comic_reader 下一章/重试, comic_source buttons) may no longer stretch. Intentional (infinite width in a Row caused the prior pager freeze) — verify visually and wrap if needed.
+D Task 2 (selection widgets): complete (commit bd0fec7..54f5589, review clean). PillButton tonal; ChipBar/TabStrip on theme colors. Justified deviation: omitted unused AppRadii import in tab_strip.
+D Task 3 (shell): complete (commit 54f5589..299b628, review clean). Bottom bar/sidebar/main_shell on theme colors; sidebar text metrics preserved. Title-bar constants deferred to D6.
+D Task 4 (search bars): complete (commit 299b628..04d6503, review clean). 4 files; only colors changed.
+  Minor (deferred): close/clear icon still onSurface@30%; search-page Scaffold bg + progress track still hard-coded (outside the brief's mapping).
+D Task 5 (detail-page buttons): complete (commit 04d6503..7bd4e64, review clean). Toggle buttons theme-derived; action buttons inherit theme.
+D Task 6 (brand-color sweep): complete (commit 7bd4e64..d9633d2, review clean). 16 files; four constants replaced with cs reads, semantic colors preserved.
+  Minor (deferred): `work_card.dart` still hard-codes `_accent` (outside brief's file list); novel_detail `_tag` inline cs; comic_reader `_openChapterList` captures page cs for the sheet.
+D Task 7 (verify both platforms): controller-run. Android x64 release APK built + installed; anime home / comic home / comic detail render cleanly after the restyle (no overflow/exception in logcat; screenshots d7-*.png). Windows release built.
+  MUST-VERIFY (human): Windows visual regression; full M3 look on a real phone.
+PLAN D: implementation COMPLETE (0e88ddf..d9633d2).
+
+Final whole-branch review (025872b..d9633d2): "With fixes".
+  Important: (1) `forMainFrameOnly:false` is inert on Android (plan-level) -> the iframe HLS-sniffing goal is UNPROVEN; needs the plan's manual emulator playback check. (2) global FilledButton width regression (Size(infinity,48)->Size(0,40)). (3) page background inconsistency (theme surface vs hard-coded #F2F2F7).
+  Minor: work_card still hard-codes _accent; novel_reader _illustrationHeight fixed 56; #E8F0FE tags; installer fileName unvalidated; replaceAll regex shim; cookie-key change; missing tests for ui bridge/cookie/malformed manifest; vendored JS has no license header.
+Fix cdd4e89 (re-review clean): wrapped 下一章/重试/登录 in SizedBox(width: double.infinity); 9 page Scaffolds now use cs.surface.
+FEATURE SET COMPLETE (025872b..cdd4e89). Pushed to origin/dev.
+
+## Final-review minors (plan 2026-09-17-final-review-minors.md, base cdd4e89)
+
+F Task 1 (UI color leftovers): complete (commit cdd4e89..4bd7505). work_card theme colors; 4 `#E8F0FE` -> secondaryContainer/onSecondaryContainer; search clear icons -> onSurfaceVariant; novel_reader `_illustrationHeight` accounts for insets.
+F Task 2 (installer hardening, TDD): complete (commit 4bd7505..47f654d). `p.basename(fileName) != fileName` guard; malformed-manifest + failed-copy tests.
+F Task 3 (JS bridge fixes + tests + provenance): complete (commit 47f654d..fb39298). `replaceAll` regex branch fixed; `normalizeCookieKey` public + handles paths; `_cookie` legacy raw-key fallback; `cookie_key_test`; `app_messenger_test`; builtin README (licensing caveat).
+F Task 4 (review): Approved. 1 Important (escape-test assertions were vacuous) fixed in cb376cf with guard-removed FAIL / guard-restored PASS evidence.
+MINORS BATCH COMPLETE (cdd4e89..cb376cf). `flutter analyze` clean; 371 pass / 1 skip. Pushed origin/dev.
+  Accepted/remaining: `forMainFrameOnly` inert (plan-level; Android playback unproven - emulator can't fetch the media CDN); `replaceAll` string-branch doesn't expand `$&`; `_cookie` raw-key fallback untested (qjs-only); vendored JS licensing unconfirmed; `work_card` pastel placeholder palette left as-is.
+  MUST-VERIFY (human): Android anime playback (all sources; the iframe extension-less HLS case) - the emulator cannot fetch the media CDN; Windows visual regression; real-phone M3 look; per-source detail/chapter/reader for 包子漫画/Komiic/MangaDex/漫画柜/拷贝漫画; 漫画柜 cover placeholders; 拷贝漫画 sparse explore.
