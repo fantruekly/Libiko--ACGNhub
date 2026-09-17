@@ -5,14 +5,12 @@ class TabStrip extends StatelessWidget {
 
   const TabStrip({super.key, required this.labels});
 
-  static const _accent = Color(0xFF007AFF);
-  static const _muted = Color(0xFF5A5A5F);
   static const _selectedWeight = FontWeight.w500;
   static const _unselectedWeight = FontWeight.w400;
 
-  double _labelWidth(BuildContext context, String label) {
+  double _labelWidth(BuildContext context, String label, ColorScheme cs) {
     final painter = TextPainter(
-      text: TextSpan(text: label, style: _style(true)),
+      text: TextSpan(text: label, style: _style(cs, true)),
       maxLines: 1,
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
@@ -22,18 +20,18 @@ class TabStrip extends StatelessWidget {
     return w;
   }
 
-  static TextStyle _style(bool selected) => TextStyle(
+  static TextStyle _style(ColorScheme cs, bool selected) => TextStyle(
         fontSize: 15,
         fontWeight: selected ? _selectedWeight : _unselectedWeight,
-        color: selected ? _accent : _muted,
+        color: selected ? cs.primary : cs.onSurfaceVariant,
       );
 
-  static TextStyle _itemStyle(double t, int k) {
+  static TextStyle _itemStyle(ColorScheme cs, double t, int k) {
     final d = (t - k).abs().clamp(0.0, 1.0).toDouble();
     return TextStyle(
       fontSize: 15,
       fontWeight: FontWeight.lerp(_unselectedWeight, _selectedWeight, 1 - d),
-      color: Color.lerp(_accent, _muted, d),
+      color: Color.lerp(cs.primary, cs.onSurfaceVariant, d),
     );
   }
 
@@ -41,12 +39,13 @@ class TabStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = DefaultTabController.of(context);
     final animation = controller.animation ?? const AlwaysStoppedAnimation(0);
-    final widths = [for (final l in labels) _labelWidth(context, l)];
+    final cs = Theme.of(context).colorScheme;
+    final widths = [for (final l in labels) _labelWidth(context, l, cs)];
     return Container(
       height: 44,
-      decoration: const BoxDecoration(
-        border:
-            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(
+            bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -77,7 +76,7 @@ class TabStrip extends StatelessWidget {
                                 labels[k],
                                 maxLines: 1,
                                 softWrap: false,
-                                style: _itemStyle(t, k),
+                                style: _itemStyle(cs, t, k),
                               ),
                             ),
                           ),
@@ -89,9 +88,9 @@ class TabStrip extends StatelessWidget {
                     bottom: 0,
                     width: width,
                     height: 3,
-                    child: const DecoratedBox(
+                    child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: _accent,
+                        color: cs.primary,
                         borderRadius:
                             BorderRadius.vertical(top: Radius.circular(3)),
                       ),
