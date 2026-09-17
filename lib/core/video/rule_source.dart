@@ -79,11 +79,7 @@ class RuleVideoSource implements VideoSource {
 
   @visibleForTesting
   static String resolveUrl(String url, String base) {
-    if (url.startsWith('http')) {
-      return url.startsWith('http://')
-          ? url.replaceFirst('http://', 'https://')
-          : url;
-    }
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
     if (url.startsWith('//')) return 'https:$url';
     final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
     if (url.startsWith('/')) return '$b$url';

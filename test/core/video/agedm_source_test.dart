@@ -37,7 +37,7 @@ void main() {
     final it = items.first;
     expect(it.id, '20260029');
     expect(it.title, '葬送的芙莉莲 第二季');
-    expect(it.detailUrl, 'https://www.agedm.io/detail/20260029');
+    expect(it.detailUrl, 'http://www.agedm.io/detail/20260029');
     expect(it.cover, 'https://img/x.jpg');
   });
 

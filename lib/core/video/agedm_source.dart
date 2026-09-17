@@ -92,11 +92,7 @@ class AgedmSource implements VideoSource {
   }
 
   static String _abs(String url, String base) {
-    if (url.startsWith('http')) {
-      return url.startsWith('http://')
-          ? url.replaceFirst('http://', 'https://')
-          : url;
-    }
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
     if (url.startsWith('//')) return 'https:$url';
     if (url.startsWith('/')) return '$base$url';
     return '$base/$url';

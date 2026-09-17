@@ -44,8 +44,12 @@ void main() {
     expect(RuleVideoSource.mapSearch(_rule, 'oops'), isEmpty);
   });
 
-  test('resolveUrl upgrades http and normalizes slashes', () {
+  test('resolveUrl keeps the original scheme and normalizes slashes', () {
     expect(RuleVideoSource.resolveUrl('http://a.test/x', 'https://b.test'),
+        'http://a.test/x');
+    expect(RuleVideoSource.resolveUrl('https://a.test/x', 'https://b.test'),
+        'https://a.test/x');
+    expect(RuleVideoSource.resolveUrl('//a.test/x', 'https://b.test'),
         'https://a.test/x');
     expect(RuleVideoSource.resolveUrl('vod/1', 'https://b.test/'),
         'https://b.test/vod/1');
