@@ -80,11 +80,11 @@ void main() {
     expect(find.text('第 2 页'), findsOneWidget);
     expect(find.text('游戏latest2'), findsOneWidget);
     // 第 2 页 hasMore=false → 下一页禁用
-    final next = tester.widget<IconButton>(find.ancestor(
+    final next = tester.widget<InkWell>(find.descendant(
       of: find.byTooltip('下一页'),
-      matching: find.byType(IconButton),
+      matching: find.byType(InkWell),
     ));
-    expect(next.onPressed, isNull);
+    expect(next.onTap, isNull);
   });
 
   testWidgets('grid uses 4 columns with 3:2 covers', (tester) async {
