@@ -255,19 +255,22 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                 itemCount: 12,
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
               ),
-              error: (_, __) => EmptyState(
-                icon: Icons.cloud_off_rounded,
-                message: '加载失败',
-                actionLabel: '重试',
-                onAction: () {
-                  clearExploreCache(source.key, section);
-                  ref.invalidate(comicSourcePageProvider);
-                  ref.invalidate(
-                      comicExploreAllProvider((source.key, section)));
-                  ref.invalidate(comicExploreProvider(
-                      (source.key, section, part, _page)));
-                },
-              ),
+              error: (_, __) {
+                _lastPage = null;
+                return EmptyState(
+                  icon: Icons.cloud_off_rounded,
+                  message: '加载失败',
+                  actionLabel: '重试',
+                  onAction: () {
+                    clearExploreCache(source.key, section);
+                    ref.invalidate(comicSourcePageProvider);
+                    ref.invalidate(
+                        comicExploreAllProvider((source.key, section)));
+                    ref.invalidate(comicExploreProvider(
+                        (source.key, section, part, _page)));
+                  },
+                );
+              },
               data: (data) {
                 _lastPage = data;
                 if (data.comics.isEmpty) {
@@ -295,19 +298,19 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             ),
           ),
         ),
-        if (_lastPage != null) _paginationBar(_lastPage!),
+        if (_lastPage != null) _paginationBar(_lastPage!, async.isLoading),
       ],
     );
   }
 
-  Widget _paginationBar(ComicExplorePage data) {
+  Widget _paginationBar(ComicExplorePage data, bool loading) {
     final label = data.maxPage == null
         ? '第 $_page 页'
         : '第 $_page / ${data.maxPage} 页';
     return PagerBar(
       label: label,
       onPrevious: _page > 1 ? () => setState(() => _page--) : null,
-      onNext: data.hasNext ? () => setState(() => _page++) : null,
+      onNext: (!loading && data.hasNext) ? () => setState(() => _page++) : null,
     );
   }
 }

@@ -266,13 +266,16 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
                     itemCount: 12,
                     aspectRatio: 0.58,
                     padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-                error: (_, __) => EmptyState(
-                  icon: Icons.cloud_off_rounded,
-                  message: '加载失败',
-                  actionLabel: '重试',
-                  onAction: () => ref.invalidate(
-                      novelBrowseProvider((_sourceId, option.key, _page))),
-                ),
+                error: (_, __) {
+                  _lastHasMore = null;
+                  return EmptyState(
+                    icon: Icons.cloud_off_rounded,
+                    message: '加载失败',
+                    actionLabel: '重试',
+                    onAction: () => ref.invalidate(
+                        novelBrowseProvider((_sourceId, option.key, _page))),
+                  );
+                },
                 data: (list) {
                   _lastHasMore = list.hasMore;
                   return _grid(list.items);
@@ -281,16 +284,16 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
             ),
           ),
         ),
-        if (_lastHasMore != null) _pager(_lastHasMore!),
+        if (_lastHasMore != null) _pager(_lastHasMore!, async.isLoading),
       ],
     );
   }
 
-  Widget _pager(bool hasMore) {
+  Widget _pager(bool hasMore, bool loading) {
     return PagerBar(
       label: '第 $_page 页',
       onPrevious: _page > 1 ? () => setState(() => _page--) : null,
-      onNext: hasMore ? () => setState(() => _page++) : null,
+      onNext: (!loading && hasMore) ? () => setState(() => _page++) : null,
     );
   }
 
