@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../platform.dart';
+
 class ShimmerLoader extends StatefulWidget {
   final int itemCount;
   final int crossAxisCount;
+  final int mobileColumns;
   final double aspectRatio;
   final EdgeInsets padding;
 
@@ -10,6 +13,7 @@ class ShimmerLoader extends StatefulWidget {
     super.key,
     this.itemCount = 12,
     this.crossAxisCount = 5,
+    this.mobileColumns = 3,
     this.aspectRatio = 0.60,
     this.padding = const EdgeInsets.all(16),
   });
@@ -46,7 +50,8 @@ class _ShimmerLoaderState extends State<ShimmerLoader>
         return GridView.builder(
           padding: widget.padding,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: widget.crossAxisCount,
+            crossAxisCount:
+                isDesktop ? widget.crossAxisCount : widget.mobileColumns,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             childAspectRatio: widget.aspectRatio,

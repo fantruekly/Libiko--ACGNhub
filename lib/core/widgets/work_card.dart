@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/work.dart';
+import '../platform.dart';
+import 'ratio_cover.dart';
 
 class WorkCard extends StatelessWidget {
   final Work work;
@@ -15,31 +16,21 @@ class WorkCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
+    Widget cover = RatioCover(
+      url: work.coverUrl,
+      fadeInDuration: const Duration(milliseconds: 200),
+      placeholderBuilder: (_) => _placeholder(work),
+    );
+
     return GestureDetector(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Hero(
-              tag: 'work_${work.id}',
-              child: RepaintBoundary(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: work.coverUrl != null && work.coverUrl!.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: work.coverUrl!,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 400,
-                          fadeInDuration: const Duration(milliseconds: 200),
-                          placeholder: (_, __) => _placeholder(work),
-                          errorWidget: (_, __, ___) => _placeholder(work),
-                        )
-                      : _placeholder(work),
-                ),
-              ),
-            ),
-          ),
+          if (isDesktop)
+            Expanded(child: Hero(tag: 'work_${work.id}', child: cover))
+          else
+            Hero(tag: 'work_${work.id}', child: cover),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,

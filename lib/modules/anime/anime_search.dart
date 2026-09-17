@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/work.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
@@ -166,15 +167,11 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
           message: '未找到「${_ctrl.text}」相关动漫，换个关键词试试');
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
-        mainAxisSpacing: 20,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.60,
-      ),
+    return AdaptiveGridView(
       itemCount: _results.length,
+      mobileColumns: 3,
+      desktopColumns: 5,
+      padding: const EdgeInsets.all(16),
       itemBuilder: (context, index) => WorkCard(
         work: _results[index],
         onTap: () => Navigator.push(context,

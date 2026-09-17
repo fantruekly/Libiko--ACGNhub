@@ -5,6 +5,7 @@ import 'anime_detail_page.dart';
 import 'anime_follow.dart';
 import 'anime_history.dart';
 import '../../core/metadata/metadata_provider.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
@@ -180,28 +181,14 @@ class _FeedViewState extends ConsumerState<_FeedView>
                               icon: Icons.live_tv_rounded, message: '暂无内容'),
                         ),
                       )
-                    : SliverPadding(
+                    : SliverAdaptiveGrid(
+                        itemCount: items.length,
+                        mobileColumns: 3,
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        sliver: SliverGrid(
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 6,
-                            mainAxisSpacing: 20,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 0.60,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (_, i) => i >= items.length
-                                ? null
-                                : WorkCard(
-                                    work: items[i],
-                                    onTap: () => Navigator.push(
-                                        context,
-                                        smoothRoute(
-                                            AnimeDetailPage(work: items[i]))),
-                                  ),
-                            childCount: items.length,
-                          ),
+                        itemBuilder: (_, i) => WorkCard(
+                          work: items[i],
+                          onTap: () => Navigator.push(context,
+                              smoothRoute(AnimeDetailPage(work: items[i]))),
                         ),
                       ),
                 if (_hasMore)
