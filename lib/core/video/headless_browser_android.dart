@@ -107,11 +107,13 @@ class AndroidHeadlessBrowser implements HeadlessBrowser {
         mediaPlaybackRequiresUserGesture: false,
         supportMultipleWindows: false,
         javaScriptCanOpenWindowsAutomatically: false,
+        mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
       ),
       initialUserScripts: UnmodifiableListView<UserScript>([
         UserScript(
           source: _mediaSnifferJs,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          forMainFrameOnly: false,
         ),
       ]),
       onWebViewCreated: (controller) {
