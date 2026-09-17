@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/game/game_image.dart';
 import '../../core/game/models.dart';
+import '../../core/platform.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -71,10 +72,11 @@ class GameDetailPage extends ConsumerWidget {
   }
 
   Widget _header(BuildContext context) {
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
     return DesktopDragArea(
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.only(left: 4),
+        height: 48 + topInset,
+        padding: EdgeInsets.only(left: 4, top: topInset),
         decoration: const BoxDecoration(
           color: Color(0xFFFFFFFF),
           border:
@@ -96,7 +98,7 @@ class GameDetailPage extends ConsumerWidget {
                     fontSize: 15, fontWeight: FontWeight.w600, color: _fg),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),
@@ -378,8 +380,11 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
             right: 0,
             child: DesktopDragArea(
               child: Container(
-                height: 48,
-                padding: const EdgeInsets.only(left: 4),
+                height: 48 +
+                    (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
+                padding: EdgeInsets.only(
+                    left: 4,
+                    top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
                 child: Row(
                   children: [
                     const Spacer(),
@@ -387,10 +392,11 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
                       icon: const Icon(Icons.close_rounded, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    WindowControls(
-                      foregroundColor: Colors.white.withValues(alpha: 0.85),
-                      hoverColor: Colors.white.withValues(alpha: 0.12),
-                    ),
+                    if (isDesktop)
+                      WindowControls(
+                        foregroundColor: Colors.white.withValues(alpha: 0.85),
+                        hoverColor: Colors.white.withValues(alpha: 0.12),
+                      ),
                   ],
                 ),
               ),

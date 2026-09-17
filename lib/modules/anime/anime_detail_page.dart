@@ -7,6 +7,7 @@ import 'package:file_selector/file_selector.dart';
 import '../../core/account/sync_service.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
+import '../../core/platform.dart';
 import '../../core/services/follow_manager.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/glass_surface.dart';
@@ -310,10 +311,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Widget _header(Work w, ColorScheme cs) {
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
     return DesktopDragArea(
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.only(left: 4),
+        height: 48 + topInset,
+        padding: EdgeInsets.only(left: 4, top: topInset),
         decoration: const BoxDecoration(
           color: Color(0xFFFFFFFF),
           border:
@@ -337,7 +339,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     color: cs.onSurface),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),

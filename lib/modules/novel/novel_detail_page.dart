@@ -6,6 +6,7 @@ import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
+import '../../core/platform.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
@@ -80,10 +81,11 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   }
 
   Widget _header() {
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
     return DesktopDragArea(
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.only(left: 4),
+        height: 48 + topInset,
+        padding: EdgeInsets.only(left: 4, top: topInset),
         decoration: const BoxDecoration(
           color: Color(0xFFFFFFFF),
           border:
@@ -105,7 +107,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                     fontSize: 15, fontWeight: FontWeight.w600, color: _fg),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),

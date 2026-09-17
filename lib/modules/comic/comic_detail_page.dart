@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
 import '../../core/comic/models.dart';
+import '../../core/platform.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
@@ -54,10 +55,11 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
 
   Widget _header() {
     final cs = Theme.of(context).colorScheme;
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
     return DesktopDragArea(
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.only(left: 4),
+        height: 48 + topInset,
+        padding: EdgeInsets.only(left: 4, top: topInset),
         decoration: const BoxDecoration(
           color: Color(0xFFFFFFFF),
           border:
@@ -81,7 +83,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                     color: cs.onSurface),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),
