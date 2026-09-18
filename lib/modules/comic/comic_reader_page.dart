@@ -39,6 +39,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   bool _initialJumpDone = false;
   bool _pendingLandAtEnd = false;
   bool _resuming = false;
+  bool _restoring = false;
   DateTime? _lastHistoryWrite;
   Timer? _chromeTimer;
   Timer? _historyTimer;
@@ -115,14 +116,17 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (_programmaticScroll) return false;
-          if (notification is ScrollStartNotification) {
+          if (notification is ScrollStartNotification &&
+              notification.dragDetails != null) {
             _resuming = false;
+            _restoring = false;
           }
           if (notification is! ScrollUpdateNotification &&
               notification is! ScrollEndNotification) {
             return false;
           }
           final metrics = notification.metrics;
+          if (_restoring || metrics.maxScrollExtent <= 0) return false;
           final page = currentPageFromScroll(
               metrics.pixels, metrics.maxScrollExtent, images.length);
           _onPageChanged(page, images.length);
@@ -229,6 +233,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   void _scheduleInitialOrLanding(int total) {
     if (_pendingLandAtEnd) {
       _pendingLandAtEnd = false;
+      _restoring = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() => _page = total - 1);
@@ -239,6 +244,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     }
     if (_initialJumpDone) return;
     _initialJumpDone = true;
+    _restoring = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _jumpToInitial(total);
@@ -251,9 +257,13 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     if (ref.read(comicReaderSettingsProvider).mode ==
         ComicReaderMode.pageHorizontal) {
       if (_pageController.hasClients) _pageController.jumpToPage(_page);
+      _restoring = false;
       return;
     }
-    if (_page <= 0 || total <= 1) return;
+    if (_page <= 0 || total <= 1) {
+      _restoring = false;
+      return;
+    }
     _resuming = true;
     _applyResumeJump(total);
   }
@@ -264,10 +274,14 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     if (max <= 0) return;
     final target = (_page / (total - 1)) * max;
     final current = _scrollController.position.pixels;
-    if ((current - target).abs() < 1) return;
+    if ((current - target).abs() < 1) {
+      _restoring = false;
+      return;
+    }
     _programmaticScroll = true;
     _scrollController.jumpTo(target.clamp(0.0, max));
     _programmaticScroll = false;
+    _restoring = false;
   }
 
   Widget _topBar(ComicDetails? details) {
@@ -460,11 +474,14 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     await ref.read(comicReaderSettingsProvider.notifier).setMode(next);
     if (!mounted) return;
     _initialJumpDone = true;
+    _resuming = false;
+    _restoring = true;
     setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (next == ComicReaderMode.pageHorizontal) {
         if (_pageController.hasClients) _pageController.jumpToPage(_page);
+        _restoring = false;
         return;
       }
       final total = ref
@@ -477,6 +494,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       if (total > 1) {
         _resuming = true;
         _applyResumeJump(total);
+      } else {
+        _restoring = false;
       }
     });
   }
@@ -647,6 +666,10 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
           fit: widget.fit,
           width: double.infinity,
           errorBuilder: (_, __, ___) => _retry(),
+          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+            if (wasSynchronouslyLoaded) return child;
+            return frame == null ? _loading() : child;
+          },
           loadingBuilder: (context, child, progress) =>
               progress == null ? child : _loading(),
         );
