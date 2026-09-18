@@ -155,18 +155,16 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                 ),
               );
             }
-            return SizedBox(
-              height: MediaQuery.sizeOf(context).height,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _toggleChrome,
-                child: _ReaderImage(
-                  key: ValueKey('$_chapterId-$i'),
-                  sourceKey: widget.sourceKey,
-                  comicId: widget.comicId,
-                  chapterId: _chapterId,
-                  url: images[i],
-                ),
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleChrome,
+              child: _ReaderImage(
+                key: ValueKey('$_chapterId-$i'),
+                sourceKey: widget.sourceKey,
+                comicId: widget.comicId,
+                chapterId: _chapterId,
+                url: images[i],
+                fit: BoxFit.fitWidth,
               ),
             );
           },
@@ -597,6 +595,7 @@ class _ReaderImage extends ConsumerStatefulWidget {
   final String comicId;
   final String chapterId;
   final String url;
+  final BoxFit fit;
 
   const _ReaderImage({
     super.key,
@@ -604,6 +603,7 @@ class _ReaderImage extends ConsumerStatefulWidget {
     required this.comicId,
     required this.chapterId,
     required this.url,
+    this.fit = BoxFit.contain,
   });
 
   @override
@@ -642,7 +642,7 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
         if (!snapshot.hasData) return _loading();
         return Image(
           image: snapshot.data!,
-          fit: BoxFit.contain,
+          fit: widget.fit,
           width: double.infinity,
           errorBuilder: (_, __, ___) => _retry(),
           loadingBuilder: (context, child, progress) =>
