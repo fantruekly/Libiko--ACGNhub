@@ -94,15 +94,20 @@ class WebviewScraper {
     required String url,
     required String script,
     String? userAgent,
-    Duration timeout = const Duration(seconds: 20),
-    int attempts = 3,
+    Duration timeout = const Duration(seconds: 12),
   }) async {
     final browser = createHeadlessBrowser();
     try {
       await browser.start(userAgent: userAgent ?? kBrowserUserAgent);
-      await browser.load(url, timeout: timeout);
-
-      for (var attempt = 0; attempt < attempts; attempt++) {
+      unawaited(() async {
+        try {
+          await browser.load(url, timeout: timeout);
+        } catch (e) {
+          debugPrint('[WebviewScraper] load failed for $url: $e');
+        }
+      }());
+      final deadline = DateTime.now().add(timeout);
+      while (DateTime.now().isBefore(deadline)) {
         dynamic result;
         try {
           result = await browser.eval(script);
@@ -111,9 +116,7 @@ class WebviewScraper {
         }
         final list = decodeResult(result);
         if (list.isNotEmpty) return list;
-        if (attempt < attempts - 1) {
-          await Future.delayed(const Duration(milliseconds: 600));
-        }
+        await Future<void>.delayed(const Duration(milliseconds: 250));
       }
       return const <dynamic>[];
     } catch (e) {
