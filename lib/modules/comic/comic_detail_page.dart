@@ -118,9 +118,16 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
               onAction: () => ref.invalidate(
                   comicDetailProvider((widget.sourceKey, widget.comicId))),
             ),
-      data: (details) => _content(details),
+      data: (details) => (needsLogin && !logged && _looksEmpty(details))
+          ? _loginRequired(source)
+          : _content(details),
     );
   }
+
+  /// True when a detail load produced no usable content (the other way a
+  /// login-required source can "fail" without throwing).
+  bool _looksEmpty(ComicDetails details) =>
+      details.title.trim().isEmpty && details.chapters.isEmpty;
 
   Widget _loginRequired(ComicSource source) {
     return EmptyState(
