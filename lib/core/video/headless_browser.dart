@@ -82,6 +82,21 @@ bool looksLikeMediaUrl(String url) {
   return _mediaRe.hasMatch(path);
 }
 
+/// Extracts a media URL embedded in [url]'s query string, e.g.
+/// `https://proxy/a/?url=https://cdn/x/index.m3u8` -> `https://cdn/x/index.m3u8`.
+/// Returns null when no query value looks like a media URL.
+String? mediaUrlFromQuery(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return null;
+  for (final value in uri.queryParametersAll.values.expand((v) => v)) {
+    if (value.startsWith('//') && looksLikeMediaUrl('https:$value')) {
+      return 'https:$value';
+    }
+    if (looksLikeMediaUrl(value)) return value;
+  }
+  return null;
+}
+
 /// True when either the URL looks like a media file ([looksLikeMediaUrl]) or
 /// the response MIME type is a streaming media type. The MIME check exists
 /// because some HLS playlists are served from extension-less URLs.

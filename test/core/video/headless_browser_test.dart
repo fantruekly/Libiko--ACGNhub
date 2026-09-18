@@ -31,6 +31,36 @@ void main() {
     expect(looksLikeMediaUrl('https://img.test/pic/a.webp'), isFalse);
   });
 
+  test('extracts a media URL embedded in a query parameter', () {
+    expect(
+      mediaUrlFromQuery('https://bf.sbbzy.com/a/'
+          '?url=https://cdn.yzzy33-play.com/20260116/4703/index.m3u8'
+          '&jctype=normal&next=//gimy.tv/ep-247676-1-2.html'),
+      'https://cdn.yzzy33-play.com/20260116/4703/index.m3u8',
+    );
+  });
+
+  test('extracts a protocol-relative embedded media URL', () {
+    expect(
+      mediaUrlFromQuery('https://proxy/a/?url=//cdn.test/x/index.m3u8'),
+      'https://cdn.test/x/index.m3u8',
+    );
+  });
+
+  test('decodes a percent-encoded embedded media URL', () {
+    expect(
+      mediaUrlFromQuery(
+          'https://proxy/a/?url=https%3A%2F%2Fcdn.test%2Fx%2Findex.m3u8'),
+      'https://cdn.test/x/index.m3u8',
+    );
+  });
+
+  test('returns null when no query value is a media URL', () {
+    expect(
+        mediaUrlFromQuery('https://proxy/a/?url=https://x/page.html'), isNull);
+    expect(mediaUrlFromQuery('https://cdn.test/plain'), isNull);
+  });
+
   test('factory returns the Windows implementation on desktop', () {
     expect(createHeadlessBrowser(desktop: true), isA<WindowsHeadlessBrowser>());
   });
