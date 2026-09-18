@@ -128,7 +128,23 @@ class ComicImageProvider {
   ) async {
     try {
       final provider = await resolve(sourceKey, comicId, chapterId, url);
-      provider.resolve(ImageConfiguration.empty);
+      final stream = provider.resolve(ImageConfiguration.empty);
+      final completer = Completer<void>();
+      late final ImageStreamListener listener;
+      listener = ImageStreamListener(
+        (_, __) {
+          if (!completer.isCompleted) completer.complete();
+        },
+        onError: (error, stackTrace) {
+          if (!completer.isCompleted) completer.completeError(error, stackTrace);
+        },
+      );
+      stream.addListener(listener);
+      try {
+        await completer.future.timeout(const Duration(seconds: 20));
+      } finally {
+        stream.removeListener(listener);
+      }
     } catch (_) {
       // Prefetch must not disturb reading.
     }
