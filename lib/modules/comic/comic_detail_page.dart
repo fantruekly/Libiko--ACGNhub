@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
+import '../../core/comic/comic_source.dart';
 import '../../core/comic/models.dart';
 import '../../core/platform.dart';
 import '../../core/theme/app_theme.dart';
@@ -15,6 +16,7 @@ import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
+import 'comic_account_dialog.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
 
@@ -92,20 +94,48 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   Widget _body() {
     final async =
         ref.watch(comicDetailProvider((widget.sourceKey, widget.comicId)));
+    final source = ref
+        .watch(comicSourcesProvider)
+        .valueOrNull
+        ?.where((s) => s.key == widget.sourceKey)
+        .firstOrNull;
+    final needsLogin =
+        source != null && (source.hasLogin || source.hasCookieLogin);
+    final logged = !needsLogin ||
+        (ref.watch(comicLoginProvider(widget.sourceKey)).valueOrNull ?? false);
     return async.when(
       loading: () => const ShimmerLoader(
         crossAxisCount: 6,
         itemCount: 12,
         padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
       ),
-      error: (_, __) => EmptyState(
-        icon: Icons.error_outline_rounded,
-        message: '加载失败',
-        actionLabel: '重试',
-        onAction: () => ref
-            .invalidate(comicDetailProvider((widget.sourceKey, widget.comicId))),
-      ),
+      error: (_, __) => (needsLogin && !logged)
+          ? _loginRequired(source)
+          : EmptyState(
+              icon: Icons.error_outline_rounded,
+              message: '加载失败',
+              actionLabel: '重试',
+              onAction: () => ref.invalidate(
+                  comicDetailProvider((widget.sourceKey, widget.comicId))),
+            ),
       data: (details) => _content(details),
+    );
+  }
+
+  Widget _loginRequired(ComicSource source) {
+    return EmptyState(
+      icon: Icons.lock_outline_rounded,
+      message: '该源需要登录',
+      actionLabel: '去登录',
+      onAction: () async {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => ComicAccountDialog(source: source),
+        );
+        ref.invalidate(comicLoginProvider(widget.sourceKey));
+        ref.invalidate(
+            comicDetailProvider((widget.sourceKey, widget.comicId)));
+      },
     );
   }
 
