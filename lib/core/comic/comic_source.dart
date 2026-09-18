@@ -761,8 +761,8 @@ class ComicSourceManager {
   }
 
   /// Decodes [bytes], runs the source's `modifyImage` [script] over the pixels,
-  /// and re-encodes the result as a PNG.
-  Future<Uint8List> modifyImage(Uint8List bytes, String script) async {
+  /// and returns the processed [ui.Image] (no PNG re-encoding).
+  Future<ui.Image> processImage(Uint8List bytes, String script) async {
     await _ensureInitialized();
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
@@ -782,11 +782,20 @@ class ComicSourceManager {
     final decoded = Completer<ui.Image>();
     ui.decodeImageFromPixels(processed, width, height, ui.PixelFormat.rgba8888,
         (image) => decoded.complete(image));
-    final result = await decoded.future;
-    final png = await result.toByteData(format: ui.ImageByteFormat.png);
-    result.dispose();
-    if (png == null) throw StateError('could not encode image');
-    return png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
+    return decoded.future;
+  }
+
+  /// Encodes [bytes] through the source's `modifyImage` [script] as a PNG.
+  @Deprecated('use processImage to avoid the PNG re-encoding round trip')
+  Future<Uint8List> modifyImage(Uint8List bytes, String script) async {
+    final image = await processImage(bytes, script);
+    try {
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (png == null) throw StateError('could not encode image');
+      return png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
+    } finally {
+      image.dispose();
+    }
   }
 
   void dispose() => _engine.dispose();
