@@ -921,3 +921,19 @@ Fix wave 15b9ace (re-review "Ready to merge? Yes"): absolute/protocol-relative g
 Residuals (non-blocking): media stream can double-report proxy+inner (single consumer completes on first); duplicated ternary across MIME-aware/no-MIME paths; _https prefix match could catch agedm.io.evil.com (scheme-only upgrade, no regression).
 Anime source headless fix: implementation COMPLETE (2e139af..15b9ace). Pushed origin/dev for the user's PR.
 Deferred to next round: D MacCMS player_aaaa direct extraction (7sefun playback); E AGE动漫 playback (check own API, else replace source).
+
+## MacCMS direct + AGE removal (plan docs/superpowers/plans/2026-09-18-maccms-age-removal.md, base 4403910)
+
+Spec: docs/superpowers/specs/2026-09-18-maccms-age-removal-design.md
+Diagnosis: 7sefun player_aaaa encrypt:2 = urlDecode(base64Decode(url)) (validated; decoded mp4 302->signed CDN); gimy player_data encrypt:0 direct m3u8 (validated 200); AGE all lines are jx age_ WASM (unsolvable) -> user chose removal.
+Scope: D (MacCMS first in StreamResolver) + E (remove AgedmSource).
+
+Task 1: complete (commit 4403910..0b276c0, review clean; 4 Minor: URL-safe base64 branch untested; string-encrypt/empty-url branches untested; blanket catch; matcher ignores single-quoted JS strings).
+Task 2: complete (commit 0b276c0..e2b3a80, review clean; 5 Minor: connectTimeout not covered by timeout; _originOf drops ports / protocol-relative malformed; test doesn't assert UA/override branches; broad catch; shared headers map instance).
+Task 3: complete (commit e2b3a80..712678c, review clean after 1 Important fix 712678c (connectTimeout on the hot-path MacCMS fetch); 2 Minor: no null-candidate fallback test; fake resolver constructs a real Dio).
+Task 4: complete (commit 712678c..d24f536, review clean; no findings).
+Task 5: verification revealed an Important bug: 七色番 线路1 decrypts to a nested non-media page (lmm85 vxdev token), and StreamResolver returned it as a candidate (no fallback). Fix fe32c2f: MacCmsResolver now rejects non-media candidates. Re-verified: 七色番 线路2 -> direct .mp4; gimy -> .m3u8; 线路1 (vxdev chain) unsupported by design (user can pick 线路2). analyze/test/builds pass (test 446+1 skip).
+Known limitation (not a defect): vxdev-chained roads are not statically resolvable; the direct-media road works.
+Final whole-branch review (4403910..fe32c2f): "Ready to merge? Yes" (1 Important non-blocking: sequential MacCMS probe latency; + Minors). Hardening d1f4b65: probe timeout 15s->8s; _originOf ports/scheme guard; +2 resolver tests +URL-safe base64 test. Re-review flagged the base64 test as a false positive; corrected ee7fc97 (fn5-/fn5+fg== genuinely cover normalization + padding). Re-review: Ready to merge? Yes.
+Residuals (non-blocking): `_`->`/` half of URL-safe normalization untested; _originOf explicit default port yields redundant `:443`; dead legacy `assets/rules/` AGE entry + unused animeSourceListProvider not removed (separate cleanup); blanket catches; MediaCandidate shares Dio headers map (only consumer copies it).
+MacCMS + AGE removal: implementation COMPLETE (4403910..ee7fc97). Pushed origin/dev for the user's PR.
