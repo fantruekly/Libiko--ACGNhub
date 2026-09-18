@@ -332,6 +332,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
 
   Widget _video() => Video(
         controller: _controller,
+        controls: null,
         fit: BoxFit.contain,
         fill: Colors.black,
       );
