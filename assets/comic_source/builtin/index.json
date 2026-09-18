@@ -1,11 +1,14 @@
 {
-  "version": "1",
+  "version": "2",
   "sources": [
     { "name": "再漫画", "fileName": "zaimanhua.js", "key": "zaimanhua", "version": "1.0.2" },
     { "name": "包子漫画", "fileName": "baozi.js", "key": "baozi", "version": "1.1.6" },
     { "name": "Komiic", "fileName": "komiic.js", "key": "Komiic", "version": "1.0.3" },
     { "name": "MangaDex", "fileName": "manga_dex.js", "key": "manga_dex", "version": "1.2.0" },
     { "name": "漫画柜", "fileName": "manhuagui.js", "key": "ManHuaGui", "version": "1.2.1" },
-    { "name": "拷贝漫画", "fileName": "copy_manga.js", "key": "copy_manga", "version": "1.4.2" }
+    { "name": "拷贝漫画", "fileName": "copy_manga.js", "key": "copy_manga", "version": "1.4.2" },
+    { "name": "Picacg", "fileName": "picacg.js", "key": "picacg", "version": "1.0.6" },
+    { "name": "禁漫天堂", "fileName": "jm.js", "key": "jm", "version": "1.4.0" },
+    { "name": "ehentai", "fileName": "ehentai.js", "key": "ehentai", "version": "1.1.8" }
   ]
 }
