@@ -903,3 +903,21 @@ Final whole-branch review (73facb2..ecce71a): "With fixes" (2 Important: long-pr
 Fix wave 63fe333 (re-review "Ready to merge? Yes"): Listener onPointerUp/Cancel + lifecycle/dispose rate reset; WindowListener + isFullScreen() read-back; onSeek before _drag clear; single clamped preview value; +errorBorder/focusedErrorBorder assertions; +3600->1:00:00 case.
 Residuals (non-blocking): no page-level widget test -> manual player verification is the release gate; mobile exit forces portraitUp / no SystemChrome restore on dispose; _endBoost fires on every pointer-up (idempotent, harmless now); spec B4/B3/B5 drift corrected.
 UI + Player feature: implementation COMPLETE (73facb2..63fe333). Pushed origin/dev for the user's PR.
+
+## Anime source headless fix (plan docs/superpowers/plans/2026-09-18-anime-source-headless-fix.md, base 2e139af)
+
+Spec: docs/superpowers/specs/2026-09-18-anime-source-headless-fix-design.md
+Diagnosis: .superpowers/sdd/source-diagnosis.md
+Scope: A (Windows headless -> flutter_inappwebview) + B (proxy media extraction) + C (agedm https). D (MacCMS) / E (AGE) deferred.
+
+Task 1: complete (commit 2e139af..11a0576, review clean; 3 Minor: /// doc comment vs "no comments" (plan-mandated, matches file style); redundant looksLikeMediaUrl on https: prefix; no test where a non-media param precedes the media param).
+Task 2: complete (commit 11a0576..c8e16fb, review clean; 1 Minor: stale interface doc comment headless_browser.dart:49-50 saying Windows/Android differ -> fold into Task 4).
+Task 3: complete (commit c8e16fb..68df19d, review clean; 3 Minor: duplicated ternary across detection layers (plan-mandated shape); mediaUrlFromQuery can return a relative value like clip.mp4 (no absolute check); broadcast stream can double-report the same URL).
+Task 4: complete (commit 68df19d..7101b01, review clean; 1 Minor: createHeadlessBrowser() doc still mentions the removed webview_windows fork).
+Task 5: complete (commit 7101b01..6726a72, review clean; 3 Minor: scheme match case-sensitive (HTTP://); _https rewrites any host; no already-https passthrough test).
+Task 6: complete (verification, no commit, HEAD 6726a72). Real-app probe: 7sefun search 2 / episodes 20; agedm episodes 10; gimy resolve non-null m3u8 with Referer. analyze clean; test 440 pass/1 skip; Windows release + Android release APK build OK (NDK 27 vs flutter_qjs-required 28 warning).
+Final whole-branch review (2e139af..6726a72): "With fixes" (1 Important: mediaUrlFromQuery returned relative values that could shadow the real stream; + Minors).
+Fix wave 15b9ace (re-review "Ready to merge? Yes"): absolute/protocol-relative guard + regression test; _https host-scoped + case-insensitive + passthrough test; factory doc de-references webview_windows. Full suite 442 pass/1 skip.
+Residuals (non-blocking): media stream can double-report proxy+inner (single consumer completes on first); duplicated ternary across MIME-aware/no-MIME paths; _https prefix match could catch agedm.io.evil.com (scheme-only upgrade, no regression).
+Anime source headless fix: implementation COMPLETE (2e139af..15b9ace). Pushed origin/dev for the user's PR.
+Deferred to next round: D MacCMS player_aaaa direct extraction (7sefun playback); E AGE动漫 playback (check own API, else replace source).
