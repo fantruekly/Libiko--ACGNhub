@@ -194,8 +194,8 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   }
 
   Widget _body(List<NovelBrowseGroup> groups) {
-    final sourceIndex =
-        ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId);
+    final sources = ref.watch(novelSourcesProvider);
+    final sourceIndex = sources.indexWhere((s) => s.id == _sourceId);
     if (_groupIndex < 0 || _groupIndex >= groups.length) {
       final async = ref.watch(novelHomeProvider(_sourceId));
       return Column(
@@ -239,21 +239,36 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onHorizontalDragEnd: group.options.length > 1
-                ? (details) {
-                    final v = details.primaryVelocity ?? 0;
-                    final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
-                    if (delta == 0) return;
-                    setState(() {
-                      final next = (_optionIndex + delta)
-                          .clamp(0, group.options.length - 1);
-                      if (next == _optionIndex) return;
-                      _optionIndex = next;
-                      _page = 1;
-                      _lastHasMore = null;
-                    });
-                  }
-                : null,
+            onHorizontalDragEnd: (details) {
+              final v = details.primaryVelocity ?? 0;
+              final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
+              if (delta == 0) return;
+              setState(() {
+                if (group.options.length > 1) {
+                  final next = (_optionIndex + delta)
+                      .clamp(0, group.options.length - 1);
+                  if (next == _optionIndex) return;
+                  _optionIndex = next;
+                } else if (groups.length > 1) {
+                  final next =
+                      (_groupIndex + delta).clamp(0, groups.length - 1);
+                  if (next == _groupIndex) return;
+                  _groupIndex = next;
+                  _optionIndex = 0;
+                } else if (sources.length > 1) {
+                  final idx = sources.indexWhere((s) => s.id == _sourceId);
+                  final next = (idx + delta).clamp(0, sources.length - 1);
+                  if (next == idx) return;
+                  _sourceId = sources[next].id;
+                  _groupIndex = -1;
+                  _optionIndex = 0;
+                } else {
+                  return;
+                }
+                _page = 1;
+                _lastHasMore = null;
+              });
+            },
             child: SlideSwitcher(
               id: (_sourceId, option.key, _page),
               index: sourceIndex * 1000000 +

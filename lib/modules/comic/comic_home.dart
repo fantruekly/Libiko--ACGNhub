@@ -136,21 +136,36 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             Expanded(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onHorizontalDragEnd: parts.length > 1
-                    ? (details) {
-                        final v = details.primaryVelocity ?? 0;
-                        final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
-                        if (delta == 0) return;
-                        setState(() {
-                          final next =
-                              (_selectedPart + delta).clamp(0, parts.length - 1);
-                          if (next == _selectedPart) return;
-                          _selectedPart = next;
-                          _page = 1;
-                          _lastPage = null;
-                        });
-                      }
-                    : null,
+                onHorizontalDragEnd: (details) {
+                  final v = details.primaryVelocity ?? 0;
+                  final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
+                  if (delta == 0) return;
+                  setState(() {
+                    if (parts.length > 1) {
+                      final next =
+                          (_selectedPart + delta).clamp(0, parts.length - 1);
+                      if (next == _selectedPart) return;
+                      _selectedPart = next;
+                    } else if (selected.sections.length > 1) {
+                      final next = (_selectedSection + delta)
+                          .clamp(0, selected.sections.length - 1);
+                      if (next == _selectedSection) return;
+                      _selectedSection = next;
+                      _selectedPart = 0;
+                    } else if (sources.length > 1) {
+                      final idx = sources.indexOf(selected);
+                      final next = (idx + delta).clamp(0, sources.length - 1);
+                      if (next == idx) return;
+                      _selectedKey = sources[next].key;
+                      _selectedSection = 0;
+                      _selectedPart = 0;
+                    } else {
+                      return;
+                    }
+                    _page = 1;
+                    _lastPage = null;
+                  });
+                },
                 child: _explore(
                     selected, section, part, sources.indexOf(selected)),
               ),
