@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -749,6 +750,43 @@ class ComicSourceManager {
     ''');
     if (result is! Map) return ImageLoadingConfig(url: url);
     return ImageLoadingConfig.fromJs(result);
+  }
+
+  /// Downloads [url] with [headers] for image display.
+  Future<Uint8List> fetchImageBytes(
+      String url, Map<String, String>? headers) async {
+    final response = await _dio.get<List<int>>(url,
+        options: Options(responseType: ResponseType.bytes, headers: headers));
+    return Uint8List.fromList(response.data ?? const []);
+  }
+
+  /// Decodes [bytes], runs the source's `modifyImage` [script] over the pixels,
+  /// and re-encodes the result as a PNG.
+  Future<Uint8List> modifyImage(Uint8List bytes, String script) async {
+    await _ensureInitialized();
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    final width = image.width;
+    final height = image.height;
+    final raw =
+        await image.toByteData(format: ui.ImageByteFormat.rawStraightRgba);
+    image.dispose();
+    codec.dispose();
+    if (raw == null) throw StateError('could not read image pixels');
+    final rgba = raw.buffer.asUint8List(raw.offsetInBytes, raw.lengthInBytes);
+    final processed = await _engine.runModifyImage(script, width, height, rgba);
+    if (processed.length != width * height * 4) {
+      throw StateError('modifyImage changed the image size');
+    }
+    final decoded = Completer<ui.Image>();
+    ui.decodeImageFromPixels(processed, width, height, ui.PixelFormat.rgba8888,
+        (image) => decoded.complete(image));
+    final result = await decoded.future;
+    final png = await result.toByteData(format: ui.ImageByteFormat.png);
+    result.dispose();
+    if (png == null) throw StateError('could not encode image');
+    return png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
   }
 
   void dispose() => _engine.dispose();

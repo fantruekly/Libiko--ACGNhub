@@ -332,6 +332,34 @@ class JsEngine {
     }
   }
 
+  /// Runs [script]'s `modifyImage` over the [width]x[height] RGBA [rgba] and
+  /// returns the processed RGBA pixels. Both the source and result image
+  /// handles are freed before returning (or on failure).
+  Future<Uint8List> runModifyImage(
+      String script, int width, int height, Uint8List rgba) async {
+    final srcHandle = _nextImageHandle++;
+    _images[srcHandle] = RgbaImage(width, height, Uint8List.fromList(rgba));
+    int? resultHandle;
+    try {
+      final result = await evaluate('''
+        (function () {
+          $script
+          const __img = modifyImage(new Image($srcHandle, $width, $height));
+          return __img._h;
+        })()
+      ''');
+      resultHandle = (result as num?)?.toInt();
+      final image = resultHandle == null ? null : _images[resultHandle];
+      if (image == null) {
+        throw StateError('modifyImage did not return an image');
+      }
+      return Uint8List.fromList(image.data);
+    } finally {
+      _images.remove(srcHandle);
+      if (resultHandle != null) _images.remove(resultHandle);
+    }
+  }
+
   static const _settingPrefix = 'source_setting.';
   static const _dataPrefix = 'source_data.';
 
