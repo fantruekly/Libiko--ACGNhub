@@ -49,15 +49,16 @@ class StreamResolver {
           await browser.load(playPageUrl, timeout: timeout);
         } catch (e) {
           debugPrint('[StreamResolver] load failed for $playPageUrl: $e');
-        } finally {
-          await Future<void>.delayed(const Duration(seconds: 6));
           if (!grace.isCompleted) grace.complete();
+          return;
         }
+        await Future<void>.delayed(const Duration(seconds: 4));
+        if (!grace.isCompleted) grace.complete();
       }());
       final candidate = await Future.any<MediaCandidate?>([
         completer.future,
         grace.future.then((_) => null),
-      ]).timeout(timeout + const Duration(seconds: 6), onTimeout: () {
+      ]).timeout(const Duration(seconds: 10), onTimeout: () {
         debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');
         return null;
       });

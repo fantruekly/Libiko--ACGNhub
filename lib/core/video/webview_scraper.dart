@@ -110,7 +110,9 @@ class WebviewScraper {
       while (DateTime.now().isBefore(deadline)) {
         dynamic result;
         try {
-          result = await browser.eval(script);
+          result = await browser
+              .eval(script)
+              .timeout(const Duration(seconds: 3), onTimeout: () => null);
         } catch (_) {
           result = null;
         }
