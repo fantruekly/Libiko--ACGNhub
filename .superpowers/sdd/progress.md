@@ -946,3 +946,16 @@ User chose scope A (dead code). Removed the unused legacy rule subsystem: `searc
 - Verified: analyze clean; test 439 pass / 1 skip; Windows release build OK.
 - Cleanup COMPLETE (55ab513..a9da423). Pushed origin/dev.
 Remaining known limitations (not dead code, intentionally kept): vxdev-chained roads not statically resolvable; broad `catch (_)` for resilience.
+
+## Source load performance + fast-fail (plan docs/superpowers/plans/2026-09-18-source-load-performance.md, base 507e9ba)
+
+Diagnosis (real-app timing probe): rule search 14-15s because WebviewScraper awaited full onLoadStop before eval; failed resolves burned ~31s (MacCMS 8s + headless 30s). DM84/gugu3/akianime/7sefun-road1 use third-party AES parse players that never emit media -> unsupported (no reverse engineering this round).
+Scope: 1) poll eval while loading; 2) MacCMS 4s + headless load+6s grace fast-fail; 3) clearer failure copy; 4) timing re-verification.
+
+Task 1: complete (commit 507e9ba..b59841e, review clean; 4 Minor: eval has no timeout so the 12s window is soft; early return can read a partially-rendered list (by design); DateTime.now vs Stopwatch; no direct test for the loop).
+Task 2: complete (commit b59841e..c9edac2, review clean; 4 Minor: hard load failure waits the full 6s grace; media >6s after load now fails (intended fail-fast, confirm live); headless race untested; dispose-race harmless).
+Task 3: complete (commit c9edac2..2cec022, review clean; no findings).
+Task 4: complete (verification, HEAD 2cec022, no commit). Perf probe: search 七色番 14.4s->2.3s, xfdmneo 15.2s->3.4s; failed resolve DM84 31s->9.5s, gugu3->10.5s, 七色番->11.3s, akianime->18s; working resolves unchanged (1-4.7s). Gates pass (analyze/test/Windows+APK release).
+Final whole-branch review (507e9ba..2cec022): "With fixes" (2 Important: akianime still ~18s; unbounded eval can hang/leak; + Minors). Fix wave 9351bc4: headless absolute 10s cap, grace 4s + immediate on load error; eval bounded 3s. Re-measured: failed resolves DM84 7.4s/gugu3 8.5s/七色番 11.1s/akianime 11.4s; working 1.1-4.7s; search counts parity. Re-review: Ready to merge? Yes.
+Residual notes (non-blocking): 10s cap is per-headless-phase (worst case ~14s with a slow MacCMS probe); `timeout` param now partially vestigial; no automated test for the race/polling (native).
+Source load performance: implementation COMPLETE (507e9ba..9351bc4). Pushed origin/dev for the user's PR.
