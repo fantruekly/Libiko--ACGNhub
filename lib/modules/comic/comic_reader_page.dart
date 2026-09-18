@@ -207,7 +207,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
             return Center(
                 child: CircularProgressIndicator(color: cs.onSurfaceVariant));
           }
-          return _ZoomablePage(
+          return _HorizontalPage(
             onPrev: () => _flipTo(-1),
             onNext: () => _flipTo(1),
             onToggleChrome: _toggleChrome,
@@ -217,6 +217,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
               comicId: widget.comicId,
               chapterId: _chapterId,
               url: images[index],
+              fit: BoxFit.fitWidth,
             ),
           );
         },
@@ -683,64 +684,46 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
   }
 }
 
-class _ZoomablePage extends StatefulWidget {
+class _HorizontalPage extends StatelessWidget {
   final Widget child;
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final VoidCallback onToggleChrome;
 
-  const _ZoomablePage({
+  const _HorizontalPage({
     required this.child,
     required this.onPrev,
     required this.onNext,
     required this.onToggleChrome,
   });
 
-  @override
-  State<_ZoomablePage> createState() => _ZoomablePageState();
-}
-
-class _ZoomablePageState extends State<_ZoomablePage> {
-  final _controller = TransformationController();
-  bool _zoomed = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _toggleZoom() {
-    setState(() {
-      _zoomed = !_zoomed;
-      _controller.value = _zoomed
-          ? (Matrix4.identity()..scaleByDouble(2.5, 2.5, 2.5, 1.0))
-          : Matrix4.identity();
-    });
-  }
-
-  void _handleTapUp(TapUpDetails details) {
+  void _handleTapUp(BuildContext context, TapUpDetails details) {
     final width = context.size?.width ?? 0;
     final x = details.localPosition.dx;
     if (width > 0 && x < width / 3) {
-      widget.onPrev();
+      onPrev();
     } else if (width > 0 && x > width * 2 / 3) {
-      widget.onNext();
+      onNext();
     } else {
-      widget.onToggleChrome();
+      onToggleChrome();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapUp: _handleTapUp,
-      onDoubleTap: _toggleZoom,
-      child: InteractiveViewer(
-        transformationController: _controller,
-        minScale: 1,
-        maxScale: 4,
-        child: widget.child,
+      behavior: HitTestBehavior.opaque,
+      onTapUp: (details) => _handleTapUp(context, details),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.vertical,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(child: child),
+            ),
+          );
+        },
       ),
     );
   }
