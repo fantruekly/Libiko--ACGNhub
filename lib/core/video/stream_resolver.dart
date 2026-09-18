@@ -17,7 +17,7 @@ class StreamResolver {
 
   Future<MediaCandidate?> resolve(
     String playPageUrl, {
-    Duration timeout = const Duration(seconds: 30),
+    Duration timeout = const Duration(seconds: 15),
     String? userAgent,
     String? referer,
     bool legacy = false,
@@ -26,7 +26,7 @@ class StreamResolver {
       playPageUrl,
       userAgent: userAgent,
       referer: referer,
-      timeout: const Duration(seconds: 8),
+      timeout: const Duration(seconds: 4),
     );
     if (direct != null) return direct;
 
@@ -43,15 +43,21 @@ class StreamResolver {
           completer.complete(candidate);
         }
       });
+      final grace = Completer<void>();
       unawaited(() async {
         try {
           await browser.load(playPageUrl, timeout: timeout);
         } catch (e) {
           debugPrint('[StreamResolver] load failed for $playPageUrl: $e');
-          if (!completer.isCompleted) completer.complete(null);
+        } finally {
+          await Future<void>.delayed(const Duration(seconds: 6));
+          if (!grace.isCompleted) grace.complete();
         }
       }());
-      final candidate = await completer.future.timeout(timeout, onTimeout: () {
+      final candidate = await Future.any<MediaCandidate?>([
+        completer.future,
+        grace.future.then((_) => null),
+      ]).timeout(timeout + const Duration(seconds: 6), onTimeout: () {
         debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');
         return null;
       });
