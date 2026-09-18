@@ -60,7 +60,7 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
       child: SafeArea(
         child: Column(
           children: [
-            _topBar(cs),
+            _topBar(),
             const Spacer(),
             _centerButton(),
             const Spacer(),
@@ -71,7 +71,7 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
     );
   }
 
-  Widget _topBar(ColorScheme cs) {
+  Widget _topBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
