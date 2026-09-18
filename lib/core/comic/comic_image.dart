@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -38,6 +39,132 @@ void trimCache<K, V>(
   while (cache.length > max) {
     evictOldest(cache, onEvict);
   }
+}
+
+int _be32(Uint8List bytes, int offset) =>
+    (bytes[offset] << 24) |
+    (bytes[offset + 1] << 16) |
+    (bytes[offset + 2] << 8) |
+    bytes[offset + 3];
+
+/// Parses the pixel dimensions of a PNG, JPEG or WebP image from its leading
+/// bytes, without decoding the whole image. Returns null when the format is
+/// unknown or the header is incomplete. Pure so it can be unit-tested.
+Size? parseImageSize(Uint8List bytes) {
+  // PNG: 89 50 4E 47 0D 0A 1A 0A, then IHDR width/height at 16..24.
+  if (bytes.length >= 24 &&
+      bytes[0] == 0x89 &&
+      bytes[1] == 0x50 &&
+      bytes[2] == 0x4E &&
+      bytes[3] == 0x47 &&
+      bytes[4] == 0x0D &&
+      bytes[5] == 0x0A &&
+      bytes[6] == 0x1A &&
+      bytes[7] == 0x0A) {
+    final width = _be32(bytes, 16);
+    final height = _be32(bytes, 20);
+    return width > 0 && height > 0
+        ? Size(width.toDouble(), height.toDouble())
+        : null;
+  }
+
+  // JPEG: FF D8, then scan segments for an SOF0/1/2 marker.
+  if (bytes.length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
+    var offset = 2;
+    while (offset + 1 < bytes.length) {
+      if (bytes[offset] != 0xFF) {
+        offset++;
+        continue;
+      }
+      final marker = bytes[offset + 1];
+      if (marker == 0xFF) {
+        offset++;
+        continue;
+      }
+      // Standalone markers without a length field.
+      if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9)) {
+        offset += 2;
+        continue;
+      }
+      if (offset + 3 >= bytes.length) return null;
+      final length = (bytes[offset + 2] << 8) | bytes[offset + 3];
+      if (length < 2) return null;
+      if (marker == 0xC0 || marker == 0xC1 || marker == 0xC2) {
+        if (offset + 8 >= bytes.length) return null;
+        final height = (bytes[offset + 5] << 8) | bytes[offset + 6];
+        final width = (bytes[offset + 7] << 8) | bytes[offset + 8];
+        return width > 0 && height > 0
+            ? Size(width.toDouble(), height.toDouble())
+            : null;
+      }
+      offset += 2 + length;
+    }
+    return null;
+  }
+
+  // WebP: RIFF....WEBP, then a VP8 /VP8L/VP8X chunk.
+  if (bytes.length >= 16 &&
+      bytes[0] == 0x52 &&
+      bytes[1] == 0x49 &&
+      bytes[2] == 0x46 &&
+      bytes[3] == 0x46 &&
+      bytes[8] == 0x57 &&
+      bytes[9] == 0x45 &&
+      bytes[10] == 0x42 &&
+      bytes[11] == 0x50) {
+    final fourcc = String.fromCharCodes(bytes.sublist(12, 16));
+    if (fourcc == 'VP8 ') {
+      if (bytes.length < 30 ||
+          bytes[23] != 0x9D ||
+          bytes[24] != 0x01 ||
+          bytes[25] != 0x2A) {
+        return null;
+      }
+      final width = bytes[26] | ((bytes[27] & 0x3F) << 8);
+      final height = bytes[28] | ((bytes[29] & 0x3F) << 8);
+      return width > 0 && height > 0
+          ? Size(width.toDouble(), height.toDouble())
+          : null;
+    }
+    if (fourcc == 'VP8L') {
+      if (bytes.length < 25 || bytes[20] != 0x2F) return null;
+      final b1 = bytes[21];
+      final b2 = bytes[22];
+      final b3 = bytes[23];
+      final b4 = bytes[24];
+      final width = 1 + (((b2 & 0x3F) << 8) | b1);
+      final height = 1 + (((b4 & 0x0F) << 10) | (b3 << 2) | ((b2 & 0xC0) >> 6));
+      return Size(width.toDouble(), height.toDouble());
+    }
+    if (fourcc == 'VP8X') {
+      if (bytes.length < 30) return null;
+      final width = 1 + (bytes[24] | (bytes[25] << 8) | (bytes[26] << 16));
+      final height = 1 + (bytes[27] | (bytes[28] << 8) | (bytes[29] << 16));
+      return Size(width.toDouble(), height.toDouble());
+    }
+  }
+
+  return null;
+}
+
+/// The median of [ratios], ignoring non-positive/non-finite entries, or
+/// [fallback] when none are usable. Pure so it can be unit-tested.
+double medianRatio(Iterable<double> ratios, {double fallback = 1.4}) {
+  final known = ratios.where((r) => r.isFinite && r > 0).toList()..sort();
+  if (known.isEmpty) return fallback;
+  final middle = known.length ~/ 2;
+  return known.length.isOdd
+      ? known[middle]
+      : (known[middle - 1] + known[middle]) / 2;
+}
+
+/// Cooperative cancellation for [ComicImageProvider.prefetchRatios].
+class PrefetchCancelToken {
+  bool _cancelled = false;
+
+  bool get isCancelled => _cancelled;
+
+  void cancel() => _cancelled = true;
 }
 
 class _ProcessedPage {
@@ -153,6 +280,108 @@ class ComicImageProvider {
   /// The aspect ratio (width / height) of a previously processed page, or null
   /// when it has not been loaded yet.
   double? ratioOf(String url) => _cache.ratioOf(url);
+
+  /// Records [ratio] for [url] so later builds can size its placeholder. Used
+  /// by the reader once an image resolves without going through `modifyImage`.
+  void rememberRatio(String url, double ratio) {
+    if (ratio.isFinite && ratio > 0) _cache.rememberRatio(url, ratio);
+  }
+
+  late final Dio _ratioDio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 20),
+    validateStatus: (_) => true,
+  ));
+
+  /// Fills the ratio cache for every [urls] whose ratio is still unknown, using
+  /// a bounded number of concurrent workers.
+  ///
+  /// Each page's header is fetched with an HTTP `Range: bytes=0-8191` request;
+  /// when that is not parseable (or the server ignores the range and the first
+  /// bytes are not enough) it falls back to a full download and
+  /// [ui.ImageDescriptor]. Best-effort: every failure is swallowed so reading
+  /// is never disturbed. Pass [cancelToken] to stop early on a chapter change.
+  Future<void> prefetchRatios(
+    List<String> urls, {
+    int concurrency = 4,
+    PrefetchCancelToken? cancelToken,
+  }) async {
+    final queue = Queue<String>();
+    for (final url in urls) {
+      if (cancelToken?.isCancelled ?? false) return;
+      if (_cache.ratioOf(url) == null) queue.add(url);
+    }
+    if (queue.isEmpty) return;
+    final lanes = concurrency < 1 ? 1 : concurrency;
+    final workers = <Future<void>>[];
+    for (var i = 0; i < lanes && queue.isNotEmpty; i++) {
+      workers.add(_drainRatioQueue(queue, cancelToken));
+    }
+    await Future.wait(workers);
+  }
+
+  Future<void> _drainRatioQueue(
+      Queue<String> queue, PrefetchCancelToken? cancelToken) async {
+    while (queue.isNotEmpty) {
+      if (cancelToken?.isCancelled ?? false) return;
+      final url = queue.removeFirst();
+      if (_cache.ratioOf(url) != null) continue;
+      await _loadRatio(url, cancelToken);
+    }
+  }
+
+  Future<void> _loadRatio(String url, PrefetchCancelToken? cancelToken) async {
+    try {
+      final response = await _ratioDio.get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: const {'Range': 'bytes=0-8191'},
+        ),
+      );
+      if (cancelToken?.isCancelled ?? false) return;
+      final bytes = Uint8List.fromList(response.data ?? const []);
+      final size = parseImageSize(bytes);
+      if (size != null && size.height > 0) {
+        _cache.rememberRatio(url, size.width / size.height);
+        return;
+      }
+    } catch (_) {
+      // Fall through to a full download.
+    }
+    if (cancelToken?.isCancelled ?? false) return;
+    await _ratioFromFullDownload(url, cancelToken);
+  }
+
+  Future<void> _ratioFromFullDownload(
+      String url, PrefetchCancelToken? cancelToken) async {
+    if (_cache.ratioOf(url) != null) return;
+    try {
+      final response = await _ratioDio.get<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (cancelToken?.isCancelled ?? false) return;
+      final bytes = Uint8List.fromList(response.data ?? const []);
+      final size = parseImageSize(bytes);
+      if (size != null && size.height > 0) {
+        _cache.rememberRatio(url, size.width / size.height);
+        return;
+      }
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      ui.ImageDescriptor? descriptor;
+      try {
+        descriptor = await ui.ImageDescriptor.encoded(buffer);
+        final height = descriptor.height;
+        if (height > 0) _cache.rememberRatio(url, descriptor.width / height);
+      } finally {
+        descriptor?.dispose();
+        buffer.dispose();
+      }
+    } catch (_) {
+      // Unknown ratio; the reader falls back to the chapter median.
+    }
+  }
 }
 
 /// An [ImageProvider] that downloads a page, reassembles it through the

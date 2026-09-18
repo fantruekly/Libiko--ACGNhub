@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_history.dart';
+import '../../core/comic/comic_image.dart';
 import '../../core/comic/comic_reader_settings.dart';
 import '../../core/comic/models.dart';
 import '../../core/comic/reader_nav.dart';
@@ -43,6 +44,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   DateTime? _lastHistoryWrite;
   Timer? _chromeTimer;
   Timer? _historyTimer;
+  PrefetchCancelToken? _ratioToken;
+  String? _ratioPrefetchedChapter;
   final _scrollController = ScrollController();
   final _pageController = PageController();
 
@@ -58,6 +61,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   void dispose() {
     _chromeTimer?.cancel();
     _historyTimer?.cancel();
+    _ratioToken?.cancel();
     _scrollController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -107,6 +111,12 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
           child: Text('本章暂无图片', style: TextStyle(color: cs.onSurfaceVariant)));
     }
     _scheduleInitialOrLanding(images.length);
+    _startRatioPrefetch(images);
+    final provider = ref.read(comicImageProvider);
+    final fallback = medianRatio([
+      for (final url in images)
+        if (provider.ratioOf(url) case final ratio?) ratio,
+    ]);
     final nav = _nav(details);
     return NotificationListener<ScrollMetricsNotification>(
       onNotification: (notification) {
@@ -159,16 +169,25 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                 ),
               );
             }
+            final cached = provider.ratioOf(images[i]);
+            final ratio = (cached != null && cached > 0) ? cached : fallback;
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _toggleChrome,
-              child: _ReaderImage(
-                key: ValueKey('$_chapterId-$i'),
-                sourceKey: widget.sourceKey,
-                comicId: widget.comicId,
-                chapterId: _chapterId,
-                url: images[i],
-                fit: BoxFit.fitWidth,
+              child: AspectRatio(
+                aspectRatio: ratio,
+                child: _ReaderImage(
+                  key: ValueKey('$_chapterId-$i'),
+                  sourceKey: widget.sourceKey,
+                  comicId: widget.comicId,
+                  chapterId: _chapterId,
+                  url: images[i],
+                  fit: BoxFit.fitWidth,
+                  onRatio: (r) {
+                    provider.rememberRatio(images[i], r);
+                    if (mounted) setState(() {});
+                  },
+                ),
               ),
             );
           },
@@ -505,6 +524,37 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     setState(() => _page = page);
     _scheduleHistory();
     _preload(page, total);
+    final images = ref
+        .read(comicEpProvider((widget.sourceKey, widget.comicId, _chapterId)))
+        .valueOrNull
+        ?.images;
+    if (images != null) _prefetchAround(images, page);
+  }
+
+  /// Warms the current page and its two neighbours (clamped) without blocking.
+  void _prefetchAround(List<String> images, int page) {
+    if (images.isEmpty) return;
+    final provider = ref.read(comicImageProvider);
+    final last = images.length - 1;
+    final start = (page - 2).clamp(0, last);
+    final end = (page + 2).clamp(0, last);
+    for (var i = start; i <= end; i++) {
+      unawaited(provider.prefetch(
+          widget.sourceKey, widget.comicId, _chapterId, images[i]));
+    }
+  }
+
+  /// Starts the once-per-chapter background ratio prefetch so placeholders
+  /// match their final height from the first build.
+  void _startRatioPrefetch(List<String> images) {
+    if (_ratioPrefetchedChapter == _chapterId) return;
+    _ratioPrefetchedChapter = _chapterId;
+    _ratioToken?.cancel();
+    final token = PrefetchCancelToken();
+    _ratioToken = token;
+    unawaited(ref.read(comicImageProvider).prefetchRatios(images,
+        cancelToken: token));
+    _prefetchAround(images, _page);
   }
 
   void _scheduleHistory() {
@@ -617,6 +667,7 @@ class _ReaderImage extends ConsumerStatefulWidget {
   final String chapterId;
   final String url;
   final BoxFit fit;
+  final ValueChanged<double>? onRatio;
 
   const _ReaderImage({
     super.key,
@@ -625,6 +676,7 @@ class _ReaderImage extends ConsumerStatefulWidget {
     required this.chapterId,
     required this.url,
     this.fit = BoxFit.contain,
+    this.onRatio,
   });
 
   @override
@@ -633,6 +685,7 @@ class _ReaderImage extends ConsumerStatefulWidget {
 
 class _ReaderImageState extends ConsumerState<_ReaderImage> {
   late Future<ImageProvider> _future;
+  bool _ratioReported = false;
 
   @override
   void initState() {
@@ -650,8 +703,33 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
   }
 
   void _resolve() {
+    _ratioReported = false;
     _future = ref.read(comicImageProvider).resolve(
         widget.sourceKey, widget.comicId, widget.chapterId, widget.url);
+    _future.then((provider) {
+      if (mounted) _reportRatio(provider);
+    }, onError: (_) {});
+  }
+
+  /// Reports the resolved image's aspect ratio once, so the parent can size the
+  /// placeholder to the real height instead of the fallback.
+  void _reportRatio(ImageProvider provider) {
+    final onRatio = widget.onRatio;
+    if (onRatio == null || _ratioReported) return;
+    final stream = provider.resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        stream.removeListener(listener);
+        if (!mounted || _ratioReported) return;
+        final image = info.image;
+        if (image.height <= 0) return;
+        _ratioReported = true;
+        onRatio(image.width / image.height);
+      },
+      onError: (_, __) => stream.removeListener(listener),
+    );
+    stream.addListener(listener);
   }
 
   @override
@@ -679,18 +757,15 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
 
   Widget _loading() {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Center(
-          child: CircularProgressIndicator(color: cs.onSurfaceVariant)),
-    );
+    return Center(
+        child: CircularProgressIndicator(color: cs.onSurfaceVariant));
   }
 
   Widget _retry() {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Center(
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
