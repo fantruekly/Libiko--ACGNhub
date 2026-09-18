@@ -124,7 +124,7 @@ class MacCmsResolver {
       final player = parseMacCmsPlayer(response.data ?? '');
       if (player == null) return null;
       final url = decryptMacCmsUrl(player.url, player.encrypt);
-      if (url == null || url.isEmpty) return null;
+      if (url == null || url.isEmpty || !looksLikeMediaUrl(url)) return null;
       return MediaCandidate(url, headers: headers);
     } catch (_) {
       return null;

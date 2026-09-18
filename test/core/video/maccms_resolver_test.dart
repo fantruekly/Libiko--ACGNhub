@@ -47,4 +47,11 @@ void main() {
     final dio = Dio()..httpClientAdapter = adapter;
     expect(await MacCmsResolver(dio: dio).resolve('https://x/play'), isNull);
   });
+
+  test('returns null when the decrypted URL is not a media file', () async {
+    final adapter = _FakeAdapter('<script>var player_aaaa={"encrypt":0,'
+        '"url":"https://www.lmm85.com/play/7817_1_1.html"};</script>');
+    final dio = Dio()..httpClientAdapter = adapter;
+    expect(await MacCmsResolver(dio: dio).resolve('https://x/play'), isNull);
+  });
 }
