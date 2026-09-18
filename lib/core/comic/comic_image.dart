@@ -491,8 +491,10 @@ class _ModifyImageProvider extends ImageProvider<_ModifyImageProvider> {
       final ratio =
           processed.height == 0 ? 0.0 : processed.width / processed.height;
       cache.put(cacheKey, _ProcessedPage(processed, ratio));
-      cache.rememberRatio(url, ratio);
-      if (requestUrl != url) cache.rememberRatio(requestUrl, ratio);
+      if (ratio.isFinite && ratio > 0) {
+        cache.rememberRatio(url, ratio);
+        if (requestUrl != url) cache.rememberRatio(requestUrl, ratio);
+      }
       return ImageInfo(image: processed.clone(), scale: 1.0);
     } catch (_) {
       // Fall back to the raw page so a broken script still shows something.
@@ -600,9 +602,13 @@ class _CachedPageImageProvider extends ImageProvider<_CachedPageImageProvider> {
       final image = info.image;
       final ratio = image.height == 0 ? 0.0 : image.width / image.height;
       cache.put(cacheKey, _ProcessedPage(image.clone(), ratio));
-      cache.rememberRatio(url, ratio);
-      if (requestUrl != url) cache.rememberRatio(requestUrl, ratio);
-      return ImageInfo(image: image.clone(), scale: 1.0);
+      if (ratio.isFinite && ratio > 0) {
+        cache.rememberRatio(url, ratio);
+        if (requestUrl != url) cache.rememberRatio(requestUrl, ratio);
+      }
+      final served = ImageInfo(image: image.clone(), scale: 1.0);
+      info.image.dispose();
+      return served;
     } catch (_) {
       // Caching is best-effort: fall back to the plain frame so a page shows.
       return info;
