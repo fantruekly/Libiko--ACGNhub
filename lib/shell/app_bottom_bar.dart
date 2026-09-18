@@ -134,7 +134,10 @@ class _BarItemState extends State<_BarItem>
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(widget.icon, size: 24, color: iconColor),
+                Transform.scale(
+                  scale: 1.0 + 0.18 * t,
+                  child: Icon(widget.icon, size: 24, color: iconColor),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   widget.label,
