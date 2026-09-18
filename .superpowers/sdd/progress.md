@@ -762,4 +762,144 @@ F Task 3 (JS bridge fixes + tests + provenance): complete (commit 47f654d..fb392
 F Task 4 (review): Approved. 1 Important (escape-test assertions were vacuous) fixed in cb376cf with guard-removed FAIL / guard-restored PASS evidence.
 MINORS BATCH COMPLETE (cdd4e89..cb376cf). `flutter analyze` clean; 371 pass / 1 skip. Pushed origin/dev.
   Accepted/remaining: `forMainFrameOnly` inert (plan-level; Android playback unproven - emulator can't fetch the media CDN); `replaceAll` string-branch doesn't expand `$&`; `_cookie` raw-key fallback untested (qjs-only); vendored JS licensing unconfirmed; `work_card` pastel placeholder palette left as-is.
+
+## Anime UI + Playback Round 2 (2026-09-17)
+
+Spec: docs/superpowers/specs/2026-09-17-anime-ui-playback-round2-design.md
+Plan: docs/superpowers/plans/2026-09-17-anime-ui-playback-round2.md (base 1f26c67, 6 tasks)
+Root cause (systematic debugging, emulator): `[StreamResolver] resolved=...index.m3u8` then mpv `HTTP error 403 Forbidden` with `http-header-fields=null`; the WebView's successful m3u8 request carried `Referer: https://bf.sbbzy.com/`, an Android WebView UA and `Origin`. Fix = replay those headers in media_kit.
+
+R2 Task 1 (media request headers): complete (commit 1f26c67..7224941, review clean).
+  `MediaCandidate` + `playerHeadersFrom`; `HeadlessBrowser.mediaUrls` -> `Stream<MediaCandidate>`; Android captures request headers (Windows emits empty); `StreamResolver.resolve` -> `MediaCandidate?`; player passes `httpHeaders`. 374 pass / 1 skip.
+  Justified deviation: `request.headers ?? const {}` (nullable).
+R2 Task 2 (remove 今日放送): complete (commits 7224941..fc7d2c8, review clean). Plan gap: `anime_home_test.dart` asserted the old 5-tab list; fixed in fc7d2c8.
+R2 Task 3 (aligned mobile grids): complete (commits fc7d2c8..6560495, review clean after 1 fix).
+  Plan gaps: `adaptive_grid_test.dart` asserted masonry (fixed 8a60ed4); review found the sliver branch double-subtracted horizontal padding (fixed 6560495, test pins mainAxisExtent values). `flutter_staggered_grid_view` is now an unused dependency.
+R2 Task 4 (two-column buttons): complete (commit 6560495..f2e44a3, review clean). `TwoColumnButtonGrid` + full-width `PillButton`; wired anime/comic/novel. 375 pass / 1 skip.
+  Minor (deferred): test doesn't assert the odd trailing child's width.
+R2 Task 5 (bottom bar indicator): complete (commit f2e44a3..58bbd09, review clean). Glass shell kept; 200ms capsule + color animation.
+  Minor (deferred): transparent->secondaryContainer lerp passes through a dark tint; mid-animation reverse snaps.
+R2 Task 6 (verify): controller-run on emulator-5554 (fresh install, proxy set).
+  PASS - anime home has 4 tabs (no 今日放送); covers strictly aligned per row (top/bottom edges match); titles 2-line ellipsis; bottom bar 4 items with a lavender capsule on the selected icon.
+  PASS - detail page episodes render as two equal-width columns (435px each).
+  PASS - PLAYBACK FIXED: gimy `resolved=...index.m3u8`, NO 403 anywhere, player progresses (00:56 -> 01:21) and audio started; video black only due to the emulator's EGL/SW-rendering limitation.
+  Gates: analyze clean; 375 pass / 1 skip; Windows release builds.
+  MUST-VERIFY (human): Windows interactive regression (grid/buttons/playback) and real-phone video rendering.
+R2 final whole-branch review (1f26c67..58bbd09): "With fixes".
+  Important: (1) `TwoColumnButtonGrid` stretched buttons to half a wide desktop window; (2) the bottom-bar capsule had no test.
+  Minor: `flutter_staggered_grid_view` now unused; first-candidate-wins can drop headers for extension-less HLS; `CoverRatioCache` dead in prod; `.superpowers/` tracked despite gitignore; grid half-width rounding; history title extent metric-dependent; grid test gaps.
+Fix 964e5d9 (re-review clean): grid capped at 420 + left-aligned; capsule keyed + animation test added.
+R2 COMPLETE (1f26c67..964e5d9). analyze clean; 377 pass / 1 skip; Android + Windows builds. Pushed origin/dev.
+
+## Anime UI + Playback Round 3 (2026-09-17)
+
+Spec: docs/superpowers/specs/2026-09-17-anime-ui-playback-round3-design.md
+Plan: docs/superpowers/plans/2026-09-17-anime-ui-playback-round3.md (base 964e5d9, 8 tasks)
+Root cause (emulator, systematic debugging): rule-source play page `7sefun.top/vodplay/...` redirects a MOBILE WebView UA to `/app/android.php` -> nothing sniffed -> `[StreamResolver] TIMEOUT`. `StreamResolver` started the browser with no UA (Android default = mobile); the scraper uses the desktop `kBrowserUserAgent`, and Windows' WebView defaults to desktop. Fix = pass `kBrowserUserAgent` in the resolver.
+
+R3 Task 1 (playback desktop UA): complete (commit 964e5d9..3619f46, review clean). Only `stream_resolver.dart` changed (diagnostics removal left the android file identical to HEAD).
+R3 Task 2 (anime TabStrip): complete (commit 3619f46..ce09870, review clean). Plan gap again: `anime_home_test.dart` read `Tab` widgets; updated to read `TabStrip` Text labels.
+R3 Task 3 (lighter-blue theme): complete (commit ce09870..6109eea, review clean). Seed #3B9EFF, scaffold #F2F7FF.
+R3 Task 4 (cover decode size): complete (commits 6109eea..6800069, review clean after 1 fix).
+  `RatioCover` decodes at layoutWidth x DPR (clamp 200-1600). Review found `setState`-during-build on cached images; fixed 6800069 (defer via post-frame callback). 378 pass / 1 skip.
+R3 Task 5 (content-area swipe): complete (commit 6800069..f38e223, review clean). Comic part / novel option step on fling; falls through to TabBarView when no deeper row. Justified deviation: also wrapped the novel home branch in a null-handler GestureDetector to preserve the 推荐↔分组 slide.
+  Minor (deferred): no automated test for the swipe semantics.
+R3 Task 6 (tonal pager): complete (commits f38e223..8cd1bd2, review clean). Shared `PagerBar`; wired comic/novel/game. Plan gap: `game_home_test.dart` asserted the old IconButton; fixed 8cd1bd2 (find.descendant InkWell.onTap). 378 pass / 1 skip.
+R3 Task 7 (bottom-bar capsule): complete (commit 8cd1bd2..ed6bd63, review clean). Capsule wraps icon+label, centred; test now decoration-based.
+  Minor (deferred): tap target ~60.4px (margin shrinks it); large textScale overflow unguarded.
+R3 Task 8 (verify): controller-run on emulator-5554.
+  PASS - playback: 七色番 (rule) resolves in <1s (NO timeout) and the player initializes (1920x1080); gimy resolves. The UA fix is confirmed. Video black = emulator SW rendering.
+  PARTIAL - gimy: resolves but media_kit fails to open the HLS sub-playlist (`.../3000k/hls/mixed.m3u8`) - downstream media_kit/CDN issue, not the resolver.
+  PASS - UI: crisp TabStrip tabs; pale-blue background; sharp 3:2 game covers; comic swipe changes the deepest chip row; tonal pager; capsule wraps icon+label centred.
+  Gates: analyze clean; 378 pass / 1 skip; Android + Windows builds.
+R3 final whole-branch review (964e5d9..b236469): "With fixes".
+  Important: (1) `StreamResolver` ignored the per-rule `userAgent`; (2) `RatioCover` decode width churned during Hero flights/resizes.
+  Minor: dead novel gesture wrapper; velocity-only swipe; no swipe test; PagerBar tap targets 40x32; capsule overflow at large text scale; RatioCover micro-inefficiencies; test gaps; sniffer emits header-less candidates (may explain the gimy HLS failure).
+Fix cd0bd5e (re-review clean): `VideoEpisode.userAgent` threaded through both resolve call sites; decode width bucketed to 128px.
+R3 COMPLETE (964e5d9..cd0bd5e). analyze clean; 378 pass / 1 skip; Android + Windows builds. Pushed origin/dev.
+
+## Round 4 (2026-09-17)
+
+Spec: docs/superpowers/specs/2026-09-17-anime-ui-sources-round4-design.md
+Plan: docs/superpowers/plans/2026-09-17-anime-ui-sources-round4.md (base cd0bd5e, 7 tasks)
+
+R4 Task 1 (lighten palette): complete (commit cd0bd5e..0aed11e, review clean). Seed #6BB6FF, background #EAF3FF.
+R4 Task 2 (bottom-bar capsule): complete (commit 0aed11e..24ae559, review clean). Item padding h8; capsule h10/v2.
+R4 Task 3 (player controls lift): complete (commit 24ae559..8f18de2, review clean). bottomButtonBarMargin bottom 24.
+R4 Task 4 (pager persistence): complete (commits 8f18de2..3add3fc, review clean after 1 fix). `_lastPage`/`_lastHasMore` cache; swipe handlers clear it too.
+R4 Task 5 (settings hub + source pages): complete (commit 3add3fc..ed4d0b1, review clean). `RuleStore.remove`; top-bar settings button; SettingsPage hub → SourceHubPage → AnimeSourcePage (import/delete) / ComicSourcePage / read-only Novel+Game; comic gear removed.
+  Minor (deferred): `_remove` lacks a mounted guard/try-catch; no delete confirmation; no tests for the new pages.
+R4 Task 6 (add kazumi rules): complete (commit ed4d0b1..a262db7, review clean). Added ezdmw/aafun/DM84/xfdmneo/baimao (10 built-ins); sorani dropped (API-mode, unsupported). rule_store_test updated.
+R4 Task 7 (verify + prune): controller-run on emulator-5554.
+  UI PASS: palette #EAF3FF; small/spaced capsule; pager stays visible while paging; settings hub + 4 module pages (anime import/delete, comic manage, novel/game read-only).
+  Source audit (single title 無職転生III): moonci resolved+played; baimao resolved (player error `tcp: ffurl_read`); gugu3 TIMEOUT; AGE动漫 episodes failed; 7 others had no search results for that title (catalog difference, inconclusive).
+R4 final whole-branch review (cd0bd5e..2dfd4d6): "With fixes".
+  Important: aafun invalid chapterRoads; ezdmw incompatible selector; new rules not end-to-end verified; pager cache stale on error; missing regression tests.
+Fix a861382 (re-review clean): dropped aafun+ezdmw (8 built-ins, test updated); pager cache cleared on error + next disabled while loading.
+R4 COMPLETE (cd0bd5e..a861382). analyze clean; 378 pass / 1 skip; Android + Windows builds. Pushed origin/dev.
+
+## Round 5 (2026-09-17)
+
+Spec: docs/superpowers/specs/2026-09-17-anime-sources-round5-design.md
+Plan: docs/superpowers/plans/2026-09-17-anime-sources-round5.md (base a861382, 6 tasks)
+
+R5 Task 1 (best-match per source): complete (commit a861382..e08212e, review clean). `title_match.dart` (normalize + bigram Dice); detail page one row per source + expandable 更多结果. 381 pass / 1 skip.
+R5 Task 2 (all chapter roads): complete (commit e08212e..8394ad2, review clean). `buildEpisodesScript` iterates all roads, 线路N prefix. 382 pass / 1 skip. (xpath_js_test + rule_source_test updated.)
+R5 Task 3 (referer header): complete (commit 8394ad2..687ee70, review clean). SourceRule/VideoEpisode.referer; player merges UA+Referer+sniffed headers. 383 pass / 1 skip.
+R5 Task 4 (legacy iframe parser): complete (commit 687ee70..f47a6c6, review clean). `useLegacyParser` -> `StreamResolver(legacy:)` -> `kLegacyIframeScript` via `HeadlessBrowser.start(extraScript:)`. Windows legacy is inert (no mediaSniffer handler) - documented.
+  Minor (deferred): `start` doc says "document start" unconditionally (Windows differs); script has no Windows note.
+R5 Task 5 (API mode): complete (commits f47a6c6..37b27d0, review clean after 1 fix). `searchMode/chapterMode=api` + configs; `api_rule.dart` (restricted JSONPath, episodePage template, dio client); routing by mode. Review fix: nested road names + fake-dio tests. 393 pass / 1 skip.
+R5 Task 6 (verify + bundle sorani): controller-run on emulator-5554.
+  PASS - detail page: one row per source (無職転生III 共4条 / BLEACH 共8条); 更多结果 works (gimy 2 alternatives).
+  PASS - multi-road: moonci/xfdmneo show 线路1/线路2 episode prefixes.
+  PASS - legacy xfdmneo: search/episodes/playback OK (`resolved=...暗黑01.mp4`, played 00:01/23:45).
+  PASS - no HTTP 403 anywhere. UI (palette/bottom bar/seek bar/settings) PASS.
+  API mode: engine unit-tested; bundled `sorani.json` (9 built-ins) so the path is now live-verifiable.
+R5 COMPLETE (a861382..560cf84). analyze clean; 393 pass / 1 skip; Android + Windows builds. Pushed origin/dev.
+  MUST-VERIFY (human): real-phone playback; live sorani (api) search/episodes; per-source reliability with matching titles (gimy/7sefun/DM84/MXdm/akianime had no results for the test titles - catalog differences).
+  Deferred: antiCrawler/captcha (5 catalog rules); usePost (2 deprecated rules); Windows legacy parser inert (no mediaSniffer handler); `start` doc says document-start unconditionally.
+
+## Round 6 (2026-09-18)
+
+Spec: docs/superpowers/specs/2026-09-18-comic-login-sources-design.md
+Plan: docs/superpowers/plans/2026-09-18-comic-login-sources.md (base 560cf84, 4 tasks)
+
+R6 Task 1 (bundle picacg/jm/ehentai): complete (commit 560cf84..579b722, review clean). Manifest version 1->2, 9 built-in comic sources.
+R6 Task 2 (login provider + shared dialog): complete (commit 579b722..2db0d1d, review clean). `comicLoginProvider`; `ComicAccountDialog` extracted and reused.
+R6 Task 3 (detail login prompt): complete (commit 2db0d1d..1a71075, review clean). Error state shows 该源需要登录/去登录 when the source needs login and the user isn't. 394 pass / 1 skip.
+R6 Task 4 (verify): PARTIAL. Windows release builds; analyze clean; 394 pass / 1 skip. Android emulator died (adb: no devices) before the on-device check could run.
+R6 COMPLETE (560cf84..1a71075). Pushed origin/dev.
+  MUST-VERIFY (human): picacg/jm/ehentai install + load; login prompt on a login-required source; login dialog + retry; real-phone.
+
+## Round 7 (2026-09-18)
+
+Spec: docs/superpowers/specs/2026-09-18-comic-login-and-jm-images-design.md
+Plan: docs/superpowers/plans/2026-09-18-comic-login-jm-images.md (base 1a71075, 5 tasks)
+
+R7 Task 1 (empty detail -> login prompt): complete (commit 1a71075..fc1f2f0, review clean). 396 pass / 1 skip.
+R7 Task 2 (ImageLoadingConfig.modifyImage): complete (commit fc1f2f0..317fc0d, review clean). 397 pass / 1 skip.
+R7 Task 3 (JS Image API + bridge): complete (commit 317fc0d..cc4651a, review clean). 399 pass / 1 skip. `image_bridge.dart` (RgbaImage/fillImageRangeAt), init.js `Image`, js_engine `image` ops.
+  Important (for Task 4): `_images` has no JS-reachable free; Task 4 must add a Dart-side dispose path.
+R7 Task 4 (apply modifyImage): complete (commits cc4651a..e41d45f, review clean after 1 fix). Custom `_ModifyImageProvider` + `ComicSourceManager.fetchImageBytes/modifyImage` + `JsEngine.runModifyImage` (frees handles). Fix e41d45f: rawRgba (premultiplied) round-trip.
+  Minor (deferred): loadImage ignores the decode callback (no cacheWidth); error paths may skip disposal; `_images` not cleared in dispose; cache key omits headers.
+R7 COMPLETE (1a71075..e41d45f). analyze clean; 399 pass / 1 skip; Windows build OK. Pushed origin/dev.
+  MUST-VERIFY (human/device): 哔咔 detail failure -> login prompt; 禁漫 page renders reassembled (not strips); 禁漫/ehentai show content without a prompt; real-phone.
+  MUST-VERIFY (human): real-phone playback (emulator can't render); per-source reliability with titles known to exist on each site (DM84/xfdmneo/baimao unverified end-to-end); seek-bar lift on device.
+  Minor (deferred): source delete has no confirm/mounted guard; `_safeName` collisions; seekBarMargin right 16 vs button bar right 8; no regression tests for pager/remove/settings.
+  MUST-VERIFY (human): real-phone video rendering (emulator cannot render); the gimy HLS sub-playlist failure; Windows interactive regression.
   MUST-VERIFY (human): Android anime playback (all sources; the iframe extension-less HLS case) - the emulator cannot fetch the media CDN; Windows visual regression; real-phone M3 look; per-source detail/chapter/reader for 包子漫画/Komiic/MangaDex/漫画柜/拷贝漫画; 漫画柜 cover placeholders; 拷贝漫画 sparse explore.
+
+## UI + Player custom controls (plan docs/superpowers/plans/2026-09-18-ui-player-custom-controls.md, base 73facb2)
+
+Spec: docs/superpowers/specs/2026-09-18-ui-player-custom-controls-design.md
+
+Task 1: complete (commit 73facb2..9bd9cb0, review clean; 2 Minor plan-mandated: test omits errorBorder/focusedErrorBorder assertions; property-inspection test would not catch a theme re-supplying a border).
+Task 2: complete (commit 9bd9cb0..46ad164, review clean; 1 Minor plan-mandated: test asserts decoration.border==null rather than rendered style).
+Task 3: complete (commit 46ad164..56415ad, review clean; 2 Minor: report line-count typo; optional 3600s formatting case).
+Task 4: complete (commit 56415ad..db8e1bc, review clean after 1 plan-mandated fix db8e1bc (unused _topBar param); 4 Minor deferred: drag clears before onSeek (snap-back risk); elapsed text not clamped; no drag/onChangeEnd test; theme-primary assertion could be a literal).
+Task 5: complete (commit db8e1bc..ecce71a, review clean after 1 Critical plan-mandated fix ecce71a (Video default controls is AdaptiveVideoControls, not null -> duplicate controls); 4 Minor deferred: desktop fullscreen state not synced with OS ESC/F11; mobile exit forces portraitUp; no onLongPressCancel (rate can stick at 2x); no page-level widget test).
+Task 6: complete (verification, HEAD ecce71a). analyze clean; test +436 ~1 all pass; Windows release build OK; Android release APK OK (NDK 27 vs flutter_qjs-required 28 warning). Player manual verification (gestures/fullscreen/controls) still 待人工验收.
+Final whole-branch review (73facb2..ecce71a): "With fixes" (2 Important: long-press pointer-cancel can strand 2x; desktop _fullscreen not synced with OS events; + Minors).
+Fix wave 63fe333 (re-review "Ready to merge? Yes"): Listener onPointerUp/Cancel + lifecycle/dispose rate reset; WindowListener + isFullScreen() read-back; onSeek before _drag clear; single clamped preview value; +errorBorder/focusedErrorBorder assertions; +3600->1:00:00 case.
+Residuals (non-blocking): no page-level widget test -> manual player verification is the release gate; mobile exit forces portraitUp / no SystemChrome restore on dispose; _endBoost fires on every pointer-up (idempotent, harmless now); spec B4/B3/B5 drift corrected.
+UI + Player feature: implementation COMPLETE (73facb2..63fe333). Pushed origin/dev for the user's PR.
