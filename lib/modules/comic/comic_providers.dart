@@ -18,6 +18,18 @@ final comicSourcesProvider = FutureProvider<List<ComicSource>>((ref) async {
   return manager.sources;
 });
 
+/// Whether the user is logged in to the comic source with [sourceKey].
+final comicLoginProvider = FutureProvider.family<bool, String>((ref, sourceKey) async {
+  final manager = ref.watch(comicSourceManagerProvider);
+  final source = ref
+      .watch(comicSourcesProvider)
+      .valueOrNull
+      ?.where((s) => s.key == sourceKey)
+      .firstOrNull;
+  if (source == null) return false;
+  return manager.isLogged(source);
+});
+
 /// One page of an explore section.
 class ComicExplorePage {
   final List<Comic> comics;
