@@ -44,8 +44,13 @@ void main() {
   });
 
   test('decrypts URL-safe base64 with padding', () {
-    final encoded =
-        base64Url.encode(utf8.encode('%68%74%74%70%73')).replaceAll('=', '');
-    expect(decryptMacCmsUrl(encoded, 2), 'https');
+    final standard = base64.encode(utf8.encode('~~~'));
+    expect(standard, contains('+'));
+    final urlSafe = standard.replaceAll('+', '-').replaceAll('/', '_');
+    expect(decryptMacCmsUrl(urlSafe, 2), '~~~');
+
+    final padded = base64.encode(utf8.encode('~~~~'));
+    expect(padded, endsWith('=='));
+    expect(decryptMacCmsUrl(padded.replaceAll('=', ''), 2), '~~~~');
   });
 }
