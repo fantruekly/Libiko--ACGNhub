@@ -937,3 +937,12 @@ Known limitation (not a defect): vxdev-chained roads are not statically resolvab
 Final whole-branch review (4403910..fe32c2f): "Ready to merge? Yes" (1 Important non-blocking: sequential MacCMS probe latency; + Minors). Hardening d1f4b65: probe timeout 15s->8s; _originOf ports/scheme guard; +2 resolver tests +URL-safe base64 test. Re-review flagged the base64 test as a false positive; corrected ee7fc97 (fn5-/fn5+fg== genuinely cover normalization + padding). Re-review: Ready to merge? Yes.
 Residuals (non-blocking): `_`->`/` half of URL-safe normalization untested; _originOf explicit default port yields redundant `:443`; dead legacy `assets/rules/` AGE entry + unused animeSourceListProvider not removed (separate cleanup); blanket catches; MediaCandidate shares Dio headers map (only consumer copies it).
 MacCMS + AGE removal: implementation COMPLETE (4403910..ee7fc97). Pushed origin/dev for the user's PR.
+
+## Legacy dead-code cleanup (2026-09-18)
+
+User chose scope A (dead code). Removed the unused legacy rule subsystem: `search_engine.dart`, `source/source_manager.dart`, `source/source_adapter.dart`, `anime_source.dart`, `anime_rule.dart`, `assets/rules/` (incl. stale AGE rule) + pubspec entry, `sourceManagerProvider`/`animeSourceListProvider`, and the 3 associated tests.
+- Task: complete (commit 55ab513..016003d, review clean; 1 Minor: orphaned `SourceInfo`/`SearchResult` models).
+- Follow-up: complete (commit 016003d..a9da423) removed `lib/core/models/source.dart` + `search_result.dart`.
+- Verified: analyze clean; test 439 pass / 1 skip; Windows release build OK.
+- Cleanup COMPLETE (55ab513..a9da423). Pushed origin/dev.
+Remaining known limitations (not dead code, intentionally kept): vxdev-chained roads not statically resolvable; broad `catch (_)` for resilience.
