@@ -21,9 +21,6 @@ class PagerBar extends StatelessWidget {
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
-      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
