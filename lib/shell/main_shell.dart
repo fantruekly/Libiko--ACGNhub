@@ -130,7 +130,7 @@ class _MainShellState extends State<MainShell> {
       child: GlassSurface(
         borderRadius: BorderRadius.zero,
         blur: 18,
-        color: const Color(0xF2FFFFFF),
+        color: const Color(0xE6EAF3FF),
         child: Container(
           height: 48 + topInset,
           padding: EdgeInsets.only(top: topInset),

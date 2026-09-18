@@ -13,8 +13,8 @@ class AppSemanticColors {
   static const Color rating = Color(0xFFFFB300);
 }
 
-/// The app-wide pale-blue page background.
-const Color kAppBackground = Color(0xFFEAF3FF);
+/// The app-wide near-white page background.
+const Color kAppBackground = Color(0xFFFCFDFF);
 
 const Color _seed = Color(0xFF6BB6FF);
 

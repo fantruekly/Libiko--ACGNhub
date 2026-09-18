@@ -27,7 +27,7 @@ class AppBottomBar extends StatelessWidget {
     return GlassSurface(
       borderRadius: BorderRadius.zero,
       blur: 18,
-      color: cs.surface.withValues(alpha: 0.92),
+      color: const Color(0xE6EAF3FF),
       border: Border(
         top: BorderSide(color: cs.outlineVariant, width: 0.5),
       ),
