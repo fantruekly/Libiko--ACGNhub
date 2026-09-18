@@ -1,5 +1,10 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
+
+import 'headless_browser.dart';
+import 'webview_scraper.dart';
+
 /// A MacCMS play-page player config: the (possibly encrypted) stream URL and
 /// its `encrypt` scheme.
 class MacCmsPlayer {
@@ -83,4 +88,51 @@ Map<String, dynamic>? _extractObject(String html, String marker) {
     }
   }
   return null;
+}
+
+/// Fetches a play page and resolves its MacCMS player config to a stream.
+class MacCmsResolver {
+  final Dio _dio;
+
+  MacCmsResolver({Dio? dio}) : _dio = dio ?? Dio();
+
+  Future<MediaCandidate?> resolve(
+    String playPageUrl, {
+    String? userAgent,
+    String? referer,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final origin = _originOf(playPageUrl);
+    final headers = <String, String>{
+      'User-Agent': userAgent ?? kBrowserUserAgent,
+      if (referer != null && referer.isNotEmpty)
+        'Referer': referer
+      else if (origin != null)
+        'Referer': origin,
+    };
+    try {
+      final response = await _dio.get<String>(
+        playPageUrl,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: headers,
+          receiveTimeout: timeout,
+          sendTimeout: timeout,
+        ),
+      );
+      final player = parseMacCmsPlayer(response.data ?? '');
+      if (player == null) return null;
+      final url = decryptMacCmsUrl(player.url, player.encrypt);
+      if (url == null || url.isEmpty) return null;
+      return MediaCandidate(url, headers: headers);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+String? _originOf(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.host.isEmpty) return null;
+  return '${uri.scheme}://${uri.host}/';
 }
