@@ -26,7 +26,7 @@ ThemeData buildAppTheme() {
   );
   final scheme = base.copyWith(
     primary: const Color(0xFF5FB2FF),
-    onPrimary: Colors.white,
+    onPrimary: const Color(0xFF0B3D66),
     primaryContainer: const Color(0xFFD9ECFF),
     onPrimaryContainer: const Color(0xFF0B3D66),
     secondary: const Color(0xFF6FB8FF),
