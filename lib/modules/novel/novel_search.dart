@@ -96,11 +96,15 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
                       style: TextStyle(fontSize: 15, color: cs.onSurface),
                       decoration: InputDecoration(
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        filled: false,
+                        isCollapsed: true,
                         hintText: '搜索轻小说...',
                         hintStyle:
                             TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
                       ),
                       onSubmitted: (_) => _search(),
                       onChanged: (_) => setState(() {}),
