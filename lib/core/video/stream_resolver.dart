@@ -26,7 +26,7 @@ class StreamResolver {
       playPageUrl,
       userAgent: userAgent,
       referer: referer,
-      timeout: const Duration(seconds: 15),
+      timeout: const Duration(seconds: 8),
     );
     if (direct != null) return direct;
 

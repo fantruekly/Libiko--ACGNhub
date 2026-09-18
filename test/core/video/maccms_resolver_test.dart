@@ -54,4 +54,20 @@ void main() {
     final dio = Dio()..httpClientAdapter = adapter;
     expect(await MacCmsResolver(dio: dio).resolve('https://x/play'), isNull);
   });
+
+  test('uses the play page origin including a non-default port', () async {
+    final adapter = _FakeAdapter('<html>none</html>');
+    final dio = Dio()..httpClientAdapter = adapter;
+    await MacCmsResolver(dio: dio).resolve('https://host:8080/play');
+    expect(adapter.last?.headers['Referer'], 'https://host:8080/');
+  });
+
+  test('sends the given user agent and referer', () async {
+    final adapter = _FakeAdapter('<html>none</html>');
+    final dio = Dio()..httpClientAdapter = adapter;
+    await MacCmsResolver(dio: dio)
+        .resolve('https://x/play', userAgent: 'UA1', referer: 'https://ref/');
+    expect(adapter.last?.headers['User-Agent'], 'UA1');
+    expect(adapter.last?.headers['Referer'], 'https://ref/');
+  });
 }

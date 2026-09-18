@@ -135,5 +135,7 @@ class MacCmsResolver {
 String? _originOf(String url) {
   final uri = Uri.tryParse(url);
   if (uri == null || uri.host.isEmpty) return null;
-  return '${uri.scheme}://${uri.host}/';
+  if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+  final port = uri.hasPort ? ':${uri.port}' : '';
+  return '${uri.scheme}://${uri.host}$port/';
 }

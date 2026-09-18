@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/video/maccms.dart';
 
@@ -39,5 +41,11 @@ void main() {
   test('returns null for unsupported encryption or bad base64', () {
     expect(decryptMacCmsUrl('x', 3), isNull);
     expect(decryptMacCmsUrl('!!!not-base64!!!', 2), isNull);
+  });
+
+  test('decrypts URL-safe base64 with padding', () {
+    final encoded =
+        base64Url.encode(utf8.encode('%68%74%74%70%73')).replaceAll('=', '');
+    expect(decryptMacCmsUrl(encoded, 2), 'https');
   });
 }
