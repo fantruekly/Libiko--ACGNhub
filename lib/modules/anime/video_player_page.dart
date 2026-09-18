@@ -138,7 +138,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _currentIndex = previous;
       });
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
+          .showSnackBar(const SnackBar(content: Text('无法解析播放地址，请尝试其他线路或源')));
       return;
     }
     setState(() => _resolving = false);

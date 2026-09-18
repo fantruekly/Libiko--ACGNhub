@@ -720,7 +720,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     if (!mounted) return;
     Navigator.of(context).pop();
     if (stream == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
+      messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址，请尝试其他线路或源')));
       return;
     }
     Navigator.push(
