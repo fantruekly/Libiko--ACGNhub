@@ -193,6 +193,39 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     );
   }
 
+  void _handleSwipe(
+      DragEndDetails details, List<NovelBrowseGroup> groups, List<NovelSource> sources) {
+    final v = details.primaryVelocity ?? 0;
+    final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
+    if (delta == 0) return;
+    setState(() {
+      final group = (_groupIndex >= 0 && _groupIndex < groups.length)
+          ? groups[_groupIndex]
+          : null;
+      if (group != null && group.options.length > 1) {
+        final next = (_optionIndex + delta).clamp(0, group.options.length - 1);
+        if (next == _optionIndex) return;
+        _optionIndex = next;
+      } else if (groups.isNotEmpty) {
+        final next = (_groupIndex + delta).clamp(-1, groups.length - 1);
+        if (next == _groupIndex) return;
+        _groupIndex = next;
+        _optionIndex = 0;
+      } else if (sources.length > 1) {
+        final idx = sources.indexWhere((s) => s.id == _sourceId);
+        final next = (idx + delta).clamp(0, sources.length - 1);
+        if (next == idx) return;
+        _sourceId = sources[next].id;
+        _groupIndex = -1;
+        _optionIndex = 0;
+      } else {
+        return;
+      }
+      _page = 1;
+      _lastHasMore = null;
+    });
+  }
+
   Widget _body(List<NovelBrowseGroup> groups) {
     final sources = ref.watch(novelSourcesProvider);
     final sourceIndex = sources.indexWhere((s) => s.id == _sourceId);
@@ -203,7 +236,8 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onHorizontalDragEnd: null,
+              onHorizontalDragEnd: (details) =>
+                  _handleSwipe(details, groups, sources),
               child: SlideSwitcher(
                 id: (_sourceId, '__home__'),
                 index: sourceIndex * 1000000,
@@ -239,36 +273,8 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onHorizontalDragEnd: (details) {
-              final v = details.primaryVelocity ?? 0;
-              final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
-              if (delta == 0) return;
-              setState(() {
-                if (group.options.length > 1) {
-                  final next = (_optionIndex + delta)
-                      .clamp(0, group.options.length - 1);
-                  if (next == _optionIndex) return;
-                  _optionIndex = next;
-                } else if (groups.length > 1) {
-                  final next =
-                      (_groupIndex + delta).clamp(0, groups.length - 1);
-                  if (next == _groupIndex) return;
-                  _groupIndex = next;
-                  _optionIndex = 0;
-                } else if (sources.length > 1) {
-                  final idx = sources.indexWhere((s) => s.id == _sourceId);
-                  final next = (idx + delta).clamp(0, sources.length - 1);
-                  if (next == idx) return;
-                  _sourceId = sources[next].id;
-                  _groupIndex = -1;
-                  _optionIndex = 0;
-                } else {
-                  return;
-                }
-                _page = 1;
-                _lastHasMore = null;
-              });
-            },
+            onHorizontalDragEnd: (details) =>
+                _handleSwipe(details, groups, sources),
             child: SlideSwitcher(
               id: (_sourceId, option.key, _page),
               index: sourceIndex * 1000000 +
