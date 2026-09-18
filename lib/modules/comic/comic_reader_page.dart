@@ -185,7 +185,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final hasNext = nav.next != null;
     return NotificationListener<OverscrollNotification>(
       onNotification: (notification) {
-        if (notification.overscroll < 0 &&
+        if (notification.metrics.axis == Axis.horizontal &&
+            notification.overscroll < 0 &&
             _page == 0 &&
             nav.previous != null) {
           _goToChapter(nav.previous!, atEnd: true);
