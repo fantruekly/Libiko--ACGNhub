@@ -770,7 +770,7 @@ class ComicSourceManager {
     final width = image.width;
     final height = image.height;
     final raw =
-        await image.toByteData(format: ui.ImageByteFormat.rawStraightRgba);
+        await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     image.dispose();
     codec.dispose();
     if (raw == null) throw StateError('could not read image pixels');
