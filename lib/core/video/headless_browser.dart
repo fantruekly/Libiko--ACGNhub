@@ -46,8 +46,8 @@ const String kLegacyIframeScript = r'''
 ''';
 
 /// A hidden browser used to render source pages and sniff their media streams.
-/// Windows and Android have different native implementations; callers see only
-/// this interface.
+/// A single `flutter_inappwebview` implementation serves every platform; callers
+/// see only this interface.
 abstract class HeadlessBrowser {
   /// Creates and starts the browser. [userAgent] defaults to the browser UA
   /// chosen by the implementation. When [extraScript] is non-null it is injected
