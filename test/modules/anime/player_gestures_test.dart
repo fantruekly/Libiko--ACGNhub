@@ -57,6 +57,7 @@ void main() {
 
     test('formats hours', () {
       expect(formatDuration(const Duration(seconds: 3661)), '1:01:01');
+      expect(formatDuration(const Duration(seconds: 3600)), '1:00:00');
     });
 
     test('treats negative durations as zero', () {

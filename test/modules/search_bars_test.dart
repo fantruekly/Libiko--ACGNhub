@@ -27,6 +27,8 @@ void main() {
       expect(decoration.border, InputBorder.none);
       expect(decoration.enabledBorder, InputBorder.none);
       expect(decoration.focusedBorder, InputBorder.none);
+      expect(decoration.errorBorder, InputBorder.none);
+      expect(decoration.focusedErrorBorder, InputBorder.none);
       expect(decoration.isCollapsed, isTrue);
       expect(decoration.filled, isFalse);
     });

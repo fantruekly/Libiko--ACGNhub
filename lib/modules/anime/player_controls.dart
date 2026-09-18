@@ -40,10 +40,13 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
   double get _maxMs =>
       widget.duration.inMilliseconds <= 0 ? 1.0 : widget.duration.inMilliseconds.toDouble();
 
-  double get _valueMs {
+  Duration get _displayPosition {
     final current = _drag ?? widget.position;
-    return current.inMilliseconds.clamp(0, _maxMs.toInt()).toDouble();
+    final ms = current.inMilliseconds.clamp(0, _maxMs.toInt());
+    return Duration(milliseconds: ms.toInt());
   }
+
+  double get _valueMs => _displayPosition.inMilliseconds.toDouble();
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +137,7 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
           Row(
             children: [
               Text(
-                formatDuration(_drag ?? widget.position),
+                formatDuration(_displayPosition),
                 style: const TextStyle(color: Colors.white70, fontSize: 12),
               ),
               Expanded(
@@ -154,8 +157,8 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
                         () => _drag = Duration(milliseconds: value.round())),
                     onChangeEnd: (value) {
                       final target = Duration(milliseconds: value.round());
-                      setState(() => _drag = null);
                       widget.onSeek(target);
+                      setState(() => _drag = null);
                     },
                   ),
                 ),

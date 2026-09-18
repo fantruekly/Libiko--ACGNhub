@@ -34,7 +34,8 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
   ConsumerState<VideoPlayerPage> createState() => _VideoPlayerPageState();
 }
 
-class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
+class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
+    with WidgetsBindingObserver, WindowListener {
   late final Player _player;
   late final VideoController _controller;
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -60,6 +61,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (isDesktop) windowManager.addListener(this);
     _player = Player();
     _controller = VideoController(_player);
     _subs.add(_player.stream.error.listen((e) {
@@ -94,6 +97,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (isDesktop) windowManager.removeListener(this);
     _hideTimer?.cancel();
     _seekFeedbackTimer?.cancel();
     for (final sub in _subs) {
@@ -205,6 +210,21 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
     _player.setRate(1.0);
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) _endBoost();
+  }
+
+  @override
+  void onWindowEnterFullScreen() {
+    if (mounted) setState(() => _fullscreen = true);
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    if (mounted) setState(() => _fullscreen = false);
+  }
+
   Future<void> _handleBack() async {
     if (_panelOpen) {
       setState(() => _panelOpen = false);
@@ -221,7 +241,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
     if (isDesktop) {
       final next = !await windowManager.isFullScreen();
       await windowManager.setFullScreen(next);
-      if (mounted) setState(() => _fullscreen = next);
+      final actual = await windowManager.isFullScreen();
+      if (mounted) setState(() => _fullscreen = actual);
       return;
     }
     if (_fullscreen) {
@@ -283,49 +304,54 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
   }
 
   Widget _gestureArea() {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _toggleControls,
-      onDoubleTapDown: (details) => _doubleTapX = details.localPosition.dx,
-      onDoubleTap: () {
-        final width = MediaQuery.of(context).size.width;
-        _handleDoubleTap(tapZoneFor(_doubleTapX, width));
-      },
-      onLongPressStart: (_) => _startBoost(),
-      onLongPressEnd: (_) => _endBoost(),
-      child: Stack(
-        children: [
-          Positioned.fill(child: _video()),
-          Positioned.fill(
-            child: IgnorePointer(
-              ignoring: !_controlsVisible,
-              child: AnimatedOpacity(
-                opacity: _controlsVisible ? 1 : 0,
-                duration: const Duration(milliseconds: 200),
-                child: PlayerControlsOverlay(
-                  title: widget.work.title,
-                  position: _position,
-                  duration: _duration,
-                  playing: _playing,
-                  buffering: _buffering,
-                  fullscreen: _fullscreen,
-                  onBack: _handleBack,
-                  onTogglePlay: _togglePlay,
-                  onSeek: (target) {
-                    _player.seek(target);
-                    setState(() => _position = target);
-                    _showControls();
-                  },
-                  onToggleFullscreen: _toggleFullscreen,
-                  onToggleEpisodes: () {
-                    setState(() => _panelOpen = !_panelOpen);
-                    _showControls();
-                  },
+    return Listener(
+      onPointerUp: (_) => _endBoost(),
+      onPointerCancel: (_) => _endBoost(),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggleControls,
+        onDoubleTapDown: (details) => _doubleTapX = details.localPosition.dx,
+        onDoubleTap: () {
+          final width = MediaQuery.of(context).size.width;
+          _handleDoubleTap(tapZoneFor(_doubleTapX, width));
+        },
+        onLongPressStart: (_) => _startBoost(),
+        onLongPressEnd: (_) => _endBoost(),
+        onLongPressCancel: () => _endBoost(),
+        child: Stack(
+          children: [
+            Positioned.fill(child: _video()),
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: !_controlsVisible,
+                child: AnimatedOpacity(
+                  opacity: _controlsVisible ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: PlayerControlsOverlay(
+                    title: widget.work.title,
+                    position: _position,
+                    duration: _duration,
+                    playing: _playing,
+                    buffering: _buffering,
+                    fullscreen: _fullscreen,
+                    onBack: _handleBack,
+                    onTogglePlay: _togglePlay,
+                    onSeek: (target) {
+                      _player.seek(target);
+                      setState(() => _position = target);
+                      _showControls();
+                    },
+                    onToggleFullscreen: _toggleFullscreen,
+                    onToggleEpisodes: () {
+                      setState(() => _panelOpen = !_panelOpen);
+                      _showControls();
+                    },
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
