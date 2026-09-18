@@ -10,6 +10,7 @@ import 'package:flutter_qjs/flutter_qjs.dart';
 import '../ui/app_messenger.dart';
 import 'crypto_util.dart';
 import 'html_bridge.dart';
+import 'image_bridge.dart';
 
 const _defaultUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -35,6 +36,8 @@ class JsEngine {
   final Map<String, String> Function() _settings;
   final Map<String, dynamic> _cookieJar = {};
   final HtmlBridge _html = HtmlBridge();
+  final Map<int, RgbaImage> _images = {};
+  int _nextImageHandle = 1;
   bool _installed = false;
   Future<void> _lock = Future<void>.value();
 
@@ -94,6 +97,8 @@ class JsEngine {
         return _convert(map);
       case 'html':
         return _htmlOp(map);
+      case 'image':
+        return _imageOp(map);
       case 'setting':
         return _setting(map);
       case 'cookie':
@@ -284,6 +289,46 @@ class JsEngine {
         return null;
       default:
         throw Exception('Unknown html op: $op');
+    }
+  }
+
+  dynamic _imageOp(Map<dynamic, dynamic> map) {
+    switch (map['op']) {
+      case 'empty':
+      case 'set':
+        final w = (map['width'] as num).toInt();
+        final h = (map['height'] as num).toInt();
+        final raw = map['data'];
+        final data = raw is Uint8List
+            ? Uint8List.fromList(raw)
+            : Uint8List(w * h * 4);
+        final handle = _nextImageHandle++;
+        _images[handle] = RgbaImage(w, h, data);
+        return {'handle': handle, 'width': w, 'height': h};
+      case 'fill':
+        final dst = _images[(map['dst'] as num).toInt()];
+        final src = _images[(map['src'] as num).toInt()];
+        if (dst == null || src == null) return null;
+        fillImageRangeAt(
+          dst,
+          (map['dx'] as num).toInt(),
+          (map['dy'] as num).toInt(),
+          src,
+          (map['sx'] as num).toInt(),
+          (map['sy'] as num).toInt(),
+          (map['w'] as num).toInt(),
+          (map['h'] as num).toInt(),
+        );
+        return null;
+      case 'get':
+        final img = _images[(map['handle'] as num).toInt()];
+        if (img == null) return null;
+        return {'width': img.width, 'height': img.height, 'data': img.data};
+      case 'free':
+        _images.remove((map['handle'] as num).toInt());
+        return null;
+      default:
+        throw Exception('Unknown image op: ${map['op']}');
     }
   }
 

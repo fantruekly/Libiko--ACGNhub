@@ -245,5 +245,20 @@
   globalThis.Convert = Convert;
   globalThis.HtmlDocument = HtmlDocument;
   globalThis.HtmlNode = HtmlNode;
+  class Image {
+    constructor(handle, width, height) {
+      this._h = handle; this.width = width; this.height = height;
+    }
+    static empty(width, height) {
+      const r = call({ method: 'image', op: 'empty', width: width, height: height });
+      return new Image(r.handle, r.width, r.height);
+    }
+    fillImageRangeAt(dx, dy, src, sx, sy, w, h) {
+      return call({ method: 'image', op: 'fill', dst: this._h, dx: dx, dy: dy,
+        src: src._h, sx: sx, sy: sy, w: w, h: h });
+    }
+  }
+  globalThis.Image = Image;
+
   globalThis.comicSourceBridgeReady = true;
 })();
