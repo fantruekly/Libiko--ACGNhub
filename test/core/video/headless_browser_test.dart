@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/video/headless_browser.dart';
-import 'package:libiko/core/video/headless_browser_android.dart';
-import 'package:libiko/core/video/headless_browser_windows.dart';
+import 'package:libiko/core/video/headless_browser_inappwebview.dart';
 
 void main() {
   test('accepts a media URL whose path ends with .m3u8 or .mp4', () {
@@ -61,13 +60,9 @@ void main() {
     expect(mediaUrlFromQuery('https://cdn.test/plain'), isNull);
   });
 
-  test('factory returns the Windows implementation on desktop', () {
-    expect(createHeadlessBrowser(desktop: true), isA<WindowsHeadlessBrowser>());
-  });
-
-  test('factory returns a usable Android implementation on mobile', () async {
-    final browser = createHeadlessBrowser(desktop: false);
-    expect(browser, isA<AndroidHeadlessBrowser>());
+  test('factory returns the in-app-webview implementation', () async {
+    final browser = createHeadlessBrowser();
+    expect(browser, isA<InAppWebViewHeadlessBrowser>());
     expect(await browser.eval('1 + 1'), isNull);
     await browser.load('about:blank');
     await browser.dispose();

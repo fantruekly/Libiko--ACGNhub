@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'headless_browser_android.dart';
-import 'headless_browser_windows.dart';
-import '../platform.dart';
+import 'headless_browser_inappwebview.dart';
 
 /// One media request observed by a headless browser: its URL plus the request
 /// headers it was made with (so the player can replay them and avoid 403s).
@@ -106,9 +104,7 @@ bool looksLikeMediaResponse(String url, String mime) {
   return looksLikeMediaUrl(url);
 }
 
-/// Creates the platform's [HeadlessBrowser]. [desktop] overrides the platform
-/// check for tests.
-HeadlessBrowser createHeadlessBrowser({bool? desktop}) =>
-    (desktop ?? isDesktop)
-        ? WindowsHeadlessBrowser()
-        : AndroidHeadlessBrowser();
+/// Creates the [HeadlessBrowser]. Both platforms use the
+/// `flutter_inappwebview` implementation (the `webview_windows` fork's headless
+/// WebView2 is unsupported on some machines).
+HeadlessBrowser createHeadlessBrowser() => InAppWebViewHeadlessBrowser();

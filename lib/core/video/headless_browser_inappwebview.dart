@@ -89,7 +89,7 @@ const String _mediaSnifferJs = r'''
 /// candidate media requests (including extension-less HLS URLs identified by
 /// MIME type), and [shouldInterceptRequest] checks every subresource URL
 /// against [looksLikeMediaUrl]. Returning null leaves the request untouched.
-class AndroidHeadlessBrowser implements HeadlessBrowser {
+class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
   final _media = StreamController<MediaCandidate>.broadcast();
   HeadlessInAppWebView? _headless;
   Completer<void>? _loaded;
