@@ -118,7 +118,6 @@ class ComicAccountDialogState extends ConsumerState<ComicAccountDialog> {
                     obscureText: !widget.source.hasCookieLogin && i == 1,
                     decoration: InputDecoration(
                       labelText: _label(i),
-                      border: const OutlineInputBorder(),
                       isDense: true,
                     ),
                   ),
