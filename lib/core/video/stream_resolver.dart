@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'headless_browser.dart';
+import 'maccms.dart';
 import 'webview_scraper.dart';
 
 /// Resolves a video source's play page to a playable stream: the page is loaded
@@ -10,12 +11,25 @@ import 'webview_scraper.dart';
 /// candidate carries the request headers the site used, so the player can replay
 /// them (some CDNs return 403 without the right Referer/User-Agent).
 class StreamResolver {
+  final MacCmsResolver _maccms;
+
+  StreamResolver({MacCmsResolver? maccms}) : _maccms = maccms ?? MacCmsResolver();
+
   Future<MediaCandidate?> resolve(
     String playPageUrl, {
     Duration timeout = const Duration(seconds: 30),
     String? userAgent,
+    String? referer,
     bool legacy = false,
   }) async {
+    final direct = await _maccms.resolve(
+      playPageUrl,
+      userAgent: userAgent,
+      referer: referer,
+      timeout: const Duration(seconds: 15),
+    );
+    if (direct != null) return direct;
+
     final browser = createHeadlessBrowser();
     StreamSubscription<MediaCandidate>? sub;
     try {

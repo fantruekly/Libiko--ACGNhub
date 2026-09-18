@@ -128,7 +128,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     final stream = useInitial
         ? widget.initialResolved
         : await StreamResolver().resolve(episode.playUrl,
-            userAgent: episode.userAgent, legacy: episode.useLegacyParser);
+            userAgent: episode.userAgent,
+            referer: episode.referer,
+            legacy: episode.useLegacyParser);
     if (!mounted || gen != _gen) return;
     if (stream == null) {
       setState(() {
