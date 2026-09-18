@@ -37,8 +37,15 @@ void main() {
     final it = items.first;
     expect(it.id, '20260029');
     expect(it.title, '葬送的芙莉莲 第二季');
-    expect(it.detailUrl, 'http://www.agedm.io/detail/20260029');
+    expect(it.detailUrl, 'https://www.agedm.io/detail/20260029');
     expect(it.cover, 'https://img/x.jpg');
+  });
+
+  test('parseSearch normalizes an http detail URL to https', () {
+    const html =
+        '<h5 class="card-title"><a href="http://www.agedm.io/detail/7">T</a></h5>';
+    final items = AgedmSource.parseSearch(html);
+    expect(items.single.detailUrl, 'https://www.agedm.io/detail/7');
   });
 
   test('parseEpisodes extracts ordered play links', () {

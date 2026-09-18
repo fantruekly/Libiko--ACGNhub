@@ -53,7 +53,7 @@ class AgedmSource implements VideoSource {
         id: id,
         title: title,
         cover: _ancestorImg(a),
-        detailUrl: _abs(href, 'https://www.agedm.io'),
+        detailUrl: _https(_abs(href, 'https://www.agedm.io')),
       ));
     }
     return items;
@@ -96,5 +96,10 @@ class AgedmSource implements VideoSource {
     if (url.startsWith('//')) return 'https:$url';
     if (url.startsWith('/')) return '$base$url';
     return '$base/$url';
+  }
+
+  static String _https(String url) {
+    if (url.startsWith('http://')) return 'https://${url.substring(7)}';
+    return url;
   }
 }
