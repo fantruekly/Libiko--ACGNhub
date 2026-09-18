@@ -90,7 +90,10 @@ String? mediaUrlFromQuery(String url) {
     if (value.startsWith('//') && looksLikeMediaUrl('https:$value')) {
       return 'https:$value';
     }
-    if (looksLikeMediaUrl(value)) return value;
+    if ((value.startsWith('https://') || value.startsWith('http://')) &&
+        looksLikeMediaUrl(value)) {
+      return value;
+    }
   }
   return null;
 }
@@ -104,7 +107,6 @@ bool looksLikeMediaResponse(String url, String mime) {
   return looksLikeMediaUrl(url);
 }
 
-/// Creates the [HeadlessBrowser]. Both platforms use the
-/// `flutter_inappwebview` implementation (the `webview_windows` fork's headless
-/// WebView2 is unsupported on some machines).
+/// Creates the [HeadlessBrowser]. Both platforms use the `flutter_inappwebview`
+/// implementation.
 HeadlessBrowser createHeadlessBrowser() => InAppWebViewHeadlessBrowser();

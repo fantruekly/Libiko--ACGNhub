@@ -48,6 +48,13 @@ void main() {
     expect(items.single.detailUrl, 'https://www.agedm.io/detail/7');
   });
 
+  test('parseSearch leaves an https detail URL unchanged', () {
+    const html =
+        '<h5 class="card-title"><a href="https://www.agedm.io/detail/8">T</a></h5>';
+    expect(AgedmSource.parseSearch(html).single.detailUrl,
+        'https://www.agedm.io/detail/8');
+  });
+
   test('parseEpisodes extracts ordered play links', () {
     const html = '''
     <div class="playlist">

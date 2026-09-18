@@ -39,6 +39,14 @@ void main() {
     );
   });
 
+  test('skips a relative query value and returns the absolute media URL', () {
+    expect(
+      mediaUrlFromQuery('https://proxy/a/'
+          '?poster=/img/ep1.mp4&url=https://cdn.test/x/index.m3u8'),
+      'https://cdn.test/x/index.m3u8',
+    );
+  });
+
   test('extracts a protocol-relative embedded media URL', () {
     expect(
       mediaUrlFromQuery('https://proxy/a/?url=//cdn.test/x/index.m3u8'),

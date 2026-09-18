@@ -99,7 +99,11 @@ class AgedmSource implements VideoSource {
   }
 
   static String _https(String url) {
-    if (url.startsWith('http://')) return 'https://${url.substring(7)}';
+    final lower = url.toLowerCase();
+    if (lower.startsWith('http://www.agedm.io') ||
+        lower.startsWith('http://agedm.io')) {
+      return 'https://${url.substring(7)}';
+    }
     return url;
   }
 }
