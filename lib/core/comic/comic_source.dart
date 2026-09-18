@@ -654,6 +654,7 @@ class ComicSourceManager {
             .setString('source_data.${source.key}.username', username);
         await AppDatabase()
             .setString('source_data.${source.key}.logged_in', '1');
+        clearImageLoadCache();
         return true;
       }
       return false;
@@ -676,6 +677,7 @@ class ComicSourceManager {
       if (ok == true) {
         await AppDatabase()
             .setString('source_data.${source.key}.logged_in', '1');
+        clearImageLoadCache();
         return true;
       }
       return false;
@@ -701,6 +703,7 @@ class ComicSourceManager {
     } catch (_) {
       // Best-effort logout.
     }
+    clearImageLoadCache();
   }
 
   String? savedUsername(ComicSource source) =>
