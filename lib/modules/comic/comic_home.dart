@@ -15,6 +15,7 @@ import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/tab_strip.dart';
+import 'comic_account_dialog.dart';
 import 'comic_detail_page.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
@@ -257,6 +258,26 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
               ),
               error: (_, __) {
                 _lastPage = null;
+                final needsLogin = source.hasLogin || source.hasCookieLogin;
+                final logged = !needsLogin ||
+                    (ref.watch(comicLoginProvider(source.key)).valueOrNull ??
+                        false);
+                if (needsLogin && !logged) {
+                  return EmptyState(
+                    icon: Icons.lock_outline_rounded,
+                    message: '该源需要登录',
+                    actionLabel: '去登录',
+                    onAction: () async {
+                      await showDialog<void>(
+                        context: context,
+                        builder: (_) => ComicAccountDialog(source: source),
+                      );
+                      ref.invalidate(comicLoginProvider(source.key));
+                      ref.invalidate(comicExploreProvider(
+                          (source.key, section, part, _page)));
+                    },
+                  );
+                }
                 return EmptyState(
                   icon: Icons.cloud_off_rounded,
                   message: '加载失败',
