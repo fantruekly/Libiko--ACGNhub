@@ -553,6 +553,9 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final token = PrefetchCancelToken();
     _ratioToken = token;
     unawaited(ref.read(comicImageProvider).prefetchRatios(images,
+        sourceKey: widget.sourceKey,
+        comicId: widget.comicId,
+        chapterId: _chapterId,
         cancelToken: token));
     _prefetchAround(images, _page);
   }

@@ -229,7 +229,15 @@ class ComicImageProvider {
     }
     final script = config?.modifyImage;
     if (script == null || script.trim().isEmpty) {
-      return CachedNetworkImageProvider(effective, headers: headers);
+      return _CachedPageImageProvider(
+        sourceKey: sourceKey,
+        comicId: comicId,
+        chapterId: chapterId,
+        url: effective,
+        requestUrl: url,
+        headers: headers,
+        cache: _cache,
+      );
     }
     return _ModifyImageProvider(
       sourceKey: sourceKey,
@@ -303,6 +311,9 @@ class ComicImageProvider {
   /// is never disturbed. Pass [cancelToken] to stop early on a chapter change.
   Future<void> prefetchRatios(
     List<String> urls, {
+    String? sourceKey,
+    String? comicId,
+    String? chapterId,
     int concurrency = 4,
     PrefetchCancelToken? cancelToken,
   }) async {
@@ -315,57 +326,66 @@ class ComicImageProvider {
     final lanes = concurrency < 1 ? 1 : concurrency;
     final workers = <Future<void>>[];
     for (var i = 0; i < lanes && queue.isNotEmpty; i++) {
-      workers.add(_drainRatioQueue(queue, cancelToken));
+      workers.add(
+          _drainRatioQueue(queue, cancelToken, sourceKey, comicId, chapterId));
     }
     await Future.wait(workers);
   }
 
   Future<void> _drainRatioQueue(
-      Queue<String> queue, PrefetchCancelToken? cancelToken) async {
+      Queue<String> queue,
+      PrefetchCancelToken? cancelToken,
+      String? sourceKey,
+      String? comicId,
+      String? chapterId) async {
     while (queue.isNotEmpty) {
       if (cancelToken?.isCancelled ?? false) return;
       final url = queue.removeFirst();
       if (_cache.ratioOf(url) != null) continue;
-      await _loadRatio(url, cancelToken);
+      await _loadRatio(url, cancelToken, sourceKey, comicId, chapterId);
     }
   }
 
-  Future<void> _loadRatio(String url, PrefetchCancelToken? cancelToken) async {
+  Future<void> _loadRatio(String requestUrl, PrefetchCancelToken? cancelToken,
+      String? sourceKey, String? comicId, String? chapterId) async {
+    final request =
+        await _resolveImageRequest(requestUrl, sourceKey, comicId, chapterId);
     try {
       final response = await _ratioDio.get<List<int>>(
-        url,
+        request.url,
         options: Options(
           responseType: ResponseType.bytes,
-          headers: const {'Range': 'bytes=0-8191'},
+          headers: {...?request.headers, 'Range': 'bytes=0-8191'},
         ),
       );
       if (cancelToken?.isCancelled ?? false) return;
       final bytes = Uint8List.fromList(response.data ?? const []);
       final size = parseImageSize(bytes);
       if (size != null && size.height > 0) {
-        _cache.rememberRatio(url, size.width / size.height);
+        _rememberRatio(requestUrl, request.url, size.width / size.height);
         return;
       }
     } catch (_) {
       // Fall through to a full download.
     }
     if (cancelToken?.isCancelled ?? false) return;
-    await _ratioFromFullDownload(url, cancelToken);
+    await _ratioFromFullDownload(requestUrl, request, cancelToken);
   }
 
-  Future<void> _ratioFromFullDownload(
-      String url, PrefetchCancelToken? cancelToken) async {
-    if (_cache.ratioOf(url) != null) return;
+  Future<void> _ratioFromFullDownload(String requestUrl, _ImageRequest request,
+      PrefetchCancelToken? cancelToken) async {
+    if (_cache.ratioOf(requestUrl) != null) return;
     try {
       final response = await _ratioDio.get<List<int>>(
-        url,
-        options: Options(responseType: ResponseType.bytes),
+        request.url,
+        options:
+            Options(responseType: ResponseType.bytes, headers: request.headers),
       );
       if (cancelToken?.isCancelled ?? false) return;
       final bytes = Uint8List.fromList(response.data ?? const []);
       final size = parseImageSize(bytes);
       if (size != null && size.height > 0) {
-        _cache.rememberRatio(url, size.width / size.height);
+        _rememberRatio(requestUrl, request.url, size.width / size.height);
         return;
       }
       final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
@@ -373,7 +393,9 @@ class ComicImageProvider {
       try {
         descriptor = await ui.ImageDescriptor.encoded(buffer);
         final height = descriptor.height;
-        if (height > 0) _cache.rememberRatio(url, descriptor.width / height);
+        if (height > 0) {
+          _rememberRatio(requestUrl, request.url, descriptor.width / height);
+        }
       } finally {
         descriptor?.dispose();
         buffer.dispose();
@@ -382,6 +404,37 @@ class ComicImageProvider {
       // Unknown ratio; the reader falls back to the chapter median.
     }
   }
+
+  /// Runs the source's `onImageLoad` for [url] to get the effective URL and
+  /// headers its image request needs. Falls back to the raw URL with no
+  /// headers when there is no source context or the hook fails.
+  Future<_ImageRequest> _resolveImageRequest(
+      String url, String? sourceKey, String? comicId, String? chapterId) async {
+    if (sourceKey == null) return _ImageRequest(url, null);
+    final source = manager.sources.where((s) => s.key == sourceKey).firstOrNull;
+    if (source == null) return _ImageRequest(url, null);
+    try {
+      final config = await manager.onImageLoad(
+          source, url, comicId ?? '', chapterId ?? '');
+      return _ImageRequest(config.url ?? url, config.headers);
+    } catch (_) {
+      return _ImageRequest(url, null);
+    }
+  }
+
+  void _rememberRatio(String requestUrl, String url, double ratio) {
+    if (!ratio.isFinite || ratio <= 0) return;
+    _cache.rememberRatio(requestUrl, ratio);
+    if (url != requestUrl) _cache.rememberRatio(url, ratio);
+  }
+}
+
+/// The effective URL and headers a ratio prefetch should use for one page.
+class _ImageRequest {
+  final String url;
+  final Map<String, String>? headers;
+
+  const _ImageRequest(this.url, this.headers);
 }
 
 /// An [ImageProvider] that downloads a page, reassembles it through the
@@ -471,4 +524,99 @@ class _ModifyImageProvider extends ImageProvider<_ModifyImageProvider> {
   @override
   int get hashCode =>
       Object.hash(sourceKey, comicId, chapterId, url, script);
+}
+
+/// Resolves [provider]'s first frame, removing the listener once the frame (or
+/// an error) arrives.
+Future<ImageInfo> _firstFrame(ImageProvider provider) {
+  final completer = Completer<ImageInfo>();
+  late final ImageStreamListener listener;
+  final stream = provider.resolve(ImageConfiguration.empty);
+  listener = ImageStreamListener(
+    (info, _) {
+      stream.removeListener(listener);
+      if (!completer.isCompleted) completer.complete(info);
+    },
+    onError: (error, stackTrace) {
+      stream.removeListener(listener);
+      if (!completer.isCompleted) completer.completeError(error, stackTrace);
+    },
+  );
+  stream.addListener(listener);
+  return completer.future;
+}
+
+/// An [ImageProvider] that serves a page from the shared in-memory cache,
+/// populating it from a disk-cached [CachedNetworkImageProvider] on first use.
+///
+/// This gives sources without a `modifyImage` script (ehentai, …) the same
+/// fast repeated resolves that processed pages get: the decoded [ui.Image] is
+/// cloned into [_ProcessedImageCache], so later resolves skip the decode.
+class _CachedPageImageProvider extends ImageProvider<_CachedPageImageProvider> {
+  _CachedPageImageProvider({
+    required this.sourceKey,
+    required this.comicId,
+    required this.chapterId,
+    required this.url,
+    required this.requestUrl,
+    required this.cache,
+    this.headers,
+  });
+
+  final String sourceKey;
+  final String comicId;
+  final String chapterId;
+
+  /// The effective URL (after `onImageLoad`).
+  final String url;
+
+  /// The URL originally requested, used to remember the ratio under both.
+  final String requestUrl;
+
+  final Map<String, String>? headers;
+  final _ProcessedImageCache cache;
+
+  @override
+  Future<_CachedPageImageProvider> obtainKey(
+          ImageConfiguration configuration) =>
+      SynchronousFuture<_CachedPageImageProvider>(this);
+
+  @override
+  ImageStreamCompleter loadImage(
+      _CachedPageImageProvider key, ImageDecoderCallback decode) {
+    return OneFrameImageStreamCompleter(_load(key));
+  }
+
+  Future<ImageInfo> _load(_CachedPageImageProvider key) async {
+    final cacheKey = pageCacheKey(sourceKey, comicId, chapterId, url);
+    final cached = cache.get(cacheKey);
+    if (cached != null) {
+      return ImageInfo(image: cached.image.clone(), scale: 1.0);
+    }
+    // The disk-cached provider still applies; it is wrapped, not replaced.
+    final plain = CachedNetworkImageProvider(url, headers: headers);
+    final info = await _firstFrame(plain);
+    try {
+      final image = info.image;
+      final ratio = image.height == 0 ? 0.0 : image.width / image.height;
+      cache.put(cacheKey, _ProcessedPage(image.clone(), ratio));
+      cache.rememberRatio(url, ratio);
+      if (requestUrl != url) cache.rememberRatio(requestUrl, ratio);
+      return ImageInfo(image: image.clone(), scale: 1.0);
+    } catch (_) {
+      // Caching is best-effort: fall back to the plain frame so a page shows.
+      return info;
+    }
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _CachedPageImageProvider &&
+      other.sourceKey == sourceKey &&
+      other.comicId == comicId &&
+      other.chapterId == chapterId &&
+      other.url == url;
+
+  @override
+  int get hashCode => Object.hash(sourceKey, comicId, chapterId, url);
 }
