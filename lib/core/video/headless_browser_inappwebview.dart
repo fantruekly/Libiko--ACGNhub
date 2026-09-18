@@ -130,10 +130,12 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
                 args.isNotEmpty ? (args[0] ?? '').toString() : '';
             final mime =
                 args.length > 1 ? (args[1] ?? '').toString() : '';
-            if (url.isNotEmpty &&
-                looksLikeMediaResponse(url, mime) &&
-                !_media.isClosed) {
-              _media.add(MediaCandidate(url));
+            if (url.isEmpty) return null;
+            final media = looksLikeMediaResponse(url, mime)
+                ? url
+                : mediaUrlFromQuery(url);
+            if (media != null && !_media.isClosed) {
+              _media.add(MediaCandidate(media));
             }
             return null;
           },
@@ -146,9 +148,10 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
       },
       shouldInterceptRequest: (controller, request) async {
         final url = request.url.toString();
-        if (looksLikeMediaUrl(url) && !_media.isClosed) {
-          _media.add(MediaCandidate(
-              url, headers: playerHeadersFrom(request.headers ?? const {})));
+        final media = looksLikeMediaUrl(url) ? url : mediaUrlFromQuery(url);
+        if (media != null && !_media.isClosed) {
+          _media.add(MediaCandidate(media,
+              headers: playerHeadersFrom(request.headers ?? const {})));
         }
         return null;
       },
