@@ -26,7 +26,7 @@ class AppBottomBar extends StatelessWidget {
     return GlassSurface(
       borderRadius: BorderRadius.zero,
       blur: 18,
-      color: const Color(0xE6F1FFFF),
+      color: const Color(0xE6F4FFFF),
       child: SafeArea(
         top: false,
         child: SizedBox(
@@ -80,7 +80,7 @@ class _BarItemState extends State<_BarItem>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 320),
       value: widget.selected ? 1 : 0,
     );
     _curve = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
@@ -131,10 +131,7 @@ class _BarItemState extends State<_BarItem>
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Transform.scale(
-                  scale: 1.0 + 0.18 * t,
-                  child: Icon(widget.icon, size: 24, color: iconColor),
-                ),
+                Icon(widget.icon, size: 24, color: iconColor),
                 const SizedBox(height: 2),
                 Text(
                   widget.label,
