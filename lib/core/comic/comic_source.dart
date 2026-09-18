@@ -372,7 +372,18 @@ class ComicSourceManager {
   final List<ComicSource> _sources = [];
   Future<void>? _initFuture;
 
+  /// Bounded LRU cache of in-flight/resolved `onImageLoad` hooks, keyed by
+  /// source/comic/chapter/url. De-duplicates concurrent calls and avoids
+  /// re-running a source's (often expensive) hook for a URL already resolved.
+  final LinkedHashMap<String, Future<ImageLoadingConfig>> _imageLoadCache =
+      LinkedHashMap();
+  static const int _maxImageLoadCache = 64;
+
   List<ComicSource> get sources => List.unmodifiable(_sources);
+
+  /// Drops every memoized `onImageLoad` result. Called whenever the source set
+  /// changes so a refreshed source never reuses a stale hook result.
+  void clearImageLoadCache() => _imageLoadCache.clear();
 
   static Map<String, String> _appSettings() => _DbSettings();
 
@@ -433,6 +444,7 @@ class ComicSourceManager {
       debugPrint('[ComicSourceManager] builtin install failed: $e');
     }
     _sources.clear();
+    clearImageLoadCache();
     await _engine.evaluate(
         'globalThis.__libiko_sources = {}; globalThis.__libiko_pending = {};');
     final dir = await _dir();
@@ -516,6 +528,7 @@ class ComicSourceManager {
     final source = await _evaluateSource(script, p.basename(file.path));
     _sources.removeWhere((s) => s.key == source.key);
     _sources.add(source);
+    clearImageLoadCache();
     return source;
   }
 
@@ -529,6 +542,7 @@ class ComicSourceManager {
     final source = await _evaluateSource(script, p.basename(file.path));
     _sources.removeWhere((s) => s.key == source.key);
     _sources.add(source);
+    clearImageLoadCache();
     return source;
   }
 
@@ -556,6 +570,7 @@ class ComicSourceManager {
     } else {
       _sources.add(refreshed);
     }
+    clearImageLoadCache();
     return refreshed;
   }
 
@@ -567,6 +582,7 @@ class ComicSourceManager {
     await _engine.evaluate(
         'delete globalThis.__libiko_sources[${jsonEncode(source.key)}];');
     _sources.removeWhere((s) => s.key == source.key);
+    clearImageLoadCache();
   }
 
   Future<List<Comic>> search(ComicSource source, String keyword,
@@ -742,6 +758,29 @@ class ComicSourceManager {
       ComicSource source, String url, String comicId, String epId) async {
     await _ensureInitialized();
     if (!source.canOnImageLoad) return ImageLoadingConfig(url: url);
+    final key = '${source.key}|$comicId|$epId|$url';
+    final cached = _imageLoadCache.remove(key);
+    if (cached != null) {
+      _imageLoadCache[key] = cached;
+      return cached;
+    }
+    final future = _evaluateOnImageLoad(source, url, comicId, epId);
+    _imageLoadCache[key] = future;
+    while (_imageLoadCache.length > _maxImageLoadCache) {
+      _imageLoadCache.remove(_imageLoadCache.keys.first);
+    }
+    try {
+      return await future;
+    } catch (_) {
+      if (identical(_imageLoadCache[key], future)) {
+        _imageLoadCache.remove(key);
+      }
+      rethrow;
+    }
+  }
+
+  Future<ImageLoadingConfig> _evaluateOnImageLoad(
+      ComicSource source, String url, String comicId, String epId) async {
     final result = await _engine.evaluate('''
       (async () => {
         const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});

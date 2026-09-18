@@ -317,6 +317,15 @@ class ComicImageProvider {
     int concurrency = 4,
     PrefetchCancelToken? cancelToken,
   }) async {
+    // A source with an `onImageLoad` hook is far too expensive to run for every
+    // page in the chapter just to learn its ratio. Its pages report the ratio
+    // when they actually load (via `onRatio` / the processed image), so skip the
+    // all-pages sweep and let the chapter median size the placeholder until then.
+    if (sourceKey != null) {
+      final source =
+          manager.sources.where((s) => s.key == sourceKey).firstOrNull;
+      if (source != null && source.canOnImageLoad) return;
+    }
     final queue = Queue<String>();
     for (final url in urls) {
       if (cancelToken?.isCancelled ?? false) return;
