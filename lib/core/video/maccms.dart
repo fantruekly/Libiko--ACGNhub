@@ -116,6 +116,7 @@ class MacCmsResolver {
         options: Options(
           responseType: ResponseType.plain,
           headers: headers,
+          connectTimeout: timeout,
           receiveTimeout: timeout,
           sendTimeout: timeout,
         ),
