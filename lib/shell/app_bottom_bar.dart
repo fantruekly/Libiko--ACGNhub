@@ -23,14 +23,10 @@ class AppBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return GlassSurface(
       borderRadius: BorderRadius.zero,
       blur: 18,
-      color: const Color(0xE6EAF3FF),
-      border: Border(
-        top: BorderSide(color: cs.outlineVariant, width: 0.5),
-      ),
+      color: const Color(0xE6F1FFFF),
       child: SafeArea(
         top: false,
         child: SizedBox(
@@ -127,7 +123,8 @@ class _BarItemState extends State<_BarItem>
             margin: const EdgeInsets.symmetric(vertical: 6),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
-              color: Color.lerp(Colors.transparent, cs.secondaryContainer, t),
+              color: Color.lerp(Colors.transparent,
+                  cs.secondaryContainer.withValues(alpha: t), t),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(

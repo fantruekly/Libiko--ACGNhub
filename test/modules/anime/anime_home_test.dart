@@ -21,7 +21,7 @@ class _EmptyProvider implements MetadataProvider {
 }
 
 void main() {
-  testWidgets('anime tabs are 本季新番/热门推荐/追番/历史记录', (tester) async {
+  testWidgets('anime tabs are 本季新番/热门推荐/追番/历史', (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         metadataServiceProvider.overrideWithValue(MetadataService(
@@ -39,6 +39,6 @@ void main() {
             of: find.byType(TabStrip), matching: find.byType(Text)))
         .map((t) => t.data)
         .toList();
-    expect(labels, ['本季新番', '热门推荐', '追番', '历史记录']);
+    expect(labels, ['本季新番', '热门推荐', '追番', '历史']);
   });
 }

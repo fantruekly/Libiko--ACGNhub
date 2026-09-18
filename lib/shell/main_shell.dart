@@ -130,13 +130,10 @@ class _MainShellState extends State<MainShell> {
       child: GlassSurface(
         borderRadius: BorderRadius.zero,
         blur: 18,
-        color: const Color(0xE6EAF3FF),
+        color: kAppBackground,
         child: Container(
           height: 48 + topInset,
           padding: EdgeInsets.only(top: topInset),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
-          ),
           child: Row(
             children: [
               if (isDesktop)
@@ -150,7 +147,7 @@ class _MainShellState extends State<MainShell> {
                   ),
                 )
               else
-                const SizedBox(width: 8),
+                const SizedBox(width: 16),
               Text(
                 _titles[_currentIndex],
                 style: TextStyle(

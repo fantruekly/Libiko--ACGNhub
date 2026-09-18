@@ -25,7 +25,7 @@ class AnimeHomePage extends ConsumerWidget {
           final controller = DefaultTabController.of(context);
           return Column(
             children: [
-              const TabStrip(labels: ['本季新番', '热门推荐', '追番', '历史记录']),
+              const TabStrip(labels: ['本季新番', '热门推荐', '追番', '历史']),
               Expanded(
                 child: TabBarView(
                   children: [

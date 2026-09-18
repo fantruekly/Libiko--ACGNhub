@@ -107,7 +107,34 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
         const SizedBox(height: 8),
         _sourceChips(sources),
         _sectionChips(options),
-        Expanded(child: _body(options)),
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragEnd: (details) {
+              final v = details.primaryVelocity ?? 0;
+              final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
+              if (delta == 0) return;
+              setState(() {
+                if (options.length > 1) {
+                  final next =
+                      (_optionIndex + delta).clamp(0, options.length - 1);
+                  if (next == _optionIndex) return;
+                  _optionIndex = next;
+                } else if (sources.length > 1) {
+                  final idx = sources.indexWhere((s) => s.id == _sourceId);
+                  final next = (idx + delta).clamp(0, sources.length - 1);
+                  if (next == idx) return;
+                  _sourceId = sources[next].id;
+                  _optionIndex = 0;
+                } else {
+                  return;
+                }
+                _page = 1;
+              });
+            },
+            child: _body(options),
+          ),
+        ),
       ],
     );
   }
