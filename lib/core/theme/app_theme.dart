@@ -20,9 +20,19 @@ const Color _seed = Color(0xFFA8D8FF);
 
 /// The single source of truth for the app's Material 3 theme.
 ThemeData buildAppTheme() {
-  final scheme = ColorScheme.fromSeed(
+  final base = ColorScheme.fromSeed(
     seedColor: _seed,
     brightness: Brightness.light,
+  );
+  final scheme = base.copyWith(
+    primary: const Color(0xFF5FB2FF),
+    onPrimary: Colors.white,
+    primaryContainer: const Color(0xFFD9ECFF),
+    onPrimaryContainer: const Color(0xFF0B3D66),
+    secondary: const Color(0xFF6FB8FF),
+    secondaryContainer: const Color(0xFFE3F0FF),
+    onSecondaryContainer: const Color(0xFF0B3D66),
+    surface: const Color(0xFFFFFFFF),
   );
   return ThemeData(
     useMaterial3: true,
