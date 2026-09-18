@@ -131,8 +131,15 @@ class ImageLoadingConfig {
   final String? method;
   final dynamic data;
   final Map<String, String>? headers;
+  final String? modifyImage;
 
-  const ImageLoadingConfig({this.url, this.method, this.data, this.headers});
+  const ImageLoadingConfig({
+    this.url,
+    this.method,
+    this.data,
+    this.headers,
+    this.modifyImage,
+  });
 
   factory ImageLoadingConfig.fromJs(Map<dynamic, dynamic> json) =>
       ImageLoadingConfig(
@@ -142,5 +149,6 @@ class ImageLoadingConfig {
         headers: (json['headers'] as Map?)?.map(
           (k, v) => MapEntry(k.toString(), v.toString()),
         ),
+        modifyImage: json['modifyImage']?.toString(),
       );
 }

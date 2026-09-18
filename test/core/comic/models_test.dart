@@ -76,4 +76,15 @@ void main() {
     expect(config.headers, {'referer': 'r'});
     expect(config.method, 'GET');
   });
+
+  test('ImageLoadingConfig.fromJs carries modifyImage', () {
+    final config = ImageLoadingConfig.fromJs({
+      'url': 'u',
+      'modifyImage': 'let x=1',
+    });
+    expect(config.modifyImage, 'let x=1');
+
+    final plain = ImageLoadingConfig.fromJs({'url': 'u'});
+    expect(plain.modifyImage, isNull);
+  });
 }
