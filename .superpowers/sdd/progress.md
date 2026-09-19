@@ -1018,3 +1018,11 @@ Task 2: complete (commit dc91b30..4222963, retry SnackBar + error-overlay button
 Task 3: complete (commits 4222963..69f1d26, review clean after the Critical fix 69f1d26: CachedNetworkImageProvider value-equality meant the retry never re-resolved -> Image keyed by _retry + disk evict + providerBuilder test seam + _FlakyImageProvider test). analyze clean; test 449/1 skip.
 Final whole-branch review (88fe81f..072cace): "With fixes" (1 Critical: cover retry no-op). Fix 69f1d26 + polish (removeFile catchError, @visibleForTesting, test enabled:false) -> re-review Ready to merge? Yes.
 Retry/fallback mechanisms: implementation COMPLETE (88fe81f..HEAD). Pushed origin/dev. Windows release build/repackage still blocked by the zombie process until a reboot.
+
+## Novel reader progress bar (plan docs/superpowers/plans/2026-09-18-novel-reader-progress-bar.md, base 038c621)
+
+User: a right-side indicator in the novel reader showing where the current position is in the full text. Clarified: scope = current chapter's scroll progress; draggable to jump.
+Task 1: complete (commit 038c621..c33c6dc, review clean; 3 Minor: brief's /// doc vs no-comments; redundant toDouble; unbounded-height edge untested).
+Task 2: complete (commit c33c6dc..1173f39, wiring; analyze/test clean; bar always visible, instant jumpTo).
+Final whole-branch review (038c621..1173f39): "With fixes" (1 Important: bar painted over the top/bottom chrome + desktop window controls). Fix 5c29241 (inset past the bars; _width 16->24; non-finite-height guard; removed redundant toDouble; + end-alignment test) -> re-review Ready to merge? Yes. analyze clean; test 452/1 skip.
+Novel reader progress bar: implementation COMPLETE (038c621..5c29241). Pushed origin/dev.
