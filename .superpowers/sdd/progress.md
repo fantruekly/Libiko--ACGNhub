@@ -999,3 +999,12 @@ Final whole-branch review (925ba62..ac13b42): "With fixes" (1 Important: Slider 
 Fix wave 0e25199 (re-review "Ready to merge? Yes"): drag recognizer scoped to the video layer only (Slider now wins structurally); _onDragSeekCancel; zero-delta sign; mid-fade bottom-bar test (protects the fade fix); player-play tap test. Full suite 447 pass/1 skip.
 Residual (non-blocking): drag preview can still stack with the double-tap feedback; fade test depends on non-zero theme channels.
 Bottom-bar capsule + player controls + drag-seek: implementation COMPLETE (925ba62..0e25199). Pushed origin/dev for the user's PR.
+
+## Player bar tighten + stream candidate verification (plan docs/superpowers/plans/2026-09-18-player-bar-stream-verify.md, base c8f1979)
+
+Diagnosis (play-check probe): resolve succeeded but the CDN rejected the stream — gimy 403 (sending Origin), moonci 400 (sending Referer); MXdm/baimao fine. Root causes: 7224941 replayed Origin; eb8a68c MacCMS added a Referer.
+Scope: 1) tighten the player bottom bar + lift the seek bar; 2) StreamResolver verifies the candidate (Range 0-0) and falls back through header variants (as-is -> no Origin -> UA only).
+
+Task 1: complete (commit c8f1979..13d2023, style only; analyze/test clean).
+Task 2: complete (commit 13d2023..19bc0cd, review clean after fixes 19bc0cd: candidate probe timeout bound + variant dedupe; also mocked the hit-path test dio d29a7a7). 2 Minor: empty-variant dropped when only Origin; .timeout doesn't cancel the socket.
+Task 3: complete (verification, HEAD 19bc0cd, no commit). play-check probe: moonci 400->206 FIXED; gimy 206 2/6 / 403 4/6 (CDN rate-limits rapid requests; the probe fires an extra GET right after the resolver's verify GET); MXdm/baimao/sorani/xfdmneo 2xx; 7sefun RESOLVE NULL because eps.first is 线路1 (vxdev, unsupported by design). Gates: analyze clean; test 448/1 skip; Windows+APK release OK. NOTE: the probe crashed at exit leaving a zombie libiko.exe locking WebView2Loader.dll -> the follow-up `build windows --debug` failed; a reboot is needed to rebuild the Windows exe.
