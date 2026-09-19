@@ -959,3 +959,18 @@ Task 4: complete (verification, HEAD 2cec022, no commit). Perf probe: search 七
 Final whole-branch review (507e9ba..2cec022): "With fixes" (2 Important: akianime still ~18s; unbounded eval can hang/leak; + Minors). Fix wave 9351bc4: headless absolute 10s cap, grace 4s + immediate on load error; eval bounded 3s. Re-measured: failed resolves DM84 7.4s/gugu3 8.5s/七色番 11.1s/akianime 11.4s; working 1.1-4.7s; search counts parity. Re-review: Ready to merge? Yes.
 Residual notes (non-blocking): 10s cap is per-headless-phase (worst case ~14s with a slow MacCMS probe); `timeout` param now partially vestigial; no automated test for the race/polling (native).
 Source load performance: implementation COMPLETE (507e9ba..9351bc4). Pushed origin/dev for the user's PR.
+
+## Background cancel + image cache (plan docs/superpowers/plans/2026-09-18-background-cancel-image-cache.md, base 56ead44)
+
+Diagnosis: abandoned pages never cancel in-flight headless searches (dispose only stops starting the next source; running browsers finish their ~12s timeout) -> compounding WebView2 load; AppCacheManager was dead code so images used DefaultCacheManager (200 objects) and thrashed. Image cold loads measured 0.1-0.8s each (anime 133ms, game 5-11ms, novel lknovel 250-430ms, comic 270-800ms); warm 0ms.
+Scope: A) CancellationToken through WebviewScraper/StreamResolver/VideoSource + wire detail/player dispose; B) tune AppCacheManager and inject into all image sites.
+
+Task 1: complete (commit 56ead44..722a77b, review clean; 2 Minor: a throwing listener aborts the rest (no try/catch); test uses a single listener).
+Task 2: complete (commit 722a77b..9ed4c3d, review clean; 2 Minor: cancel logs resolved=null indistinguishably; cancel latency bounded by the in-flight eval <=3s + 250ms).
+Task 3: complete (commit 9ed4c3d..3a42876, review clean; 1 Minor: detail page reuses _searchCancel for resolve (brief-mandated, safe)).
+Task 4: complete (commit 3a42876..3083bed, review clean; 2 Minor: comic_image provider reformatted to multi-line; import ordering nit).
+Task 5: complete (verification, HEAD 3083bed, no commit). Cancel probe: abandoned 七色番 search returned in 1484ms (was ~12s timeout) -> cancellation works. Gates: analyze clean; test 443+1 skip; Windows+APK release OK.
+Final whole-branch review (56ead44..3083bed): "Ready to merge? Yes" (no Critical/Important; Minors only).
+Hardening 8aa2b32: cancellation listeners isolated with try/catch + multi-listener test. Full suite 444 pass / 1 skip.
+Residual notes (non-blocking): API/HTML (Dio) sources only check cancel before/after the request (no mid-request abort, no WebView2 held); cancel latency bounded by the in-flight eval (<=3s) + 250ms; cancel logs resolved=null indistinguishably.
+Background cancel + image cache: implementation COMPLETE (56ead44..8aa2b32). Pushed origin/dev for the user's PR.
