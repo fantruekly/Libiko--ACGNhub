@@ -974,3 +974,10 @@ Final whole-branch review (56ead44..3083bed): "Ready to merge? Yes" (no Critical
 Hardening 8aa2b32: cancellation listeners isolated with try/catch + multi-listener test. Full suite 444 pass / 1 skip.
 Residual notes (non-blocking): API/HTML (Dio) sources only check cancel before/after the request (no mid-request abort, no WebView2 held); cancel latency bounded by the in-flight eval (<=3s) + 250ms; cancel logs resolved=null indistinguishably.
 Background cancel + image cache: implementation COMPLETE (56ead44..8aa2b32). Pushed origin/dev for the user's PR.
+
+## sorani API @source fix (ad hoc, 2026-09-18)
+
+Root cause (live probe): `ApiRuleClient.search` resolved `sourcePath` against `baseUrl`, so sorani's numeric id 828 became `https://www.sorani.net/828` and the chapter request `.../video/https://www.sorani.net/828` returned 400. `@source` must stay raw.
+Fix 92b94bc: `ApiClient.search` now emits `VideoItem(id: source, detailUrl: source)`; tests updated + a raw-numeric-id case. Reviewed clean.
+Verified end-to-end (real-app probe): sorani search 2 -> episodes 28 -> StreamResolver resolved an m3u8 (`sorani-vids.xyz/.../index.m3u8`). Full suite 445 pass / 1 skip.
+Remaining unsupported anime sources: DM84/gugu3/akianime/七色番-线路1 (third-party AES/jx parse players; not reversed by choice).
