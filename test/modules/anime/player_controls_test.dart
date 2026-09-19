@@ -74,12 +74,13 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('player-back')));
     await tester.tap(find.byKey(const ValueKey('player-center-play')));
+    await tester.tap(find.byKey(const ValueKey('player-play')));
     await tester.tap(find.byKey(const ValueKey('player-fullscreen')));
     await tester.tap(find.byKey(const ValueKey('player-episodes')));
     await tester.pump();
 
     expect(back, 1);
-    expect(play, 1);
+    expect(play, 2);
     expect(fullscreen, 1);
     expect(episodes, 1);
   });

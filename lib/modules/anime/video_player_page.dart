@@ -246,6 +246,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _scheduleHide();
   }
 
+  void _onDragSeekCancel() {
+    if (_dragSeekTarget == null) return;
+    setState(() => _dragSeekTarget = null);
+  }
+
   void _startBoost() {
     _player.setRate(2.0);
     _showControls();
@@ -364,12 +369,18 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         onLongPressStart: (_) => _startBoost(),
         onLongPressEnd: (_) => _endBoost(),
         onLongPressCancel: () => _endBoost(),
-        onHorizontalDragStart: _onDragSeekStart,
-        onHorizontalDragUpdate: _onDragSeekUpdate,
-        onHorizontalDragEnd: _onDragSeekEnd,
         child: Stack(
           children: [
-            Positioned.fill(child: _video()),
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragStart: _onDragSeekStart,
+                onHorizontalDragUpdate: _onDragSeekUpdate,
+                onHorizontalDragEnd: _onDragSeekEnd,
+                onHorizontalDragCancel: _onDragSeekCancel,
+                child: _video(),
+              ),
+            ),
             Positioned.fill(
               child: IgnorePointer(
                 ignoring: !_controlsVisible,
@@ -440,7 +451,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   Widget _dragSeekOverlay() {
     final target = _dragSeekTarget!;
     final delta = target - _dragSeekStart;
-    final sign = delta.isNegative ? '-' : '+';
+    final sign = delta > Duration.zero
+        ? '+'
+        : (delta < Duration.zero ? '-' : '');
     return Positioned.fill(
       child: IgnorePointer(
         child: Center(
