@@ -144,8 +144,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _resolving = false;
         _currentIndex = previous;
       });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('无法解析播放地址，请尝试其他线路或源')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('无法解析播放地址，请尝试其他线路或源'),
+        action: SnackBarAction(
+          label: '重试',
+          onPressed: () => _playIndex(i),
+        ),
+      ));
       return;
     }
     setState(() => _resolving = false);
@@ -343,8 +348,20 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: Text('播放失败：$_error',
-                      style: const TextStyle(color: Colors.white70)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('播放失败：$_error',
+                          style: const TextStyle(color: Colors.white70)),
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _error = null);
+                          _playIndex(_currentIndex);
+                        },
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             if (_panelOpen) _episodePanel(),
