@@ -137,6 +137,9 @@ class _RatioCoverState extends State<RatioCover> {
     Future<void>.delayed(delay, () {
       if (!mounted) return;
       _provider?.evict();
+      _stopListening();
+      _provider = null;
+      _providerWidth = 0;
       setState(() {});
     });
   }
