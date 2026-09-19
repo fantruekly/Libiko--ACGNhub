@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import 'cancellation.dart';
 import 'source_rule.dart';
 import 'video_source.dart';
 
@@ -222,7 +223,9 @@ class ApiRuleClient {
 
   ApiRuleClient(this.rule, {Dio? dio}) : _dio = dio ?? Dio();
 
-  Future<List<VideoItem>> search(String keyword) async {
+  Future<List<VideoItem>> search(String keyword,
+      {CancellationToken? cancel}) async {
+    if (cancel?.isCancelled ?? false) return const [];
     final raw = rule.searchApiConfig;
     if (raw == null) return const [];
     final config = ApiSearchConfig.fromJson(raw);
@@ -231,6 +234,7 @@ class ApiRuleClient {
       'baseUrl': rule.baseUrl,
     };
     final document = await _send(config.request, variables);
+    if (cancel?.isCancelled ?? false) return const [];
     final items = <VideoItem>[];
     for (final node in jsonPathAll(document, config.listPath)) {
       final title = _firstString(jsonPathAll(node, config.namePath));
@@ -242,7 +246,9 @@ class ApiRuleClient {
     return items;
   }
 
-  Future<List<VideoEpisode>> episodes(String detailUrl) async {
+  Future<List<VideoEpisode>> episodes(String detailUrl,
+      {CancellationToken? cancel}) async {
+    if (cancel?.isCancelled ?? false) return const [];
     final raw = rule.chapterApiConfig;
     if (raw == null) return const [];
     final config = ApiChapterConfig.fromJson(raw);
@@ -251,6 +257,7 @@ class ApiRuleClient {
       'baseUrl': rule.baseUrl,
     };
     final document = await _send(config.request, variables);
+    if (cancel?.isCancelled ?? false) return const [];
     return config.format == ApiChapterFormat.delimited
         ? _parseDelimited(document, config, variables)
         : _parseNested(document, config, variables);

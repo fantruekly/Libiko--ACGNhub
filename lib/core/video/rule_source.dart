@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'api_rule.dart';
+import 'cancellation.dart';
 import 'source_rule.dart';
 import 'video_source.dart';
 import 'webview_scraper.dart';
@@ -28,27 +29,31 @@ class RuleVideoSource implements VideoSource {
   String get baseUrl => rule.baseUrl;
 
   @override
-  Future<List<VideoItem>> search(String keyword) async {
+  Future<List<VideoItem>> search(String keyword,
+      {CancellationToken? cancel}) async {
     if (rule.searchMode == 'api') {
-      return _api.search(keyword);
+      return _api.search(keyword, cancel: cancel);
     }
     final result = await _scraper.fetchJson(
       url: rule.buildSearchUrl(keyword),
       script: buildSearchScript(rule),
       userAgent: rule.userAgent,
+      cancel: cancel,
     );
     return mapSearch(rule, result);
   }
 
   @override
-  Future<List<VideoEpisode>> episodes(String detailUrl) async {
+  Future<List<VideoEpisode>> episodes(String detailUrl,
+      {CancellationToken? cancel}) async {
     if (rule.chapterMode == 'api') {
-      return _api.episodes(detailUrl);
+      return _api.episodes(detailUrl, cancel: cancel);
     }
     final result = await _scraper.fetchJson(
       url: detailUrl,
       script: buildEpisodesScript(rule),
       userAgent: rule.userAgent,
+      cancel: cancel,
     );
     return mapEpisodes(rule, result);
   }

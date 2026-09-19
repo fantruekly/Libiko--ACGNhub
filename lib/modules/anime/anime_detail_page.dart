@@ -17,6 +17,7 @@ import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
+import '../../core/video/cancellation.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/title_match.dart';
@@ -62,6 +63,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   bool _loadingExtras = false;
   Timer? _searchTimer;
   bool _disposed = false;
+  final _searchCancel = CancellationToken();
 
   @override
   void initState() {
@@ -73,6 +75,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   @override
   void dispose() {
     _disposed = true;
+    _searchCancel.cancel();
     _searchTimer?.cancel();
     super.dispose();
   }
@@ -632,8 +635,9 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Future<void> _searchOne(_SourceResult r, int gen) async {
     if (_disposed) return;
     try {
-      final items =
-          await r.source.search(_work.title).timeout(const Duration(seconds: 25));
+      final items = await r.source
+          .search(_work.title, cancel: _searchCancel)
+          .timeout(const Duration(seconds: 25));
       if (!mounted || gen != _searchGen) return;
       setState(() {
         r.items = items;
@@ -691,7 +695,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       _episodesLoading = true;
     });
     try {
-      final eps = await source.episodes(item.detailUrl);
+      final eps =
+          await source.episodes(item.detailUrl, cancel: _searchCancel);
       if (!mounted || !identical(_expandedItem, item)) return;
       setState(() {
         _episodes = eps;
@@ -716,7 +721,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final stream = await StreamResolver().resolve(ep.playUrl,
         userAgent: ep.userAgent,
         referer: ep.referer,
-        legacy: ep.useLegacyParser);
+        legacy: ep.useLegacyParser,
+        cancel: _searchCancel);
     if (!mounted) return;
     Navigator.of(context).pop();
     if (stream == null) {

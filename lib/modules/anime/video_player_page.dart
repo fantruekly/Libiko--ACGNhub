@@ -10,6 +10,7 @@ import '../../core/account/sync_service.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
 import '../../core/services/watch_history.dart';
+import '../../core/video/cancellation.dart';
 import '../../core/video/headless_browser.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
@@ -57,6 +58,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   Timer? _hideTimer;
   String? _seekFeedback;
   Timer? _seekFeedbackTimer;
+  final _resolveCancel = CancellationToken();
 
   @override
   void initState() {
@@ -101,6 +103,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (isDesktop) windowManager.removeListener(this);
     _hideTimer?.cancel();
     _seekFeedbackTimer?.cancel();
+    _resolveCancel.cancel();
     for (final sub in _subs) {
       sub.cancel();
     }
@@ -130,7 +133,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         : await StreamResolver().resolve(episode.playUrl,
             userAgent: episode.userAgent,
             referer: episode.referer,
-            legacy: episode.useLegacyParser);
+            legacy: episode.useLegacyParser,
+            cancel: _resolveCancel);
     if (!mounted || gen != _gen) return;
     if (stream == null) {
       setState(() {

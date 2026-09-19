@@ -1,3 +1,5 @@
+import 'cancellation.dart';
+
 class VideoItem {
   final String id;
   final String title;
@@ -34,6 +36,7 @@ abstract class VideoSource {
   String get id;
   String get name;
   String get baseUrl;
-  Future<List<VideoItem>> search(String keyword);
-  Future<List<VideoEpisode>> episodes(String detailUrl);
+  Future<List<VideoItem>> search(String keyword, {CancellationToken? cancel});
+  Future<List<VideoEpisode>> episodes(String detailUrl,
+      {CancellationToken? cancel});
 }
