@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'cancellation.dart';
 import 'headless_browser.dart';
 import 'maccms.dart';
 import 'webview_scraper.dart';
@@ -21,6 +22,7 @@ class StreamResolver {
     String? userAgent,
     String? referer,
     bool legacy = false,
+    CancellationToken? cancel,
   }) async {
     final direct = await _maccms.resolve(
       playPageUrl,
@@ -29,6 +31,14 @@ class StreamResolver {
       timeout: const Duration(seconds: 4),
     );
     if (direct != null) return direct;
+
+    if (cancel?.isCancelled ?? false) return null;
+
+    final cancelled = Completer<MediaCandidate?>();
+    void onCancel() {
+      if (!cancelled.isCompleted) cancelled.complete(null);
+    }
+    cancel?.addListener(onCancel);
 
     final browser = createHeadlessBrowser();
     StreamSubscription<MediaCandidate>? sub;
@@ -58,6 +68,7 @@ class StreamResolver {
       final candidate = await Future.any<MediaCandidate?>([
         completer.future,
         grace.future.then((_) => null),
+        cancelled.future,
       ]).timeout(const Duration(seconds: 10), onTimeout: () {
         debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');
         return null;
@@ -68,6 +79,7 @@ class StreamResolver {
       debugPrint('[StreamResolver] failed for $playPageUrl: $e');
       return null;
     } finally {
+      cancel?.removeListener(onCancel);
       try {
         await sub?.cancel();
       } catch (_) {}

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'cancellation.dart';
 import 'headless_browser.dart';
 import 'source_rule.dart';
 
@@ -95,9 +96,11 @@ class WebviewScraper {
     required String script,
     String? userAgent,
     Duration timeout = const Duration(seconds: 12),
+    CancellationToken? cancel,
   }) async {
     final browser = createHeadlessBrowser();
     try {
+      if (cancel?.isCancelled ?? false) return const <dynamic>[];
       await browser.start(userAgent: userAgent ?? kBrowserUserAgent);
       unawaited(() async {
         try {
@@ -108,6 +111,7 @@ class WebviewScraper {
       }());
       final deadline = DateTime.now().add(timeout);
       while (DateTime.now().isBefore(deadline)) {
+        if (cancel?.isCancelled ?? false) return const <dynamic>[];
         dynamic result;
         try {
           result = await browser
