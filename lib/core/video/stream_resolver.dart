@@ -103,29 +103,35 @@ class StreamResolver {
   }
 
   List<Map<String, String>> _headerVariants(Map<String, String> headers) {
-    final withoutOrigin = Map<String, String>.from(headers)..remove('Origin');
-    final userAgentOnly = <String, String>{};
-    final ua = headers['User-Agent'];
-    if (ua != null && ua.isNotEmpty) userAgentOnly['User-Agent'] = ua;
-    return [
-      headers,
-      if (withoutOrigin.length != headers.length) withoutOrigin,
-      if (userAgentOnly.isNotEmpty) userAgentOnly,
-    ];
+    final variants = <Map<String, String>>[headers];
+    void add(Map<String, String> candidate) {
+      if (candidate.isEmpty) return;
+      if (variants.any((existing) => mapEquals(existing, candidate))) return;
+      variants.add(candidate);
+    }
+
+    add(Map<String, String>.from(headers)..remove('Origin'));
+    final userAgent = headers['User-Agent'];
+    if (userAgent != null && userAgent.isNotEmpty) {
+      add({'User-Agent': userAgent});
+    }
+    return variants;
   }
 
   Future<bool> _reachable(String url, Map<String, String> headers) async {
     try {
-      final response = await _dio.get<List<int>>(
-        url,
-        options: Options(
-          responseType: ResponseType.bytes,
-          headers: {...headers, 'Range': 'bytes=0-0'},
-          validateStatus: (_) => true,
-          receiveTimeout: const Duration(seconds: 5),
-          sendTimeout: const Duration(seconds: 5),
-        ),
-      );
+      final response = await _dio
+          .get<List<int>>(
+            url,
+            options: Options(
+              responseType: ResponseType.bytes,
+              headers: {...headers, 'Range': 'bytes=0-0'},
+              validateStatus: (_) => true,
+              receiveTimeout: const Duration(seconds: 5),
+              sendTimeout: const Duration(seconds: 5),
+            ),
+          )
+          .timeout(const Duration(seconds: 6));
       final code = response.statusCode ?? 0;
       return code >= 200 && code < 400;
     } catch (_) {
