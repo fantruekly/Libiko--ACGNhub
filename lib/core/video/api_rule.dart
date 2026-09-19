@@ -240,8 +240,7 @@ class ApiRuleClient {
       final title = _firstString(jsonPathAll(node, config.namePath));
       final source = _firstString(jsonPathAll(node, config.sourcePath));
       if (title.isEmpty || source.isEmpty) continue;
-      final url = _resolveUrl(source, rule.baseUrl);
-      items.add(VideoItem(id: url, title: title, detailUrl: url));
+      items.add(VideoItem(id: source, title: title, detailUrl: source));
     }
     return items;
   }

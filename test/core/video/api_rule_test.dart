@@ -143,11 +143,33 @@ void main() {
 
     expect(items, hasLength(2));
     expect(items[0].title, '葬送的芙莉莲');
-    expect(items[0].id, 'https://api.test/detail/1');
-    expect(items[0].detailUrl, 'https://api.test/detail/1');
+    expect(items[0].id, '/detail/1');
+    expect(items[0].detailUrl, '/detail/1');
     expect(items[1].id, 'https://other.test/detail/2');
     expect(adapter.last!.uri.path, '/search');
     expect(adapter.last!.uri.queryParameters['wd'], '芙莉莲');
+  });
+
+  test('search keeps a raw numeric source id for @source', () async {
+    final adapter = _JsonAdapter('''
+      {"data": {"records": [{"title": "葬送的芙莉莲", "id": 828}]}}''');
+    final rule = _apiRule(
+      searchApiConfig: {
+        'request': {'url': 'https://api.test/video?keyword=@keyword'},
+        'listPath': r'$.data.records[*]',
+        'namePath': r'$.title',
+        'sourcePath': r'$.id',
+      },
+      chapterApiConfig: {
+        'request': {'url': 'https://api.test/video/@source'},
+      },
+    );
+    final client = _client(rule, adapter);
+
+    final items = await client.search('芙莉莲');
+
+    expect(items.single.id, '828');
+    expect(items.single.detailUrl, '828');
   });
 
   test('nested episodes parse without a road prefix for a single road',
