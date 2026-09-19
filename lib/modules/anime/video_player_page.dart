@@ -183,6 +183,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _showControls();
   }
 
+  void _nextEpisode() {
+    if (_currentIndex + 1 >= widget.episodes.length) return;
+    _playIndex(_currentIndex + 1);
+  }
+
   void _seekRelative(int seconds) {
     final target = seekTarget(_position, seconds, _duration);
     _player.seek(target);
@@ -352,6 +357,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                       setState(() => _panelOpen = !_panelOpen);
                       _showControls();
                     },
+                    onNextEpisode: _nextEpisode,
+                    hasNext: _currentIndex + 1 < widget.episodes.length,
                   ),
                 ),
               ),

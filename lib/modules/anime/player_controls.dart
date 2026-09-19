@@ -14,6 +14,8 @@ class PlayerControlsOverlay extends StatefulWidget {
   final ValueChanged<Duration> onSeek;
   final VoidCallback onToggleFullscreen;
   final VoidCallback onToggleEpisodes;
+  final VoidCallback onNextEpisode;
+  final bool hasNext;
 
   const PlayerControlsOverlay({
     super.key,
@@ -28,6 +30,8 @@ class PlayerControlsOverlay extends StatefulWidget {
     required this.onSeek,
     required this.onToggleFullscreen,
     required this.onToggleEpisodes,
+    required this.onNextEpisode,
+    required this.hasNext,
   });
 
   @override
@@ -172,12 +176,32 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
           Row(
             children: [
               IconButton(
+                key: const ValueKey('player-play'),
+                icon: Icon(
+                  widget.playing
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                ),
+                tooltip: widget.playing ? '暂停' : '播放',
+                onPressed: widget.onTogglePlay,
+              ),
+              IconButton(
+                key: const ValueKey('player-next'),
+                icon: Icon(
+                  Icons.skip_next_rounded,
+                  color: widget.hasNext ? Colors.white : Colors.white38,
+                ),
+                tooltip: '下一集',
+                onPressed: widget.hasNext ? widget.onNextEpisode : null,
+              ),
+              const Spacer(),
+              IconButton(
                 key: const ValueKey('player-episodes'),
                 icon: const Icon(Icons.list_rounded, color: Colors.white),
                 tooltip: '选集',
                 onPressed: widget.onToggleEpisodes,
               ),
-              const Spacer(),
               IconButton(
                 key: const ValueKey('player-fullscreen'),
                 icon: Icon(
