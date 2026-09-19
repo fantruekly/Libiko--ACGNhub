@@ -10,6 +10,7 @@ import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/marquee_text.dart';
+import '../../core/widgets/reader_progress_bar.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 
@@ -54,11 +55,33 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   String? _lastRecordedChapterId;
   bool _chromeVisible = true;
   final _scroll = ScrollController();
+  final _progress = ValueNotifier<double>(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_updateProgress);
+  }
 
   @override
   void dispose() {
+    _scroll.removeListener(_updateProgress);
+    _progress.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _updateProgress() {
+    if (!_scroll.hasClients) return;
+    final position = _scroll.position;
+    final max = position.maxScrollExtent;
+    _progress.value = max <= 0 ? 0 : (position.pixels / max).clamp(0.0, 1.0);
+  }
+
+  void _seekToFraction(double fraction) {
+    if (!_scroll.hasClients) return;
+    _scroll.jumpTo(_scroll.position.maxScrollExtent *
+        fraction.clamp(0.0, 1.0));
   }
 
   @override
@@ -99,6 +122,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
           ),
           if (_chromeVisible) _topBar(palette),
           if (_chromeVisible) _bottomBar(palette, chapters, index),
+          _progressBar(palette),
         ],
       ),
     );
@@ -255,6 +279,24 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
             _barButton(palette, Icons.chevron_right_rounded, '下一章',
                 hasNext ? () => _goChapter(chapters[index + 1].id) : null),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _progressBar(_Palette palette) {
+    final insets = MediaQuery.paddingOf(context);
+    return Positioned(
+      top: 8 + (isDesktop ? 0.0 : insets.top),
+      bottom: 8 + (isDesktop ? 0.0 : insets.bottom),
+      right: 2,
+      child: ValueListenableBuilder<double>(
+        valueListenable: _progress,
+        builder: (context, progress, _) => ReaderProgressBar(
+          progress: progress,
+          trackColor: palette.fg.withValues(alpha: 0.15),
+          thumbColor: Theme.of(context).colorScheme.primary,
+          onSeek: _seekToFraction,
         ),
       ),
     );
