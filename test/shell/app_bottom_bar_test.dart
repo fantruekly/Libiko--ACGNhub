@@ -34,18 +34,18 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    Color? capsuleColor(String label) {
+    double capsuleAlpha(String label) {
       final container = tester.widget<Container>(
           find.byKey(ValueKey('bar-capsule-$label')));
-      return (container.decoration as BoxDecoration?)?.color;
+      return (container.decoration as BoxDecoration?)?.color?.a ?? 0;
     }
 
-    expect(capsuleColor('动漫'), isNot(Colors.transparent));
-    expect(capsuleColor('漫画'), Colors.transparent);
+    expect(capsuleAlpha('动漫'), 1.0);
+    expect(capsuleAlpha('漫画'), 0.0);
 
     await tester.tap(find.text('漫画'));
     await tester.pumpAndSettle();
-    expect(capsuleColor('漫画'), isNot(Colors.transparent));
-    expect(capsuleColor('动漫'), Colors.transparent);
+    expect(capsuleAlpha('漫画'), 1.0);
+    expect(capsuleAlpha('动漫'), 0.0);
   });
 }
