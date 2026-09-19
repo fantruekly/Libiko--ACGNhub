@@ -981,3 +981,8 @@ Root cause (live probe): `ApiRuleClient.search` resolved `sourcePath` against `b
 Fix 92b94bc: `ApiClient.search` now emits `VideoItem(id: source, detailUrl: source)`; tests updated + a raw-numeric-id case. Reviewed clean.
 Verified end-to-end (real-app probe): sorani search 2 -> episodes 28 -> StreamResolver resolved an m3u8 (`sorani-vids.xyz/.../index.m3u8`). Full suite 445 pass / 1 skip.
 Remaining unsupported anime sources: DM84/gugu3/akianime/七色番-线路1 (third-party AES/jx parse players; not reversed by choice).
+
+## Remove unplayable sources (ad hoc, 2026-09-18)
+
+Attempted gugu3's player: `MizhiPlayerART.js` is 352KB obfuscated + CryptoJS AES; the play page redirected to an ad (jd.com) in the headless. Not feasible.
+Decision: delete the unplayable bundled rule sources DM84/gugu3/akianime (7sefun kept - its 线路2 resolves). Commit d93e5ce: removed the 3 JSONs; rule_store_test now expects 6 bundled rules. analyze clean; 445 tests pass. Pushed origin/dev.
