@@ -22,6 +22,9 @@ class RatioCover extends StatefulWidget {
   final bool? enabled;
   final CoverRatioCache? cache;
   final Duration fadeInDuration;
+  final ImageProvider Function(
+          String url, int width, Map<String, String>? headers)?
+      providerBuilder;
 
   const RatioCover({
     super.key,
@@ -32,6 +35,7 @@ class RatioCover extends StatefulWidget {
     this.enabled,
     this.cache,
     this.fadeInDuration = Duration.zero,
+    this.providerBuilder,
   });
 
   @override
@@ -44,6 +48,7 @@ class _RatioCoverState extends State<RatioCover> {
   ImageProvider? _provider;
   int _providerWidth = 0;
   int _retry = 0;
+  bool _retryScheduled = false;
   ImageStream? _stream;
   ImageStreamListener? _listener;
 
@@ -70,6 +75,7 @@ class _RatioCoverState extends State<RatioCover> {
     _provider = null;
     _providerWidth = 0;
     _retry = 0;
+    _retryScheduled = false;
     if (!_active) return;
     _loadCached();
   }
@@ -89,12 +95,13 @@ class _RatioCoverState extends State<RatioCover> {
     _providerWidth = width;
     _provider = url.isEmpty
         ? null
-        : CachedNetworkImageProvider(
-            url,
-            maxWidth: width,
-            cacheManager: AppCacheManager(),
-            headers: widget.httpHeaders,
-          );
+        : (widget.providerBuilder?.call(url, width, widget.httpHeaders) ??
+            CachedNetworkImageProvider(
+              url,
+              maxWidth: width,
+              cacheManager: AppCacheManager(),
+              headers: widget.httpHeaders,
+            ));
     if (_active) _listenForSize();
   }
 
@@ -131,12 +138,16 @@ class _RatioCoverState extends State<RatioCover> {
   }
 
   void _onImageError() {
-    if (_retry >= 2) return;
+    if (_retryScheduled || _retry >= 2) return;
+    _retryScheduled = true;
     _retry++;
+    final url = _url;
     final delay = Duration(milliseconds: 400 * _retry);
     Future<void>.delayed(delay, () {
-      if (!mounted) return;
+      if (!mounted || url != _url) return;
+      _retryScheduled = false;
       _provider?.evict();
+      unawaited(AppCacheManager().removeFile(url));
       _stopListening();
       _provider = null;
       _providerWidth = 0;
@@ -209,6 +220,7 @@ class _RatioCoverState extends State<RatioCover> {
         final Widget image = provider == null
             ? widget.placeholderBuilder(context)
             : Image(
+                key: ValueKey(_retry),
                 image: provider,
                 fit: BoxFit.cover,
                 frameBuilder: _frameBuilder,

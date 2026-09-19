@@ -355,6 +355,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                           style: const TextStyle(color: Colors.white70)),
                       TextButton(
                         onPressed: () {
+                          if (_resolving) return;
                           setState(() => _error = null);
                           _playIndex(_currentIndex);
                         },
