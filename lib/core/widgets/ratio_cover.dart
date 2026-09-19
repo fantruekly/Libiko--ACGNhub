@@ -22,6 +22,7 @@ class RatioCover extends StatefulWidget {
   final bool? enabled;
   final CoverRatioCache? cache;
   final Duration fadeInDuration;
+  @visibleForTesting
   final ImageProvider Function(
           String url, int width, Map<String, String>? headers)?
       providerBuilder;
@@ -147,7 +148,7 @@ class _RatioCoverState extends State<RatioCover> {
       if (!mounted || url != _url) return;
       _retryScheduled = false;
       _provider?.evict();
-      unawaited(AppCacheManager().removeFile(url));
+      unawaited(AppCacheManager().removeFile(url).catchError((Object _) {}));
       _stopListening();
       _provider = null;
       _providerWidth = 0;

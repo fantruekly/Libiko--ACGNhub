@@ -1008,3 +1008,13 @@ Scope: 1) tighten the player bottom bar + lift the seek bar; 2) StreamResolver v
 Task 1: complete (commit c8f1979..13d2023, style only; analyze/test clean).
 Task 2: complete (commit 13d2023..19bc0cd, review clean after fixes 19bc0cd: candidate probe timeout bound + variant dedupe; also mocked the hit-path test dio d29a7a7). 2 Minor: empty-variant dropped when only Origin; .timeout doesn't cancel the socket.
 Task 3: complete (verification, HEAD 19bc0cd, no commit). play-check probe: moonci 400->206 FIXED; gimy 206 2/6 / 403 4/6 (CDN rate-limits rapid requests; the probe fires an extra GET right after the resolver's verify GET); MXdm/baimao/sorani/xfdmneo 2xx; 7sefun RESOLVE NULL because eps.first is 线路1 (vxdev, unsupported by design). Gates: analyze clean; test 448/1 skip; Windows+APK release OK. NOTE: the probe crashed at exit leaving a zombie libiko.exe locking WebView2Loader.dll -> the follow-up `build windows --debug` failed; a reboot is needed to rebuild the Windows exe.
+
+## Retry/fallback mechanisms (plan docs/superpowers/plans/2026-09-18-retry-fallbacks.md, base 88fe81f)
+
+User chose "失败重试/兜底". Scope: 1) StreamResolver retries the whole flow once; 2) playback failure gives a 重试 entry (SnackBar action + error-overlay button); 3) RatioCover retries a failed cover load twice (evict + delayed rebuild).
+
+Task 1: complete (commit 88fe81f..dc91b30, review clean; 1 Minor: worst-case latency roughly doubles (inherent)).
+Task 2: complete (commit dc91b30..4222963, retry SnackBar + error-overlay button wired).
+Task 3: complete (commits 4222963..69f1d26, review clean after the Critical fix 69f1d26: CachedNetworkImageProvider value-equality meant the retry never re-resolved -> Image keyed by _retry + disk evict + providerBuilder test seam + _FlakyImageProvider test). analyze clean; test 449/1 skip.
+Final whole-branch review (88fe81f..072cace): "With fixes" (1 Critical: cover retry no-op). Fix 69f1d26 + polish (removeFile catchError, @visibleForTesting, test enabled:false) -> re-review Ready to merge? Yes.
+Retry/fallback mechanisms: implementation COMPLETE (88fe81f..HEAD). Pushed origin/dev. Windows release build/repackage still blocked by the zombie process until a reboot.

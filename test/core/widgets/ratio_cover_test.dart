@@ -162,6 +162,7 @@ void main() {
           height: 150,
           child: RatioCover(
             url: 'https://x/cover.jpg',
+            enabled: false,
             placeholderBuilder: (_) => const Text('placeholder'),
             providerBuilder: (url, width, headers) => provider,
           ),
