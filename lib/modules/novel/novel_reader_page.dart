@@ -286,9 +286,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
   Widget _progressBar(_Palette palette) {
     final insets = MediaQuery.paddingOf(context);
+    final topBar = 56 + (isDesktop ? 0.0 : insets.top);
+    final bottomBar = 64 + (isDesktop ? 0.0 : insets.bottom);
     return Positioned(
-      top: 8 + (isDesktop ? 0.0 : insets.top),
-      bottom: 8 + (isDesktop ? 0.0 : insets.bottom),
+      top: topBar + 8,
+      bottom: bottomBar + 8,
       right: 2,
       child: ValueListenableBuilder<double>(
         valueListenable: _progress,

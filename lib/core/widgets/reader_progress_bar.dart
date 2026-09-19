@@ -20,17 +20,19 @@ class ReaderProgressBar extends StatelessWidget {
   static const double _thumbHeight = 40;
   static const double _trackWidth = 4;
   static const double _thumbWidth = 10;
-  static const double _width = 16;
+  static const double _width = 24;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (!constraints.maxHeight.isFinite) {
+          return const SizedBox(width: _width);
+        }
         final height = constraints.maxHeight;
         final span = height - _thumbHeight;
-        final top = span <= 0
-            ? 0.0
-            : (span * progress.clamp(0.0, 1.0)).toDouble();
+        final top =
+            span <= 0 ? 0.0 : span * progress.clamp(0.0, 1.0);
         return GestureDetector(
           key: const ValueKey('reader-progress-bar'),
           behavior: HitTestBehavior.opaque,
