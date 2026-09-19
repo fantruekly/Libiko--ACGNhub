@@ -58,6 +58,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   Timer? _hideTimer;
   String? _seekFeedback;
   Timer? _seekFeedbackTimer;
+  Duration? _dragSeekTarget;
+  Duration _dragSeekStart = Duration.zero;
+  int _dragSeekPx = 0;
   final _resolveCancel = CancellationToken();
 
   @override
@@ -212,6 +215,37 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }
   }
 
+  void _onDragSeekStart(DragStartDetails details) {
+    if (_duration.inMilliseconds <= 0) return;
+    _dragSeekStart = _position;
+    _dragSeekPx = 0;
+    _dragSeekTarget = _position;
+    _showControls();
+    setState(() {});
+  }
+
+  void _onDragSeekUpdate(DragUpdateDetails details) {
+    if (_dragSeekTarget == null || _duration.inMilliseconds <= 0) return;
+    final width = MediaQuery.of(context).size.width;
+    if (width <= 0) return;
+    _dragSeekPx += details.delta.dx.round();
+    final deltaMs = (_dragSeekPx / width) * _duration.inMilliseconds;
+    final targetMs = (_dragSeekStart.inMilliseconds + deltaMs)
+        .clamp(0, _duration.inMilliseconds)
+        .round();
+    setState(() => _dragSeekTarget = Duration(milliseconds: targetMs));
+  }
+
+  void _onDragSeekEnd(DragEndDetails details) {
+    final target = _dragSeekTarget;
+    if (target != null) {
+      _player.seek(target);
+      setState(() => _position = target);
+    }
+    setState(() => _dragSeekTarget = null);
+    _scheduleHide();
+  }
+
   void _startBoost() {
     _player.setRate(2.0);
     _showControls();
@@ -283,6 +317,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           children: [
             Positioned.fill(child: _gestureArea()),
             if (_seekFeedback != null) _seekFeedbackOverlay(),
+            if (_dragSeekTarget != null) _dragSeekOverlay(),
             if (_rate != 1.0) _speedBadge(),
             if (_resolving)
               const Positioned.fill(
@@ -329,6 +364,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         onLongPressStart: (_) => _startBoost(),
         onLongPressEnd: (_) => _endBoost(),
         onLongPressCancel: () => _endBoost(),
+        onHorizontalDragStart: _onDragSeekStart,
+        onHorizontalDragUpdate: _onDragSeekUpdate,
+        onHorizontalDragEnd: _onDragSeekEnd,
         child: Stack(
           children: [
             Positioned.fill(child: _video()),
@@ -392,6 +430,42 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dragSeekOverlay() {
+    final target = _dragSeekTarget!;
+    final delta = target - _dragSeekStart;
+    final sign = delta.isNegative ? '-' : '+';
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  formatDuration(target),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$sign${delta.inSeconds.abs()} 秒',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
             ),
           ),
         ),
