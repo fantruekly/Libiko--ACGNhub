@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import 'comic_detail_page.dart';
 import 'comic_home.dart';
 import 'comic_providers.dart';
-
-const _muted = Color(0xFF5A5A5F);
 
 class ComicSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
@@ -49,7 +49,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: kAppBackground,
       body: SafeArea(
         child: Column(
           children: [
@@ -65,10 +65,10 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
+      decoration: BoxDecoration(
+        color: cs.surface,
         border:
-            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+            Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
       ),
       child: Row(
         children: [
@@ -82,25 +82,30 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F7),
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: [
                   Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
+                      size: 18, color: cs.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _ctrl,
                       autofocus: widget.initialKeyword == null,
                       style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        filled: false,
+                        isCollapsed: true,
                         hintText: '搜索漫画...',
-                        hintStyle: TextStyle(color: _muted, fontSize: 15),
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
+                        hintStyle:
+                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
                       ),
                       onSubmitted: (_) => _search(),
                       onChanged: (_) => setState(() {}),
@@ -113,7 +118,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
                         setState(() {});
                       },
                       child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
+                          size: 16, color: cs.onSurfaceVariant),
                     ),
                 ],
               ),
@@ -137,6 +142,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     return async.when(
       loading: () => const ShimmerLoader(
         crossAxisCount: 6,
+        mobileColumns: 3,
         itemCount: 12,
         padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
       ),
@@ -157,15 +163,10 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
   }
 
   Widget _resultsGrid(List<ComicSearchResult> results) {
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 6,
-        mainAxisSpacing: 20,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.60,
-      ),
+    return AdaptiveGridView(
       itemCount: results.length,
+      mobileColumns: 3,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (context, index) {
         final result = results[index];
         return ComicCard(

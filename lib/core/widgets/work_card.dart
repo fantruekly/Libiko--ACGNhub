@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/work.dart';
+import 'ratio_cover.dart';
 
 class WorkCard extends StatelessWidget {
   final Work work;
@@ -9,37 +9,23 @@ class WorkCard extends StatelessWidget {
 
   const WorkCard({super.key, required this.work, this.onTap, this.subtitle});
 
-  static const _accent = Color(0xFF007AFF);
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
+    Widget cover = RatioCover(
+      url: work.coverUrl,
+      fadeInDuration: const Duration(milliseconds: 200),
+      enabled: false,
+      placeholderBuilder: (_) => _placeholder(work, cs),
+    );
 
     return GestureDetector(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Hero(
-              tag: 'work_${work.id}',
-              child: RepaintBoundary(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: work.coverUrl != null && work.coverUrl!.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: work.coverUrl!,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 400,
-                          fadeInDuration: const Duration(milliseconds: 200),
-                          placeholder: (_, __) => _placeholder(work),
-                          errorWidget: (_, __, ___) => _placeholder(work),
-                        )
-                      : _placeholder(work),
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: Hero(tag: 'work_${work.id}', child: cover)),
           const SizedBox(height: 6),
           SizedBox(
             height: 38,
@@ -61,7 +47,7 @@ class WorkCard extends StatelessWidget {
               subtitle!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF5A5A5F)),
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             ),
           ],
         ],
@@ -69,7 +55,7 @@ class WorkCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(Work work) {
+  Widget _placeholder(Work work, ColorScheme cs) {
     final hash = work.title.hashCode.abs();
     final bgColors = const [
       Color(0xFFF3E5F5),
@@ -83,7 +69,7 @@ class WorkCard extends StatelessWidget {
         child: Text(
           work.title.characters.first,
           style: TextStyle(
-              color: _accent.withValues(alpha: 0.2),
+              color: cs.primary.withValues(alpha: 0.2),
               fontSize: 28,
               fontWeight: FontWeight.w400),
         ),

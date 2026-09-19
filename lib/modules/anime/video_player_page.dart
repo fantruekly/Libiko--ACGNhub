@@ -1,47 +1,97 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:window_manager/window_manager.dart';
 import '../../core/account/sync_service.dart';
 import '../../core/models/work.dart';
+import '../../core/platform.dart';
 import '../../core/services/watch_history.dart';
+import '../../core/video/cancellation.dart';
+import '../../core/video/headless_browser.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
+import 'player_controls.dart';
+import 'player_gestures.dart';
 
 class VideoPlayerPage extends ConsumerStatefulWidget {
   final Work work;
   final List<VideoEpisode> episodes;
   final int initialIndex;
+  final MediaCandidate? initialResolved;
 
   const VideoPlayerPage({
     super.key,
     required this.work,
     required this.episodes,
     required this.initialIndex,
+    this.initialResolved,
   });
 
   @override
   ConsumerState<VideoPlayerPage> createState() => _VideoPlayerPageState();
 }
 
-class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
+class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
+    with WidgetsBindingObserver, WindowListener {
   late final Player _player;
   late final VideoController _controller;
+  final List<StreamSubscription<dynamic>> _subs = [];
   String? _error;
   int _currentIndex = 0;
   bool _panelOpen = false;
   bool _resolving = false;
+  bool _usedInitialUrl = false;
   int _gen = 0;
+
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  bool _playing = false;
+  bool _buffering = false;
+  double _rate = 1.0;
+  bool _controlsVisible = true;
+  bool _fullscreen = false;
+  double _doubleTapX = 0;
+  Timer? _hideTimer;
+  String? _seekFeedback;
+  Timer? _seekFeedbackTimer;
+  final _resolveCancel = CancellationToken();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (isDesktop) windowManager.addListener(this);
     _player = Player();
     _controller = VideoController(_player);
-    _player.stream.error.listen((e) {
+    _subs.add(_player.stream.error.listen((e) {
       if (mounted) setState(() => _error = e);
-    });
+    }));
+    _subs.add(_player.stream.position.listen((p) {
+      if (mounted) setState(() => _position = p);
+    }));
+    _subs.add(_player.stream.duration.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    }));
+    _subs.add(_player.stream.playing.listen((p) {
+      if (!mounted) return;
+      setState(() => _playing = p);
+      if (p) {
+        _scheduleHide();
+      } else {
+        _hideTimer?.cancel();
+        if (!_controlsVisible) setState(() => _controlsVisible = true);
+      }
+    }));
+    _subs.add(_player.stream.buffering.listen((b) {
+      if (mounted) setState(() => _buffering = b);
+    }));
+    _subs.add(_player.stream.rate.listen((r) {
+      if (mounted) setState(() => _rate = r);
+    }));
     if (widget.episodes.isEmpty) return;
     _currentIndex = widget.initialIndex.clamp(0, widget.episodes.length - 1);
     _playIndex(_currentIndex);
@@ -49,6 +99,14 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (isDesktop) windowManager.removeListener(this);
+    _hideTimer?.cancel();
+    _seekFeedbackTimer?.cancel();
+    _resolveCancel.cancel();
+    for (final sub in _subs) {
+      sub.cancel();
+    }
     _player.dispose();
     super.dispose();
   }
@@ -66,101 +124,293 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
       _error = null;
       _currentIndex = i;
     });
-    final url = await StreamResolver().resolve(episode.playUrl);
+    final useInitial = !_usedInitialUrl &&
+        i == widget.initialIndex &&
+        widget.initialResolved != null;
+    if (useInitial) _usedInitialUrl = true;
+    final stream = useInitial
+        ? widget.initialResolved
+        : await StreamResolver().resolve(episode.playUrl,
+            userAgent: episode.userAgent,
+            referer: episode.referer,
+            legacy: episode.useLegacyParser,
+            cancel: _resolveCancel);
     if (!mounted || gen != _gen) return;
-    if (url == null) {
+    if (stream == null) {
       setState(() {
         _resolving = false;
         _currentIndex = previous;
       });
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
+          .showSnackBar(const SnackBar(content: Text('无法解析播放地址，请尝试其他线路或源')));
       return;
     }
     setState(() => _resolving = false);
-    await _player.open(Media(url));
+    final headers = <String, String>{
+      if (episode.userAgent != null) 'User-Agent': episode.userAgent!,
+      if (episode.referer != null) 'Referer': episode.referer!,
+      ...stream.headers,
+    };
+    await _player.open(Media(
+      stream.url,
+      httpHeaders: headers.isEmpty ? null : headers,
+    ));
     if (gen == _gen) await history.record(work, episode);
     ref.read(syncProvider).schedule();
+    _showControls();
   }
 
-  MaterialDesktopVideoControlsThemeData _controlsTheme(BuildContext context, {bool showEpisodes = true}) {
-    return MaterialDesktopVideoControlsThemeData(
-      controlsHoverDuration: const Duration(seconds: 3),
-      topButtonBar: [
-        IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          tooltip: '返回',
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        Expanded(
-          child: Text(
-            widget.work.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600, height: 1.3),
-          ),
-        ),
-        const SizedBox(width: 12),
-      ],
-      bottomButtonBar: [
-        const MaterialDesktopSkipPreviousButton(),
-        const MaterialDesktopPlayOrPauseButton(),
-        const MaterialDesktopSkipNextButton(),
-        const MaterialDesktopVolumeButton(),
-        const MaterialDesktopPositionIndicator(),
-        const Spacer(),
-        if (showEpisodes)
-          MaterialDesktopCustomButton(
-            icon: const Icon(Icons.list_rounded),
-            onPressed: () => setState(() => _panelOpen = !_panelOpen),
-          ),
-        const MaterialDesktopFullscreenButton(),
-      ],
-    );
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    if (!_playing) return;
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _controlsVisible = false);
+    });
+  }
+
+  void _showControls() {
+    if (!_controlsVisible) setState(() => _controlsVisible = true);
+    _scheduleHide();
+  }
+
+  void _toggleControls() {
+    setState(() => _controlsVisible = !_controlsVisible);
+    if (_controlsVisible) _scheduleHide();
+  }
+
+  void _togglePlay() {
+    _player.playOrPause();
+    _showControls();
+  }
+
+  void _seekRelative(int seconds) {
+    final target = seekTarget(_position, seconds, _duration);
+    _player.seek(target);
+    setState(() {
+      _position = target;
+      _seekFeedback = seconds > 0 ? '+$seconds 秒' : '$seconds 秒';
+    });
+    _seekFeedbackTimer?.cancel();
+    _seekFeedbackTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _seekFeedback = null);
+    });
+  }
+
+  void _handleDoubleTap(TapZone zone) {
+    switch (zone) {
+      case TapZone.left:
+        _seekRelative(-15);
+      case TapZone.right:
+        _seekRelative(15);
+      case TapZone.center:
+        _togglePlay();
+    }
+  }
+
+  void _startBoost() {
+    _player.setRate(2.0);
+    _showControls();
+  }
+
+  void _endBoost() {
+    _player.setRate(1.0);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) _endBoost();
+  }
+
+  @override
+  void onWindowEnterFullScreen() {
+    if (mounted) setState(() => _fullscreen = true);
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    if (mounted) setState(() => _fullscreen = false);
+  }
+
+  Future<void> _handleBack() async {
+    if (_panelOpen) {
+      setState(() => _panelOpen = false);
+      return;
+    }
+    if (_fullscreen) {
+      await _toggleFullscreen();
+      return;
+    }
+    Navigator.of(context).maybePop();
+  }
+
+  Future<void> _toggleFullscreen() async {
+    if (isDesktop) {
+      final next = !await windowManager.isFullScreen();
+      await windowManager.setFullScreen(next);
+      final actual = await windowManager.isFullScreen();
+      if (mounted) setState(() => _fullscreen = actual);
+      return;
+    }
+    if (_fullscreen) {
+      await SystemChrome.setPreferredOrientations(
+          const [DeviceOrientation.portraitUp]);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    } else {
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
+    if (mounted) setState(() => _fullscreen = !_fullscreen);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: MaterialDesktopVideoControlsTheme(
-              normal: _controlsTheme(context),
-              fullscreen: _controlsTheme(context, showEpisodes: false),
-              child: Video(
-                controller: _controller,
-                fit: BoxFit.contain,
-                fill: Colors.black,
-                controls: MaterialDesktopVideoControls,
+    return PopScope(
+      canPop: !_fullscreen && !_panelOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            Positioned.fill(child: _gestureArea()),
+            if (_seekFeedback != null) _seekFeedbackOverlay(),
+            if (_rate != 1.0) _speedBadge(),
+            if (_resolving)
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(
+                    child: SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: Colors.white),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-          if (_resolving)
-            const Positioned.fill(
-              child: IgnorePointer(
+            if (_error != null)
+              Positioned(
+                top: 64,
+                left: 0,
+                right: 0,
                 child: Center(
-                  child: SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2.5, color: Colors.white),
+                  child: Text('播放失败：$_error',
+                      style: const TextStyle(color: Colors.white70)),
+                ),
+              ),
+            if (_panelOpen) _episodePanel(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _gestureArea() {
+    return Listener(
+      onPointerUp: (_) => _endBoost(),
+      onPointerCancel: (_) => _endBoost(),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggleControls,
+        onDoubleTapDown: (details) => _doubleTapX = details.localPosition.dx,
+        onDoubleTap: () {
+          final width = MediaQuery.of(context).size.width;
+          _handleDoubleTap(tapZoneFor(_doubleTapX, width));
+        },
+        onLongPressStart: (_) => _startBoost(),
+        onLongPressEnd: (_) => _endBoost(),
+        onLongPressCancel: () => _endBoost(),
+        child: Stack(
+          children: [
+            Positioned.fill(child: _video()),
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: !_controlsVisible,
+                child: AnimatedOpacity(
+                  opacity: _controlsVisible ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: PlayerControlsOverlay(
+                    title: widget.work.title,
+                    position: _position,
+                    duration: _duration,
+                    playing: _playing,
+                    buffering: _buffering,
+                    fullscreen: _fullscreen,
+                    onBack: _handleBack,
+                    onTogglePlay: _togglePlay,
+                    onSeek: (target) {
+                      _player.seek(target);
+                      setState(() => _position = target);
+                      _showControls();
+                    },
+                    onToggleFullscreen: _toggleFullscreen,
+                    onToggleEpisodes: () {
+                      setState(() => _panelOpen = !_panelOpen);
+                      _showControls();
+                    },
                   ),
                 ),
               ),
             ),
-          if (_error != null)
-            Positioned(
-              top: 64,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Text('播放失败：$_error', style: const TextStyle(color: Colors.white70)),
-              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _video() => Video(
+        controller: _controller,
+        controls: null,
+        fit: BoxFit.contain,
+        fill: Colors.black,
+      );
+
+  Widget _seekFeedbackOverlay() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(10),
             ),
-          if (_panelOpen) _episodePanel(),
-        ],
+            child: Text(
+              _seekFeedback!,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _speedBadge() {
+    return Positioned(
+      top: 60,
+      right: 16,
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '${_rate.toStringAsFixed(1)}x',
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
     );
   }
@@ -171,7 +421,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
       bottom: 0,
       right: 0,
       child: ClipRRect(
-        borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
+        borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
@@ -185,10 +436,15 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
                     padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
                     child: Row(
                       children: [
-                        const Text('选集', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                        const Text('选集',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600)),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.white70, size: 20),
                           tooltip: '关闭',
                           onPressed: () => setState(() => _panelOpen = false),
                         ),
@@ -197,7 +453,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
                   ),
                   Expanded(
                     child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       itemCount: widget.episodes.length,
                       itemBuilder: (context, i) {
                         final ep = widget.episodes[i];
@@ -213,12 +470,17 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
                                 _playIndex(i);
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
-                                  color: selected ? const Color(0x33007AFF) : Colors.white.withValues(alpha: 0.06),
+                                  color: selected
+                                      ? const Color(0x33007AFF)
+                                      : Colors.white.withValues(alpha: 0.06),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
-                                    color: selected ? const Color(0x99007AFF) : Colors.white.withValues(alpha: 0.12),
+                                    color: selected
+                                        ? const Color(0x99007AFF)
+                                        : Colors.white.withValues(alpha: 0.12),
                                   ),
                                 ),
                                 child: Text(
@@ -226,9 +488,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: selected ? const Color(0xFF4DA3FF) : Colors.white,
+                                    color: selected
+                                        ? const Color(0xFF4DA3FF)
+                                        : Colors.white,
                                     fontSize: 13,
-                                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                                    fontWeight: selected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
                                   ),
                                 ),
                               ),

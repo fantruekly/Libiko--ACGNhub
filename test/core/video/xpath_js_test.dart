@@ -33,7 +33,8 @@ void main() {
     final js = buildEpisodesScript(_rule);
     expect(js, contains(
         '__ev("//div[2]/div[2]/div[2]/div/div[2]/div[1]//div", document)'));
-    expect(js, contains('__ev(__rel("//a"), roads[0])'));
+    expect(js, contains('__ev(__rel("//a"), roads[r])'));
+    expect(js, contains('roads.length > 1'));
     expect(js, contains('return out;'));
     expect(js, isNot(contains('JSON.stringify')));
   });

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/account/sync_service.dart';
 import '../../core/services/watch_history.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/work_card.dart';
@@ -44,25 +45,17 @@ class AnimeHistoryView extends ConsumerWidget {
           child: records.isEmpty
               ? const EmptyState(
                   icon: Icons.history_rounded, message: '还没有观看记录')
-              : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 6,
-                    mainAxisSpacing: 20,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 0.60,
-                  ),
+              : AdaptiveGridView(
                   itemCount: records.length,
+                  mobileColumns: 3,
+                  mobileTitleExtent: 62,
                   itemBuilder: (_, i) {
                     final record = records[i];
                     return WorkCard(
                       work: record.work,
                       subtitle: '看到 ${record.episodeTitle}',
-                      onTap: () => Navigator.push(
-                          context,
-                          smoothRoute(
-                              AnimeDetailPage(work: record.work))),
+                      onTap: () => Navigator.push(context,
+                          smoothRoute(AnimeDetailPage(work: record.work))),
                     );
                   },
                 ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -10,6 +11,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../storage/database.dart';
+import 'builtin_sources.dart';
 import 'explore_result.dart';
 import 'js_engine.dart';
 import 'models.dart';
@@ -350,22 +352,38 @@ globalThis.__libiko_instance = function (key) {
 ''';
 
 class ComicSourceManager {
-  ComicSourceManager({JsEngine? engine, Dio? dio})
-      : _dio = dio ??
+  ComicSourceManager({
+    JsEngine? engine,
+    Dio? dio,
+    BuiltinSourceInstaller? builtinInstaller,
+  })  : _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 15),
               validateStatus: (_) => true,
-            )) {
+            )),
+        _builtinInstaller = builtinInstaller ?? BuiltinSourceInstaller() {
     _engine = engine ?? JsEngine(settings: _appSettings);
   }
 
   late final JsEngine _engine;
   final Dio _dio;
+  final BuiltinSourceInstaller _builtinInstaller;
   final List<ComicSource> _sources = [];
   Future<void>? _initFuture;
 
+  /// Bounded LRU cache of in-flight/resolved `onImageLoad` hooks, keyed by
+  /// source/comic/chapter/url. De-duplicates concurrent calls and avoids
+  /// re-running a source's (often expensive) hook for a URL already resolved.
+  final LinkedHashMap<String, Future<ImageLoadingConfig>> _imageLoadCache =
+      LinkedHashMap();
+  static const int _maxImageLoadCache = 64;
+
   List<ComicSource> get sources => List.unmodifiable(_sources);
+
+  /// Drops every memoized `onImageLoad` result. Called whenever the source set
+  /// changes so a refreshed source never reuses a stale hook result.
+  void clearImageLoadCache() => _imageLoadCache.clear();
 
   static Map<String, String> _appSettings() => _DbSettings();
 
@@ -420,7 +438,13 @@ class ComicSourceManager {
 
   Future<void> load() async {
     await _ensureInitialized();
+    try {
+      await _builtinInstaller.install();
+    } catch (e) {
+      debugPrint('[ComicSourceManager] builtin install failed: $e');
+    }
     _sources.clear();
+    clearImageLoadCache();
     await _engine.evaluate(
         'globalThis.__libiko_sources = {}; globalThis.__libiko_pending = {};');
     final dir = await _dir();
@@ -504,6 +528,7 @@ class ComicSourceManager {
     final source = await _evaluateSource(script, p.basename(file.path));
     _sources.removeWhere((s) => s.key == source.key);
     _sources.add(source);
+    clearImageLoadCache();
     return source;
   }
 
@@ -517,6 +542,7 @@ class ComicSourceManager {
     final source = await _evaluateSource(script, p.basename(file.path));
     _sources.removeWhere((s) => s.key == source.key);
     _sources.add(source);
+    clearImageLoadCache();
     return source;
   }
 
@@ -544,6 +570,7 @@ class ComicSourceManager {
     } else {
       _sources.add(refreshed);
     }
+    clearImageLoadCache();
     return refreshed;
   }
 
@@ -555,6 +582,7 @@ class ComicSourceManager {
     await _engine.evaluate(
         'delete globalThis.__libiko_sources[${jsonEncode(source.key)}];');
     _sources.removeWhere((s) => s.key == source.key);
+    clearImageLoadCache();
   }
 
   Future<List<Comic>> search(ComicSource source, String keyword,
@@ -626,6 +654,7 @@ class ComicSourceManager {
             .setString('source_data.${source.key}.username', username);
         await AppDatabase()
             .setString('source_data.${source.key}.logged_in', '1');
+        clearImageLoadCache();
         return true;
       }
       return false;
@@ -648,6 +677,7 @@ class ComicSourceManager {
       if (ok == true) {
         await AppDatabase()
             .setString('source_data.${source.key}.logged_in', '1');
+        clearImageLoadCache();
         return true;
       }
       return false;
@@ -673,6 +703,7 @@ class ComicSourceManager {
     } catch (_) {
       // Best-effort logout.
     }
+    clearImageLoadCache();
   }
 
   String? savedUsername(ComicSource source) =>
@@ -730,6 +761,29 @@ class ComicSourceManager {
       ComicSource source, String url, String comicId, String epId) async {
     await _ensureInitialized();
     if (!source.canOnImageLoad) return ImageLoadingConfig(url: url);
+    final key = '${source.key}|$comicId|$epId|$url';
+    final cached = _imageLoadCache.remove(key);
+    if (cached != null) {
+      _imageLoadCache[key] = cached;
+      return cached;
+    }
+    final future = _evaluateOnImageLoad(source, url, comicId, epId);
+    _imageLoadCache[key] = future;
+    while (_imageLoadCache.length > _maxImageLoadCache) {
+      _imageLoadCache.remove(_imageLoadCache.keys.first);
+    }
+    try {
+      return await future;
+    } catch (_) {
+      if (identical(_imageLoadCache[key], future)) {
+        _imageLoadCache.remove(key);
+      }
+      rethrow;
+    }
+  }
+
+  Future<ImageLoadingConfig> _evaluateOnImageLoad(
+      ComicSource source, String url, String comicId, String epId) async {
     final result = await _engine.evaluate('''
       (async () => {
         const s = await globalThis.__libiko_instance(${jsonEncode(source.key)});
@@ -738,6 +792,52 @@ class ComicSourceManager {
     ''');
     if (result is! Map) return ImageLoadingConfig(url: url);
     return ImageLoadingConfig.fromJs(result);
+  }
+
+  /// Downloads [url] with [headers] for image display.
+  Future<Uint8List> fetchImageBytes(
+      String url, Map<String, String>? headers) async {
+    final response = await _dio.get<List<int>>(url,
+        options: Options(responseType: ResponseType.bytes, headers: headers));
+    return Uint8List.fromList(response.data ?? const []);
+  }
+
+  /// Decodes [bytes], runs the source's `modifyImage` [script] over the pixels,
+  /// and returns the processed [ui.Image] (no PNG re-encoding).
+  Future<ui.Image> processImage(Uint8List bytes, String script) async {
+    await _ensureInitialized();
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    final width = image.width;
+    final height = image.height;
+    final raw =
+        await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    image.dispose();
+    codec.dispose();
+    if (raw == null) throw StateError('could not read image pixels');
+    final rgba = raw.buffer.asUint8List(raw.offsetInBytes, raw.lengthInBytes);
+    final processed = await _engine.runModifyImage(script, width, height, rgba);
+    if (processed.length != width * height * 4) {
+      throw StateError('modifyImage changed the image size');
+    }
+    final decoded = Completer<ui.Image>();
+    ui.decodeImageFromPixels(processed, width, height, ui.PixelFormat.rgba8888,
+        (image) => decoded.complete(image));
+    return decoded.future;
+  }
+
+  /// Encodes [bytes] through the source's `modifyImage` [script] as a PNG.
+  @Deprecated('use processImage to avoid the PNG re-encoding round trip')
+  Future<Uint8List> modifyImage(Uint8List bytes, String script) async {
+    final image = await processImage(bytes, script);
+    try {
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (png == null) throw StateError('could not encode image');
+      return png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
+    } finally {
+      image.dispose();
+    }
   }
 
   void dispose() => _engine.dispose();

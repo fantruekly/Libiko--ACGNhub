@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
+import 'cancellation.dart';
 import 'video_source.dart';
 
 class GimySource implements VideoSource {
@@ -29,15 +30,21 @@ class GimySource implements VideoSource {
   String get baseUrl => 'https://gimy.tv';
 
   @override
-  Future<List<VideoItem>> search(String keyword) async {
+  Future<List<VideoItem>> search(String keyword,
+      {CancellationToken? cancel}) async {
+    if (cancel?.isCancelled ?? false) return const [];
     final res = await _dio
         .get('/search/-------------.html', queryParameters: {'wd': keyword});
+    if (cancel?.isCancelled ?? false) return const [];
     return parseSearch(res.data.toString());
   }
 
   @override
-  Future<List<VideoEpisode>> episodes(String detailUrl) async {
+  Future<List<VideoEpisode>> episodes(String detailUrl,
+      {CancellationToken? cancel}) async {
+    if (cancel?.isCancelled ?? false) return const [];
     final res = await _dio.get(detailUrl);
+    if (cancel?.isCancelled ?? false) return const [];
     return parseEpisodes(res.data.toString(), baseUrl);
   }
 
@@ -93,11 +100,7 @@ class GimySource implements VideoSource {
   }
 
   static String _abs(String url, String base) {
-    if (url.startsWith('http')) {
-      return url.startsWith('http://')
-          ? url.replaceFirst('http://', 'https://')
-          : url;
-    }
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
     if (url.startsWith('//')) return 'https:$url';
     if (url.startsWith('/')) return '$base$url';
     return '$base/$url';

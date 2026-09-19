@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:webview_windows/webview_windows.dart';
 
+import 'cancellation.dart';
+import 'headless_browser.dart';
 import 'source_rule.dart';
 
 const String kBrowserUserAgent =
@@ -50,28 +51,31 @@ String buildSearchScript(SourceRule rule) => '''
 })()
 ''';
 
-/// JS that returns a JSON array of `{title, href}` for the rule's first road.
+/// JS that returns a JSON array of `{title, href}` for every chapter road.
 String buildEpisodesScript(SourceRule rule) => '''
 (function () {
   $_helpersJs
   var out = [];
   var roads = __ev(${jsonEncode(rule.chapterRoads)}, document);
-  if (roads.length) {
-    var links = __ev(__rel(${jsonEncode(rule.chapterResult)}), roads[0]);
+  for (var r = 0; r < roads.length; r++) {
+    var links = __ev(__rel(${jsonEncode(rule.chapterResult)}), roads[r]);
     for (var i = 0; i < links.length; i++) {
       var e = links[i];
-      out.push({
-        title: (e.textContent || '').trim(),
-        href: ((e.getAttribute && e.getAttribute('href')) || '').trim()
-      });
+      var t = (e.textContent || '').trim();
+      var h = ((e.getAttribute && e.getAttribute('href')) || '').trim();
+      if (h) {
+        out.push({
+          title: (roads.length > 1 ? '线路' + (r + 1) + ' ' : '') + t,
+          href: h
+        });
+      }
     }
   }
   return out;
 })()
 ''';
 
-/// Loads a URL in a headless WebView and evaluates an extraction script.
-/// Mirrors [StreamResolver]'s lifecycle: create, run, load, dispose.
+/// Loads a URL in a [HeadlessBrowser] and evaluates an extraction script.
 class WebviewScraper {
   /// Normalizes an `executeScript` result to a list. The webview returns the
   /// decoded JSON value; accept a `List` directly and tolerate a JSON string.
@@ -91,60 +95,42 @@ class WebviewScraper {
     required String url,
     required String script,
     String? userAgent,
-    Duration timeout = const Duration(seconds: 20),
-    int attempts = 3,
+    Duration timeout = const Duration(seconds: 12),
+    CancellationToken? cancel,
   }) async {
-    final webview = HeadlessWebview();
-    final subs = <StreamSubscription>[];
-    final loaded = Completer<void>();
-
+    final browser = createHeadlessBrowser();
     try {
-      await webview.run();
-      try {
-        await webview.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
-      } catch (_) {}
-      await webview.setUserAgent(userAgent ?? kBrowserUserAgent);
-
-      var currentUrl = '';
-      subs.add(webview.url.listen((value) => currentUrl = value));
-
-      subs.add(webview.loadingState.listen((state) {
-        if (state == LoadingState.navigationCompleted &&
-            currentUrl.isNotEmpty &&
-            currentUrl != 'about:blank' &&
-            !loaded.isCompleted) {
-          loaded.complete();
+      if (cancel?.isCancelled ?? false) return const <dynamic>[];
+      await browser.start(userAgent: userAgent ?? kBrowserUserAgent);
+      unawaited(() async {
+        try {
+          await browser.load(url, timeout: timeout);
+        } catch (e) {
+          debugPrint('[WebviewScraper] load failed for $url: $e');
         }
-      }));
-
-      await webview.loadUrl(url);
-      await loaded.future.timeout(timeout, onTimeout: () {});
-
-      for (var attempt = 0; attempt < attempts; attempt++) {
+      }());
+      final deadline = DateTime.now().add(timeout);
+      while (DateTime.now().isBefore(deadline)) {
+        if (cancel?.isCancelled ?? false) return const <dynamic>[];
         dynamic result;
         try {
-          result = await webview.executeScript(script);
+          result = await browser
+              .eval(script)
+              .timeout(const Duration(seconds: 3), onTimeout: () => null);
         } catch (_) {
           result = null;
         }
         final list = decodeResult(result);
         if (list.isNotEmpty) return list;
-        if (attempt < attempts - 1) {
-          await Future.delayed(const Duration(milliseconds: 600));
-        }
+        await Future<void>.delayed(const Duration(milliseconds: 250));
       }
       return const <dynamic>[];
     } catch (e) {
       debugPrint('[WebviewScraper] failed for $url: $e');
       return null;
     } finally {
-      for (final s in subs) {
-        try {
-          await s.cancel();
-        } catch (_) {}
-      }
       try {
-        await webview.dispose();
+        await browser.dispose();
       } catch (_) {}
     }
   }

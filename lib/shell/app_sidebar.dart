@@ -44,14 +44,12 @@ class AppSidebar extends StatelessWidget {
     (Icons.games_rounded, '游戏'),
   ];
 
-  static const _sidebarBg = Color(0xFFF9F9FC);
-  static const _border = Color(0xFFE5E5EA);
-
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       width: 72,
-      color: _sidebarBg,
+      color: cs.surfaceContainerLow,
       child: Column(
         children: [
           const Spacer(),
@@ -65,9 +63,9 @@ class AppSidebar extends StatelessWidget {
             ),
           ),
           const Spacer(flex: 2),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Divider(height: 1, color: _border),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(height: 1, color: cs.outlineVariant),
           ),
           const SizedBox(height: 4),
           _SidebarItem(
@@ -96,13 +94,11 @@ class _SidebarItem extends StatelessWidget {
     required this.onTap,
   });
 
-  static const _accent = Color(0xFF007AFF);
-  static const _fg = Color(0xFF1C1C1E);
-
   @override
   Widget build(BuildContext context) {
-    final idleIcon = _fg.withValues(alpha: 0.35);
-    final idleText = _fg.withValues(alpha: 0.45);
+    final cs = Theme.of(context).colorScheme;
+    final idleIcon = cs.onSurfaceVariant.withValues(alpha: 0.7);
+    final idleText = cs.onSurfaceVariant;
 
     return GestureDetector(
       onTap: onTap,
@@ -113,8 +109,8 @@ class _SidebarItem extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOutCubic,
         builder: (context, t, _) {
-          final iconColor = Color.lerp(idleIcon, _accent, t)!;
-          final textColor = Color.lerp(idleText, _accent, t)!;
+          final iconColor = Color.lerp(idleIcon, cs.primary, t)!;
+          final textColor = Color.lerp(idleText, cs.primary, t)!;
           return Stack(
             alignment: Alignment.centerLeft,
             children: [
@@ -149,7 +145,7 @@ class _SidebarItem extends StatelessWidget {
                   child: Transform.scale(
                     scaleY: t,
                     alignment: Alignment.center,
-                    child: Container(width: 3, color: _accent),
+                    child: Container(width: 3, color: cs.primary),
                   ),
                 ),
               ),

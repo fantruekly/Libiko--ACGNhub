@@ -48,15 +48,26 @@ void main() {
         .where((f) => f.path.endsWith('.json'))
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));
-    expect(files, hasLength(5));
+    expect(files, hasLength(6));
     expect(
       files.map((f) => p.basename(f.path)).toList(),
-      ['7sefun.json', 'MXdm.json', 'akianime.json', 'gugu3.json', 'moonci.json'],
+      [
+        '7sefun.json',
+        'MXdm.json',
+        'baimao.json',
+        'moonci.json',
+        'sorani.json',
+        'xfdmneo.json',
+      ],
     );
     for (final file in files) {
       final rule = SourceRule.fromJsonString(await file.readAsString());
       expect(rule.name, isNotEmpty, reason: file.path);
-      expect(rule.searchUrl, contains('@keyword'), reason: file.path);
+      if (rule.searchMode == 'api') {
+        expect(rule.searchApiConfig, isNotNull, reason: file.path);
+      } else {
+        expect(rule.searchUrl, contains('@keyword'), reason: file.path);
+      }
     }
   });
 }

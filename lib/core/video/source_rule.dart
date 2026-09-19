@@ -13,6 +13,12 @@ class SourceRule {
   final String chapterRoads;
   final String chapterResult;
   final String? userAgent;
+  final String? referer;
+  final bool useLegacyParser;
+  final String searchMode;
+  final String chapterMode;
+  final Map<String, dynamic>? searchApiConfig;
+  final Map<String, dynamic>? chapterApiConfig;
 
   const SourceRule({
     required this.name,
@@ -24,6 +30,12 @@ class SourceRule {
     required this.chapterRoads,
     required this.chapterResult,
     this.userAgent,
+    this.referer,
+    this.useLegacyParser = false,
+    this.searchMode = 'xpath',
+    this.chapterMode = 'xpath',
+    this.searchApiConfig,
+    this.chapterApiConfig,
   });
 
   String get id => 'rule:$name';
@@ -37,17 +49,42 @@ class SourceRule {
       return v.trim();
     }
 
+    String opt(String key) {
+      final v = json[key];
+      return v is String ? v.trim() : '';
+    }
+
+    Map<String, dynamic>? apiConfig(String key) {
+      final v = json[key];
+      return v is Map ? Map<String, dynamic>.from(v) : null;
+    }
+
+    final searchMode = json['searchMode'] == 'api' ? 'api' : 'xpath';
+    final chapterMode = json['chapterMode'] == 'api' ? 'api' : 'xpath';
+    final isXpathSearch = searchMode == 'xpath';
+    final isXpathChapter = chapterMode == 'xpath';
+
     final ua = json['userAgent'];
     return SourceRule(
       name: req('name'),
       baseUrl: req('baseURL'),
-      searchUrl: req('searchURL'),
-      searchList: req('searchList'),
-      searchName: req('searchName'),
-      searchResult: req('searchResult'),
-      chapterRoads: req('chapterRoads'),
-      chapterResult: req('chapterResult'),
+      searchUrl: isXpathSearch ? req('searchURL') : opt('searchURL'),
+      searchList: isXpathSearch ? req('searchList') : opt('searchList'),
+      searchName: isXpathSearch ? req('searchName') : opt('searchName'),
+      searchResult: isXpathSearch ? req('searchResult') : opt('searchResult'),
+      chapterRoads: isXpathChapter ? req('chapterRoads') : opt('chapterRoads'),
+      chapterResult:
+          isXpathChapter ? req('chapterResult') : opt('chapterResult'),
       userAgent: (ua is String && ua.trim().isNotEmpty) ? ua.trim() : null,
+      referer: (json['referer'] is String &&
+              (json['referer'] as String).trim().isNotEmpty)
+          ? (json['referer'] as String).trim()
+          : null,
+      useLegacyParser: json['useLegacyParser'] == true,
+      searchMode: searchMode,
+      chapterMode: chapterMode,
+      searchApiConfig: apiConfig('searchApiConfig'),
+      chapterApiConfig: apiConfig('chapterApiConfig'),
     );
   }
 

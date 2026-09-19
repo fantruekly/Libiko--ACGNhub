@@ -7,8 +7,12 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_source.dart';
+import '../../core/services/cache_manager.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/pager_bar.dart';
+import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -16,10 +20,6 @@ import '../../core/widgets/tab_strip.dart';
 import 'novel_detail_page.dart';
 import 'novel_providers.dart';
 import 'novel_reader_page.dart';
-
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-const _fg = Color(0xFF1C1C1E);
 
 class NovelCard extends StatelessWidget {
   final Novel novel;
@@ -29,21 +29,12 @@ class NovelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget image = RepaintBoundary(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: novel.coverUrl != null && novel.coverUrl!.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: novel.coverUrl!,
-                fit: BoxFit.cover,
-                memCacheWidth: 400,
-                fadeInDuration: Duration.zero,
-                httpHeaders: novelImageHeaders,
-                placeholder: (_, __) => _placeholder(),
-                errorWidget: (_, __, ___) => _placeholder(),
-              )
-            : _placeholder(),
-      ),
+    final cs = Theme.of(context).colorScheme;
+    Widget image = RatioCover(
+      url: novel.coverUrl,
+      httpHeaders: novelImageHeaders,
+      placeholderBuilder: (_) => _placeholder(cs),
+      enabled: false,
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -61,8 +52,8 @@ class NovelCard extends StatelessWidget {
               novel.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w500, height: 1.45, color: _fg),
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w500, height: 1.45, color: cs.onSurface),
             ),
           ),
         ],
@@ -70,7 +61,7 @@ class NovelCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(ColorScheme cs) {
     final hash = novel.title.hashCode.abs();
     const bg = [Color(0xFFF3E5F5), Color(0xFFEDE7F6), Color(0xFFE8EAF6), Color(0xFFE0F2F1)];
     return Container(
@@ -79,7 +70,7 @@ class NovelCard extends StatelessWidget {
         child: Text(
           novel.title.isEmpty ? '书' : novel.title.characters.first,
           style: TextStyle(
-              color: _accent.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w400),
+              color: cs.primary.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w400),
         ),
       ),
     );
@@ -136,6 +127,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   int _groupIndex = -1;
   int _optionIndex = 0;
   int _page = 1;
+  bool? _lastHasMore;
 
   @override
   bool get wantKeepAlive => true;
@@ -170,6 +162,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
         _groupIndex = -1;
         _optionIndex = 0;
         _page = 1;
+        _lastHasMore = null;
       }),
     );
   }
@@ -183,6 +176,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
         _groupIndex = i - 1;
         _optionIndex = 0;
         _page = 1;
+        _lastHasMore = null;
       }),
     );
   }
@@ -195,34 +189,74 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       onSelected: (i) => setState(() {
         _optionIndex = i;
         _page = 1;
+        _lastHasMore = null;
       }),
     );
   }
 
+  void _handleSwipe(
+      DragEndDetails details, List<NovelBrowseGroup> groups, List<NovelSource> sources) {
+    final v = details.primaryVelocity ?? 0;
+    final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
+    if (delta == 0) return;
+    setState(() {
+      final group = (_groupIndex >= 0 && _groupIndex < groups.length)
+          ? groups[_groupIndex]
+          : null;
+      if (group != null && group.options.length > 1) {
+        final next = (_optionIndex + delta).clamp(0, group.options.length - 1);
+        if (next == _optionIndex) return;
+        _optionIndex = next;
+      } else if (groups.isNotEmpty) {
+        final next = (_groupIndex + delta).clamp(-1, groups.length - 1);
+        if (next == _groupIndex) return;
+        _groupIndex = next;
+        _optionIndex = 0;
+      } else if (sources.length > 1) {
+        final idx = sources.indexWhere((s) => s.id == _sourceId);
+        final next = (idx + delta).clamp(0, sources.length - 1);
+        if (next == idx) return;
+        _sourceId = sources[next].id;
+        _groupIndex = -1;
+        _optionIndex = 0;
+      } else {
+        return;
+      }
+      _page = 1;
+      _lastHasMore = null;
+    });
+  }
+
   Widget _body(List<NovelBrowseGroup> groups) {
-    final sourceIndex =
-        ref.watch(novelSourcesProvider).indexWhere((s) => s.id == _sourceId);
+    final sources = ref.watch(novelSourcesProvider);
+    final sourceIndex = sources.indexWhere((s) => s.id == _sourceId);
     if (_groupIndex < 0 || _groupIndex >= groups.length) {
       final async = ref.watch(novelHomeProvider(_sourceId));
       return Column(
         children: [
           Expanded(
-            child: SlideSwitcher(
-              id: (_sourceId, '__home__'),
-              index: sourceIndex * 1000000,
-              child: async.when(
-                loading: () => const ShimmerLoader(
-                    crossAxisCount: 6,
-                    itemCount: 12,
-                    aspectRatio: 0.58,
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-                error: (_, __) => EmptyState(
-                  icon: Icons.cloud_off_rounded,
-                  message: '加载失败',
-                  actionLabel: '重试',
-                  onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragEnd: (details) =>
+                  _handleSwipe(details, groups, sources),
+              child: SlideSwitcher(
+                id: (_sourceId, '__home__'),
+                index: sourceIndex * 1000000,
+                child: async.when(
+                  loading: () => const ShimmerLoader(
+                      crossAxisCount: 6,
+                      mobileColumns: 3,
+                      itemCount: 12,
+                      aspectRatio: 0.58,
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+                  error: (_, __) => EmptyState(
+                    icon: Icons.cloud_off_rounded,
+                    message: '加载失败',
+                    actionLabel: '重试',
+                    onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+                  ),
+                  data: (home) => _grid(flattenHome(home)),
                 ),
-                data: (home) => _grid(flattenHome(home)),
               ),
             ),
           ),
@@ -235,64 +269,53 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     }
     final option = group.options[_optionIndex.clamp(0, group.options.length - 1)];
     final async = ref.watch(novelBrowseProvider((_sourceId, option.key, _page)));
-    final pageData = async.valueOrNull;
     return Column(
       children: [
         Expanded(
-          child: SlideSwitcher(
-            id: (_sourceId, option.key, _page),
-            index: sourceIndex * 1000000 +
-                (_groupIndex + 1) * 10000 +
-                _optionIndex * 100 +
-                _page,
-            child: async.when(
-              loading: () => const ShimmerLoader(
-                  crossAxisCount: 6,
-                  itemCount: 12,
-                  aspectRatio: 0.58,
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
-              error: (_, __) => EmptyState(
-                icon: Icons.cloud_off_rounded,
-                message: '加载失败',
-                actionLabel: '重试',
-                onAction: () => ref.invalidate(
-                    novelBrowseProvider((_sourceId, option.key, _page))),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragEnd: (details) =>
+                _handleSwipe(details, groups, sources),
+            child: SlideSwitcher(
+              id: (_sourceId, option.key, _page),
+              index: sourceIndex * 1000000 +
+                  (_groupIndex + 1) * 10000 +
+                  _optionIndex * 100 +
+                  _page,
+              child: async.when(
+                loading: () => const ShimmerLoader(
+                    crossAxisCount: 6,
+                    itemCount: 12,
+                    aspectRatio: 0.58,
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
+                error: (_, __) {
+                  _lastHasMore = null;
+                  return EmptyState(
+                    icon: Icons.cloud_off_rounded,
+                    message: '加载失败',
+                    actionLabel: '重试',
+                    onAction: () => ref.invalidate(
+                        novelBrowseProvider((_sourceId, option.key, _page))),
+                  );
+                },
+                data: (list) {
+                  _lastHasMore = list.hasMore;
+                  return _grid(list.items);
+                },
               ),
-              data: (list) => _grid(list.items),
             ),
           ),
         ),
-        if (pageData != null) _pager(pageData.hasMore),
+        if (_lastHasMore != null) _pager(_lastHasMore!, async.isLoading),
       ],
     );
   }
 
-  Widget _pager(bool hasMore) {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            tooltip: '上一页',
-            icon: const Icon(Icons.chevron_left_rounded),
-            onPressed: _page > 1 ? () => setState(() => _page--) : null,
-          ),
-          const SizedBox(width: 16),
-          Text('第 $_page 页',
-              style: const TextStyle(fontSize: 13, color: _muted)),
-          const SizedBox(width: 16),
-          IconButton(
-            tooltip: '下一页',
-            icon: const Icon(Icons.chevron_right_rounded),
-            onPressed: hasMore ? () => setState(() => _page++) : null,
-          ),
-        ],
-      ),
+  Widget _pager(bool hasMore, bool loading) {
+    return PagerBar(
+      label: '第 $_page 页',
+      onPrevious: _page > 1 ? () => setState(() => _page--) : null,
+      onNext: (!loading && hasMore) ? () => setState(() => _page++) : null,
     );
   }
 
@@ -300,11 +323,11 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     if (items.isEmpty) {
       return const EmptyState(icon: Icons.menu_book_rounded, message: '暂无内容');
     }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6, mainAxisSpacing: 20, crossAxisSpacing: 16, childAspectRatio: 0.58),
+    return AdaptiveGridView(
       itemCount: items.length,
+      mobileColumns: 3,
+      desktopAspectRatio: 0.58,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (_, i) => NovelCard(
         novel: items[i],
         heroTag: 'novel_${_sourceId}_${items[i].id}',
@@ -332,11 +355,11 @@ class _FavoritesTab extends ConsumerWidget {
       return const EmptyState(
           icon: Icons.favorite_border_rounded, message: '还没有收藏');
     }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6, mainAxisSpacing: 20, crossAxisSpacing: 16, childAspectRatio: 0.58),
+    return AdaptiveGridView(
       itemCount: favorites.length,
+      mobileColumns: 3,
+      desktopAspectRatio: 0.58,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (_, i) => NovelCard(
         novel: Novel(
           id: favorites[i].novelId,
@@ -363,6 +386,7 @@ class _HistoryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final records = ref.watch(novelHistoryProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -371,11 +395,11 @@ class _HistoryTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Row(
             children: [
-              const Text('历史记录',
+              Text('历史记录',
                   style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: _fg,
+                      color: cs.onSurface,
                       height: 1.4)),
               const Spacer(),
               TextButton(
@@ -402,6 +426,7 @@ class _HistoryTab extends ConsumerWidget {
 }
 
 Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
+  final cs = Theme.of(context).colorScheme;
   return InkWell(
     borderRadius: BorderRadius.circular(10),
     onTap: () => Navigator.push(
@@ -423,7 +448,7 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
             child: SizedBox(
               width: 56,
               height: 76,
-              child: _cover(entry.cover),
+              child: _cover(entry.cover, cs),
             ),
           ),
           const SizedBox(width: 12),
@@ -435,20 +460,20 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
                   entry.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w500, color: _fg),
+                  style: TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w500, color: cs.onSurface),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '读到 ${entry.chapterTitle}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: _muted),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _relativeTime(entry.updatedAt),
-                  style: const TextStyle(fontSize: 12, color: _muted),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -459,17 +484,18 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
   );
 }
 
-Widget _cover(String? url) {
+Widget _cover(String? url, ColorScheme cs) {
   if (url == null || url.isEmpty) {
-    return Container(color: const Color(0xFFE5E5EA));
+    return Container(color: cs.outlineVariant);
   }
   return CachedNetworkImage(
     imageUrl: url,
     fit: BoxFit.cover,
     memCacheWidth: 200,
     httpHeaders: novelImageHeaders,
-    placeholder: (_, __) => Container(color: const Color(0xFFE5E5EA)),
-    errorWidget: (_, __, ___) => Container(color: const Color(0xFFE5E5EA)),
+    cacheManager: AppCacheManager(),
+    placeholder: (_, __) => Container(color: cs.outlineVariant),
+    errorWidget: (_, __, ___) => Container(color: cs.outlineVariant),
   );
 }
 

@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'agedm_source.dart';
 import 'gimy_source.dart';
 import 'rule_source.dart';
 import 'rule_store.dart';
@@ -9,7 +8,6 @@ import 'video_source.dart';
 
 /// All playback sources: the hand-written HTTP sources plus every rule source.
 List<VideoSource> buildSources(List<SourceRule> rules) => [
-      AgedmSource(),
       GimySource(),
       for (final rule in rules) RuleVideoSource(rule),
     ];

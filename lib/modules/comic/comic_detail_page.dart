@@ -1,22 +1,25 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../core/comic/comic_favorite.dart';
 import '../../core/comic/comic_history.dart';
+import '../../core/comic/comic_source.dart';
 import '../../core/comic/models.dart';
+import '../../core/platform.dart';
+import '../../core/services/cache_manager.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/button_grid.dart';
+import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
+import 'comic_account_dialog.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
-
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
 
 class ComicDetailPage extends ConsumerStatefulWidget {
   final String sourceKey;
@@ -42,7 +45,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(),
@@ -54,14 +57,15 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
 
   Widget _header() {
     final cs = Theme.of(context).colorScheme;
-    return DragToMoveArea(
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
+    return DesktopDragArea(
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.only(left: 4),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFFFFF),
+        height: 48 + topInset,
+        padding: EdgeInsets.only(left: 4, top: topInset),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF),
           border:
-              Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+              Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
         child: Row(
           children: [
@@ -81,7 +85,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                     color: cs.onSurface),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),
@@ -91,20 +95,55 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   Widget _body() {
     final async =
         ref.watch(comicDetailProvider((widget.sourceKey, widget.comicId)));
+    final source = ref
+        .watch(comicSourcesProvider)
+        .valueOrNull
+        ?.where((s) => s.key == widget.sourceKey)
+        .firstOrNull;
+    final needsLogin =
+        source != null && (source.hasLogin || source.hasCookieLogin);
+    final logged = !needsLogin ||
+        (ref.watch(comicLoginProvider(widget.sourceKey)).valueOrNull ?? false);
     return async.when(
       loading: () => const ShimmerLoader(
         crossAxisCount: 6,
         itemCount: 12,
         padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
       ),
-      error: (_, __) => EmptyState(
-        icon: Icons.error_outline_rounded,
-        message: '加载失败',
-        actionLabel: '重试',
-        onAction: () => ref
-            .invalidate(comicDetailProvider((widget.sourceKey, widget.comicId))),
-      ),
-      data: (details) => _content(details),
+      error: (_, __) => (needsLogin && !logged)
+          ? _loginRequired(source)
+          : EmptyState(
+              icon: Icons.error_outline_rounded,
+              message: '加载失败',
+              actionLabel: '重试',
+              onAction: () => ref.invalidate(
+                  comicDetailProvider((widget.sourceKey, widget.comicId))),
+            ),
+      data: (details) => (needsLogin && !logged && _looksEmpty(details))
+          ? _loginRequired(source)
+          : _content(details),
+    );
+  }
+
+  /// True when a detail load produced no usable content (the other way a
+  /// login-required source can "fail" without throwing).
+  bool _looksEmpty(ComicDetails details) =>
+      details.title.trim().isEmpty && details.chapters.isEmpty;
+
+  Widget _loginRequired(ComicSource source) {
+    return EmptyState(
+      icon: Icons.lock_outline_rounded,
+      message: '该源需要登录',
+      actionLabel: '去登录',
+      onAction: () async {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => ComicAccountDialog(source: source),
+        );
+        ref.invalidate(comicLoginProvider(widget.sourceKey));
+        ref.invalidate(
+            comicDetailProvider((widget.sourceKey, widget.comicId)));
+      },
     );
   }
 
@@ -129,7 +168,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         blur: 0,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: const [
           BoxShadow(
               color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -151,6 +190,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                                 imageUrl: details.cover!,
                                 fit: BoxFit.cover,
                                 memCacheWidth: 300,
+                                cacheManager: AppCacheManager(),
                                 errorWidget: (_, __, ___) =>
                                     _coverPlaceholder(cs),
                               )
@@ -181,7 +221,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                       spacing: 6,
                       runSpacing: 6,
                       children: [
-                        for (final tag in details.tags) _tagChip(tag),
+                        for (final tag in details.tags) _tagChip(tag, cs),
                       ],
                     ),
                   const SizedBox(height: 10),
@@ -199,17 +239,14 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     final favorites = ref.watch(comicFavoritesProvider);
     final isFavorite = favorites.any((f) =>
         f.sourceKey == widget.sourceKey && f.comicId == widget.comicId);
+    final cs = Theme.of(context).colorScheme;
     return FilledButton.icon(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        backgroundColor:
-            isFavorite ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
-        foregroundColor: isFavorite ? const Color(0xFF5A5A5F) : Colors.white,
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+      style: isFavorite
+          ? FilledButton.styleFrom(
+              backgroundColor: cs.surfaceContainerHighest,
+              foregroundColor: cs.onSurfaceVariant,
+            )
+          : null,
       onPressed: () {
         ref.read(comicFavoritesProvider.notifier).toggle(ComicFavorite(
               sourceKey: widget.sourceKey,
@@ -229,15 +266,15 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     );
   }
 
-  Widget _tagChip(String label) {
+  Widget _tagChip(String label, ColorScheme cs) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-          color: _accent.withValues(alpha: 0.1),
+          color: cs.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(6)),
       child: Text(label,
-          style: const TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w600, color: _accent)),
+          style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w600, color: cs.primary)),
     );
   }
 
@@ -272,10 +309,10 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 _expanded ? '收起' : '展开',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: _accent),
+                    color: cs.primary),
               ),
             ),
           ),
@@ -292,7 +329,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         blur: 0,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: const [
           BoxShadow(
               color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -309,15 +346,13 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                         color: cs.onSurface)),
                 const SizedBox(width: 10),
                 Text('共 ${chapters.length} 话',
-                    style: const TextStyle(fontSize: 12, color: _muted)),
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ],
             ),
             const SizedBox(height: 12),
             if (chapters.isEmpty)
               _canLoadEp()
-                  ? Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
+                  ? TwoColumnButtonGrid(
                       children: [_chapterButton('', '开始阅读')],
                     )
                   : Text('暂无章节',
@@ -325,9 +360,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                           fontSize: 13,
                           color: cs.onSurface.withValues(alpha: 0.4)))
             else
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
+              TwoColumnButtonGrid(
                 children: [
                   for (final chapter in chapters)
                     _chapterButton(chapter.key, chapter.value),
@@ -359,15 +392,6 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
       child: SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 44),
-            backgroundColor: _accent,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
           onPressed: () => _openReader(entry.chapterId, entry.page),
           icon: const Icon(Icons.menu_book_rounded, size: 18),
           label: const Text('继续阅读',

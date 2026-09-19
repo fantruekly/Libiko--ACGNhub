@@ -4,18 +4,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_selector/file_selector.dart';
-import 'package:window_manager/window_manager.dart';
 import '../../core/account/sync_service.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
+import '../../core/platform.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/services/cache_manager.dart';
 import '../../core/services/follow_manager.dart';
+import '../../core/widgets/button_grid.dart';
+import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
+import '../../core/video/cancellation.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
+import '../../core/video/title_match.dart';
 import '../../core/video/video_source.dart';
 import '../../core/video/video_sources.dart';
 import 'anime_providers.dart';
@@ -27,6 +33,8 @@ class _SourceResult {
   final VideoSource source;
   _SourceStatus status = _SourceStatus.loading;
   List<VideoItem> items = const [];
+  VideoItem? best;
+  List<VideoItem> alternatives = const [];
   int seq = 0;
   _SourceResult(this.source);
 }
@@ -56,6 +64,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   bool _loadingExtras = false;
   Timer? _searchTimer;
   bool _disposed = false;
+  final _searchCancel = CancellationToken();
 
   @override
   void initState() {
@@ -67,6 +76,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   @override
   void dispose() {
     _disposed = true;
+    _searchCancel.cancel();
     _searchTimer?.cancel();
     super.dispose();
   }
@@ -122,7 +132,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final status = w.extra['status'] as String?;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(w, cs),
@@ -133,12 +143,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 children: [
                   _infoSection(
                       w, cs, score, episodes, seasonYear, format, status),
-                  const TabBar(
-                    labelColor: Color(0xFF007AFF),
-                    unselectedLabelColor: Color(0xFF5A5A5F),
-                    indicatorColor: Color(0xFF007AFF),
-                    dividerColor: Color(0xFFE5E5EA),
-                    tabs: [Tab(text: '概览'), Tab(text: '角色'), Tab(text: '关联')],
+                  TabBar(
+                    labelColor: cs.primary,
+                    unselectedLabelColor: cs.onSurfaceVariant,
+                    indicatorColor: cs.primary,
+                    dividerColor: cs.outlineVariant,
+                    tabs: const [Tab(text: '概览'), Tab(text: '角色'), Tab(text: '关联')],
                   ),
                   Expanded(
                     child: TabBarView(
@@ -161,7 +171,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Widget _overviewTab(Work w, ColorScheme cs) {
     return CustomScrollView(
       slivers: [
-        if (w.tags.isNotEmpty) _tagsRow(w.tags),
+        if (w.tags.isNotEmpty) _tagsRow(w.tags, cs),
         _summarySection(w.summary, cs),
         _playSection(w, cs),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -304,20 +314,22 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       imageUrl: url,
       fit: BoxFit.cover,
       memCacheWidth: 160,
+      cacheManager: AppCacheManager(),
       placeholder: (_, __) => Container(color: cs.primary.withValues(alpha: 0.06)),
       errorWidget: (_, __, ___) => Container(color: cs.primary.withValues(alpha: 0.08)),
     );
   }
 
   Widget _header(Work w, ColorScheme cs) {
-    return DragToMoveArea(
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
+    return DesktopDragArea(
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.only(left: 4),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFFFFF),
+        height: 48 + topInset,
+        padding: EdgeInsets.only(left: 4, top: topInset),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF),
           border:
-              Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+              Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
         child: Row(
           children: [
@@ -337,7 +349,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     color: cs.onSurface),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),
@@ -359,7 +371,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         blur: 0,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: const [
           BoxShadow(
               color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -380,6 +392,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                             imageUrl: w.coverUrl!,
                             fit: BoxFit.cover,
                             memCacheWidth: 300,
+                            cacheManager: AppCacheManager(),
                             errorWidget: (_, __, ___) => _coverPlaceholder(cs),
                           )
                         : _coverPlaceholder(cs),
@@ -407,7 +420,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       width: 100,
                       child: LinearProgressIndicator(
                         minHeight: 2,
-                        color: const Color(0xFF007AFF).withValues(alpha: 0.3),
+                        color: cs.primary.withValues(alpha: 0.3),
                       ),
                     )
                   else ...[
@@ -423,7 +436,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       children: [
                         if (episodes != null)
                           _metaChip(Icons.live_tv_rounded, '$episodes 话',
-                              const Color(0xFF007AFF)),
+                              cs.primary),
                         if (seasonYear != null)
                           _metaChip(Icons.calendar_today_rounded, '$seasonYear',
                               const Color(0xFF5856D6)),
@@ -448,18 +461,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Widget _followButton(Work w) {
     return Consumer(builder: (context, ref, _) {
       final followed = ref.watch(followProvider).any((r) => r.work.id == w.id);
+      final cs = Theme.of(context).colorScheme;
       return FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 36),
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          backgroundColor:
-              followed ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
-          foregroundColor: followed ? const Color(0xFF5A5A5F) : Colors.white,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+        style: followed
+            ? FilledButton.styleFrom(
+                backgroundColor: cs.surfaceContainerHighest,
+                foregroundColor: cs.onSurfaceVariant,
+              )
+            : null,
         onPressed: () {
           ref.read(followProvider.notifier).toggle(w);
           ref.read(syncProvider).schedule();
@@ -508,7 +517,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _tagsRow(List<String> tags) {
+  Widget _tagsRow(List<String> tags, ColorScheme cs) {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -523,7 +532,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       color: Colors.white.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: const Color(0xFFE5E5EA), width: 0.5),
+                          color: cs.outlineVariant, width: 0.5),
                     ),
                     child: Text(
                       t,
@@ -547,7 +556,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           blur: 0,
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
-          border: Border.all(color: const Color(0xFFE5E5EA)),
+          border: Border.all(color: cs.outlineVariant),
           boxShadow: const [
             BoxShadow(
                 color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -566,7 +575,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   width: 100,
                   child: LinearProgressIndicator(
                     minHeight: 2,
-                    color: const Color(0xFF007AFF).withValues(alpha: 0.3),
+                    color: cs.primary.withValues(alpha: 0.3),
                   ),
                 )
               else if (summary == null || summary.isEmpty)
@@ -629,11 +638,24 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Future<void> _searchOne(_SourceResult r, int gen) async {
     if (_disposed) return;
     try {
-      final items =
-          await r.source.search(_work.title).timeout(const Duration(seconds: 25));
+      final items = await r.source
+          .search(_work.title, cancel: _searchCancel)
+          .timeout(const Duration(seconds: 25));
       if (!mounted || gen != _searchGen) return;
       setState(() {
         r.items = items;
+        if (items.isEmpty) {
+          r.best = null;
+          r.alternatives = const [];
+        } else {
+          final idx =
+              bestMatchIndex(_work.title, [for (final it in items) it.title]);
+          r.best = items[idx];
+          r.alternatives = [
+            for (var i = 0; i < items.length; i++)
+              if (i != idx) items[i],
+          ];
+        }
         r.status = _SourceStatus.done;
         r.seq = ++_searchSeq;
       });
@@ -643,14 +665,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
   }
 
-  List<(VideoItem, VideoSource)> get _flatResults {
+  List<(VideoItem, VideoSource, List<VideoItem>)> get _flatResults {
     final done = _sourceResults
-        .where((r) => r.status == _SourceStatus.done)
+        .where((r) => r.status == _SourceStatus.done && r.best != null)
         .toList()
       ..sort((a, b) => a.seq.compareTo(b.seq));
     return [
-      for (final r in done)
-        for (final item in r.items) (item, r.source),
+      for (final r in done) (r.best!, r.source, r.alternatives),
     ];
   }
 
@@ -677,7 +698,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       _episodesLoading = true;
     });
     try {
-      final eps = await source.episodes(item.detailUrl);
+      final eps =
+          await source.episodes(item.detailUrl, cancel: _searchCancel);
       if (!mounted || !identical(_expandedItem, item)) return;
       setState(() {
         _episodes = eps;
@@ -699,11 +721,15 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
-    final url = await StreamResolver().resolve(ep.playUrl);
+    final stream = await StreamResolver().resolve(ep.playUrl,
+        userAgent: ep.userAgent,
+        referer: ep.referer,
+        legacy: ep.useLegacyParser,
+        cancel: _searchCancel);
     if (!mounted) return;
     Navigator.of(context).pop();
-    if (url == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址')));
+    if (stream == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('无法解析播放地址，请尝试其他线路或源')));
       return;
     }
     Navigator.push(
@@ -713,6 +739,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           work: _work,
           episodes: _episodes ?? const [],
           initialIndex: ep.index,
+          initialResolved: stream,
         ),
       ),
     );
@@ -761,7 +788,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           blur: 0,
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
-          border: Border.all(color: const Color(0xFFE5E5EA)),
+          border: Border.all(color: cs.outlineVariant),
           boxShadow: const [
             BoxShadow(
                 color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
@@ -779,12 +806,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   const SizedBox(width: 10),
                   if (loading)
                     Text('搜索中 $doneCount/${_sourceResults.length}',
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF5A5A5F)))
+                        style: TextStyle(
+                            fontSize: 12, color: cs.onSurfaceVariant))
                   else
                     Text('共 ${results.length} 条',
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF5A5A5F))),
+                        style: TextStyle(
+                            fontSize: 12, color: cs.onSurfaceVariant)),
                   const Spacer(),
                   if (loading)
                     const SizedBox(
@@ -829,15 +856,15 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final (item, source) in results)
-                      _resourceCard(item, source),
+                    for (final (item, source, alternatives) in results)
+                      _resourceCard(item, source, alternatives, cs),
                   ],
                 ),
               if (failed.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
                   '${failed.length} 个源无结果或失败（${failed.map((r) => r.source.name).join('、')}）',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF5A5A5F)),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ],
             ],
@@ -847,8 +874,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _resourceCard(VideoItem item, VideoSource source) {
-    final expanded = identical(_expandedItem, item);
+  Widget _resourceCard(
+      VideoItem item, VideoSource source, List<VideoItem> alternatives, ColorScheme cs) {
+    final expanded = identical(_expandedItem, item) ||
+        alternatives.any((a) => identical(a, _expandedItem));
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -859,14 +888,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
             child: InkWell(
               onTap: () => _expandItem(item, source),
               borderRadius: BorderRadius.circular(12),
-              hoverColor: const Color(0x14007AFF),
+              hoverColor: cs.primary.withValues(alpha: 0.08),
               child: Container(
                 height: 52,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E5EA)),
+                  border: Border.all(color: cs.outlineVariant),
                 ),
                 child: Row(
                   children: [
@@ -875,8 +904,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                         item.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 14, color: Color(0xFF1C1C1E)),
+                        style: TextStyle(
+                            fontSize: 14, color: cs.onSurface),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -884,15 +913,15 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF007AFF).withValues(alpha: 0.08),
+                        color: cs.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         source.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF007AFF)),
+                            color: cs.primary),
                       ),
                     ),
                   ],
@@ -900,13 +929,38 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               ),
             ),
           ),
-          if (expanded) _episodeArea(),
+          if (expanded) ...[
+            if (alternatives.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 4),
+                child: Text('更多结果',
+                    style:
+                        TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              ),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: 4),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final alt in alternatives)
+                      ActionChip(
+                        label: Text(alt.title, maxLines: 1),
+                        onPressed: () => _expandItem(alt, source),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            _episodeArea(cs),
+          ],
         ],
       ),
     );
   }
 
-  Widget _episodeArea() {
+  Widget _episodeArea(ColorScheme cs) {
     if (_episodesLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
@@ -941,17 +995,15 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
     final eps = _episodes ?? const <VideoEpisode>[];
     if (eps.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 8),
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
         child: Text('暂无剧集',
-            style: TextStyle(fontSize: 12, color: Color(0xFF5A5A5F))),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       );
     }
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 4),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
+      child: TwoColumnButtonGrid(
         children: [
           for (final ep in eps)
             PillButton(label: ep.title, onTap: () => _playEpisode(ep)),

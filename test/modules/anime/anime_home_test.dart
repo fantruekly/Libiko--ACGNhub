@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/metadata/metadata_provider.dart';
 import 'package:libiko/core/metadata/metadata_service.dart';
 import 'package:libiko/core/models/work.dart';
+import 'package:libiko/core/widgets/tab_strip.dart';
 import 'package:libiko/modules/anime/anime_home.dart';
 import 'package:libiko/modules/anime/anime_providers.dart';
 
@@ -20,7 +21,7 @@ class _EmptyProvider implements MetadataProvider {
 }
 
 void main() {
-  testWidgets('anime tabs list 追番 before 历史记录', (tester) async {
+  testWidgets('anime tabs are 本季新番/热门推荐/追番/历史', (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         metadataServiceProvider.overrideWithValue(MetadataService(
@@ -33,8 +34,11 @@ void main() {
     ));
     await tester.pump();
 
-    final labels =
-        tester.widgetList<Tab>(find.byType(Tab)).map((t) => t.text).toList();
-    expect(labels, ['本季新番', '热门推荐', '今日放送', '追番', '历史记录']);
+    final labels = tester
+        .widgetList<Text>(find.descendant(
+            of: find.byType(TabStrip), matching: find.byType(Text)))
+        .map((t) => t.data)
+        .toList();
+    expect(labels, ['本季新番', '热门推荐', '追番', '历史']);
   });
 }

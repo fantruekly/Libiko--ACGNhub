@@ -1,3 +1,5 @@
+import 'cancellation.dart';
+
 class VideoItem {
   final String id;
   final String title;
@@ -16,18 +18,25 @@ class VideoEpisode {
   final String title;
   final int index;
   final String playUrl;
+  final String? userAgent;
+  final String? referer;
+  final bool useLegacyParser;
 
   const VideoEpisode(
       {required this.id,
       required this.title,
       required this.index,
-      required this.playUrl});
+      required this.playUrl,
+      this.userAgent,
+      this.referer,
+      this.useLegacyParser = false});
 }
 
 abstract class VideoSource {
   String get id;
   String get name;
   String get baseUrl;
-  Future<List<VideoItem>> search(String keyword);
-  Future<List<VideoEpisode>> episodes(String detailUrl);
+  Future<List<VideoItem>> search(String keyword, {CancellationToken? cancel});
+  Future<List<VideoEpisode>> episodes(String detailUrl,
+      {CancellationToken? cancel});
 }

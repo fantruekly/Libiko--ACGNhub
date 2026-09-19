@@ -3,6 +3,34 @@
 (function () {
   const call = (obj) => sendMessage(obj);
 
+  // ES2021/ES2022 shims used by some sources.
+  if (!String.prototype.replaceAll) {
+    String.prototype.replaceAll = function (search, replace) {
+      if (search instanceof RegExp) {
+        if (!search.global) {
+          throw new TypeError('replaceAll must be called with a global RegExp');
+        }
+        return this.replace(search, replace);
+      }
+      return this.split(String(search)).join(replace);
+    };
+  }
+  if (!Array.prototype.at) {
+    Array.prototype.at = function (n) {
+      n = Math.trunc(n) || 0;
+      if (n < 0) n += this.length;
+      return (n < 0 || n >= this.length) ? undefined : this[n];
+    };
+  }
+
+  globalThis.UI = {
+    showMessage: function (message) {
+      return call({ method: 'ui', op: 'showMessage', message: String(message) });
+    },
+    showLoading: function () { return call({ method: 'ui', op: 'showLoading' }); },
+    cancelLoading: function () { return call({ method: 'ui', op: 'cancelLoading' }); },
+  };
+
   const _log = (args) =>
     call({ method: 'log', message: Array.prototype.map.call(args, String).join(' ') });
   globalThis.console = {
@@ -203,8 +231,9 @@
   };
 
   globalThis.APP = {
-    version: '1.5.0',
+    version: '1.6.0',
     locale: 'zh_CN',
+    platform: 'libiko',
   };
 
   globalThis.Cookie = Cookie;
@@ -216,5 +245,20 @@
   globalThis.Convert = Convert;
   globalThis.HtmlDocument = HtmlDocument;
   globalThis.HtmlNode = HtmlNode;
+  class Image {
+    constructor(handle, width, height) {
+      this._h = handle; this.width = width; this.height = height;
+    }
+    static empty(width, height) {
+      const r = call({ method: 'image', op: 'empty', width: width, height: height });
+      return new Image(r.handle, r.width, r.height);
+    }
+    fillImageRangeAt(dx, dy, src, sx, sy, w, h) {
+      return call({ method: 'image', op: 'fill', dst: this._h, dx: dx, dy: dy,
+        src: src._h, sx: sx, sy: sy, w: w, h: h });
+    }
+  }
+  globalThis.Image = Image;
+
   globalThis.comicSourceBridgeReady = true;
 })();

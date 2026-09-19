@@ -57,7 +57,7 @@ class Comic {
   factory Comic.fromJs(Map<dynamic, dynamic> json) => Comic(
         id: json['id']?.toString() ?? '',
         title: json['title']?.toString() ?? '',
-        subtitle: json['subtitle']?.toString(),
+        subtitle: (json['subtitle'] ?? json['subTitle'])?.toString(),
         cover: json['cover']?.toString(),
         tags: _stringList(json['tags']),
         description: json['description']?.toString(),
@@ -106,7 +106,7 @@ class ComicDetails {
   factory ComicDetails.fromJs(Map<dynamic, dynamic> json) => ComicDetails(
         id: json['id']?.toString() ?? '',
         title: json['title']?.toString() ?? '',
-        subtitle: json['subtitle']?.toString(),
+        subtitle: (json['subtitle'] ?? json['subTitle'])?.toString(),
         cover: json['cover']?.toString(),
         tags: _stringList(json['tags']),
         description: json['description']?.toString(),
@@ -131,8 +131,15 @@ class ImageLoadingConfig {
   final String? method;
   final dynamic data;
   final Map<String, String>? headers;
+  final String? modifyImage;
 
-  const ImageLoadingConfig({this.url, this.method, this.data, this.headers});
+  const ImageLoadingConfig({
+    this.url,
+    this.method,
+    this.data,
+    this.headers,
+    this.modifyImage,
+  });
 
   factory ImageLoadingConfig.fromJs(Map<dynamic, dynamic> json) =>
       ImageLoadingConfig(
@@ -142,5 +149,6 @@ class ImageLoadingConfig {
         headers: (json['headers'] as Map?)?.map(
           (k, v) => MapEntry(k.toString(), v.toString()),
         ),
+        modifyImage: json['modifyImage']?.toString(),
       );
 }

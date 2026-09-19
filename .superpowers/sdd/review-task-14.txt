@@ -1,0 +1,6 @@
+﻿1497b1e feat(shell): add MainShell with bottom navigation and app entry point
+ lib/main.dart                       | 158 ++++++++----------------------------
+ lib/modules/anime/anime_search.dart |   1 -
+ lib/shell/main_shell.dart           |  86 ++++++++++++++++++++
+ lib/shell/settings_page.dart        |  57 +++++++++++++
+ 4 files changed, 179 insertions(+), 123 deletions(-)

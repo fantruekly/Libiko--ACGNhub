@@ -5,9 +5,11 @@ import 'anime_detail_page.dart';
 import 'anime_follow.dart';
 import 'anime_history.dart';
 import '../../core/metadata/metadata_provider.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/tab_strip.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/models/work.dart';
 
@@ -17,41 +19,20 @@ class AnimeHomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Builder(
         builder: (context) {
           final controller = DefaultTabController.of(context);
           return Column(
             children: [
-              TabBar(
-                labelColor: const Color(0xFF007AFF),
-                unselectedLabelColor: const Color(0xFF5A5A5F),
-                indicatorColor: const Color(0xFF007AFF),
-                dividerColor: const Color(0xFFE5E5EA),
-                labelStyle: Theme.of(context)
-                    .textTheme
-                    .titleSmall!
-                    .copyWith(fontSize: 15, fontWeight: FontWeight.w500),
-                unselectedLabelStyle: Theme.of(context)
-                    .textTheme
-                    .titleSmall!
-                    .copyWith(fontSize: 15, fontWeight: FontWeight.w400),
-                tabs: const [
-                  Tab(text: '本季新番'),
-                  Tab(text: '热门推荐'),
-                  Tab(text: '今日放送'),
-                  Tab(text: '追番'),
-                  Tab(text: '历史记录'),
-                ],
-              ),
+              const TabStrip(labels: ['本季新番', '热门推荐', '追番', '历史']),
               Expanded(
                 child: TabBarView(
                   children: [
                     _heroTab(controller, 0, const _FeedView(feed: AnimeFeed.season)),
                     _heroTab(controller, 1, const _FeedView(feed: AnimeFeed.trending)),
-                    _heroTab(controller, 2, const _FeedView(feed: AnimeFeed.today)),
-                    _heroTab(controller, 3, const AnimeFollowView()),
-                    _heroTab(controller, 4, const AnimeHistoryView()),
+                    _heroTab(controller, 2, const AnimeFollowView()),
+                    _heroTab(controller, 3, const AnimeHistoryView()),
                   ],
                 ),
               ),
@@ -84,7 +65,6 @@ class _FeedView extends ConsumerStatefulWidget {
 
 class _FeedViewState extends ConsumerState<_FeedView>
     with AutomaticKeepAliveClientMixin {
-  static const _accent = Color(0xFF007AFF);
   static const _perPage = 20;
 
   final List<Work> _extra = [];
@@ -180,28 +160,14 @@ class _FeedViewState extends ConsumerState<_FeedView>
                               icon: Icons.live_tv_rounded, message: '暂无内容'),
                         ),
                       )
-                    : SliverPadding(
+                    : SliverAdaptiveGrid(
+                        itemCount: items.length,
+                        mobileColumns: 3,
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        sliver: SliverGrid(
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 6,
-                            mainAxisSpacing: 20,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 0.60,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (_, i) => i >= items.length
-                                ? null
-                                : WorkCard(
-                                    work: items[i],
-                                    onTap: () => Navigator.push(
-                                        context,
-                                        smoothRoute(
-                                            AnimeDetailPage(work: items[i]))),
-                                  ),
-                            childCount: items.length,
-                          ),
+                        itemBuilder: (_, i) => WorkCard(
+                          work: items[i],
+                          onTap: () => Navigator.push(context,
+                              smoothRoute(AnimeDetailPage(work: items[i]))),
                         ),
                       ),
                 if (_hasMore)
@@ -214,7 +180,7 @@ class _FeedViewState extends ConsumerState<_FeedView>
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: _accent.withValues(alpha: 0.4),
+                            color: cs.primary.withValues(alpha: 0.4),
                           ),
                         ),
                       ),

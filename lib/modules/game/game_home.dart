@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/game/game_image.dart';
 import '../../core/game/game_source.dart';
 import '../../core/game/models.dart';
+import '../../core/platform.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/pager_bar.dart';
+import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
 import '../../core/widgets/smooth_route.dart';
 import 'game_detail_page.dart';
 import 'game_grid.dart';
 import 'game_providers.dart';
-
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-const _fg = Color(0xFF1C1C1E);
 
 class GameCard extends StatelessWidget {
   final Game game;
@@ -26,21 +25,13 @@ class GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget image = RepaintBoundary(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: game.coverUrl != null && game.coverUrl!.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: game.coverUrl!,
-                fit: BoxFit.cover,
-                memCacheWidth: 400,
-                fadeInDuration: Duration.zero,
-                httpHeaders: gameImageHeadersFor(game.coverUrl),
-                placeholder: (_, __) => _placeholder(),
-                errorWidget: (_, __, ___) => _placeholder(),
-              )
-            : _placeholder(),
-      ),
+    final cs = Theme.of(context).colorScheme;
+    Widget image = RatioCover(
+      url: game.coverUrl,
+      httpHeaders: gameImageHeadersFor(game.coverUrl),
+      fallbackRatio: 3 / 2,
+      placeholderBuilder: (_) => _placeholder(cs),
+      enabled: false,
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
@@ -58,11 +49,11 @@ class GameCard extends StatelessWidget {
               game.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   height: 1.45,
-                  color: _fg),
+                  color: cs.onSurface),
             ),
           ),
         ],
@@ -70,7 +61,7 @@ class GameCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(ColorScheme cs) {
     final hash = game.title.hashCode.abs();
     const bg = [
       Color(0xFFF3E5F5),
@@ -84,7 +75,7 @@ class GameCard extends StatelessWidget {
         child: Text(
           game.title.isEmpty ? '游' : game.title.characters.first,
           style: TextStyle(
-              color: _accent.withValues(alpha: 0.2),
+              color: cs.primary.withValues(alpha: 0.2),
               fontSize: 28,
               fontWeight: FontWeight.w400),
         ),
@@ -116,7 +107,34 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
         const SizedBox(height: 8),
         _sourceChips(sources),
         _sectionChips(options),
-        Expanded(child: _body(options)),
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragEnd: (details) {
+              final v = details.primaryVelocity ?? 0;
+              final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
+              if (delta == 0) return;
+              setState(() {
+                if (options.length > 1) {
+                  final next =
+                      (_optionIndex + delta).clamp(0, options.length - 1);
+                  if (next == _optionIndex) return;
+                  _optionIndex = next;
+                } else if (sources.length > 1) {
+                  final idx = sources.indexWhere((s) => s.id == _sourceId);
+                  final next = (idx + delta).clamp(0, sources.length - 1);
+                  if (next == idx) return;
+                  _sourceId = sources[next].id;
+                  _optionIndex = 0;
+                } else {
+                  return;
+                }
+                _page = 1;
+              });
+            },
+            child: _body(options),
+          ),
+        ),
       ],
     );
   }
@@ -168,11 +186,16 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
             child: async.when(
               loading: () => LayoutBuilder(builder: (context, constraints) {
                 final cellW = gameGridCellWidth(constraints.maxWidth);
+                final mobileCellW = constraints.maxWidth - 32;
+                final mobileAspect = mobileCellW /
+                    (mobileCellW * 2 / 3 + gameGridTitleExtent);
                 return ShimmerLoader(
                     crossAxisCount: gameGridColumns,
+                    mobileColumns: 1,
                     itemCount: 8,
-                    aspectRatio:
-                        cellW / gameGridCellExtent(constraints.maxWidth),
+                    aspectRatio: isDesktop
+                        ? cellW / gameGridCellExtent(constraints.maxWidth)
+                        : mobileAspect,
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
               }),
               error: (_, __) => EmptyState(
@@ -191,31 +214,10 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
   }
 
   Widget _pager(bool hasMore) {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            tooltip: '上一页',
-            icon: const Icon(Icons.chevron_left_rounded),
-            onPressed: _page > 1 ? () => setState(() => _page--) : null,
-          ),
-          const SizedBox(width: 16),
-          Text('第 $_page 页',
-              style: const TextStyle(fontSize: 13, color: _muted)),
-          const SizedBox(width: 16),
-          IconButton(
-            tooltip: '下一页',
-            icon: const Icon(Icons.chevron_right_rounded),
-            onPressed: hasMore ? () => setState(() => _page++) : null,
-          ),
-        ],
-      ),
+    return PagerBar(
+      label: '第 $_page 页',
+      onPrevious: _page > 1 ? () => setState(() => _page--) : null,
+      onNext: hasMore ? () => setState(() => _page++) : null,
     );
   }
 
@@ -224,27 +226,37 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
       return const EmptyState(icon: Icons.games_rounded, message: '暂无内容');
     }
     return LayoutBuilder(builder: (context, constraints) {
-      return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: gameGridColumns,
-            mainAxisSpacing: 20,
-            crossAxisSpacing: gameGridSpacing,
-            mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+      Widget gameCell(BuildContext context, int i) => GameCard(
+            game: items[i],
+            heroTag: 'game_${_sourceId}_${items[i].id}',
+            onTap: () => Navigator.push(
+              context,
+              smoothRoute(GameDetailPage(
+                sourceKey: _sourceId,
+                gameId: items[i].id,
+                title: items[i].title,
+                cover: items[i].coverUrl,
+              )),
+            ),
+          );
+      if (isDesktop) {
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: gameGridColumns,
+              mainAxisSpacing: 20,
+              crossAxisSpacing: gameGridSpacing,
+              mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+          itemCount: items.length,
+          itemBuilder: gameCell,
+        );
+      }
+      return AdaptiveGridView(
         itemCount: items.length,
-        itemBuilder: (_, i) => GameCard(
-          game: items[i],
-          heroTag: 'game_${_sourceId}_${items[i].id}',
-          onTap: () => Navigator.push(
-            context,
-            smoothRoute(GameDetailPage(
-              sourceKey: _sourceId,
-              gameId: items[i].id,
-              title: items[i].title,
-              cover: items[i].coverUrl,
-            )),
-          ),
-        ),
+        mobileColumns: 1,
+        mobileCoverRatio: 3 / 2,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemBuilder: gameCell,
       );
     });
   }

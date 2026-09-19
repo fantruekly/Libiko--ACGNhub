@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import '../platform.dart';
 
 class WindowControls extends StatefulWidget {
   final Color? foregroundColor;
@@ -17,6 +18,7 @@ class _WindowControlsState extends State<WindowControls> with WindowListener {
   @override
   void initState() {
     super.initState();
+    if (!isDesktop) return;
     windowManager.addListener(this);
     windowManager.isMaximized().then((v) {
       if (mounted) setState(() => _isMaximized = v);
@@ -25,7 +27,7 @@ class _WindowControlsState extends State<WindowControls> with WindowListener {
 
   @override
   void dispose() {
-    windowManager.removeListener(this);
+    if (isDesktop) windowManager.removeListener(this);
     super.dispose();
   }
 
@@ -41,6 +43,7 @@ class _WindowControlsState extends State<WindowControls> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
+    if (!isDesktop) return const SizedBox.shrink();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

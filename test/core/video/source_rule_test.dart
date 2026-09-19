@@ -31,6 +31,34 @@ void main() {
     expect(rule.id, 'rule:七色番');
   });
 
+  test('fromJson parses referer and treats empty as null', () {
+    final withReferer = SourceRule.fromJson({
+      'name': 'x',
+      'baseURL': 'https://a/',
+      'searchURL': 'https://a/s?wd=@keyword',
+      'searchList': '//div',
+      'searchName': '//span/text()',
+      'searchResult': '//a',
+      'chapterRoads': '//div',
+      'chapterResult': '//a',
+      'referer': '  https://a/  ',
+    });
+    expect(withReferer.referer, 'https://a/');
+
+    final empty = SourceRule.fromJson({
+      'name': 'x',
+      'baseURL': 'https://a/',
+      'searchURL': 'https://a/s?wd=@keyword',
+      'searchList': '//div',
+      'searchName': '//span/text()',
+      'searchResult': '//a',
+      'chapterRoads': '//div',
+      'chapterResult': '//a',
+      'referer': '   ',
+    });
+    expect(empty.referer, isNull);
+  });
+
   test('buildSearchUrl substitutes and URL-encodes @keyword', () {
     final rule = SourceRule.fromJsonString(validJson);
     expect(

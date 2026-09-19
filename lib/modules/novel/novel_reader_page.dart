@@ -6,12 +6,12 @@ import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_reader_settings.dart';
+import '../../core/platform.dart';
+import '../../core/services/cache_manager.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/marquee_text.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
-
-const _accent = Color(0xFF007AFF);
 
 class _Palette {
   final Color bg;
@@ -167,6 +167,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                         imageUrl: url,
                         fit: BoxFit.contain,
                         httpHeaders: novelImageHeaders,
+                        cacheManager: AppCacheManager(),
                         placeholder: (_, __) => const Center(
                             child: CircularProgressIndicator()),
                         errorWidget: (_, __, ___) => const Center(
@@ -184,7 +185,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   /// 64px bottom bar), so an illustration fills the page vertically with the
   /// sides left blank, like a comic page.
   double _illustrationHeight(BuildContext context) {
-    final h = MediaQuery.sizeOf(context).height - 56 - 64 - 24;
+    final insets = MediaQuery.paddingOf(context);
+    final topBar = 56 + (isDesktop ? 0.0 : insets.top);
+    final bottomBar = 64 + (isDesktop ? 0.0 : insets.bottom);
+    final h = MediaQuery.sizeOf(context).height - topBar - bottomBar - 24;
     return h.clamp(200, 4000).toDouble();
   }
 
@@ -194,8 +198,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
       left: 0,
       right: 0,
       child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        height: 56 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
+        padding: EdgeInsets.only(
+            left: 8,
+            right: 8,
+            top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
         decoration: BoxDecoration(
           color: palette.bar,
           border: Border(bottom: BorderSide(color: palette.border, width: 0.5)),
@@ -215,7 +222,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: palette.fg),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),
@@ -274,6 +281,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   }
 
   void _openCatalog(NovelDetail? detail) {
+    final cs = Theme.of(context).colorScheme;
     final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
     showModalBottomSheet<void>(
       context: context,
@@ -305,8 +313,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                     dense: true,
                     title: MarqueeText(text: c.title),
                     trailing: c.id == _chapterId
-                        ? const Icon(Icons.check_rounded,
-                            size: 18, color: _accent)
+                        ? Icon(Icons.check_rounded, size: 18, color: cs.primary)
                         : null,
                     onTap: () {
                       Navigator.pop(context);

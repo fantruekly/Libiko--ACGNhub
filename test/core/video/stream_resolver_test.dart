@@ -1,45 +1,30 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:libiko/core/video/headless_browser.dart';
+import 'package:libiko/core/video/maccms.dart';
 import 'package:libiko/core/video/stream_resolver.dart';
 
+class _FakeMacCmsResolver extends MacCmsResolver {
+  _FakeMacCmsResolver(this.candidate);
+  final MediaCandidate? candidate;
+
+  @override
+  Future<MediaCandidate?> resolve(
+    String playPageUrl, {
+    String? userAgent,
+    String? referer,
+    Duration timeout = const Duration(seconds: 15),
+  }) async =>
+      candidate;
+}
+
 void main() {
-  test('accepts a media URL whose path ends with .m3u8 or .mp4', () {
-    expect(
-      StreamResolver.looksLikeMediaUrl(
-          'https://vip15.play-cdn15.com/20230226/41_c8391dc5/index.m3u8'),
-      isTrue,
+  test('returns the MacCMS candidate without starting a headless browser',
+      () async {
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(
+          const MediaCandidate('https://cdn.test/x/index.m3u8')),
     );
-    expect(
-      StreamResolver.looksLikeMediaUrl('https://cdn.test/video/1.mp4'),
-      isTrue,
-    );
-    expect(
-      StreamResolver.looksLikeMediaUrl('https://cdn.test/v/1.m3u8?token=abc'),
-      isTrue,
-    );
-    expect(
-      StreamResolver.looksLikeMediaUrl('https://cdn.test/v/1.mp4#t=10'),
-      isTrue,
-    );
-  });
-
-  test('rejects a player page that merely embeds a media URL in its query', () {
-    expect(
-      StreamResolver.looksLikeMediaUrl(
-          'https://www.bmmdmm.com/hdst/player/artplayer/index.html'
-          '?url=https://vip15.play-cdn15.com/20230226/41_c8391dc5/index.m3u8'),
-      isFalse,
-    );
-  });
-
-  test('rejects non-media URLs', () {
-    expect(
-      StreamResolver.looksLikeMediaUrl('https://www.bmmdmm.com/play/80993-0-0.html'),
-      isFalse,
-    );
-    expect(StreamResolver.looksLikeMediaUrl('https://www.bmmdmm.com/time'), isFalse);
-    expect(
-      StreamResolver.looksLikeMediaUrl('https://img.test/pic/a.webp'),
-      isFalse,
-    );
+    final result = await resolver.resolve('https://page/play');
+    expect(result?.url, 'https://cdn.test/x/index.m3u8');
   });
 }

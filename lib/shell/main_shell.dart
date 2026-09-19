@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
+import '../core/platform.dart';
+import '../core/theme/app_theme.dart';
+import '../core/widgets/desktop_drag_area.dart';
 import '../core/widgets/glass_surface.dart';
 import '../core/widgets/window_controls.dart';
 import '../modules/anime/anime_home.dart';
@@ -12,6 +14,7 @@ import '../modules/game/game_home.dart';
 import '../modules/game/game_search.dart';
 import 'settings_page.dart';
 import 'app_sidebar.dart';
+import 'app_bottom_bar.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -25,10 +28,6 @@ class _MainShellState extends State<MainShell> {
   late final SidebarState _sidebarState;
 
   static const _titles = ['动漫', '漫画', '轻小说', '游戏'];
-  static const _fg = Color(0xFF1C1C1E);
-  static const _muted = Color(0xFF5A5A5F);
-  static const _border = Color(0xFFE5E5EA);
-  static const _accent = Color(0xFF007AFF);
 
   final _pages = <Widget>[
     const AnimeHomePage(),
@@ -63,21 +62,20 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final collapsed = _sidebarState.collapsed;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
-      body: Column(
-        children: [
-          _titleBar(collapsed),
-          Expanded(
-            child: Row(
-              children: [
+    final content = Column(
+      children: [
+        _titleBar(collapsed),
+        Expanded(
+          child: Row(
+            children: [
+              if (isDesktop)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOutCubic,
                   width: collapsed ? 0 : 72,
                   clipBehavior: Clip.hardEdge,
-                  decoration: const BoxDecoration(color: Color(0xFFF9F9FC)),
+                  decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow),
                   child: OverflowBox(
                     alignment: Alignment.centerLeft,
                     minWidth: 72,
@@ -89,67 +87,80 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                 ),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      for (var i = 0; i < _pages.length; i++)
-                        IgnorePointer(
-                          ignoring: i != _currentIndex,
-                          child: AnimatedOpacity(
-                            key: ValueKey('module-page-$i'),
-                            opacity: i == _currentIndex ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            child: _pages[i],
-                          ),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    for (var i = 0; i < _pages.length; i++)
+                      IgnorePointer(
+                        ignoring: i != _currentIndex,
+                        child: AnimatedOpacity(
+                          key: ValueKey('module-page-$i'),
+                          opacity: i == _currentIndex ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          child: _pages[i],
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+
+    return Scaffold(
+      backgroundColor: kAppBackground,
+      body: content,
+      bottomNavigationBar: isDesktop
+          ? null
+          : AppBottomBar(
+              selectedIndex: _currentIndex,
+              onChanged: (i) => setState(() => _currentIndex = i),
+            ),
     );
   }
 
   Widget _titleBar(bool collapsed) {
-    return DragToMoveArea(
+    final cs = Theme.of(context).colorScheme;
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
+    return DesktopDragArea(
       child: GlassSurface(
         borderRadius: BorderRadius.zero,
         blur: 18,
-        color: const Color(0xF2FFFFFF),
+        color: kAppBackground,
         child: Container(
-          height: 48,
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: _border, width: 0.5)),
-          ),
+          height: 48 + topInset,
+          padding: EdgeInsets.only(top: topInset),
           child: Row(
             children: [
-              SizedBox(
-                width: 72,
-                child: Center(
-                  child: _SidebarToggleButton(
-                    collapsed: collapsed,
-                    onTap: () => _sidebarState.toggle(),
+              if (isDesktop)
+                SizedBox(
+                  width: 72,
+                  child: Center(
+                    child: _SidebarToggleButton(
+                      collapsed: collapsed,
+                      onTap: () => _sidebarState.toggle(),
+                    ),
                   ),
-                ),
-              ),
+                )
+              else
+                const SizedBox(width: 16),
               Text(
                 _titles[_currentIndex],
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: _fg,
+                    color: cs.onSurface,
                     height: 1.4),
               ),
               const Spacer(),
               if (_currentIndex >= 0 && _currentIndex <= 3)
                 IconButton(
                   icon: const Icon(Icons.search_rounded, size: 20),
-                  color: _muted,
+                  color: cs.onSurfaceVariant,
                   splashRadius: 20,
                   onPressed: () => Navigator.push(
                       context,
@@ -165,20 +176,15 @@ class _MainShellState extends State<MainShell> {
               const SizedBox(width: 4),
               Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: _openSettings,
-                  child: const CircleAvatar(
-                    radius: 15,
-                    backgroundColor: Color(0xFFE8F0FE),
-                    child: Text('A',
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: _accent,
-                            fontWeight: FontWeight.w600)),
-                  ),
+                child: IconButton(
+                  tooltip: '设置',
+                  icon: const Icon(Icons.settings_rounded, size: 20),
+                  color: cs.onSurfaceVariant,
+                  splashRadius: 20,
+                  onPressed: _openSettings,
                 ),
               ),
-              const WindowControls(),
+              if (isDesktop) const WindowControls(),
             ],
           ),
         ),
@@ -193,10 +199,9 @@ class _SidebarToggleButton extends StatelessWidget {
 
   const _SidebarToggleButton({required this.collapsed, required this.onTap});
 
-  static const _fg = Color(0xFF1C1C1E);
-
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -216,7 +221,7 @@ class _SidebarToggleButton extends StatelessWidget {
                 collapsed ? Icons.chevron_right_rounded : Icons.menu_rounded,
                 key: ValueKey<bool>(collapsed),
                 size: 22,
-                color: _fg.withValues(alpha: 0.55),
+                color: cs.onSurface.withValues(alpha: 0.55),
               ),
             ),
           ),

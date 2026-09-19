@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
+import '../../core/platform.dart';
+import '../../core/services/cache_manager.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/button_grid.dart';
+import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 import 'novel_reader_page.dart';
-
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
-const _fg = Color(0xFF1C1C1E);
 
 class NovelDetailPage extends ConsumerStatefulWidget {
   final String sourceKey;
@@ -43,7 +43,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     final key = (widget.sourceKey, widget.novelId);
     final async = ref.watch(novelDetailProvider(key));
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(),
@@ -80,20 +80,22 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   }
 
   Widget _header() {
-    return DragToMoveArea(
+    final cs = Theme.of(context).colorScheme;
+    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
+    return DesktopDragArea(
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.only(left: 4),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFFFFF),
+        height: 48 + topInset,
+        padding: EdgeInsets.only(left: 4, top: topInset),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF),
           border:
-              Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+              Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
         child: Row(
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
-              color: _fg,
+              color: cs.onSurface,
               onPressed: () => Navigator.pop(context),
             ),
             Expanded(
@@ -101,11 +103,11 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                 widget.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600, color: _fg),
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface),
               ),
             ),
-            const WindowControls(),
+            if (isDesktop) const WindowControls(),
           ],
         ),
       ),
@@ -113,6 +115,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   }
 
   Widget _content(NovelDetail detail) {
+    final cs = Theme.of(context).colorScheme;
     final novel = detail.novel;
     final cover = (novel.coverUrl?.isNotEmpty ?? false)
         ? novel.coverUrl
@@ -138,12 +141,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             Padding(
               padding: const EdgeInsets.only(top: 8, bottom: 8),
               child: Text(vol.title,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600, color: _fg)),
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
             ),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            TwoColumnButtonGrid(
               children: [
                 for (final ch in vol.chapters)
                   PillButton(label: ch.title, onTap: () => _openChapter(ch, cover)),
@@ -155,6 +156,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   }
 
   Widget _infoCard(Novel novel, String? cover) {
+    final cs = Theme.of(context).colorScheme;
     final summary = novel.summary ?? '';
     final status = novel.extra['status']?.toString();
     return Container(
@@ -179,6 +181,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                             imageUrl: cover,
                             fit: BoxFit.cover,
                             httpHeaders: novelImageHeaders,
+                            cacheManager: AppCacheManager(),
                             placeholder: (_, __) => _coverPlaceholder(),
                             errorWidget: (_, __, ___) => _coverPlaceholder(),
                           )
@@ -192,14 +195,14 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(novel.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
-                            color: _fg)),
+                            color: cs.onSurface)),
                     const SizedBox(height: 6),
                     if (novel.author != null && novel.author!.isNotEmpty)
                       Text(novel.author!,
-                          style: const TextStyle(fontSize: 13, color: _muted)),
+                          style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -217,7 +220,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           if (summary.isNotEmpty) ...[
             const SizedBox(height: 14),
             LayoutBuilder(builder: (context, constraints) {
-              const style = TextStyle(fontSize: 13, height: 1.5, color: _fg);
+              final style = TextStyle(fontSize: 13, height: 1.5, color: cs.onSurface);
               final overflows = _summaryOverflows(
                   summary, style, constraints.maxWidth,
                   MediaQuery.textScalerOf(context));
@@ -234,7 +237,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(_expanded ? '收起' : '展开',
-                            style: const TextStyle(fontSize: 13, color: _accent)),
+                            style: TextStyle(fontSize: 13, color: cs.primary)),
                       ),
                     ),
                 ],
@@ -252,21 +255,14 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     final favorites = ref.watch(novelFavoritesProvider);
     final isFavorite = favorites.any((f) =>
         f.sourceKey == widget.sourceKey && f.novelId == widget.novelId);
+    final cs = Theme.of(context).colorScheme;
     return FilledButton.icon(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        backgroundColor:
-            isFavorite ? const Color(0xFFE5E5EA) : const Color(0xFF007AFF),
-        foregroundColor: isFavorite ? const Color(0xFF5A5A5F) : Colors.white,
-        side: BorderSide(
-            color: isFavorite
-                ? const Color(0xFFD1D1D6)
-                : Colors.transparent),
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+      style: isFavorite
+          ? FilledButton.styleFrom(
+              backgroundColor: cs.surfaceContainerHighest,
+              foregroundColor: cs.onSurfaceVariant,
+            )
+          : null,
       onPressed: () {
         ref.read(novelFavoritesProvider.notifier).toggle(NovelFavorite(
               sourceKey: widget.sourceKey,
@@ -290,14 +286,6 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 44),
-          backgroundColor: _accent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
         onPressed: () => Navigator.push(
           context,
           smoothRoute(NovelReaderPage(
@@ -341,15 +329,20 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     return overflows;
   }
 
-  Widget _tag(String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-            color: const Color(0xFFE8F0FE),
-            borderRadius: BorderRadius.circular(20)),
-        child: Text(text,
-            style: const TextStyle(
-                fontSize: 11, color: _accent, fontWeight: FontWeight.w500)),
-      );
+  Widget _tag(String text) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+          color: cs.secondaryContainer,
+          borderRadius: BorderRadius.circular(20)),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 11,
+              color: cs.onSecondaryContainer,
+              fontWeight: FontWeight.w500)),
+    );
+  }
 
   void _openChapter(NovelChapterRef chapter, String? cover) {
     Navigator.push(

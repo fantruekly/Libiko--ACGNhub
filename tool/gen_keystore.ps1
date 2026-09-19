@@ -3,7 +3,11 @@
 # Keep the generated android/app/upload-keystore.jks and the password safe: losing them
 # means you can never publish an update for the same app.
 #
-# Usage: powershell -ExecutionPolicy Bypass -File tool\gen_keystore.ps1
+# Usage:
+#   powershell -ExecutionPolicy Bypass -File tool\gen_keystore.ps1
+#   powershell -ExecutionPolicy Bypass -File tool\gen_keystore.ps1 -Password <secret>
+param([string]$Password)
+
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -31,9 +35,12 @@ if (-not $keytool) {
 }
 if (-not $keytool) { throw 'keytool not found; install a JDK or Android Studio' }
 
-$secure = Read-Host -AsSecureString "Enter a password for the keystore (you must remember it)"
-$plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-  [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
+$plain = $Password
+if ([string]::IsNullOrWhiteSpace($plain)) {
+  $secure = Read-Host -AsSecureString "Enter a password for the keystore (you must remember it)"
+  $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+    [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
+}
 if ([string]::IsNullOrWhiteSpace($plain)) { throw 'password must not be empty' }
 
 & $keytool -genkeypair -v -keystore $keystoreAbs -storetype JKS -keyalg RSA -keysize 2048 `
@@ -47,6 +54,6 @@ keyAlias=$alias
 storeFile=$keystoreRel
 "@ | Set-Content -Path 'android\key.properties' -Encoding ASCII
 
-Write-Output "keystore:      $keystoreAbs"
+Write-Output "keystore:       $keystoreAbs"
 Write-Output "key.properties: $root\android\key.properties"
 Write-Output 'Back these up (and remember the password); they are gitignored.'

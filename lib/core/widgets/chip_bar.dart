@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 class ChipBar extends StatelessWidget {
   final List<String> labels;
   final int selectedIndex;
@@ -15,16 +17,14 @@ class ChipBar extends StatelessWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
   });
 
-  static const _accent = Color(0xFF007AFF);
-  static const _muted = Color(0xFF5A5A5F);
   static const _hPad = 15.0;
   static const _gap = 10.0;
   static const _duration = Duration(milliseconds: 220);
 
-  static TextStyle _style(bool selected) => TextStyle(
+  static TextStyle _style(ColorScheme cs, bool selected) => TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w500,
-        color: selected ? Colors.white : _muted,
+        color: selected ? cs.onPrimary : cs.onSurfaceVariant,
       );
 
   double _widthOf(BuildContext context, String label, TextStyle style) {
@@ -44,7 +44,8 @@ class ChipBar extends StatelessWidget {
     if (labels.isEmpty) return const SizedBox.shrink();
     final index = selectedIndex.clamp(0, labels.length - 1);
     final base = DefaultTextStyle.of(context).style;
-    TextStyle styleFor(bool selected) => base.merge(_style(selected));
+    final cs = Theme.of(context).colorScheme;
+    TextStyle styleFor(bool selected) => base.merge(_style(cs, selected));
     final widths = [
       for (final label in labels) _widthOf(context, label, styleFor(false)),
     ];
@@ -80,11 +81,12 @@ class ChipBar extends StatelessWidget {
                   top: 6,
                   width: widths[index],
                   height: 36,
-                  child: const DecoratedBox(
-                    key: ValueKey('chip-bar-pill'),
+                  child: DecoratedBox(
+                    key: const ValueKey('chip-bar-pill'),
                     decoration: BoxDecoration(
-                      color: _accent,
-                      borderRadius: BorderRadius.all(Radius.circular(16)),
+                      color: cs.primary,
+                      borderRadius:
+                          BorderRadius.all(Radius.circular(AppRadii.md)),
                     ),
                   ),
                 ),

@@ -69,6 +69,13 @@ class RuleStore {
     return rule;
   }
 
+  /// Deletes the imported rule named [name], if present.
+  Future<void> remove(String name) async {
+    final dir = await _importDir();
+    final file = File(p.join(dir.path, '${_safeName(name)}.json'));
+    if (await file.exists()) await file.delete();
+  }
+
   static String _safeName(String name) =>
       name.replaceAll(RegExp(r'[\\/:*?"<>|\s]+'), '_');
 

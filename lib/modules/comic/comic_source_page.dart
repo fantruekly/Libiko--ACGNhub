@@ -6,10 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_source.dart';
+import '../../core/theme/app_theme.dart';
+import 'comic_account_dialog.dart';
 import 'comic_providers.dart';
-
-const _accent = Color(0xFF007AFF);
-const _muted = Color(0xFF5A5A5F);
 
 class ComicSourcePage extends ConsumerStatefulWidget {
   const ComicSourcePage({super.key});
@@ -49,7 +48,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     final sourcesAsync = ref.watch(comicSourcesProvider);
     final hasSources = (sourcesAsync.valueOrNull ?? const []).isNotEmpty;
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: kAppBackground,
       appBar: AppBar(
         title: const Text('源管理'),
         actions: [
@@ -112,6 +111,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   }
 
   List<Widget> _sourceSection(AsyncValue<List<ComicSource>> async) {
+    final cs = Theme.of(context).colorScheme;
     return async.when(
       loading: () => const [
         Padding(
@@ -122,7 +122,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       error: (_, __) => [
         Row(
           children: [
-            const Text('加载失败', style: TextStyle(fontSize: 14, color: _muted)),
+            Text('加载失败', style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant)),
             const SizedBox(width: 8),
             TextButton(
               onPressed: () => ref.invalidate(comicSourcesProvider),
@@ -133,11 +133,11 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       ],
       data: (sources) {
         if (sources.isEmpty) {
-          return const [
+          return [
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text('还没有添加漫画源',
-                  style: TextStyle(fontSize: 14, color: _muted)),
+                  style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant)),
             ),
           ];
         }
@@ -150,6 +150,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   }
 
   Widget _sourceTile(ComicSource source, {Key? key, int? reorderIndex}) {
+    final cs = Theme.of(context).colorScheme;
     final caps = <String>[
       if (source.canSearch) '搜索',
       if (source.canExplore) '发现',
@@ -183,7 +184,8 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
         trailing: reorderIndex != null
             ? ReorderableDragStartListener(
                 index: reorderIndex,
-                child: const Icon(Icons.drag_handle_rounded, color: _muted),
+                child: Icon(Icons.drag_handle_rounded,
+                    color: cs.onSurfaceVariant),
               )
             : Row(
                 mainAxisSize: MainAxisSize.min,
@@ -214,16 +216,19 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   }
 
   Widget _capChip(String label) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F0FE),
+        color: cs.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-            fontSize: 11, color: _accent, fontWeight: FontWeight.w500),
+        style: TextStyle(
+            fontSize: 11,
+            color: cs.onSecondaryContainer,
+            fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -436,7 +441,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   void _openAccount(ComicSource source) {
     showDialog<void>(
       context: context,
-      builder: (_) => _AccountDialog(source: source),
+      builder: (_) => ComicAccountDialog(source: source),
     ).then((_) {
       if (mounted) setState(() {});
     });
@@ -447,6 +452,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       future: _manager.isLogged(source),
       builder: (context, snapshot) {
         if (snapshot.data != true) return const SizedBox.shrink();
+        final cs = Theme.of(context).colorScheme;
         final username = _manager.savedUsername(source);
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -455,7 +461,8 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
               Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: Text(username,
-                    style: const TextStyle(fontSize: 12, color: _muted)),
+                    style: TextStyle(
+                        fontSize: 12, color: cs.onSurfaceVariant)),
               ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -542,148 +549,3 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _AccountDialog extends ConsumerStatefulWidget {
-  final ComicSource source;
-
-  const _AccountDialog({required this.source});
-
-  @override
-  ConsumerState<_AccountDialog> createState() => _AccountDialogState();
-}
-
-class _AccountDialogState extends ConsumerState<_AccountDialog> {
-  late final List<TextEditingController> _controllers;
-  bool _logged = false;
-  bool _busy = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    final count = widget.source.hasCookieLogin
-        ? widget.source.cookieFields.length
-        : 2;
-    _controllers =
-        List.generate(count, (_) => TextEditingController());
-    _refreshStatus();
-  }
-
-  @override
-  void dispose() {
-    for (final controller in _controllers) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
-  Future<void> _refreshStatus() async {
-    bool logged = false;
-    try {
-      logged =
-          await ref.read(comicSourceManagerProvider).isLogged(widget.source);
-    } catch (_) {}
-    if (mounted) setState(() => _logged = logged);
-  }
-
-  String _label(int index) {
-    if (widget.source.hasCookieLogin) {
-      return widget.source.cookieFields[index];
-    }
-    return index == 0 ? '账号 / 邮箱' : '密码';
-  }
-
-  Future<void> _submit() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    var ok = false;
-    try {
-      final manager = ref.read(comicSourceManagerProvider);
-      if (widget.source.hasCookieLogin) {
-        ok = await manager.loginWithCookies(
-            widget.source, _controllers.map((c) => c.text.trim()).toList());
-      } else {
-        ok = await manager.login(widget.source, _controllers[0].text.trim(),
-            _controllers[1].text);
-      }
-    } catch (_) {
-      ok = false;
-    }
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _logged = ok;
-      _error = ok ? null : '登录失败';
-    });
-  }
-
-  Future<void> _logout() async {
-    setState(() => _busy = true);
-    try {
-      await ref.read(comicSourceManagerProvider).logout(widget.source);
-    } catch (_) {}
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _logged = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.source.name),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_logged ? '已登录' : '未登录',
-                style: TextStyle(
-                    fontSize: 13,
-                    color: _logged
-                        ? const Color(0xFF34C759)
-                        : const Color(0xFF5A5A5F))),
-            if (!_logged) ...[
-              const SizedBox(height: 12),
-              for (var i = 0; i < _controllers.length; i++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: TextField(
-                    controller: _controllers[i],
-                    obscureText: !widget.source.hasCookieLogin && i == 1,
-                    decoration: InputDecoration(
-                      labelText: _label(i),
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-            ],
-            if (_error != null)
-              Text(_error!,
-                  style: const TextStyle(
-                      fontSize: 13, color: Color(0xFFE81123))),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('关闭'),
-        ),
-        if (_logged)
-          TextButton(
-            onPressed: _busy ? null : _logout,
-            child: const Text('退出登录'),
-          )
-        else
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: const Text('登录'),
-          ),
-      ],
-    );
-  }
-}

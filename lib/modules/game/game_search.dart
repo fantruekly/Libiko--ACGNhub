@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/platform.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -8,8 +11,6 @@ import 'game_detail_page.dart';
 import 'game_grid.dart';
 import 'game_home.dart';
 import 'game_providers.dart';
-
-const _muted = Color(0xFF5A5A5F);
 
 class GameSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
@@ -49,7 +50,7 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: kAppBackground,
       body: SafeArea(
         child: Column(
           children: [
@@ -65,10 +66,10 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
+      decoration: BoxDecoration(
+        color: cs.surface,
         border:
-            Border(bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.5)),
+            Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
       ),
       child: Row(
         children: [
@@ -82,25 +83,30 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F2F7),
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: [
                   Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurface.withValues(alpha: 0.3)),
+                      size: 18, color: cs.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _ctrl,
                       autofocus: widget.initialKeyword == null,
                       style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        filled: false,
+                        isCollapsed: true,
                         hintText: '搜索游戏...',
-                        hintStyle: TextStyle(color: _muted, fontSize: 15),
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
+                        hintStyle:
+                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
                       ),
                       onSubmitted: (_) => _search(),
                       onChanged: (_) => setState(() {}),
@@ -113,7 +119,7 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
                         setState(() {});
                       },
                       child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurface.withValues(alpha: 0.3)),
+                          size: 16, color: cs.onSurfaceVariant),
                     ),
                 ],
               ),
@@ -129,6 +135,7 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
   }
 
   Widget _body() {
+    final cs = Theme.of(context).colorScheme;
     if (_keyword.isEmpty) {
       return const EmptyState(
           icon: Icons.search_rounded, message: '输入关键词搜索游戏');
@@ -160,10 +167,16 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
     if (results.isEmpty && pending > 0) {
       return LayoutBuilder(builder: (context, constraints) {
         final cellW = gameGridCellWidth(constraints.maxWidth);
+        final mobileCellW = constraints.maxWidth - 32;
+        final mobileAspect =
+            mobileCellW / (mobileCellW * 2 / 3 + gameGridTitleExtent);
         return ShimmerLoader(
             crossAxisCount: gameGridColumns,
+            mobileColumns: 1,
             itemCount: 8,
-            aspectRatio: cellW / gameGridCellExtent(constraints.maxWidth),
+            aspectRatio: isDesktop
+                ? cellW / gameGridCellExtent(constraints.maxWidth)
+                : mobileAspect,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
       });
     }
@@ -186,10 +199,10 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
     return Column(
       children: [
         if (pending > 0)
-          const LinearProgressIndicator(
+          LinearProgressIndicator(
             minHeight: 2,
-            color: Color(0xFF007AFF),
-            backgroundColor: Color(0xFFE5E5EA),
+            color: cs.primary,
+            backgroundColor: cs.outlineVariant,
           ),
         Expanded(child: _grid(results)),
       ],
@@ -198,30 +211,41 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
 
   Widget _grid(List<GameSearchResult> results) {
     return LayoutBuilder(builder: (context, constraints) {
-      return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: gameGridColumns,
-            mainAxisSpacing: 20,
-            crossAxisSpacing: gameGridSpacing,
-            mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+      Widget gameCell(BuildContext context, int i) {
+        final r = results[i];
+        return GameCard(
+          game: r.game,
+          heroTag: 'game_${r.sourceKey}_${r.game.id}',
+          onTap: () => Navigator.push(
+            context,
+            smoothRoute(GameDetailPage(
+              sourceKey: r.sourceKey,
+              gameId: r.game.id,
+              title: r.game.title,
+              cover: r.game.coverUrl,
+            )),
+          ),
+        );
+      }
+
+      if (isDesktop) {
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: gameGridColumns,
+              mainAxisSpacing: 20,
+              crossAxisSpacing: gameGridSpacing,
+              mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+          itemCount: results.length,
+          itemBuilder: gameCell,
+        );
+      }
+      return AdaptiveGridView(
         itemCount: results.length,
-        itemBuilder: (_, i) {
-          final r = results[i];
-          return GameCard(
-            game: r.game,
-            heroTag: 'game_${r.sourceKey}_${r.game.id}',
-            onTap: () => Navigator.push(
-              context,
-              smoothRoute(GameDetailPage(
-                sourceKey: r.sourceKey,
-                gameId: r.game.id,
-                title: r.game.title,
-                cover: r.game.coverUrl,
-              )),
-            ),
-          );
-        },
+        mobileColumns: 1,
+        mobileCoverRatio: 3 / 2,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemBuilder: gameCell,
       );
     });
   }
