@@ -20,12 +20,40 @@ class StreamResolver {
       : _maccms = maccms ?? MacCmsResolver(),
         _dio = dio ?? Dio();
 
+  static const int _maxAttempts = 2;
+
   Future<MediaCandidate?> resolve(
     String playPageUrl, {
     Duration timeout = const Duration(seconds: 15),
     String? userAgent,
     String? referer,
     bool legacy = false,
+    CancellationToken? cancel,
+  }) async {
+    for (var attempt = 0; attempt < _maxAttempts; attempt++) {
+      if (cancel?.isCancelled ?? false) return null;
+      final candidate = await _resolveOnce(
+        playPageUrl,
+        timeout: timeout,
+        userAgent: userAgent,
+        referer: referer,
+        legacy: legacy,
+        cancel: cancel,
+      );
+      if (candidate != null) return candidate;
+      if (attempt + 1 < _maxAttempts) {
+        debugPrint('[StreamResolver] retrying $playPageUrl');
+      }
+    }
+    return null;
+  }
+
+  Future<MediaCandidate?> _resolveOnce(
+    String playPageUrl, {
+    required Duration timeout,
+    String? userAgent,
+    String? referer,
+    required bool legacy,
     CancellationToken? cancel,
   }) async {
     final direct = await _maccms.resolve(
