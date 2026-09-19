@@ -12,7 +12,9 @@ class CancellationToken {
     final listeners = List<void Function()>.of(_listeners);
     _listeners.clear();
     for (final listener in listeners) {
-      listener();
+      try {
+        listener();
+      } catch (_) {}
     }
   }
 

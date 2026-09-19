@@ -34,4 +34,13 @@ void main() {
     token.cancel();
     expect(calls, 0);
   });
+
+  test('runs every listener even when one throws', () {
+    final token = CancellationToken();
+    var second = 0;
+    token.addListener(() => throw StateError('boom'));
+    token.addListener(() => second++);
+    token.cancel();
+    expect(second, 1);
+  });
 }
