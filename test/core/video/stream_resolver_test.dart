@@ -50,9 +50,12 @@ class _HeaderAdapter implements HttpClientAdapter {
 void main() {
   test('returns the MacCMS candidate without starting a headless browser',
       () async {
+    final dio = Dio()
+      ..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true);
     final resolver = StreamResolver(
       maccms: _FakeMacCmsResolver(
           const MediaCandidate('https://cdn.test/x/index.m3u8')),
+      dio: dio,
     );
     final result = await resolver.resolve('https://page/play');
     expect(result?.url, 'https://cdn.test/x/index.m3u8');
