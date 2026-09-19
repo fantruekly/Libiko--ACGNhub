@@ -43,6 +43,7 @@ class _RatioCoverState extends State<RatioCover> {
   bool _resolved = false;
   ImageProvider? _provider;
   int _providerWidth = 0;
+  int _retry = 0;
   ImageStream? _stream;
   ImageStreamListener? _listener;
 
@@ -68,6 +69,7 @@ class _RatioCoverState extends State<RatioCover> {
     _resolved = false;
     _provider = null;
     _providerWidth = 0;
+    _retry = 0;
     if (!_active) return;
     _loadCached();
   }
@@ -126,6 +128,17 @@ class _RatioCoverState extends State<RatioCover> {
     );
     _listener = listener;
     _stream = provider.resolve(ImageConfiguration.empty)..addListener(listener);
+  }
+
+  void _onImageError() {
+    if (_retry >= 2) return;
+    _retry++;
+    final delay = Duration(milliseconds: 400 * _retry);
+    Future<void>.delayed(delay, () {
+      if (!mounted) return;
+      _provider?.evict();
+      setState(() {});
+    });
   }
 
   void _measure(ImageInfo info) {
@@ -196,8 +209,10 @@ class _RatioCoverState extends State<RatioCover> {
                 image: provider,
                 fit: BoxFit.cover,
                 frameBuilder: _frameBuilder,
-                errorBuilder: (context, _, __) =>
-                    widget.placeholderBuilder(context),
+                errorBuilder: (context, _, __) {
+                  _onImageError();
+                  return widget.placeholderBuilder(context);
+                },
               );
 
         final framed = ClipRRect(
