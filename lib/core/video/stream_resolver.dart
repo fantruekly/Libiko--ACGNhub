@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'cancellation.dart';
@@ -13,8 +14,11 @@ import 'webview_scraper.dart';
 /// them (some CDNs return 403 without the right Referer/User-Agent).
 class StreamResolver {
   final MacCmsResolver _maccms;
+  final Dio _dio;
 
-  StreamResolver({MacCmsResolver? maccms}) : _maccms = maccms ?? MacCmsResolver();
+  StreamResolver({MacCmsResolver? maccms, Dio? dio})
+      : _maccms = maccms ?? MacCmsResolver(),
+        _dio = dio ?? Dio();
 
   Future<MediaCandidate?> resolve(
     String playPageUrl, {
@@ -30,7 +34,7 @@ class StreamResolver {
       referer: referer,
       timeout: const Duration(seconds: 4),
     );
-    if (direct != null) return direct;
+    if (direct != null) return _verify(direct);
 
     if (cancel?.isCancelled ?? false) return null;
 
@@ -74,7 +78,7 @@ class StreamResolver {
         return null;
       });
       debugPrint('[StreamResolver] resolved=${candidate?.url}');
-      return candidate;
+      return candidate == null ? null : _verify(candidate);
     } catch (e) {
       debugPrint('[StreamResolver] failed for $playPageUrl: $e');
       return null;
@@ -86,6 +90,46 @@ class StreamResolver {
       try {
         await browser.dispose();
       } catch (_) {}
+    }
+  }
+
+  Future<MediaCandidate?> _verify(MediaCandidate candidate) async {
+    for (final headers in _headerVariants(candidate.headers)) {
+      if (await _reachable(candidate.url, headers)) {
+        return MediaCandidate(candidate.url, headers: headers);
+      }
+    }
+    return candidate;
+  }
+
+  List<Map<String, String>> _headerVariants(Map<String, String> headers) {
+    final withoutOrigin = Map<String, String>.from(headers)..remove('Origin');
+    final userAgentOnly = <String, String>{};
+    final ua = headers['User-Agent'];
+    if (ua != null && ua.isNotEmpty) userAgentOnly['User-Agent'] = ua;
+    return [
+      headers,
+      if (withoutOrigin.length != headers.length) withoutOrigin,
+      if (userAgentOnly.isNotEmpty) userAgentOnly,
+    ];
+  }
+
+  Future<bool> _reachable(String url, Map<String, String> headers) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {...headers, 'Range': 'bytes=0-0'},
+          validateStatus: (_) => true,
+          receiveTimeout: const Duration(seconds: 5),
+          sendTimeout: const Duration(seconds: 5),
+        ),
+      );
+      final code = response.statusCode ?? 0;
+      return code >= 200 && code < 400;
+    } catch (_) {
+      return false;
     }
   }
 }
