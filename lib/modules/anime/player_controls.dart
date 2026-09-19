@@ -134,7 +134,7 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
 
   Widget _bottomBar(ColorScheme cs) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -152,6 +152,10 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
                     overlayColor: cs.primary.withValues(alpha: 0.2),
                     inactiveTrackColor: Colors.white24,
                     trackHeight: 3,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape:
+                        const RoundSliderOverlayShape(overlayRadius: 14),
                   ),
                   child: Slider(
                     value: _valueMs,
