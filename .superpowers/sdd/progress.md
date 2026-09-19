@@ -986,3 +986,16 @@ Remaining unsupported anime sources: DM84/gugu3/akianime/七色番-线路1 (thir
 
 Attempted gugu3's player: `MizhiPlayerART.js` is 352KB obfuscated + CryptoJS AES; the play page redirected to an ad (jd.com) in the headless. Not feasible.
 Decision: delete the unplayable bundled rule sources DM84/gugu3/akianime (7sefun kept - its 线路2 resolves). Commit d93e5ce: removed the 3 JSONs; rule_store_test now expects 6 bundled rules. analyze clean; 445 tests pass. Pushed origin/dev.
+
+## Bottom-bar capsule + player controls + drag-seek (plan docs/superpowers/plans/2026-09-18-bottombar-player-controls-drag.md, base 925ba62)
+
+Scope: 1) fix the Android bottom-bar capsule dark flash (lerp from transparent-black) by animating alpha of the same light color; 2) player bottom bar -> left [play/pause][next], right [episodes][fullscreen], keep the center button; 3) horizontal drag across the video to seek (full width = full duration) with a preview.
+
+Task 1: complete (commit 925ba62..d6ee790, one-line color fix; analyze clean).
+Task 2: complete (commit d6ee790..1808b49, review clean; 1 Minor: test doesn't tap the new player-play button). Also fixed app_bottom_bar_test (alpha assertion) broken by Task 1.
+Task 3: complete (commit 1808b49..ac13b42, review clean; 3 Minor: +0 秒 at zero delta; drag overlay can overlap the double-tap feedback; unconditional _scheduleHide; Slider gesture-arena precedence needs a manual check).
+Task 4: complete (verification, HEAD ac13b42, no commit). analyze clean; test 446 pass/1 skip; Windows + APK release build OK (NDK 27 vs flutter_qjs-required 28 warning).
+Final whole-branch review (925ba62..ac13b42): "With fixes" (1 Important: Slider vs video-drag gesture-arena precedence unverified; + Minors).
+Fix wave 0e25199 (re-review "Ready to merge? Yes"): drag recognizer scoped to the video layer only (Slider now wins structurally); _onDragSeekCancel; zero-delta sign; mid-fade bottom-bar test (protects the fade fix); player-play tap test. Full suite 447 pass/1 skip.
+Residual (non-blocking): drag preview can still stack with the double-tap feedback; fade test depends on non-zero theme channels.
+Bottom-bar capsule + player controls + drag-seek: implementation COMPLETE (925ba62..0e25199). Pushed origin/dev for the user's PR.
