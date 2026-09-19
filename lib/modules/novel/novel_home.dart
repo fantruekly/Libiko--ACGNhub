@@ -7,6 +7,7 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_source.dart';
+import '../../core/services/cache_manager.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
@@ -492,6 +493,7 @@ Widget _cover(String? url, ColorScheme cs) {
     fit: BoxFit.cover,
     memCacheWidth: 200,
     httpHeaders: novelImageHeaders,
+    cacheManager: AppCacheManager(),
     placeholder: (_, __) => Container(color: cs.outlineVariant),
     errorWidget: (_, __, ___) => Container(color: cs.outlineVariant),
   );

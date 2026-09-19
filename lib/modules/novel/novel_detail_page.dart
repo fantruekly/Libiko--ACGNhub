@@ -7,6 +7,7 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_favorite.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/platform.dart';
+import '../../core/services/cache_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
@@ -180,6 +181,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                             imageUrl: cover,
                             fit: BoxFit.cover,
                             httpHeaders: novelImageHeaders,
+                            cacheManager: AppCacheManager(),
                             placeholder: (_, __) => _coverPlaceholder(),
                             errorWidget: (_, __, ___) => _coverPlaceholder(),
                           )

@@ -9,6 +9,7 @@ import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/cache_manager.dart';
 import '../../core/services/follow_manager.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
@@ -313,6 +314,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       imageUrl: url,
       fit: BoxFit.cover,
       memCacheWidth: 160,
+      cacheManager: AppCacheManager(),
       placeholder: (_, __) => Container(color: cs.primary.withValues(alpha: 0.06)),
       errorWidget: (_, __, ___) => Container(color: cs.primary.withValues(alpha: 0.08)),
     );
@@ -390,6 +392,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                             imageUrl: w.coverUrl!,
                             fit: BoxFit.cover,
                             memCacheWidth: 300,
+                            cacheManager: AppCacheManager(),
                             errorWidget: (_, __, ___) => _coverPlaceholder(cs),
                           )
                         : _coverPlaceholder(cs),

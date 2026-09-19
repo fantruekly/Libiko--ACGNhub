@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../images/cover_ratio_cache.dart';
 import '../platform.dart';
+import '../services/cache_manager.dart';
 
 /// A cover image whose height follows the source image's real aspect ratio.
 ///
@@ -89,6 +90,7 @@ class _RatioCoverState extends State<RatioCover> {
         : CachedNetworkImageProvider(
             url,
             maxWidth: width,
+            cacheManager: AppCacheManager(),
             headers: widget.httpHeaders,
           );
     if (_active) _listenForSize();

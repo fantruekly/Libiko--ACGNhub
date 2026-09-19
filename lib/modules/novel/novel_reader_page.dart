@@ -7,6 +7,7 @@ import '../../core/novel/models.dart';
 import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_reader_settings.dart';
 import '../../core/platform.dart';
+import '../../core/services/cache_manager.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/marquee_text.dart';
 import '../../core/widgets/window_controls.dart';
@@ -166,6 +167,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                         imageUrl: url,
                         fit: BoxFit.contain,
                         httpHeaders: novelImageHeaders,
+                        cacheManager: AppCacheManager(),
                         placeholder: (_, __) => const Center(
                             child: CircularProgressIndicator()),
                         errorWidget: (_, __, ___) => const Center(

@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../services/cache_manager.dart';
 import 'comic_source.dart';
 import 'models.dart';
 
@@ -605,7 +606,11 @@ class _CachedPageImageProvider extends ImageProvider<_CachedPageImageProvider> {
       return ImageInfo(image: cached.image.clone(), scale: 1.0);
     }
     // The disk-cached provider still applies; it is wrapped, not replaced.
-    final plain = CachedNetworkImageProvider(url, headers: headers);
+    final plain = CachedNetworkImageProvider(
+      url,
+      headers: headers,
+      cacheManager: AppCacheManager(),
+    );
     final info = await _firstFrame(plain);
     try {
       final image = info.image;

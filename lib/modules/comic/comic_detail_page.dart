@@ -7,6 +7,7 @@ import '../../core/comic/comic_history.dart';
 import '../../core/comic/comic_source.dart';
 import '../../core/comic/models.dart';
 import '../../core/platform.dart';
+import '../../core/services/cache_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
@@ -189,6 +190,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                                 imageUrl: details.cover!,
                                 fit: BoxFit.cover,
                                 memCacheWidth: 300,
+                                cacheManager: AppCacheManager(),
                                 errorWidget: (_, __, ___) =>
                                     _coverPlaceholder(cs),
                               )

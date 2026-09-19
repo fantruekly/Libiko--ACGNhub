@@ -8,8 +8,8 @@ class AppCacheManager extends CacheManager with ImageCacheManager {
   AppCacheManager._()
       : super(Config(
           key,
-          stalePeriod: const Duration(days: 7),
-          maxNrOfCacheObjects: 500,
+          stalePeriod: const Duration(days: 30),
+          maxNrOfCacheObjects: 1000,
           repo: JsonCacheInfoRepository(databaseName: key),
           fileService: HttpFileService(),
         ));
