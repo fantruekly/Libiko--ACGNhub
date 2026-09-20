@@ -1071,3 +1071,11 @@ Root cause (systematic debugging): comic/novel/game homes' onHorizontalDragEnd p
 Fix 2faae44: new pure stepChipSelection (lib/core/widgets/chip_nav.dart) with cross-level fall-through; wired into comic/novel/game homes; chip_nav unit tests + a game-home integration test (RED on the old wiring). Full suite 482 pass / 1 skip; analyze clean.
 Minor deferred: backward cross resets the inner level to min (not the prior position); integration coverage is game-only; no pagination-reset assertions.
 
+
+## Anime 'Failed to open' fix (ad hoc, 2026-09-20)
+Symptom: opening some episodes (MacCMS/rule sources) showed '播放失败：Failed to open'; retry a few times worked.
+Evidence (user's flutter run log): '[StreamResolver] verify FAILED <url> headers=[User-Agent, Referer]' then '[Player] open <same url>' then '[Player] error: Failed to open'. No [Headless] lines -> MacCMS direct path.
+Root cause: StreamResolver._verify returned the candidate even when NO header variant was reachable, so _resolveOnce returned a known-dead URL and the outer retry never ran; the player got a dead URL.
+Fix 3b5f3c4: _verify returns null when unreachable; _maxAttempts 2->3 with a 500ms delay between attempts; +2 resolver tests (unreachable -> null; retry -> later reachable candidate). Full suite 484 pass / 1 skip; analyze clean.
+Kept: [StreamResolver] verify ok/FAILED and [Player] error logs.
+
