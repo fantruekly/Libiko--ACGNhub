@@ -15,10 +15,10 @@ import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
-import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_account_dialog.dart';
+import 'comic_detail_skeleton.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
 
@@ -106,11 +106,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     final logged = !needsLogin ||
         (ref.watch(comicLoginProvider(widget.sourceKey)).valueOrNull ?? false);
     return async.when(
-      loading: () => const ShimmerLoader(
-        crossAxisCount: 6,
-        itemCount: 12,
-        padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
-      ),
+      loading: () => const ComicDetailSkeleton(),
       error: (_, __) => (needsLogin && !logged)
           ? _loginRequired(source)
           : EmptyState(
