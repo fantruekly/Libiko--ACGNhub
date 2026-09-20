@@ -15,6 +15,10 @@ import 'models.dart';
 /// evicted (and its [ui.Image] disposed).
 const int maxCachedPages = 12;
 
+/// Upper bound for a comic page's decoded width (px). Tall webtoon strips are
+/// otherwise decoded at full source width, which is costly in memory.
+const int kMaxComicDecodeWidth = 1600;
+
 /// Cache key for a processed page. Pure so it can be unit-tested.
 String pageCacheKey(
   String sourceKey,
@@ -610,6 +614,7 @@ class _CachedPageImageProvider extends ImageProvider<_CachedPageImageProvider> {
       url,
       headers: headers,
       cacheManager: AppCacheManager(),
+      maxWidth: kMaxComicDecodeWidth,
     );
     final info = await _firstFrame(plain);
     try {
