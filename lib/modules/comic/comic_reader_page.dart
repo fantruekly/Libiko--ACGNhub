@@ -118,81 +118,101 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         if (provider.ratioOf(url) case final ratio?) ratio,
     ]);
     final nav = _nav(details);
-    return NotificationListener<ScrollMetricsNotification>(
-      onNotification: (notification) {
-        if (_resuming) _applyResumeJump(images.length);
-        return false;
-      },
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (_programmaticScroll) return false;
-          if (notification is ScrollStartNotification &&
-              notification.dragDetails != null) {
-            _resuming = false;
-            _restoring = false;
-          }
-          if (notification is! ScrollUpdateNotification &&
-              notification is! ScrollEndNotification) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportHeight = constraints.maxHeight;
+        return NotificationListener<ScrollMetricsNotification>(
+          onNotification: (notification) {
+            if (_resuming) _applyResumeJump(images.length);
             return false;
-          }
-          final metrics = notification.metrics;
-          if (_restoring || metrics.maxScrollExtent <= 0) return false;
-          final page = currentPageFromScroll(
-              metrics.pixels, metrics.maxScrollExtent, images.length);
-          _onPageChanged(page, images.length);
-          if (metrics.maxScrollExtent > 0 &&
-              metrics.pixels >= metrics.maxScrollExtent - 8 &&
-              nav.next != null) {
-            _goToChapter(nav.next!);
-          } else if (metrics.pixels <= 8 &&
-              _page == 0 &&
-              nav.previous != null) {
-            _goToChapter(nav.previous!, atEnd: true);
-          }
-          return false;
-        },
-        child: ListView.builder(
-          controller: _scrollController,
-          itemCount: images.length + (nav.next != null ? 1 : 0),
-          itemBuilder: (context, i) {
-            if (i >= images.length) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => _goToChapter(nav.next!),
-                      child: const Text('下一章'),
-                    ),
-                  ),
-                ),
-              );
-            }
-            final cached = provider.ratioOf(images[i]);
-            final ratio = (cached != null && cached > 0) ? cached : fallback;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _toggleChrome,
-              child: AspectRatio(
-                aspectRatio: ratio,
-                child: _ReaderImage(
-                  key: ValueKey('$_chapterId-$i'),
-                  sourceKey: widget.sourceKey,
-                  comicId: widget.comicId,
-                  chapterId: _chapterId,
-                  url: images[i],
-                  fit: BoxFit.fitWidth,
-                  onRatio: (r) {
-                    provider.rememberRatio(images[i], r);
-                    if (mounted) setState(() {});
-                  },
-                ),
-              ),
-            );
           },
-        ),
-      ),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (_programmaticScroll) return false;
+              if (notification is ScrollStartNotification &&
+                  notification.dragDetails != null) {
+                _resuming = false;
+                _restoring = false;
+              }
+              if (notification is! ScrollUpdateNotification &&
+                  notification is! ScrollEndNotification) {
+                return false;
+              }
+              final metrics = notification.metrics;
+              if (_restoring || metrics.maxScrollExtent <= 0) return false;
+              final page = currentPageFromScroll(
+                  metrics.pixels, metrics.maxScrollExtent, images.length);
+              _onPageChanged(page, images.length);
+              if (metrics.maxScrollExtent > 0 &&
+                  metrics.pixels >= metrics.maxScrollExtent - 8 &&
+                  nav.next != null) {
+                _goToChapter(nav.next!);
+              } else if (metrics.pixels <= 8 &&
+                  _page == 0 &&
+                  nav.previous != null) {
+                _goToChapter(nav.previous!, atEnd: true);
+              }
+              return false;
+            },
+            child: ListView.builder(
+              controller: _scrollController,
+              itemCount: images.length + (nav.next != null ? 1 : 0),
+              itemBuilder: (context, i) {
+                if (i >= images.length) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () => _goToChapter(nav.next!),
+                          child: const Text('下一章'),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                final cached = provider.ratioOf(images[i]);
+                final ratio = (cached != null && cached > 0) ? cached : fallback;
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _toggleChrome,
+                  child: isDesktop
+                      ? SizedBox(
+                          key: ValueKey('page-box-$i'),
+                          height: viewportHeight,
+                          width: double.infinity,
+                          child: _ReaderImage(
+                            key: ValueKey('$_chapterId-$i'),
+                            sourceKey: widget.sourceKey,
+                            comicId: widget.comicId,
+                            chapterId: _chapterId,
+                            url: images[i],
+                            fit: BoxFit.contain,
+                            fillWidth: false,
+                          ),
+                        )
+                      : AspectRatio(
+                          aspectRatio: ratio,
+                          child: _ReaderImage(
+                            key: ValueKey('$_chapterId-$i'),
+                            sourceKey: widget.sourceKey,
+                            comicId: widget.comicId,
+                            chapterId: _chapterId,
+                            url: images[i],
+                            fit: BoxFit.fitWidth,
+                            onRatio: (r) {
+                              provider.rememberRatio(images[i], r);
+                              if (mounted) setState(() {});
+                            },
+                          ),
+                        ),
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -235,13 +255,15 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
             onPrev: () => _flipTo(-1),
             onNext: () => _flipTo(1),
             onToggleChrome: _toggleChrome,
+            desktop: isDesktop,
             child: _ReaderImage(
               key: ValueKey('$_chapterId-$index'),
               sourceKey: widget.sourceKey,
               comicId: widget.comicId,
               chapterId: _chapterId,
               url: images[index],
-              fit: BoxFit.fitWidth,
+              fit: isDesktop ? BoxFit.contain : BoxFit.fitWidth,
+              fillWidth: !isDesktop,
             ),
           );
         },
@@ -670,6 +692,7 @@ class _ReaderImage extends ConsumerStatefulWidget {
   final String chapterId;
   final String url;
   final BoxFit fit;
+  final bool fillWidth;
   final ValueChanged<double>? onRatio;
 
   const _ReaderImage({
@@ -679,6 +702,7 @@ class _ReaderImage extends ConsumerStatefulWidget {
     required this.chapterId,
     required this.url,
     this.fit = BoxFit.contain,
+    this.fillWidth = true,
     this.onRatio,
   });
 
@@ -745,7 +769,7 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
         return Image(
           image: snapshot.data!,
           fit: widget.fit,
-          width: double.infinity,
+          width: widget.fillWidth ? double.infinity : null,
           errorBuilder: (_, __, ___) => _retry(),
           frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
             if (wasSynchronouslyLoaded) return child;
@@ -791,12 +815,14 @@ class _HorizontalPage extends StatelessWidget {
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final VoidCallback onToggleChrome;
+  final bool desktop;
 
   const _HorizontalPage({
     required this.child,
     required this.onPrev,
     required this.onNext,
     required this.onToggleChrome,
+    this.desktop = false,
   });
 
   void _handleTapUp(BuildContext context, TapUpDetails details) {
@@ -816,17 +842,20 @@ class _HorizontalPage extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapUp: (details) => _handleTapUp(context, details),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(child: child),
+      child: desktop
+          ? SizedBox.expand(child: child)
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Center(child: child),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }
