@@ -9,6 +9,7 @@ import 'core/account/sync_service.dart';
 import 'core/platform.dart';
 import 'core/storage/database.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_mode.dart';
 import 'core/ui/app_messenger.dart';
 import 'shell/main_shell.dart';
 
@@ -42,17 +43,23 @@ void main() async {
       container: container, child: const LibikoApp()));
 }
 
-class LibikoApp extends StatelessWidget {
+class LibikoApp extends ConsumerStatefulWidget {
   const LibikoApp({super.key});
 
+  @override
+  ConsumerState<LibikoApp> createState() => _LibikoAppState();
+}
+
+class _LibikoAppState extends ConsumerState<LibikoApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Libiko',
       scaffoldMessengerKey: appMessengerKey,
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.light,
+      themeMode: ref.watch(appThemeModeProvider),
       theme: buildAppTheme(),
+      darkTheme: buildAppDarkTheme(),
       home: const MainShell(),
     );
   }

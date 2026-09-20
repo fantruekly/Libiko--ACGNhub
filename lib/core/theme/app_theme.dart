@@ -17,8 +17,9 @@ class AppSemanticColors {
 const Color kAppBackground = Color(0xFFFCFDFF);
 
 const Color _seed = Color(0xFFA8D8FF);
+const Color _darkBackground = Color(0xFF101317);
 
-/// The single source of truth for the app's Material 3 theme.
+/// The single source of truth for the app's Material 3 themes.
 ThemeData buildAppTheme() {
   final base = ColorScheme.fromSeed(
     seedColor: _seed,
@@ -34,6 +35,18 @@ ThemeData buildAppTheme() {
     onSecondaryContainer: const Color(0xFF0B3D66),
     surface: const Color(0xFFFFFFFF),
   );
+  return _buildTheme(scheme, kAppBackground);
+}
+
+ThemeData buildAppDarkTheme() {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: _seed,
+    brightness: Brightness.dark,
+  );
+  return _buildTheme(scheme, _darkBackground);
+}
+
+ThemeData _buildTheme(ColorScheme scheme, Color background) {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
@@ -43,7 +56,7 @@ ThemeData buildAppTheme() {
       'Microsoft YaHei',
       'Segoe UI',
     ],
-    scaffoldBackgroundColor: kAppBackground,
+    scaffoldBackgroundColor: background,
     appBarTheme: AppBarTheme(
       centerTitle: false,
       elevation: 0,
