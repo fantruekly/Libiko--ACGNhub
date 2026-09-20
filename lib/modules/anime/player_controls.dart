@@ -148,37 +148,60 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_volumePanelOpen)
-            Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    key: const ValueKey('player-mute'),
-                    icon: Icon(
-                      widget.muted || widget.volume == 0
-                          ? Icons.volume_off_rounded
-                          : Icons.volume_up_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    tooltip: '静音',
-                    onPressed: widget.onToggleMute,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4, right: 40),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  key: const ValueKey('player-volume-panel'),
+                  width: 160,
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  Expanded(
-                    child: Slider(
-                      key: const ValueKey('player-volume-slider'),
-                      value: widget.muted ? 0 : widget.volume,
-                      min: 0,
-                      max: 100,
-                      onChanged: widget.onVolumeChanged,
-                    ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        key: const ValueKey('player-mute'),
+                        iconSize: 18,
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
+                        icon: Icon(
+                          widget.muted || widget.volume == 0
+                              ? Icons.volume_off_rounded
+                              : Icons.volume_up_rounded,
+                          color: Colors.white,
+                        ),
+                        tooltip: '静音',
+                        onPressed: widget.onToggleMute,
+                      ),
+                      Expanded(
+                        child: SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 2,
+                            thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 5),
+                            overlayShape: const RoundSliderOverlayShape(
+                                overlayRadius: 10),
+                            activeTrackColor: cs.primary,
+                            thumbColor: cs.primary,
+                            inactiveTrackColor: Colors.white24,
+                          ),
+                          child: Slider(
+                            key: const ValueKey('player-volume-slider'),
+                            value: widget.muted ? 0 : widget.volume,
+                            min: 0,
+                            max: 100,
+                            onChanged: widget.onVolumeChanged,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           Row(

@@ -134,6 +134,10 @@ void main() {
     expect(find.byKey(const ValueKey('player-volume-slider')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('player-volume')));
     await tester.pump();
+    final panel =
+        tester.getSize(find.byKey(const ValueKey('player-volume-panel')));
+    expect(panel.width, 160);
+    expect(panel.height, 40);
     final slider =
         tester.widget<Slider>(find.byKey(const ValueKey('player-volume-slider')));
     expect(slider.value, 100);
