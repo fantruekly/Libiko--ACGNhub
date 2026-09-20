@@ -530,16 +530,16 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.7),
+                      color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                           color: cs.outlineVariant, width: 0.5),
                     ),
                     child: Text(
                       t,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12.5,
-                          color: Color(0xFF3A3A3C),
+                          color: cs.onSurfaceVariant,
                           fontWeight: FontWeight.w500),
                     ),
                   ))
