@@ -158,9 +158,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   Widget _content(
       NovelChapter chapter, NovelReaderSettings settings, _Palette palette) {
     final imageWidth =
-        ((MediaQuery.sizeOf(context).width - 40) *
-                MediaQuery.devicePixelRatioOf(context))
-            .round();
+        (((MediaQuery.sizeOf(context).width - 40) *
+                    MediaQuery.devicePixelRatioOf(context))
+                .round())
+            .clamp(1, 1 << 20);
     return SingleChildScrollView(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
