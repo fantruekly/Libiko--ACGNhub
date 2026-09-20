@@ -164,8 +164,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
                 if (_programmaticScroll) return false;
-                if (notification is ScrollStartNotification &&
-                    notification.dragDetails != null) {
+                if (notification is ScrollStartNotification) {
                   _resuming = false;
                   _restoring = false;
                 }
@@ -352,14 +351,12 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     if (max <= 0) return;
     final target = (_page / (total - 1)) * max;
     final current = _scrollController.position.pixels;
-    if ((current - target).abs() < 1) {
-      _restoring = false;
-      return;
-    }
+    _resuming = false;
+    _restoring = false;
+    if ((current - target).abs() < 1) return;
     _programmaticScroll = true;
     _scrollController.jumpTo(target.clamp(0.0, max));
     _programmaticScroll = false;
-    _restoring = false;
   }
 
   void _updateProgress() {
