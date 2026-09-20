@@ -1026,3 +1026,14 @@ Task 1: complete (commit 038c621..c33c6dc, review clean; 3 Minor: brief's /// do
 Task 2: complete (commit c33c6dc..1173f39, wiring; analyze/test clean; bar always visible, instant jumpTo).
 Final whole-branch review (038c621..1173f39): "With fixes" (1 Important: bar painted over the top/bottom chrome + desktop window controls). Fix 5c29241 (inset past the bars; _width 16->24; non-finite-height guard; removed redundant toDouble; + end-alignment test) -> re-review Ready to merge? Yes. analyze clean; test 452/1 skip.
 Novel reader progress bar: implementation COMPLETE (038c621..5c29241). Pushed origin/dev.
+
+## Comic search by source (plan docs/superpowers/plans/2026-09-20-comic-search-by-source.md, base 7e93a97)
+
+Task 1 (per-source search provider): complete (commit 7e93a97..6093bdc, review clean; 2 Minor deferred: _FakeManager builds a real Dio/JsEngine superclass (plan-mandated); comicSearchTimeout path untested).
+Task 2 (source picker + grouped results): complete (commit 6093bdc..12c4e0a, review clean; 3 Minor deferred: all-empty hides per-source status UI (plan-mandated); any()+firstWhere double pass; only the 2 brief tests).
+Task 3 (jm numeric id search): complete (commit 12c4e0a..0dd1a0e, review clean; 3 Minor deferred: empty catch swallows network errors (brief-mandated); text-level guard test cannot assert behavior (plan-mandated); loadComicById omits subtitle/tags).
+Task 4 (verification): controller-run partial. Gates: flutter analyze clean; full flutter test 459 passed / 1 skipped (pre-fix), 460/1 after fix; Windows release build OK. Interactive JM numeric search + grouped UI need human verification (network + GUI).
+Final whole-branch review (7e93a97..0dd1a0e): 'With fixes'. 2 Important: (1) per-source 15s timeout falsely fails queued sources because JsEngine serializes searches -> user chose to remove the Dart timeout; (2) single-source failure showed the plural aggregate message.
+Fix 53edcfc (re-review clean): removed comicSearchTimeout + .timeout(); single-source failure now '<源名> 搜索失败' + widget test. Full suite 460 pass / 1 skip; analyze clean.
+Deferred Minors: _FakeManager builds a real Dio/JsEngine superclass; no timeout-path test (moot now); all-empty hides per-source status rows; any()+firstWhere double pass; jm guard test is text-presence only; jm empty catch swallows network errors; loadComicById omits subtitle/tags; stale _selectedSourceKey not nulled; jm guard test uses a relative path.
+Comic search by source: implementation COMPLETE (7e93a97..53edcfc).
