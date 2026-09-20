@@ -1065,3 +1065,9 @@ Final whole-branch review (cc9c52f..4a42234): 'Ready to merge? Yes'. No Critical
 Cleanup a38cf79: removed unused _progressBar palette param; fixed the stale ReaderProgressBar doc comment; pinned the desktop comic fit assertion (BoxFit.contain). Full suite 474 pass / 1 skip; analyze clean.
 Reader/player polish round: implementation COMPLETE (cc9c52f..a38cf79). MUST-VERIFY (human): volume panel look; desktop comic height-fit (continuous + flip); novel progress bar fade with chrome.
 
+
+## Home swipe boundary cross-level fix (ad hoc, 2026-09-20)
+Root cause (systematic debugging): comic/novel/game homes' onHorizontalDragEnd picked one chip level and clamped it; at the boundary the clamp returned the same value and the handler returned, so the swipe never crossed into the next section (e.g. last sub-section -> next 栏目).
+Fix 2faae44: new pure stepChipSelection (lib/core/widgets/chip_nav.dart) with cross-level fall-through; wired into comic/novel/game homes; chip_nav unit tests + a game-home integration test (RED on the old wiring). Full suite 482 pass / 1 skip; analyze clean.
+Minor deferred: backward cross resets the inner level to min (not the prior position); integration coverage is game-only; no pagination-reset assertions.
+
