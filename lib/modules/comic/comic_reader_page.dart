@@ -46,6 +46,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   Timer? _historyTimer;
   PrefetchCancelToken? _ratioToken;
   String? _ratioPrefetchedChapter;
+  bool _ratioRebuildScheduled = false;
   final _scrollController = ScrollController();
   final _pageController = PageController();
 
@@ -65,6 +66,17 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     _scrollController.dispose();
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// Coalesces the per-image ratio callbacks so a chapter load triggers at most
+  /// one rebuild per frame instead of one per image.
+  void _scheduleRatioRebuild() {
+    if (_ratioRebuildScheduled) return;
+    _ratioRebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ratioRebuildScheduled = false;
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -203,7 +215,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                             fit: BoxFit.fitWidth,
                             onRatio: (r) {
                               provider.rememberRatio(images[i], r);
-                              if (mounted) setState(() {});
+                              _scheduleRatioRebuild();
                             },
                           ),
                         ),
