@@ -147,6 +147,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
           return NotificationListener<ScrollMetricsNotification>(
             onNotification: (notification) {
               if (_resuming) _applyResumeJump(images.length);
+              _updateProgress();
               return false;
             },
             child: NotificationListener<ScrollNotification>(
@@ -560,6 +561,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       _chapterId = chapterId;
       _page = 0;
     });
+    _progress.value = 0;
     _recordHistory();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
