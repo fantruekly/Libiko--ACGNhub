@@ -43,7 +43,7 @@ class _ResolveDialogState extends State<_ResolveDialog> {
   bool _closed = false;
 
   void _finish(MediaCandidate? stream, {required bool completed}) {
-    if (_closed) return;
+    if (_closed || !mounted) return;
     _closed = true;
     if (completed) widget.onCompleted();
     Navigator.of(context).pop(stream);

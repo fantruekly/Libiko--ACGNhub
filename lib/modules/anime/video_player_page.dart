@@ -273,6 +273,12 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _player.setRate(1.0);
   }
 
+  void _persistVolumeState() {
+    unawaited(AppDatabase().setString('anime_player_volume', _volume.toString()));
+    unawaited(
+        AppDatabase().setString('anime_player_muted', _muted ? '1' : '0'));
+  }
+
   void _setVolume(double value) {
     final v = value.clamp(0.0, 100.0).toDouble();
     setState(() {
@@ -280,14 +286,15 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (v > 0) _muted = false;
     });
     _player.setVolume(_muted ? 0 : _volume);
-    unawaited(AppDatabase().setString('anime_player_volume', _volume.toString()));
+    _persistVolumeState();
+    _showControls();
   }
 
   void _toggleMute() {
     setState(() => _muted = !_muted);
     _player.setVolume(_muted ? 0 : _volume);
-    unawaited(
-        AppDatabase().setString('anime_player_muted', _muted ? '1' : '0'));
+    _persistVolumeState();
+    _showControls();
   }
 
   @override
