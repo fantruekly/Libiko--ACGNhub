@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/account/account_service.dart';
 import 'core/account/sync_service.dart';
 import 'core/platform.dart';
+import 'core/services/update_service.dart';
 import 'core/storage/database.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode.dart';
@@ -51,6 +54,30 @@ class LibikoApp extends ConsumerStatefulWidget {
 }
 
 class _LibikoAppState extends ConsumerState<LibikoApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+  }
+
+  Future<void> _checkForUpdate() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final update = await UpdateService().check(info.version);
+      if (update == null || !mounted) return;
+      appMessengerKey.currentState?.showSnackBar(SnackBar(
+        content: Text('发现新版本 v${update.version}'),
+        action: SnackBarAction(
+          label: '查看',
+          onPressed: () => launchUrl(Uri.parse(update.url),
+              mode: LaunchMode.externalApplication),
+        ),
+      ));
+    } catch (_) {
+      // Silent: an update check must not disturb startup.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
