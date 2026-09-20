@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// A thin vertical position indicator: a track with a draggable thumb whose
-/// position reflects [progress] (0..1). Tapping or dragging reports the
-/// vertical fraction via [onSeek].
+/// A thin vertical position indicator: a draggable thumb whose position
+/// reflects [progress] (0..1). Tapping or dragging reports the vertical
+/// fraction via [onSeek].
 class ReaderProgressBar extends StatelessWidget {
   final double progress;
   final Color thumbColor;

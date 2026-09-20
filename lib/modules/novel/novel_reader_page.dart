@@ -122,7 +122,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
           ),
           if (_chromeVisible) _topBar(palette),
           if (_chromeVisible) _bottomBar(palette, chapters, index),
-          _progressBar(palette),
+          _progressBar(),
         ],
       ),
     );
@@ -284,7 +284,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
     );
   }
 
-  Widget _progressBar(_Palette palette) {
+  Widget _progressBar() {
     final insets = MediaQuery.paddingOf(context);
     final topBar = 56 + (isDesktop ? 0.0 : insets.top);
     final bottomBar = 64 + (isDesktop ? 0.0 : insets.bottom);

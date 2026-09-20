@@ -79,5 +79,10 @@ void main() {
     final box = tester.getSize(find.byKey(const ValueKey('page-box-0')));
     expect(box.height, closeTo(800, 1));
     expect(box.width, closeTo(1000, 1));
+
+    final image = tester.widget<Image>(find.descendant(
+        of: find.byKey(const ValueKey('page-box-0')),
+        matching: find.byType(Image)));
+    expect(image.fit, BoxFit.contain);
   });
 }
