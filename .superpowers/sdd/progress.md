@@ -1037,3 +1037,20 @@ Final whole-branch review (7e93a97..0dd1a0e): 'With fixes'. 2 Important: (1) per
 Fix 53edcfc (re-review clean): removed comicSearchTimeout + .timeout(); single-source failure now '<源名> 搜索失败' + widget test. Full suite 460 pass / 1 skip; analyze clean.
 Deferred Minors: _FakeManager builds a real Dio/JsEngine superclass; no timeout-path test (moot now); all-empty hides per-source status rows; any()+firstWhere double pass; jm guard test is text-presence only; jm empty catch swallows network errors; loadComicById omits subtitle/tags; stale _selectedSourceKey not nulled; jm guard test uses a relative path.
 Comic search by source: implementation COMPLETE (7e93a97..53edcfc).
+
+## UI polish round (plan docs/superpowers/plans/2026-09-20-ui-polish-round.md, base 414a60f)
+
+Task 1 (player volume): complete (commit 414a60f..4a838b1, review clean; 3 Minor deferred: per-tick DB writes; page-level volume behavior untested; findsWidgets icon assertion).
+Task 2 (cancellable resolve dialog): complete (commits 4a838b1..b445475, review clean after fix b445475; note: the predicted race does not manifest on Flutter 3.35.7, the _closed guard is defensive hardening). Minor deferred: _finish dropped the !mounted guard (potential throw on non-pop disposal); regression test is non-discriminating.
+Task 3 (collapsible more-results): complete (commit b445475..b909821, review clean; 2 Minor deferred: _searchAllSources doesn't reset _moreOpen; selected alternative chip stays visible).
+Task 4 (ButtonGrid desktop): complete (commit b909821..349d164, review clean; justified deviation: test needed setSurfaceSize(1000x600) because the default test surface is 800x600; plan doc patched). 2 Minor deferred: children<columns path untested; very narrow desktop squeezes buttons.
+Task 5 (thinner novel progress bar): complete (commit 349d164..5957988, review clean; 1 Minor deferred: _thumbWidth=7 not asserted by the test).
+Task 6 (sidebar hover): complete (commit 5957988..d2b376c, review clean; 2 Minor deferred: onExit/disappearance untested; selected-item hover suppression unasserted).
+Task 7 (collapsible tags): complete (commits d2b376c..57fd269, review clean after 2 fixes: 0de980d cap+ellipsize; 57fd269 discriminating ComicDetailPage integration test with RED/GREEN). 2 Minor deferred: widget-level cap test non-discriminating (Wrap already bounds); _chipWidth cap + ConstrainedBox redundant.
+Task 8 (comic detail skeleton): complete (commit 57fd269..608eab7, review clean; 2 Minor deferred: narrow chapter-wrap placeholders; no test asserting the skeleton is wired into the page loading state).
+Task 9 (verification): controller-run. analyze clean; full test 472 passed / 1 skipped; Windows release build OK. Interactive verification of all 8 items is MUST-VERIFY (human).
+Final whole-branch review (414a60f..608eab7): 'With fixes'. 3 Important: (1) mute not persisted on auto-unmute -> restart resurrects mute; (2) volume panel can fade mid-adjustment (hide timer not reset); (3) resolve_dialog _finish dropped the !mounted guard.
+Fix e889785 (re-review clean): _persistVolumeState() writes both keys, called from _setVolume/_toggleMute; both call _showControls(); restored 'if (_closed || !mounted) return'. Full suite 472 pass / 1 skip; analyze clean.
+Deferred Minors: volume persistence path has no regression test (page not unit-testable due to native Player); per-tick DB write; sidebar hover doesn't brighten icon/text; reader hit target 18px; ButtonGrid infinite-width guard + children<columns test; _moreOpen not reset in _searchAllSources; selected alternative chip stays; skeleton 150px placeholders + no wiring test.
+UI polish round: implementation COMPLETE (414a60f..e889785). MUST-VERIFY (human): interactive checks for all 8 items on Windows.
+
