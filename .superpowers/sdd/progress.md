@@ -1054,3 +1054,14 @@ Fix e889785 (re-review clean): _persistVolumeState() writes both keys, called fr
 Deferred Minors: volume persistence path has no regression test (page not unit-testable due to native Player); per-tick DB write; sidebar hover doesn't brighten icon/text; reader hit target 18px; ButtonGrid infinite-width guard + children<columns test; _moreOpen not reset in _searchAllSources; selected alternative chip stays; skeleton 150px placeholders + no wiring test.
 UI polish round: implementation COMPLETE (414a60f..e889785). MUST-VERIFY (human): interactive checks for all 8 items on Windows.
 
+
+## Reader/player polish round (plan docs/superpowers/plans/2026-09-20-reader-player-polish.md, base cc9c52f)
+
+Task 1 (compact volume panel): complete (commit cc9c52f..5a9feed, review clean; 1 Minor deferred: fixed right:40 is not pixel-perfect at all widths).
+Task 2 (desktop comic height-fit): complete (commit 5a9feed..d92dd3d, review clean; 4 Minor deferred: test platform-coupled to isDesktop; desktop still computes unused ratio; resize can jump scroll; redundant SizedBox width infinity).
+Task 3 (novel progress bar): complete (commit d92dd3d..4a42234, review clean; 2 Minor deferred: _progressBar palette param now unused; ReaderProgressBar doc still says 'a track').
+Task 4 (verification): controller-run. analyze clean; full test 474 passed / 1 skipped; Windows release build OK. Interactive verification is MUST-VERIFY (human).
+Final whole-branch review (cc9c52f..4a42234): 'Ready to merge? Yes'. No Critical/Important; 7 Minors all deferred.
+Cleanup a38cf79: removed unused _progressBar palette param; fixed the stale ReaderProgressBar doc comment; pinned the desktop comic fit assertion (BoxFit.contain). Full suite 474 pass / 1 skip; analyze clean.
+Reader/player polish round: implementation COMPLETE (cc9c52f..a38cf79). MUST-VERIFY (human): volume panel look; desktop comic height-fit (continuous + flip); novel progress bar fade with chrome.
+
