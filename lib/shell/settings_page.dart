@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,11 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../core/services/cache_manager.dart';
 import '../core/services/update_service.dart';
 import '../core/theme/theme_mode.dart';
+import '../core/ui/open_url.dart';
 import 'source_hub_page.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -114,10 +115,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              if (update.url.isNotEmpty) {
-                launchUrl(Uri.parse(update.url),
-                    mode: LaunchMode.externalApplication);
-              }
+              unawaited(openExternalUrl(update.url));
             },
             child: const Text('去下载'),
           ),

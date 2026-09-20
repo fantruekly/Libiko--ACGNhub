@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/account/account_service.dart';
 import 'core/account/sync_service.dart';
@@ -14,6 +13,7 @@ import 'core/storage/database.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode.dart';
 import 'core/ui/app_messenger.dart';
+import 'core/ui/open_url.dart';
 import 'shell/main_shell.dart';
 
 void main() async {
@@ -69,8 +69,7 @@ class _LibikoAppState extends ConsumerState<LibikoApp> {
         content: Text('发现新版本 v${update.version}'),
         action: SnackBarAction(
           label: '查看',
-          onPressed: () => launchUrl(Uri.parse(update.url),
-              mode: LaunchMode.externalApplication),
+          onPressed: () => unawaited(openExternalUrl(update.url)),
         ),
       ));
     } catch (_) {

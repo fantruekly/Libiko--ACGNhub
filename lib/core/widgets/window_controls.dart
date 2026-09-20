@@ -117,7 +117,7 @@ class _WindowButtonState extends State<WindowButton> {
         : (widget.foregroundColor ??
             (Theme.of(context).brightness == Brightness.dark
                 ? Colors.white
-                : Colors.black87));
+                : const Color(0xFF1C1C1E).withValues(alpha: 0.55)));
 
     return Tooltip(
       message: widget.tooltip,
