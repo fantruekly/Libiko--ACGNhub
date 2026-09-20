@@ -1079,3 +1079,6 @@ Root cause: StreamResolver._verify returned the candidate even when NO header va
 Fix 3b5f3c4: _verify returns null when unreachable; _maxAttempts 2->3 with a 500ms delay between attempts; +2 resolver tests (unreachable -> null; retry -> later reachable candidate). Full suite 484 pass / 1 skip; analyze clean.
 Kept: [StreamResolver] verify ok/FAILED and [Player] error logs.
 
+Follow-up (user retest of 3b5f3c4): the verify probe is TRANSIENT - the same URL failed the probe on click 1 (showed '无法解析') and passed on click 2, yet mpv still failed. So gating on the probe is wrong (false negatives).
+Fix 5bb4394: reverted the _verify gating (returns the candidate again; probe only picks the header variant) and added bounded automatic playback retry in the player (on error -> re-resolve + reopen, up to 2 times, 1s apart; reset on episode change / playback start / manual retry). Kept _maxAttempts=3 + 500ms delay for null-extraction retries. Full suite 482 pass / 1 skip; analyze clean.
+
