@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../core/video/cancellation.dart';
-import '../../core/video/headless_browser.dart';
+import '../../core/video/stream_resolver.dart';
 
-typedef ResolveDialogResult = ({MediaCandidate? stream, bool cancelled});
+typedef ResolveDialogResult = ({ResolveResult? result, bool cancelled});
 
 /// Shows a cancellable spinner while [resolve] runs.
 ///
-/// Returns the resolved stream; [ResolveDialogResult.cancelled] is true when the
+/// Returns the resolve result; [ResolveDialogResult.cancelled] is true when the
 /// user dismissed the dialog (button / barrier / back) before it finished, in
 /// which case [cancel] is triggered and the caller should stop.
 Future<ResolveDialogResult> showResolveDialog(
   BuildContext context, {
-  required Future<MediaCandidate?> resolve,
+  required Future<ResolveResult> resolve,
   required CancellationToken cancel,
 }) async {
   var completed = false;
-  final stream = await showDialog<MediaCandidate?>(
+  final result = await showDialog<ResolveResult>(
     context: context,
     barrierDismissible: true,
     builder: (_) => _ResolveDialog(
@@ -26,11 +26,11 @@ Future<ResolveDialogResult> showResolveDialog(
   );
   final cancelled = !completed;
   if (cancelled) cancel.cancel();
-  return (stream: stream, cancelled: cancelled);
+  return (result: result, cancelled: cancelled);
 }
 
 class _ResolveDialog extends StatefulWidget {
-  final Future<MediaCandidate?> resolve;
+  final Future<ResolveResult> resolve;
   final VoidCallback onCompleted;
 
   const _ResolveDialog({required this.resolve, required this.onCompleted});
@@ -42,18 +42,18 @@ class _ResolveDialog extends StatefulWidget {
 class _ResolveDialogState extends State<_ResolveDialog> {
   bool _closed = false;
 
-  void _finish(MediaCandidate? stream, {required bool completed}) {
+  void _finish(ResolveResult? result, {required bool completed}) {
     if (_closed || !mounted) return;
     _closed = true;
     if (completed) widget.onCompleted();
-    Navigator.of(context).pop(stream);
+    Navigator.of(context).pop(result);
   }
 
   @override
   void initState() {
     super.initState();
     widget.resolve.then(
-      (stream) => _finish(stream, completed: true),
+      (result) => _finish(result, completed: true),
       onError: (_) => _finish(null, completed: true),
     );
   }

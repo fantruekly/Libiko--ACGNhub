@@ -723,7 +723,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Future<void> _playEpisode(VideoEpisode ep) async {
     final messenger = ScaffoldMessenger.of(context);
     final cancel = CancellationToken();
-    final result = await showResolveDialog(
+    final outcome = await showResolveDialog(
       context,
       resolve: StreamResolver().resolve(ep.playUrl,
           userAgent: ep.userAgent,
@@ -732,8 +732,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           cancel: cancel),
       cancel: cancel,
     );
-    if (!mounted || result.cancelled) return;
-    final stream = result.stream;
+    if (!mounted || outcome.cancelled) return;
+    final stream = outcome.result?.candidate;
     if (stream == null) {
       messenger.showSnackBar(SnackBar(
         content: const Text('无法解析播放地址，请尝试其他线路或源'),

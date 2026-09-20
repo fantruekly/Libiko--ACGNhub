@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,18 @@ import 'cancellation.dart';
 import 'headless_browser.dart';
 import 'maccms.dart';
 import 'webview_scraper.dart';
+
+enum ResolveFailure { notFound, timeout, loadFailed, network, unknown }
+
+class ResolveResult {
+  final MediaCandidate? candidate;
+  final ResolveFailure? failure;
+
+  const ResolveResult.success(MediaCandidate this.candidate) : failure = null;
+  const ResolveResult.failed(ResolveFailure this.failure) : candidate = null;
+
+  bool get ok => candidate != null;
+}
 
 /// Resolves a video source's play page to a playable stream: the page is loaded
 /// in a hidden browser and the app waits for it to request the media stream. The
@@ -23,7 +36,7 @@ class StreamResolver {
   static const int _maxAttempts = 3;
   static const Duration _retryDelay = Duration(milliseconds: 500);
 
-  Future<MediaCandidate?> resolve(
+  Future<ResolveResult> resolve(
     String playPageUrl, {
     Duration timeout = const Duration(seconds: 15),
     String? userAgent,
@@ -31,9 +44,12 @@ class StreamResolver {
     bool legacy = false,
     CancellationToken? cancel,
   }) async {
+    var lastFailure = ResolveFailure.unknown;
     for (var attempt = 0; attempt < _maxAttempts; attempt++) {
-      if (cancel?.isCancelled ?? false) return null;
-      final candidate = await _resolveOnce(
+      if (cancel?.isCancelled ?? false) {
+        return const ResolveResult.failed(ResolveFailure.unknown);
+      }
+      final result = await _resolveOnce(
         playPageUrl,
         timeout: timeout,
         userAgent: userAgent,
@@ -41,16 +57,17 @@ class StreamResolver {
         legacy: legacy,
         cancel: cancel,
       );
-      if (candidate != null) return candidate;
+      if (result.ok) return result;
+      lastFailure = result.failure ?? ResolveFailure.unknown;
       if (attempt + 1 < _maxAttempts) {
         debugPrint('[StreamResolver] retrying $playPageUrl');
         await Future<void>.delayed(_retryDelay);
       }
     }
-    return null;
+    return ResolveResult.failed(lastFailure);
   }
 
-  Future<MediaCandidate?> _resolveOnce(
+  Future<ResolveResult> _resolveOnce(
     String playPageUrl, {
     required Duration timeout,
     String? userAgent,
@@ -64,9 +81,13 @@ class StreamResolver {
       referer: referer,
       timeout: const Duration(seconds: 4),
     );
-    if (direct != null) return _verify(direct);
+    if (direct != null) {
+      return ResolveResult.success(await _verify(direct));
+    }
 
-    if (cancel?.isCancelled ?? false) return null;
+    if (cancel?.isCancelled ?? false) {
+      return const ResolveResult.failed(ResolveFailure.unknown);
+    }
 
     final cancelled = Completer<MediaCandidate?>();
     void onCancel() {
@@ -76,6 +97,8 @@ class StreamResolver {
 
     final browser = createHeadlessBrowser();
     StreamSubscription<MediaCandidate>? sub;
+    ResolveFailure? loadFailure;
+    var timedOut = false;
     try {
       await browser.start(
         userAgent: userAgent ?? kBrowserUserAgent,
@@ -93,6 +116,7 @@ class StreamResolver {
           await browser.load(playPageUrl, timeout: timeout);
         } catch (e) {
           debugPrint('[StreamResolver] load failed for $playPageUrl: $e');
+          loadFailure = _failureOf(e, fallback: ResolveFailure.loadFailed);
           if (!grace.isCompleted) grace.complete();
           return;
         }
@@ -105,13 +129,18 @@ class StreamResolver {
         cancelled.future,
       ]).timeout(const Duration(seconds: 10), onTimeout: () {
         debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');
+        timedOut = true;
         return null;
       });
       debugPrint('[StreamResolver] resolved=${candidate?.url}');
-      return candidate == null ? null : _verify(candidate);
+      if (candidate == null) {
+        return ResolveResult.failed(loadFailure ??
+            (timedOut ? ResolveFailure.timeout : ResolveFailure.notFound));
+      }
+      return ResolveResult.success(await _verify(candidate));
     } catch (e) {
       debugPrint('[StreamResolver] failed for $playPageUrl: $e');
-      return null;
+      return ResolveResult.failed(_failureOf(e));
     } finally {
       cancel?.removeListener(onCancel);
       try {
@@ -123,11 +152,19 @@ class StreamResolver {
     }
   }
 
+  ResolveFailure _failureOf(Object e,
+      {ResolveFailure fallback = ResolveFailure.unknown}) {
+    if (e is SocketException || e is TimeoutException || e is DioException) {
+      return ResolveFailure.network;
+    }
+    return fallback;
+  }
+
   /// Picks the header variant the player can actually use, falling back to the
   /// candidate's own headers when none probes as reachable (the probe is a
   /// transient reachability check, not a guarantee the player can play it, so a
   /// failed probe must not discard the candidate).
-  Future<MediaCandidate?> _verify(MediaCandidate candidate) async {
+  Future<MediaCandidate> _verify(MediaCandidate candidate) async {
     for (final headers in _headerVariants(candidate.headers)) {
       if (await _reachable(candidate.url, headers)) {
         debugPrint(

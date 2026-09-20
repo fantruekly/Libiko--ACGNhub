@@ -58,7 +58,8 @@ void main() {
       dio: dio,
     );
     final result = await resolver.resolve('https://page/play');
-    expect(result?.url, 'https://cdn.test/x/index.m3u8');
+    expect(result.ok, isTrue);
+    expect(result.candidate?.url, 'https://cdn.test/x/index.m3u8');
   });
 
   test('drops the Referer when the candidate only works without it',
@@ -75,8 +76,9 @@ void main() {
 
     final result = await resolver.resolve('https://page/play');
 
-    expect(result?.url, 'https://cdn.test/x.m3u8');
-    expect(result?.headers['Referer'], isNull);
-    expect(result?.headers['User-Agent'], 'UA');
+    expect(result.ok, isTrue);
+    expect(result.candidate?.url, 'https://cdn.test/x.m3u8');
+    expect(result.candidate?.headers['Referer'], isNull);
+    expect(result.candidate?.headers['User-Agent'], 'UA');
   });
 }
