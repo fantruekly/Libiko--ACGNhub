@@ -56,7 +56,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   int _searchGen = 0;
   int _searchSeq = 0;
   VideoItem? _expandedItem;
-  bool _moreOpen = true;
+  bool _moreOpen = false;
   VideoSource? _expandedSource;
   List<VideoEpisode>? _episodes;
   bool _episodesLoading = false;
@@ -685,13 +685,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         _episodes = null;
         _episodesError = null;
         _episodesLoading = false;
-        _moreOpen = true;
+        _moreOpen = false;
       });
       return;
     }
     setState(() {
       _expandedItem = item;
-      _moreOpen = true;
+      _moreOpen = false;
     });
     await _loadEpisodes(item, source);
   }
