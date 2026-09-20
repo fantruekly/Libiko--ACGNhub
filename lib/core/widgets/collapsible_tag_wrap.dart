@@ -33,7 +33,7 @@ class CollapsibleTagWrap extends StatefulWidget {
 class _CollapsibleTagWrapState extends State<CollapsibleTagWrap> {
   bool _expanded = false;
 
-  double _chipWidth(BuildContext context, String tag) {
+  double _chipWidth(BuildContext context, String tag, double maxWidth) {
     final painter = TextPainter(
       text: TextSpan(text: tag, style: widget.labelStyle),
       maxLines: 1,
@@ -42,7 +42,7 @@ class _CollapsibleTagWrapState extends State<CollapsibleTagWrap> {
     )..layout();
     final width = painter.width + widget.chipHorizontalPadding;
     painter.dispose();
-    return width;
+    return width > maxWidth ? maxWidth : width;
   }
 
   int _fitCount(List<double> widths, double maxWidth) {
@@ -69,8 +69,9 @@ class _CollapsibleTagWrapState extends State<CollapsibleTagWrap> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final widths = [for (final t in widget.tags) _chipWidth(context, t)];
-        final fit = _fitCount(widths, constraints.maxWidth);
+        final maxW = constraints.maxWidth;
+        final widths = [for (final t in widget.tags) _chipWidth(context, t, maxW)];
+        final fit = _fitCount(widths, maxW);
         final fitsAll = fit >= widget.tags.length;
         final count = (_expanded || fitsAll) ? widget.tags.length : fit;
         final shown = widget.tags.take(count).toList();
@@ -80,7 +81,13 @@ class _CollapsibleTagWrapState extends State<CollapsibleTagWrap> {
             Wrap(
               spacing: widget.spacing,
               runSpacing: widget.runSpacing,
-              children: [for (final t in shown) widget.chipBuilder(t)],
+              children: [
+                for (final t in shown)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxW),
+                    child: widget.chipBuilder(t),
+                  ),
+              ],
             ),
             if (!fitsAll)
               GestureDetector(

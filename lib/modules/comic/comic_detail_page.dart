@@ -273,6 +273,8 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           color: cs.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(6)),
       child: Text(label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.w600, color: cs.primary)),
     );

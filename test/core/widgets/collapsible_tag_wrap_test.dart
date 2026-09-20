@@ -13,8 +13,10 @@ Widget _host(List<String> tags, double width) => MaterialApp(
               tags: tags,
               labelStyle: _style,
               chipBuilder: (tag) => Container(
+                key: ValueKey('chip-$tag'),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                child: Text(tag, style: _style),
+                child: Text(tag,
+                    style: _style, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ),
           ),
@@ -39,5 +41,14 @@ void main() {
   testWidgets('short tag lists show no toggle', (tester) async {
     await tester.pumpWidget(_host(const ['a', 'b'], 400));
     expect(find.byKey(const ValueKey('tags-toggle')), findsNothing);
+  });
+
+  testWidgets('a single very long tag is capped to the available width',
+      (tester) async {
+    const long = '这是一个非常非常非常非常非常非常长的标签内容';
+    await tester.pumpWidget(_host(const [long], 150));
+    final chip = tester.getSize(find.byKey(const ValueKey('chip-$long')));
+    expect(chip.width, lessThanOrEqualTo(150));
+    expect(tester.takeException(), isNull);
   });
 }
