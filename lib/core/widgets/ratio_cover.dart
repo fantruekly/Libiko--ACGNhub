@@ -22,6 +22,10 @@ class RatioCover extends StatefulWidget {
   final bool? enabled;
   final CoverRatioCache? cache;
   final Duration fadeInDuration;
+  @visibleForTesting
+  final ImageProvider Function(
+          String url, int width, Map<String, String>? headers)?
+      providerBuilder;
 
   const RatioCover({
     super.key,
@@ -32,6 +36,7 @@ class RatioCover extends StatefulWidget {
     this.enabled,
     this.cache,
     this.fadeInDuration = Duration.zero,
+    this.providerBuilder,
   });
 
   @override
@@ -43,6 +48,8 @@ class _RatioCoverState extends State<RatioCover> {
   bool _resolved = false;
   ImageProvider? _provider;
   int _providerWidth = 0;
+  int _retry = 0;
+  bool _retryScheduled = false;
   ImageStream? _stream;
   ImageStreamListener? _listener;
 
@@ -68,6 +75,8 @@ class _RatioCoverState extends State<RatioCover> {
     _resolved = false;
     _provider = null;
     _providerWidth = 0;
+    _retry = 0;
+    _retryScheduled = false;
     if (!_active) return;
     _loadCached();
   }
@@ -87,12 +96,13 @@ class _RatioCoverState extends State<RatioCover> {
     _providerWidth = width;
     _provider = url.isEmpty
         ? null
-        : CachedNetworkImageProvider(
-            url,
-            maxWidth: width,
-            cacheManager: AppCacheManager(),
-            headers: widget.httpHeaders,
-          );
+        : (widget.providerBuilder?.call(url, width, widget.httpHeaders) ??
+            CachedNetworkImageProvider(
+              url,
+              maxWidth: width,
+              cacheManager: AppCacheManager(),
+              headers: widget.httpHeaders,
+            ));
     if (_active) _listenForSize();
   }
 
@@ -126,6 +136,24 @@ class _RatioCoverState extends State<RatioCover> {
     );
     _listener = listener;
     _stream = provider.resolve(ImageConfiguration.empty)..addListener(listener);
+  }
+
+  void _onImageError() {
+    if (_retryScheduled || _retry >= 2) return;
+    _retryScheduled = true;
+    _retry++;
+    final url = _url;
+    final delay = Duration(milliseconds: 400 * _retry);
+    Future<void>.delayed(delay, () {
+      if (!mounted || url != _url) return;
+      _retryScheduled = false;
+      _provider?.evict();
+      unawaited(AppCacheManager().removeFile(url).catchError((Object _) {}));
+      _stopListening();
+      _provider = null;
+      _providerWidth = 0;
+      setState(() {});
+    });
   }
 
   void _measure(ImageInfo info) {
@@ -193,11 +221,14 @@ class _RatioCoverState extends State<RatioCover> {
         final Widget image = provider == null
             ? widget.placeholderBuilder(context)
             : Image(
+                key: ValueKey(_retry),
                 image: provider,
                 fit: BoxFit.cover,
                 frameBuilder: _frameBuilder,
-                errorBuilder: (context, _, __) =>
-                    widget.placeholderBuilder(context),
+                errorBuilder: (context, _, __) {
+                  _onImageError();
+                  return widget.placeholderBuilder(context);
+                },
               );
 
         final framed = ClipRRect(

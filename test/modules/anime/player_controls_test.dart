@@ -12,6 +12,8 @@ Widget _host({
   VoidCallback? onTogglePlay,
   VoidCallback? onToggleFullscreen,
   VoidCallback? onToggleEpisodes,
+  VoidCallback? onNextEpisode,
+  bool hasNext = true,
 }) {
   return MaterialApp(
     theme: buildAppTheme(),
@@ -28,6 +30,8 @@ Widget _host({
         onSeek: onSeek ?? (_) {},
         onToggleFullscreen: onToggleFullscreen ?? () {},
         onToggleEpisodes: onToggleEpisodes ?? () {},
+        onNextEpisode: onNextEpisode ?? () {},
+        hasNext: hasNext,
       ),
     ),
   );
@@ -70,12 +74,13 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('player-back')));
     await tester.tap(find.byKey(const ValueKey('player-center-play')));
+    await tester.tap(find.byKey(const ValueKey('player-play')));
     await tester.tap(find.byKey(const ValueKey('player-fullscreen')));
     await tester.tap(find.byKey(const ValueKey('player-episodes')));
     await tester.pump();
 
     expect(back, 1);
-    expect(play, 1);
+    expect(play, 2);
     expect(fullscreen, 1);
     expect(episodes, 1);
   });
@@ -89,11 +94,25 @@ void main() {
 
   testWidgets('shows the pause icon while playing', (tester) async {
     await tester.pumpWidget(_host(playing: true));
-    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.pause_rounded), findsNWidgets(2));
   });
 
   testWidgets('shows the play icon while paused', (tester) async {
     await tester.pumpWidget(_host(playing: false));
-    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsNWidgets(2));
+  });
+
+  testWidgets('next button fires and disables without a next episode',
+      (tester) async {
+    var next = 0;
+    await tester.pumpWidget(_host(hasNext: true, onNextEpisode: () => next++));
+    await tester.tap(find.byKey(const ValueKey('player-next')));
+    await tester.pump();
+    expect(next, 1);
+
+    await tester.pumpWidget(_host(hasNext: false));
+    final button = tester.widget<IconButton>(
+        find.byKey(const ValueKey('player-next')));
+    expect(button.onPressed, isNull);
   });
 }

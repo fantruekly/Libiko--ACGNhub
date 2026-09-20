@@ -123,8 +123,7 @@ class _BarItemState extends State<_BarItem>
             margin: const EdgeInsets.symmetric(vertical: 6),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
-              color: Color.lerp(Colors.transparent,
-                  cs.secondaryContainer.withValues(alpha: t), t),
+              color: cs.secondaryContainer.withValues(alpha: t),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(

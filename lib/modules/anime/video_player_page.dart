@@ -58,6 +58,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   Timer? _hideTimer;
   String? _seekFeedback;
   Timer? _seekFeedbackTimer;
+  Duration? _dragSeekTarget;
+  Duration _dragSeekStart = Duration.zero;
+  int _dragSeekPx = 0;
   final _resolveCancel = CancellationToken();
 
   @override
@@ -141,8 +144,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _resolving = false;
         _currentIndex = previous;
       });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('无法解析播放地址，请尝试其他线路或源')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('无法解析播放地址，请尝试其他线路或源'),
+        action: SnackBarAction(
+          label: '重试',
+          onPressed: () => _playIndex(i),
+        ),
+      ));
       return;
     }
     setState(() => _resolving = false);
@@ -183,6 +191,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _showControls();
   }
 
+  void _nextEpisode() {
+    if (_currentIndex + 1 >= widget.episodes.length) return;
+    _playIndex(_currentIndex + 1);
+  }
+
   void _seekRelative(int seconds) {
     final target = seekTarget(_position, seconds, _duration);
     _player.seek(target);
@@ -205,6 +218,42 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       case TapZone.center:
         _togglePlay();
     }
+  }
+
+  void _onDragSeekStart(DragStartDetails details) {
+    if (_duration.inMilliseconds <= 0) return;
+    _dragSeekStart = _position;
+    _dragSeekPx = 0;
+    _dragSeekTarget = _position;
+    _showControls();
+    setState(() {});
+  }
+
+  void _onDragSeekUpdate(DragUpdateDetails details) {
+    if (_dragSeekTarget == null || _duration.inMilliseconds <= 0) return;
+    final width = MediaQuery.of(context).size.width;
+    if (width <= 0) return;
+    _dragSeekPx += details.delta.dx.round();
+    final deltaMs = (_dragSeekPx / width) * _duration.inMilliseconds;
+    final targetMs = (_dragSeekStart.inMilliseconds + deltaMs)
+        .clamp(0, _duration.inMilliseconds)
+        .round();
+    setState(() => _dragSeekTarget = Duration(milliseconds: targetMs));
+  }
+
+  void _onDragSeekEnd(DragEndDetails details) {
+    final target = _dragSeekTarget;
+    if (target != null) {
+      _player.seek(target);
+      setState(() => _position = target);
+    }
+    setState(() => _dragSeekTarget = null);
+    _scheduleHide();
+  }
+
+  void _onDragSeekCancel() {
+    if (_dragSeekTarget == null) return;
+    setState(() => _dragSeekTarget = null);
   }
 
   void _startBoost() {
@@ -278,6 +327,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           children: [
             Positioned.fill(child: _gestureArea()),
             if (_seekFeedback != null) _seekFeedbackOverlay(),
+            if (_dragSeekTarget != null) _dragSeekOverlay(),
             if (_rate != 1.0) _speedBadge(),
             if (_resolving)
               const Positioned.fill(
@@ -298,8 +348,21 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: Text('播放失败：$_error',
-                      style: const TextStyle(color: Colors.white70)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('播放失败：$_error',
+                          style: const TextStyle(color: Colors.white70)),
+                      TextButton(
+                        onPressed: () {
+                          if (_resolving) return;
+                          setState(() => _error = null);
+                          _playIndex(_currentIndex);
+                        },
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             if (_panelOpen) _episodePanel(),
@@ -326,7 +389,16 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         onLongPressCancel: () => _endBoost(),
         child: Stack(
           children: [
-            Positioned.fill(child: _video()),
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragStart: _onDragSeekStart,
+                onHorizontalDragUpdate: _onDragSeekUpdate,
+                onHorizontalDragEnd: _onDragSeekEnd,
+                onHorizontalDragCancel: _onDragSeekCancel,
+                child: _video(),
+              ),
+            ),
             Positioned.fill(
               child: IgnorePointer(
                 ignoring: !_controlsVisible,
@@ -352,6 +424,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                       setState(() => _panelOpen = !_panelOpen);
                       _showControls();
                     },
+                    onNextEpisode: _nextEpisode,
+                    hasNext: _currentIndex + 1 < widget.episodes.length,
                   ),
                 ),
               ),
@@ -385,6 +459,44 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dragSeekOverlay() {
+    final target = _dragSeekTarget!;
+    final delta = target - _dragSeekStart;
+    final sign = delta > Duration.zero
+        ? '+'
+        : (delta < Duration.zero ? '-' : '');
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  formatDuration(target),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$sign${delta.inSeconds.abs()} 秒',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
             ),
           ),
         ),
