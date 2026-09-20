@@ -86,4 +86,28 @@ void main() {
     final (_, bottomAtOne) = await gaps(1);
     expect(bottomAtOne, closeTo(0, 0.01));
   });
+
+  testWidgets('the bar is thin', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            height: 200,
+            child: ReaderProgressBar(
+              progress: 0.5,
+              trackColor: const Color(0x33000000),
+              thumbColor: const Color(0xFF0000FF),
+              onSeek: (_) {},
+            ),
+          ),
+        ),
+      ),
+    ));
+    final track =
+        tester.getRect(find.byKey(const ValueKey('reader-progress-track')));
+    final bar =
+        tester.getRect(find.byKey(const ValueKey('reader-progress-bar')));
+    expect(track.width, 3);
+    expect(bar.width, 18);
+  });
 }

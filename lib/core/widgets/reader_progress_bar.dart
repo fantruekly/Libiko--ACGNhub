@@ -18,9 +18,9 @@ class ReaderProgressBar extends StatelessWidget {
   });
 
   static const double _thumbHeight = 40;
-  static const double _trackWidth = 4;
-  static const double _thumbWidth = 10;
-  static const double _width = 24;
+  static const double _trackWidth = 3;
+  static const double _thumbWidth = 7;
+  static const double _width = 18;
 
   @override
   Widget build(BuildContext context) {
