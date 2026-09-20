@@ -10,6 +10,7 @@ import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/button_grid.dart';
+import '../../core/widgets/collapsible_tag_wrap.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
@@ -217,12 +218,11 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                   _favoriteButton(details),
                   const SizedBox(height: 14),
                   if (details.tags.isNotEmpty)
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final tag in details.tags) _tagChip(tag, cs),
-                      ],
+                    CollapsibleTagWrap(
+                      tags: details.tags,
+                      labelStyle: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600),
+                      chipBuilder: (tag) => _tagChip(tag, cs),
                     ),
                   const SizedBox(height: 10),
                   _description(details.description, cs),
