@@ -10,6 +10,7 @@ import '../../core/services/cache_manager.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/chip_nav.dart';
 import '../../core/widgets/pager_bar.dart';
 import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
@@ -141,28 +142,24 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                   final v = details.primaryVelocity ?? 0;
                   final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
                   if (delta == 0) return;
+                  final sourceIndex = sources.indexOf(selected);
+                  final next = stepChipSelection(
+                    a: sourceIndex,
+                    aMin: 0,
+                    aMax: sources.length - 1,
+                    b: section,
+                    bMin: 0,
+                    bMax: selected.sections.length - 1,
+                    c: part,
+                    cMin: 0,
+                    cMax: parts.length - 1,
+                    delta: delta,
+                  );
+                  if (next == null) return;
                   setState(() {
-                    if (parts.length > 1) {
-                      final next =
-                          (_selectedPart + delta).clamp(0, parts.length - 1);
-                      if (next == _selectedPart) return;
-                      _selectedPart = next;
-                    } else if (selected.sections.length > 1) {
-                      final next = (_selectedSection + delta)
-                          .clamp(0, selected.sections.length - 1);
-                      if (next == _selectedSection) return;
-                      _selectedSection = next;
-                      _selectedPart = 0;
-                    } else if (sources.length > 1) {
-                      final idx = sources.indexOf(selected);
-                      final next = (idx + delta).clamp(0, sources.length - 1);
-                      if (next == idx) return;
-                      _selectedKey = sources[next].key;
-                      _selectedSection = 0;
-                      _selectedPart = 0;
-                    } else {
-                      return;
-                    }
+                    _selectedKey = sources[next.a].key;
+                    _selectedSection = next.b;
+                    _selectedPart = next.c;
                     _page = 1;
                     _lastPage = null;
                   });
