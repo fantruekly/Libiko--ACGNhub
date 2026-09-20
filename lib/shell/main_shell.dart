@@ -24,6 +24,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final Set<int> _visited = {0};
   late final SidebarState _sidebarState;
 
   static const _titles = ['动漫', '漫画', '轻小说', '游戏'];
@@ -51,6 +52,13 @@ class _MainShellState extends State<MainShell> {
     _sidebarState.removeListener(_onSidebarChanged);
     _sidebarState.dispose();
     super.dispose();
+  }
+
+  void _select(int i) {
+    setState(() {
+      _currentIndex = i;
+      _visited.add(i);
+    });
   }
 
   void _openSettings() {
@@ -81,7 +89,7 @@ class _MainShellState extends State<MainShell> {
                     maxWidth: 72,
                     child: AppSidebar(
                       selectedIndex: _currentIndex,
-                      onChanged: (i) => setState(() => _currentIndex = i),
+                      onChanged: _select,
                       onSettingsTap: _openSettings,
                     ),
                   ),
@@ -90,7 +98,7 @@ class _MainShellState extends State<MainShell> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    for (var i = 0; i < _pages.length; i++)
+                    for (final i in _visited)
                       IgnorePointer(
                         ignoring: i != _currentIndex,
                         child: AnimatedOpacity(
@@ -116,7 +124,7 @@ class _MainShellState extends State<MainShell> {
           ? null
           : AppBottomBar(
               selectedIndex: _currentIndex,
-              onChanged: (i) => setState(() => _currentIndex = i),
+              onChanged: _select,
             ),
     );
   }

@@ -7,7 +7,7 @@ import 'package:libiko/shell/app_sidebar.dart';
 import 'package:libiko/shell/main_shell.dart';
 
 void main() {
-  testWidgets('switching modules cross-fades while keeping every page mounted',
+  testWidgets('switching modules cross-fades while keeping visited pages mounted',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
 
@@ -16,12 +16,9 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 100));
 
-    List<double> targetOpacity() => [
-          for (var i = 0; i < 4; i++)
-            tester
-                .widget<AnimatedOpacity>(find.byKey(ValueKey('module-page-$i')))
-                .opacity,
-        ];
+    double targetOpacity(int i) => tester
+        .widget<AnimatedOpacity>(find.byKey(ValueKey('module-page-$i')))
+        .opacity;
 
     double renderedOpacity(int i) => tester
         .widget<FadeTransition>(find
@@ -32,13 +29,14 @@ void main() {
         .opacity
         .value;
 
-    for (var i = 0; i < 4; i++) {
-      final animated = tester
-          .widget<AnimatedOpacity>(find.byKey(ValueKey('module-page-$i')));
-      expect(animated.duration, const Duration(milliseconds: 250));
-      expect(animated.curve, Curves.easeInOut);
+    final first = tester
+        .widget<AnimatedOpacity>(find.byKey(const ValueKey('module-page-0')));
+    expect(first.duration, const Duration(milliseconds: 250));
+    expect(first.curve, Curves.easeInOut);
+    expect(targetOpacity(0), 1.0);
+    for (var i = 1; i < 4; i++) {
+      expect(find.byKey(ValueKey('module-page-$i')), findsNothing);
     }
-    expect(targetOpacity(), [1.0, 0.0, 0.0, 0.0]);
 
     await tester.tap(find.descendant(
       of: find.byType(AppSidebar),
@@ -48,13 +46,34 @@ void main() {
     await tester.pump(const Duration(milliseconds: 125));
     expect(renderedOpacity(0), greaterThan(0.0));
     expect(renderedOpacity(0), lessThan(1.0));
-    expect(renderedOpacity(1), greaterThan(0.0));
-    expect(renderedOpacity(1), lessThan(1.0));
+    expect(renderedOpacity(1), 1.0);
 
     await tester.pump(const Duration(milliseconds: 300));
     expect(renderedOpacity(0), 0.0);
     expect(renderedOpacity(1), 1.0);
-    expect(targetOpacity(), [0.0, 1.0, 0.0, 0.0]);
+    expect(targetOpacity(0), 0.0);
+    expect(targetOpacity(1), 1.0);
+
+    await tester.tap(find.descendant(
+      of: find.byType(AppSidebar),
+      matching: find.text('动漫'),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 125));
+    expect(renderedOpacity(0), greaterThan(0.0));
+    expect(renderedOpacity(0), lessThan(1.0));
+    expect(renderedOpacity(1), greaterThan(0.0));
+    expect(renderedOpacity(1), lessThan(1.0));
+
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(renderedOpacity(0), 1.0);
+    expect(renderedOpacity(1), 0.0);
+
+    expect(find.byKey(const ValueKey('module-page-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('module-page-1')), findsOneWidget);
+    for (var i = 2; i < 4; i++) {
+      expect(find.byKey(ValueKey('module-page-$i')), findsNothing);
+    }
   });
 
   testWidgets('game tab exposes the search entry', (tester) async {
