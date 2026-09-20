@@ -162,56 +162,59 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                     MediaQuery.devicePixelRatioOf(context))
                 .round())
             .clamp(1, 1 << 20);
-    return SingleChildScrollView(
-      controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (chapter.title.isNotEmpty) ...[
-            Text(chapter.title,
-                style: TextStyle(
-                    fontSize: settings.fontSize + 4,
-                    fontWeight: FontWeight.w600,
-                    color: palette.fg)),
-            const SizedBox(height: 16),
-          ],
-          if (chapter.blocks.isEmpty)
-            Text('本章暂无内容',
-                style: TextStyle(
-                    fontSize: settings.fontSize,
-                    color: palette.fg.withValues(alpha: 0.5)))
-          else
-            for (final block in chapter.blocks)
-              switch (block) {
-                NovelText(:final text) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Text(text,
-                        style: TextStyle(
-                            fontSize: settings.fontSize,
-                            height: settings.lineHeight,
-                            color: palette.fg)),
-                  ),
-                NovelImage(:final url) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: SizedBox(
-                      height: _illustrationHeight(context),
-                      width: double.infinity,
-                      child: CachedNetworkImage(
-                        imageUrl: url,
-                        fit: BoxFit.contain,
-                        httpHeaders: novelImageHeaders,
-                        cacheManager: AppCacheManager(),
-                        memCacheWidth: imageWidth,
-                        placeholder: (_, __) => const Center(
-                            child: CircularProgressIndicator()),
-                        errorWidget: (_, __, ___) => const Center(
-                            child: Icon(Icons.broken_image_outlined)),
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: SingleChildScrollView(
+        controller: _scroll,
+        padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (chapter.title.isNotEmpty) ...[
+              Text(chapter.title,
+                  style: TextStyle(
+                      fontSize: settings.fontSize + 4,
+                      fontWeight: FontWeight.w600,
+                      color: palette.fg)),
+              const SizedBox(height: 16),
+            ],
+            if (chapter.blocks.isEmpty)
+              Text('本章暂无内容',
+                  style: TextStyle(
+                      fontSize: settings.fontSize,
+                      color: palette.fg.withValues(alpha: 0.5)))
+            else
+              for (final block in chapter.blocks)
+                switch (block) {
+                  NovelText(:final text) => Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Text(text,
+                          style: TextStyle(
+                              fontSize: settings.fontSize,
+                              height: settings.lineHeight,
+                              color: palette.fg)),
+                    ),
+                  NovelImage(:final url) => Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: SizedBox(
+                        height: _illustrationHeight(context),
+                        width: double.infinity,
+                        child: CachedNetworkImage(
+                          imageUrl: url,
+                          fit: BoxFit.contain,
+                          httpHeaders: novelImageHeaders,
+                          cacheManager: AppCacheManager(),
+                          memCacheWidth: imageWidth,
+                          placeholder: (_, __) => const Center(
+                              child: CircularProgressIndicator()),
+                          errorWidget: (_, __, ___) => const Center(
+                              child: Icon(Icons.broken_image_outlined)),
+                        ),
                       ),
                     ),
-                  ),
-              },
-        ],
+                },
+          ],
+        ),
       ),
     );
   }
