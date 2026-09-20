@@ -40,40 +40,52 @@ class _ResolveDialog extends StatefulWidget {
 }
 
 class _ResolveDialogState extends State<_ResolveDialog> {
-  void _close(MediaCandidate? stream) {
-    if (!mounted) return;
-    widget.onCompleted();
+  bool _closed = false;
+
+  void _finish(MediaCandidate? stream, {required bool completed}) {
+    if (_closed) return;
+    _closed = true;
+    if (completed) widget.onCompleted();
     Navigator.of(context).pop(stream);
   }
 
   @override
   void initState() {
     super.initState();
-    widget.resolve.then(_close, onError: (_) => _close(null));
+    widget.resolve.then(
+      (stream) => _finish(stream, completed: true),
+      onError: (_) => _finish(null, completed: true),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      key: const ValueKey('resolve-dialog'),
-      content: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.5)),
-          SizedBox(width: 16),
-          Text('正在解析播放地址…'),
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) _closed = true;
+      },
+      child: AlertDialog(
+        key: const ValueKey('resolve-dialog'),
+        content: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5)),
+            SizedBox(width: 16),
+            Text('正在解析播放地址…'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            key: const ValueKey('resolve-cancel'),
+            onPressed: () => _finish(null, completed: false),
+            child: const Text('取消'),
+          ),
         ],
       ),
-      actions: [
-        TextButton(
-          key: const ValueKey('resolve-cancel'),
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-      ],
     );
   }
 }

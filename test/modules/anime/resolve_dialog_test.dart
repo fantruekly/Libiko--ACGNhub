@@ -59,4 +59,27 @@ void main() {
     expect(result!.stream!.url, 'https://x/y.m3u8');
     expect(cancel.isCancelled, isFalse);
   });
+
+  testWidgets(
+      'a cancelled dialog does not pop the page when resolve later completes',
+      (tester) async {
+    final completer = Completer<MediaCandidate?>();
+    final cancel = CancellationToken();
+    ResolveDialogResult? result;
+    await tester.pumpWidget(_host(() => completer.future, cancel, (r) => result = r));
+    await tester.tap(find.text('go'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const ValueKey('resolve-cancel')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    // resolve completes after the user already cancelled
+    completer.complete(const MediaCandidate('https://x/y.m3u8'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    // the host page must still be present (the dialog did not pop it)
+    expect(find.text('go'), findsOneWidget);
+    expect(result!.cancelled, isTrue);
+    expect(result!.stream, isNull);
+  });
 }
