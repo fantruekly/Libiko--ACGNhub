@@ -79,6 +79,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _player.setVolume(_muted ? 0 : _volume);
     _controller = VideoController(_player);
     _subs.add(_player.stream.error.listen((e) {
+      debugPrint('[Player] error: $e');
       if (mounted) setState(() => _error = e);
     }));
     _subs.add(_player.stream.position.listen((p) {

@@ -20,7 +20,8 @@ class StreamResolver {
       : _maccms = maccms ?? MacCmsResolver(),
         _dio = dio ?? Dio();
 
-  static const int _maxAttempts = 2;
+  static const int _maxAttempts = 3;
+  static const Duration _retryDelay = Duration(milliseconds: 500);
 
   Future<MediaCandidate?> resolve(
     String playPageUrl, {
@@ -43,6 +44,7 @@ class StreamResolver {
       if (candidate != null) return candidate;
       if (attempt + 1 < _maxAttempts) {
         debugPrint('[StreamResolver] retrying $playPageUrl');
+        await Future<void>.delayed(_retryDelay);
       }
     }
     return null;
@@ -121,13 +123,20 @@ class StreamResolver {
     }
   }
 
+  /// Picks the header variant the player can actually use, or null when the
+  /// candidate is unreachable with every variant (so it is not handed to the
+  /// player as a known-dead URL; the caller retries instead).
   Future<MediaCandidate?> _verify(MediaCandidate candidate) async {
     for (final headers in _headerVariants(candidate.headers)) {
       if (await _reachable(candidate.url, headers)) {
+        debugPrint(
+            '[StreamResolver] verify ok ${candidate.url} headers=${headers.keys.toList()}');
         return MediaCandidate(candidate.url, headers: headers);
       }
     }
-    return candidate;
+    debugPrint(
+        '[StreamResolver] verify FAILED ${candidate.url} headers=${candidate.headers.keys.toList()}');
+    return null;
   }
 
   List<Map<String, String>> _headerVariants(Map<String, String> headers) {
