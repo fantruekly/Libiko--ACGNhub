@@ -201,7 +201,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
                             value: 'account', child: Text('账号')),
                       PopupMenuItem(
                         value: 'refresh',
-                        enabled: source.url.isNotEmpty,
+                        enabled: source.fileName.isNotEmpty,
                         child: const Text('刷新'),
                       ),
                       const PopupMenuItem(value: 'delete', child: Text('删除')),
