@@ -1,10 +1,11 @@
 import 'dart:convert';
+import 'dart:ui' show Brightness;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../storage/database.dart';
 
-enum NovelReaderTheme { light, sepia, dark }
+enum NovelReaderTheme { auto, light, sepia, dark }
 
 class NovelReaderSettings {
   final double fontSize;
@@ -14,7 +15,7 @@ class NovelReaderSettings {
   const NovelReaderSettings({
     this.fontSize = 17,
     this.lineHeight = 1.8,
-    this.theme = NovelReaderTheme.light,
+    this.theme = NovelReaderTheme.auto,
   });
 
   NovelReaderSettings copyWith({
@@ -38,7 +39,7 @@ class NovelReaderSettings {
             .toDouble(),
         theme: NovelReaderTheme.values.firstWhere(
           (t) => t.name == json['theme'],
-          orElse: () => NovelReaderTheme.light,
+          orElse: () => NovelReaderTheme.auto,
         ),
       );
 
@@ -92,3 +93,12 @@ class NovelReaderSettingsNotifier extends Notifier<NovelReaderSettings> {
 final novelReaderSettingsProvider =
     NotifierProvider<NovelReaderSettingsNotifier, NovelReaderSettings>(
         NovelReaderSettingsNotifier.new);
+
+/// Resolves [theme] against the app [brightness]; [NovelReaderTheme.auto]
+/// follows the app (dark/light).
+NovelReaderTheme resolveTheme(NovelReaderTheme theme, Brightness brightness) {
+  if (theme != NovelReaderTheme.auto) return theme;
+  return brightness == Brightness.dark
+      ? NovelReaderTheme.dark
+      : NovelReaderTheme.light;
+}

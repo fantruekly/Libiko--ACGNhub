@@ -21,14 +21,18 @@ class _Palette {
   final Color border;
   const _Palette(this.bg, this.fg, this.bar, this.border);
 
-  static _Palette of(NovelReaderTheme theme) => switch (theme) {
-        NovelReaderTheme.light => const _Palette(
-            Color(0xFFFFFFFF), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
-        NovelReaderTheme.sepia => const _Palette(
-            Color(0xFFF5EFE0), Color(0xFF3B3226), Color(0xFFEFE6D2), Color(0xFFE0D5BC)),
-        NovelReaderTheme.dark => const _Palette(
-            Color(0xFF1C1C1E), Color(0xFFD8D8DC), Color(0xFF2C2C2E), Color(0xFF3A3A3C)),
-      };
+  static _Palette of(NovelReaderTheme theme, Brightness brightness) {
+    return switch (resolveTheme(theme, brightness)) {
+      NovelReaderTheme.light => const _Palette(
+          Color(0xFFFFFFFF), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
+      NovelReaderTheme.sepia => const _Palette(
+          Color(0xFFF5EFE0), Color(0xFF3B3226), Color(0xFFEFE6D2), Color(0xFFE0D5BC)),
+      NovelReaderTheme.dark => const _Palette(
+          Color(0xFF1C1C1E), Color(0xFFD8D8DC), Color(0xFF2C2C2E), Color(0xFF3A3A3C)),
+      NovelReaderTheme.auto => const _Palette(
+          Color(0xFFFFFFFF), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
+    };
+  }
 }
 
 class NovelReaderPage extends ConsumerStatefulWidget {
@@ -87,7 +91,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(novelReaderSettingsProvider);
-    final palette = _Palette.of(settings.theme);
+    final palette =
+        _Palette.of(settings.theme, Theme.of(context).brightness);
     final chapters = _chapters();
     final async =
         ref.watch(novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)));
@@ -332,7 +337,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
   void _openCatalog(NovelDetail? detail) {
     final cs = Theme.of(context).colorScheme;
-    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
+    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme,
+        Theme.of(context).brightness);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -378,7 +384,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   }
 
   void _openSettings() {
-    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
+    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme,
+        Theme.of(context).brightness);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -457,6 +464,7 @@ class _ReaderSettingsSheet extends ConsumerWidget {
                   padding: const EdgeInsets.only(right: 10),
                   child: ChoiceChip(
                     label: Text(switch (t) {
+                      NovelReaderTheme.auto => '跟随App',
                       NovelReaderTheme.light => '浅色',
                       NovelReaderTheme.sepia => '米色',
                       NovelReaderTheme.dark => '深色',
