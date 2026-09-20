@@ -100,8 +100,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         .valueOrNull
         ?.where((s) => s.key == widget.sourceKey)
         .firstOrNull;
-    final needsLogin =
-        source != null && (source.hasLogin || source.hasCookieLogin);
+    final needsLogin = source != null && source.requireLogin;
     final logged = !needsLogin ||
         (ref.watch(comicLoginProvider(widget.sourceKey)).valueOrNull ?? false);
     return async.when(

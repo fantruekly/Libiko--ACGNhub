@@ -13,6 +13,7 @@ const _source = ComicSource(
   key: 'needlogin',
   version: '1.0.0',
   hasLogin: true,
+  requireLogin: true,
 );
 
 void main() {
