@@ -16,6 +16,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/tag_chip.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_account_dialog.dart';
 import 'comic_detail_skeleton.dart';
@@ -149,9 +150,9 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _infoCard(details)),
-        SliverToBoxAdapter(child: _chapterSection(details)),
         if (history != null)
           SliverToBoxAdapter(child: _continueReading(history)),
+        SliverToBoxAdapter(child: _chapterSection(details)),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
@@ -218,7 +219,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                       tags: details.tags,
                       labelStyle: const TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w600),
-                      chipBuilder: (tag) => _tagChip(tag, cs),
+                      chipBuilder: (tag) => TagChip(label: tag),
                     ),
                   const SizedBox(height: 10),
                   _description(details.description, cs),
@@ -259,20 +260,6 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           size: 16),
       label: Text(isFavorite ? '已收藏' : '收藏',
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _tagChip(String label, ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-          color: cs.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(6)),
-      child: Text(label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w600, color: cs.primary)),
     );
   }
 
