@@ -25,6 +25,7 @@ import '../../core/video/title_match.dart';
 import '../../core/video/video_source.dart';
 import '../../core/video/video_sources.dart';
 import 'anime_providers.dart';
+import 'resolve_dialog.dart';
 import 'video_player_page.dart';
 
 enum _SourceStatus { loading, done, failed }
@@ -716,18 +717,18 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
 
   Future<void> _playEpisode(VideoEpisode ep) async {
     final messenger = ScaffoldMessenger.of(context);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+    final cancel = CancellationToken();
+    final result = await showResolveDialog(
+      context,
+      resolve: StreamResolver().resolve(ep.playUrl,
+          userAgent: ep.userAgent,
+          referer: ep.referer,
+          legacy: ep.useLegacyParser,
+          cancel: cancel),
+      cancel: cancel,
     );
-    final stream = await StreamResolver().resolve(ep.playUrl,
-        userAgent: ep.userAgent,
-        referer: ep.referer,
-        legacy: ep.useLegacyParser,
-        cancel: _searchCancel);
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (!mounted || result.cancelled) return;
+    final stream = result.stream;
     if (stream == null) {
       messenger.showSnackBar(SnackBar(
         content: const Text('无法解析播放地址，请尝试其他线路或源'),
