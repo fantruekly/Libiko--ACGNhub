@@ -75,6 +75,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           Novel(
               id: widget.novelId, title: widget.title, coverUrl: widget.cover),
           widget.cover,
+          loading: true,
         ),
         const SizedBox(height: 24),
         const Center(child: CircularProgressIndicator()),
@@ -129,7 +130,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       children: [
         _infoCard(novel, cover),
         if (history != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _continueReading(history, cover),
         ],
         const SizedBox(height: 16),
@@ -158,7 +159,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     );
   }
 
-  Widget _infoCard(Novel novel, String? cover) {
+  Widget _infoCard(Novel novel, String? cover, {bool loading = false}) {
     final cs = Theme.of(context).colorScheme;
     final summary = novel.summary ?? '';
     final status = novel.extra['status']?.toString();
@@ -232,8 +233,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                     chipBuilder: (tag) => TagChip(label: tag),
                   ),
                 ],
-                const SizedBox(height: 10),
-                _summary(summary, cs),
+                if (!loading) ...[
+                  const SizedBox(height: 10),
+                  _summary(summary, cs),
+                ],
               ],
             ),
           ),
@@ -334,10 +337,15 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(summary,
-              maxLines: _expanded ? null : 3,
-              overflow: _expanded ? null : TextOverflow.ellipsis,
-              style: style),
+          GestureDetector(
+            onTap: overflows
+                ? () => setState(() => _expanded = !_expanded)
+                : null,
+            child: Text(summary,
+                maxLines: _expanded ? null : 3,
+                overflow: _expanded ? null : TextOverflow.ellipsis,
+                style: style),
+          ),
           if (overflows)
             GestureDetector(
               onTap: () => setState(() => _expanded = !_expanded),
