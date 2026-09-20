@@ -20,45 +20,6 @@ class _FakeMacCmsResolver extends MacCmsResolver {
       candidate;
 }
 
-class _UrlAdapter implements HttpClientAdapter {
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    final ok = options.uri.path.endsWith('ok.m3u8');
-    return ResponseBody.fromString(
-      ok ? 'x' : 'no',
-      ok ? 200 : 400,
-      headers: {
-        Headers.contentTypeHeader: [Headers.textPlainContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
-}
-
-class _FlakyMacCmsResolver extends MacCmsResolver {
-  _FlakyMacCmsResolver(this.candidates);
-  final List<MediaCandidate?> candidates;
-  int calls = 0;
-
-  @override
-  Future<MediaCandidate?> resolve(
-    String playPageUrl, {
-    String? userAgent,
-    String? referer,
-    Duration timeout = const Duration(seconds: 15),
-  }) async {
-    final index = calls < candidates.length ? calls : candidates.length - 1;
-    calls++;
-    return candidates[index];
-  }
-}
-
 class _HeaderAdapter implements HttpClientAdapter {
   _HeaderAdapter({required this.okWithoutReferer});
   final bool okWithoutReferer;
@@ -117,29 +78,5 @@ void main() {
     expect(result?.url, 'https://cdn.test/x.m3u8');
     expect(result?.headers['Referer'], isNull);
     expect(result?.headers['User-Agent'], 'UA');
-  });
-
-  test('returns null when the candidate is unreachable with every variant',
-      () async {
-    final dio = Dio()..httpClientAdapter = _UrlAdapter();
-    final resolver = StreamResolver(
-      maccms: _FakeMacCmsResolver(
-          const MediaCandidate('https://cdn.test/dead.m3u8')),
-      dio: dio,
-    );
-    expect(await resolver.resolve('https://page/play'), isNull);
-  });
-
-  test('retries and returns a later reachable candidate', () async {
-    final dio = Dio()..httpClientAdapter = _UrlAdapter();
-    final resolver = StreamResolver(
-      maccms: _FlakyMacCmsResolver(const [
-        MediaCandidate('https://cdn.test/dead.m3u8'),
-        MediaCandidate('https://cdn.test/ok.m3u8'),
-      ]),
-      dio: dio,
-    );
-    final result = await resolver.resolve('https://page/play');
-    expect(result?.url, 'https://cdn.test/ok.m3u8');
   });
 }

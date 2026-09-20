@@ -123,9 +123,10 @@ class StreamResolver {
     }
   }
 
-  /// Picks the header variant the player can actually use, or null when the
-  /// candidate is unreachable with every variant (so it is not handed to the
-  /// player as a known-dead URL; the caller retries instead).
+  /// Picks the header variant the player can actually use, falling back to the
+  /// candidate's own headers when none probes as reachable (the probe is a
+  /// transient reachability check, not a guarantee the player can play it, so a
+  /// failed probe must not discard the candidate).
   Future<MediaCandidate?> _verify(MediaCandidate candidate) async {
     for (final headers in _headerVariants(candidate.headers)) {
       if (await _reachable(candidate.url, headers)) {
@@ -136,7 +137,7 @@ class StreamResolver {
     }
     debugPrint(
         '[StreamResolver] verify FAILED ${candidate.url} headers=${candidate.headers.keys.toList()}');
-    return null;
+    return candidate;
   }
 
   List<Map<String, String>> _headerVariants(Map<String, String> headers) {

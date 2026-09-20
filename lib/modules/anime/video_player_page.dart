@@ -47,6 +47,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   bool _resolving = false;
   bool _usedInitialUrl = false;
   int _gen = 0;
+  static const int _maxAutoRetries = 2;
+  int _autoRetries = 0;
+  bool _autoRetryPending = false;
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -80,7 +83,20 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _controller = VideoController(_player);
     _subs.add(_player.stream.error.listen((e) {
       debugPrint('[Player] error: $e');
-      if (mounted) setState(() => _error = e);
+      if (!mounted) return;
+      if (!_autoRetryPending && _autoRetries < _maxAutoRetries) {
+        _autoRetries++;
+        _autoRetryPending = true;
+        debugPrint('[Player] auto-retry $_autoRetries/$_maxAutoRetries');
+        Future<void>.delayed(const Duration(milliseconds: 1000), () {
+          if (!mounted) return;
+          _autoRetryPending = false;
+          setState(() => _error = null);
+          _playIndex(_currentIndex);
+        });
+        return;
+      }
+      setState(() => _error = e);
     }));
     _subs.add(_player.stream.position.listen((p) {
       if (mounted) setState(() => _position = p);
@@ -92,6 +108,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (!mounted) return;
       setState(() => _playing = p);
       if (p) {
+        _autoRetries = 0;
         _scheduleHide();
       } else {
         _hideTimer?.cancel();
@@ -128,6 +145,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (i < 0 || i >= widget.episodes.length) return;
     final gen = ++_gen;
     final previous = _currentIndex;
+    if (i != previous) _autoRetries = 0;
     final episode = widget.episodes[i];
     final work = widget.work;
     final history = ref.read(watchHistoryProvider.notifier);
@@ -389,6 +407,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                       TextButton(
                         onPressed: () {
                           if (_resolving) return;
+                          _autoRetries = 0;
                           setState(() => _error = null);
                           _playIndex(_currentIndex);
                         },
