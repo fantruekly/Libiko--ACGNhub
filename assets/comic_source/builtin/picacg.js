@@ -3,7 +3,9 @@ class Picacg extends ComicSource {
 
     key = "picacg"
 
-    version = "1.0.6"
+    version = "1.0.7"
+
+    requireLogin = true
 
     minAppVersion = "1.0.0"
 
