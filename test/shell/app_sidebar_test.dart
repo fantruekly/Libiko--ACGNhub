@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/shell/app_sidebar.dart';
@@ -49,5 +50,33 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(lineOpacity(), [0.0, 1.0, 0.0, 0.0, 0.0]);
+  });
+
+  testWidgets('hovering an item shows a background', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: AppSidebar(
+          selectedIndex: 0,
+          onChanged: (_) {},
+          onSettingsTap: () {},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    Color? bg(String label) {
+      final box = tester.widget<AnimatedContainer>(
+          find.byKey(ValueKey('sidebar-bg-$label')));
+      return (box.decoration as BoxDecoration?)?.color;
+    }
+
+    expect(bg('漫画')?.a ?? 0, 0);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(find.text('漫画')));
+    await tester.pumpAndSettle();
+    expect(bg('漫画')!.a, greaterThan(0));
   });
 }

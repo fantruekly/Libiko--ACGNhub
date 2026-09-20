@@ -81,7 +81,7 @@ class AppSidebar extends StatelessWidget {
   }
 }
 
-class _SidebarItem extends StatelessWidget {
+class _SidebarItem extends StatefulWidget {
   final IconData icon;
   final String label;
   final bool selected;
@@ -95,63 +95,87 @@ class _SidebarItem extends StatelessWidget {
   });
 
   @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final idleIcon = cs.onSurfaceVariant.withValues(alpha: 0.7);
     final idleText = cs.onSurfaceVariant;
+    final hoverBg = (!widget.selected && _hovered)
+        ? cs.onSurface.withValues(alpha: 0.06)
+        : Colors.transparent;
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(
-            begin: selected ? 1.0 : 0.0, end: selected ? 1.0 : 0.0),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOutCubic,
-        builder: (context, t, _) {
-          final iconColor = Color.lerp(idleIcon, cs.primary, t)!;
-          final textColor = Color.lerp(idleText, cs.primary, t)!;
-          return Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Container(
-                width: 72,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 24, color: iconColor),
-                    const SizedBox(height: 4),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w500,
-                        color: textColor,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          key: ValueKey('sidebar-bg-${widget.label}'),
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: hoverBg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(
+                begin: widget.selected ? 1.0 : 0.0,
+                end: widget.selected ? 1.0 : 0.0),
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOutCubic,
+            builder: (context, t, _) {
+              final iconColor = Color.lerp(idleIcon, cs.primary, t)!;
+              final textColor = Color.lerp(idleText, cs.primary, t)!;
+              return Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  Container(
+                    width: 72,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(widget.icon, size: 24, color: iconColor),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            fontWeight: widget.selected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Opacity(
+                      key: const ValueKey('sidebar-line'),
+                      opacity: t,
+                      child: Transform.scale(
+                        scaleY: t,
+                        alignment: Alignment.center,
+                        child: Container(width: 3, color: cs.primary),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Opacity(
-                  key: const ValueKey('sidebar-line'),
-                  opacity: t,
-                  child: Transform.scale(
-                    scaleY: t,
-                    alignment: Alignment.center,
-                    child: Container(width: 3, color: cs.primary),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
