@@ -29,9 +29,21 @@ class StreamResolver {
   final MacCmsResolver _maccms;
   final Dio _dio;
 
-  StreamResolver({MacCmsResolver? maccms, Dio? dio})
-      : _maccms = maccms ?? MacCmsResolver(),
-        _dio = dio ?? Dio();
+  StreamResolver({
+    MacCmsResolver? maccms,
+    Dio? dio,
+    HeadlessBrowser Function()? browserFactory,
+    Duration grace = const Duration(seconds: 4),
+    Duration overallTimeout = const Duration(seconds: 10),
+  })  : _maccms = maccms ?? MacCmsResolver(),
+        _dio = dio ?? Dio(),
+        _browserFactory = browserFactory ?? createHeadlessBrowser,
+        _grace = grace,
+        _overallTimeout = overallTimeout;
+
+  final HeadlessBrowser Function() _browserFactory;
+  final Duration _grace;
+  final Duration _overallTimeout;
 
   static const int _maxAttempts = 3;
   static const Duration _retryDelay = Duration(milliseconds: 500);
@@ -95,7 +107,7 @@ class StreamResolver {
     }
     cancel?.addListener(onCancel);
 
-    final browser = createHeadlessBrowser();
+    final browser = _browserFactory();
     StreamSubscription<MediaCandidate>? sub;
     ResolveFailure? loadFailure;
     var timedOut = false;
@@ -120,14 +132,14 @@ class StreamResolver {
           if (!grace.isCompleted) grace.complete();
           return;
         }
-        await Future<void>.delayed(const Duration(seconds: 4));
+        await Future<void>.delayed(_grace);
         if (!grace.isCompleted) grace.complete();
       }());
       final candidate = await Future.any<MediaCandidate?>([
         completer.future,
         grace.future.then((_) => null),
         cancelled.future,
-      ]).timeout(const Duration(seconds: 10), onTimeout: () {
+      ]).timeout(_overallTimeout, onTimeout: () {
         debugPrint('[StreamResolver] TIMEOUT for $playPageUrl');
         timedOut = true;
         return null;
@@ -155,6 +167,14 @@ class StreamResolver {
   ResolveFailure _failureOf(Object e,
       {ResolveFailure fallback = ResolveFailure.unknown}) {
     if (e is SocketException || e is TimeoutException || e is DioException) {
+      return ResolveFailure.network;
+    }
+    final s = e.toString().toLowerCase();
+    if (s.contains('err_internet') ||
+        s.contains('err_connection') ||
+        s.contains('err_name_not_resolved') ||
+        s.contains('err_timed_out') ||
+        s.contains('err_address_unreachable')) {
       return ResolveFailure.network;
     }
     return fallback;
