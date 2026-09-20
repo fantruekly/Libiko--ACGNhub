@@ -18,6 +18,14 @@ class _FakeManager extends ComicSourceManager {
   }
 }
 
+class _FailingManager extends ComicSourceManager {
+  @override
+  Future<List<Comic>> search(ComicSource source, String keyword,
+      {int page = 1}) async {
+    throw StateError('boom');
+  }
+}
+
 Widget _app() => ProviderScope(
       overrides: [
         comicSourceManagerProvider.overrideWithValue(_FakeManager({
@@ -64,5 +72,25 @@ void main() {
     expect(find.text('A漫画'), findsNothing);
     // 单源模式不显示分组标题，源名只剩 chip
     expect(find.text('源B'), findsOneWidget);
+  });
+
+  testWidgets('single-source failure names the selected source', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        comicSourceManagerProvider.overrideWithValue(_FailingManager()),
+        comicSourcesProvider.overrideWith((ref) async => [
+              ComicSource(
+                  name: '源A', key: 'a', version: '1.0.0', canSearch: true),
+              ComicSource(
+                  name: '源B', key: 'b', version: '1.0.0', canSearch: true),
+            ]),
+      ],
+      child: const MaterialApp(home: ComicSearchPage(initialKeyword: '测试')),
+    ));
+    await _settle(tester);
+    await tester.tap(find.descendant(
+        of: find.byType(ChipBar), matching: find.text('源B')));
+    await _settle(tester);
+    expect(find.text('源B 搜索失败'), findsOneWidget);
   });
 }

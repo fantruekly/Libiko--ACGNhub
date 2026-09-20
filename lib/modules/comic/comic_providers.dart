@@ -268,11 +268,9 @@ class ComicSearchResult {
   const ComicSearchResult({required this.comic, required this.sourceKey});
 }
 
-/// 单个漫画源搜索的超时时间，避免某个源卡住拖慢整体。
-const Duration comicSearchTimeout = Duration(seconds: 15);
-
 /// 单个漫画源的搜索结果，按源独立。
-/// 页面据此按源渐进展示：哪个源先返回就先显示，慢的源不阻塞。
+/// 页面据此按源渐进展示：哪个源先返回就先显示。
+/// 注意：所有漫画源共用一个 JS 引擎，搜索在引擎层是串行的。
 final comicSearchSourceProvider =
     FutureProvider.family<List<ComicSearchResult>, (String, String)>(
         (ref, key) async {
@@ -283,7 +281,7 @@ final comicSearchSourceProvider =
   final sources = await ref.watch(comicSourcesProvider.future);
   final source = sources.where((s) => s.key == sourceKey).firstOrNull;
   if (source == null) return const [];
-  final comics = await manager.search(source, k).timeout(comicSearchTimeout);
+  final comics = await manager.search(source, k);
   return [
     for (final comic in comics)
       ComicSearchResult(comic: comic, sourceKey: sourceKey),

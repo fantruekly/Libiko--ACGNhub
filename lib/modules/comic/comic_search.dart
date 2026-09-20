@@ -210,7 +210,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     if (!hasData && allFailed) {
       return EmptyState(
         icon: Icons.error_outline_rounded,
-        message: '所有漫画源搜索失败',
+        message: grouped ? '所有漫画源搜索失败' : '${sources.single.name} 搜索失败',
         actionLabel: '重试',
         onAction: () {
           for (final s in sources) {
