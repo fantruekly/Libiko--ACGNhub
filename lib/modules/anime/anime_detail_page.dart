@@ -19,6 +19,7 @@ import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import '../../core/video/cancellation.dart';
+import '../../core/video/playback_error.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/title_match.dart';
@@ -736,7 +737,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final stream = outcome.result?.candidate;
     if (stream == null) {
       messenger.showSnackBar(SnackBar(
-        content: const Text('无法解析播放地址，请尝试其他线路或源'),
+        content: Text(resolveFailureMessage(
+            _expandedSource?.name ?? '', outcome.result?.failure)),
         action: SnackBarAction(
           label: '重试',
           onPressed: () => _playEpisode(ep),
@@ -752,6 +754,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           episodes: _episodes ?? const [],
           initialIndex: ep.index,
           initialResolved: stream,
+          sourceName: _expandedSource?.name ?? '',
         ),
       ),
     );
