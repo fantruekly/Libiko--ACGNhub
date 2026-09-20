@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_source.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/empty_state.dart';
@@ -56,7 +55,6 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
         .toList();
 
     return Scaffold(
-      backgroundColor: kAppBackground,
       body: SafeArea(
         child: Column(
           children: [

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme/app_theme.dart';
 import 'source_hub_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -9,7 +8,6 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAppBackground,
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
         children: [

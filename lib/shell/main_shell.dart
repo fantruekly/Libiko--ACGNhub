@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../core/platform.dart';
-import '../core/theme/app_theme.dart';
 import '../core/widgets/desktop_drag_area.dart';
 import '../core/widgets/glass_surface.dart';
 import '../core/widgets/window_controls.dart';
@@ -112,7 +111,6 @@ class _MainShellState extends State<MainShell> {
     );
 
     return Scaffold(
-      backgroundColor: kAppBackground,
       body: content,
       bottomNavigationBar: isDesktop
           ? null
@@ -130,7 +128,6 @@ class _MainShellState extends State<MainShell> {
       child: GlassSurface(
         borderRadius: BorderRadius.zero,
         blur: 18,
-        color: kAppBackground,
         child: Container(
           height: 48 + topInset,
           padding: EdgeInsets.only(top: topInset),

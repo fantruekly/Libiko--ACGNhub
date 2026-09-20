@@ -79,7 +79,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final showChrome = _chromeVisible || !epAsync.hasValue;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: cs.surface,
       body: Stack(
         children: [
           Positioned.fill(
@@ -338,7 +338,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
               left: 4,
               top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFFFFF),
+            color: cs.surface,
             border: Border(
                 bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
           ),
@@ -381,7 +381,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF),
+          color: cs.surface,
           border:
               Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
@@ -430,7 +430,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final chapters = details?.chapters.entries.toList() ?? const [];
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFFFFFFFF),
+      backgroundColor: cs.surface,
       builder: (ctx) => ListView.builder(
         itemCount: chapters.length,
         itemBuilder: (_, i) {

@@ -115,7 +115,9 @@ class _WindowButtonState extends State<WindowButton> {
     final fg = (_hover && widget.danger)
         ? Colors.white
         : (widget.foregroundColor ??
-            const Color(0xFF1C1C1E).withValues(alpha: 0.55));
+            (Theme.of(context).brightness == Brightness.dark
+                ? Colors.white
+                : Colors.black87));
 
     return Tooltip(
       message: widget.tooltip,

@@ -8,7 +8,6 @@ import '../../core/comic/comic_source.dart';
 import '../../core/comic/models.dart';
 import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/collapsible_tag_wrap.dart';
 import '../../core/widgets/desktop_drag_area.dart';
@@ -47,7 +46,6 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(),
@@ -65,7 +63,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
         height: 48 + topInset,
         padding: EdgeInsets.only(left: 4, top: topInset),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF),
+          color: cs.surface,
           border:
               Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),

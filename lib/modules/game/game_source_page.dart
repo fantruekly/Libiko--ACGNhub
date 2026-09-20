@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/app_theme.dart';
 import 'game_providers.dart';
 
 class GameSourcePage extends ConsumerWidget {
@@ -11,7 +10,6 @@ class GameSourcePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sources = ref.watch(gameSourcesProvider);
     return Scaffold(
-      backgroundColor: kAppBackground,
       appBar: AppBar(title: const Text('游戏源')),
       body: ListView(
         children: [

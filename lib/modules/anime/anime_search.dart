@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/work.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
@@ -70,7 +69,6 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: kAppBackground,
       body: SafeArea(
         child: Column(
           children: [
