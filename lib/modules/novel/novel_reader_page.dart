@@ -457,22 +457,21 @@ class _ReaderSettingsSheet extends ConsumerWidget {
           const SizedBox(height: 8),
           const Text('主题', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
             children: [
               for (final t in NovelReaderTheme.values)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: ChoiceChip(
-                    label: Text(switch (t) {
-                      NovelReaderTheme.auto => '跟随App',
-                      NovelReaderTheme.light => '浅色',
-                      NovelReaderTheme.sepia => '米色',
-                      NovelReaderTheme.dark => '深色',
-                    }),
-                    selected: settings.theme == t,
-                    showCheckmark: false,
-                    onSelected: (_) => notifier.setTheme(t),
-                  ),
+                ChoiceChip(
+                  label: Text(switch (t) {
+                    NovelReaderTheme.auto => '跟随App',
+                    NovelReaderTheme.light => '浅色',
+                    NovelReaderTheme.sepia => '米色',
+                    NovelReaderTheme.dark => '深色',
+                  }),
+                  selected: settings.theme == t,
+                  showCheckmark: false,
+                  onSelected: (_) => notifier.setTheme(t),
                 ),
             ],
           ),

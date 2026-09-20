@@ -108,6 +108,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       } else {
         _hideTimer?.cancel();
         if (!_controlsVisible) setState(() => _controlsVisible = true);
+        _maybeShowError();
       }
     }));
     _subs.add(_player.stream.buffering.listen((b) {
@@ -139,6 +140,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 
   void _maybeShowError() {
     if (_pendingError == null || _playing || _buffering) return;
+    if (_error == _pendingError) return;
     setState(() => _error = _pendingError);
   }
 
