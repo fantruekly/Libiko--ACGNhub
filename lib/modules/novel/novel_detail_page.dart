@@ -10,10 +10,13 @@ import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/button_grid.dart';
+import '../../core/widgets/collapsible_tag_wrap.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/tag_chip.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 import 'novel_reader_page.dart';
@@ -72,6 +75,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           Novel(
               id: widget.novelId, title: widget.title, coverUrl: widget.cover),
           widget.cover,
+          loading: true,
         ),
         const SizedBox(height: 24),
         const Center(child: CircularProgressIndicator()),
@@ -126,7 +130,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       children: [
         _infoCard(novel, cover),
         if (history != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _continueReading(history, cover),
         ],
         const SizedBox(height: 16),
@@ -144,7 +148,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                   style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
             ),
-            TwoColumnButtonGrid(
+            ButtonGrid(
               children: [
                 for (final ch in vol.chapters)
                   PillButton(label: ch.title, onTap: () => _openChapter(ch, cover)),
@@ -155,97 +159,87 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     );
   }
 
-  Widget _infoCard(Novel novel, String? cover) {
+  Widget _infoCard(Novel novel, String? cover, {bool loading = false}) {
     final cs = Theme.of(context).colorScheme;
     final summary = novel.summary ?? '';
     final status = novel.extra['status']?.toString();
-    return Container(
+    final tags = [
+      if (status != null && status.isNotEmpty) status,
+      ...novel.tags,
+    ];
+    return GlassSurface(
+      blur: 0,
+      borderRadius: BorderRadius.circular(16),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Column(
+      border: Border.all(color: cs.outlineVariant),
+      boxShadow: const [
+        BoxShadow(
+            color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
+      ],
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Hero(
-                tag: 'novel_${widget.sourceKey}_${widget.novelId}',
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 100,
-                    height: 132,
-                    child: cover != null
-                        ? CachedNetworkImage(
-                            imageUrl: cover,
-                            fit: BoxFit.cover,
-                            httpHeaders: novelImageHeaders,
-                            cacheManager: AppCacheManager(),
-                            placeholder: (_, __) => _coverPlaceholder(),
-                            errorWidget: (_, __, ___) => _coverPlaceholder(),
-                          )
-                        : _coverPlaceholder(),
-                  ),
+          Hero(
+            tag: 'novel_${widget.sourceKey}_${widget.novelId}',
+            child: RepaintBoundary(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 110,
+                  height: 147,
+                  child: cover != null
+                      ? CachedNetworkImage(
+                          imageUrl: cover,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 300,
+                          httpHeaders: novelImageHeaders,
+                          cacheManager: AppCacheManager(),
+                          placeholder: (_, __) => _coverPlaceholder(),
+                          errorWidget: (_, __, ___) => _coverPlaceholder(),
+                        )
+                      : _coverPlaceholder(),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(novel.title,
-                        style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: cs.onSurface)),
-                    const SizedBox(height: 6),
-                    if (novel.author != null && novel.author!.isNotEmpty)
-                      Text(novel.author!,
-                          style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        if (status != null && status.isNotEmpty) _tag(status),
-                        for (final t in novel.tags) _tag(t),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-          if (summary.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            LayoutBuilder(builder: (context, constraints) {
-              final style = TextStyle(fontSize: 13, height: 1.5, color: cs.onSurface);
-              final overflows = _summaryOverflows(
-                  summary, style, constraints.maxWidth,
-                  MediaQuery.textScalerOf(context));
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(summary,
-                      maxLines: _expanded ? null : 3,
-                      overflow: _expanded ? null : TextOverflow.ellipsis,
-                      style: style),
-                  if (overflows)
-                    GestureDetector(
-                      onTap: () => setState(() => _expanded = !_expanded),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(_expanded ? '收起' : '展开',
-                            style: TextStyle(fontSize: 13, color: cs.primary)),
-                      ),
-                    ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  novel.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35),
+                ),
+                if (novel.author != null && novel.author!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(novel.author!,
+                      style: TextStyle(
+                          fontSize: 13, color: cs.onSurfaceVariant)),
                 ],
-              );
-            }),
-          ],
-          const SizedBox(height: 14),
-          _favoriteButton(novel, cover),
+                const SizedBox(height: 14),
+                _favoriteButton(novel, cover),
+                if (tags.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  CollapsibleTagWrap(
+                    tags: tags,
+                    labelStyle: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
+                    chipBuilder: (tag) => TagChip(label: tag),
+                  ),
+                ],
+                if (!loading) ...[
+                  const SizedBox(height: 10),
+                  _summary(summary, cs),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -329,19 +323,44 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     return overflows;
   }
 
-  Widget _tag(String text) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-          color: cs.secondaryContainer,
-          borderRadius: BorderRadius.circular(20)),
-      child: Text(text,
+  Widget _summary(String summary, ColorScheme cs) {
+    if (summary.isEmpty) {
+      return Text('暂无简介',
           style: TextStyle(
-              fontSize: 11,
-              color: cs.onSecondaryContainer,
-              fontWeight: FontWeight.w500)),
-    );
+              fontSize: 13, color: cs.onSurface.withValues(alpha: 0.35)));
+    }
+    return LayoutBuilder(builder: (context, constraints) {
+      final style = TextStyle(
+          fontSize: 13, height: 1.6, color: cs.onSurface.withValues(alpha: 0.7));
+      final overflows = _summaryOverflows(
+          summary, style, constraints.maxWidth, MediaQuery.textScalerOf(context));
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: overflows
+                ? () => setState(() => _expanded = !_expanded)
+                : null,
+            child: Text(summary,
+                maxLines: _expanded ? null : 3,
+                overflow: _expanded ? null : TextOverflow.ellipsis,
+                style: style),
+          ),
+          if (overflows)
+            GestureDetector(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(_expanded ? '收起' : '展开',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: cs.primary)),
+              ),
+            ),
+        ],
+      );
+    });
   }
 
   void _openChapter(NovelChapterRef chapter, String? cover) {

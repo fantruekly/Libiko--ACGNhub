@@ -162,4 +162,31 @@ void main() {
     expect(find.text('PC资源'), findsOneWidget);
     expect(find.text('最近更新'), findsNothing);
   });
+
+  testWidgets('swiping past the last section moves to the next source',
+      (tester) async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider.overrideWithValue(
+          GameSourceManager(sources: [_FakeSource(), _NekoFakeSource()])),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: GameHomePage())),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('游戏latest1'), findsOneWidget);
+
+    // 前进到第二个选项
+    await tester.fling(find.byType(GridView), const Offset(-300, 0), 1200);
+    await tester.pumpAndSettle();
+    expect(find.text('游戏wanjiareping1'), findsOneWidget);
+
+    // 已是最后一个选项，继续前进 -> 跨到下一个源的首个选项
+    await tester.fling(find.byType(GridView), const Offset(-300, 0), 1200);
+    await tester.pumpAndSettle();
+    expect(find.text('PC资源'), findsOneWidget);
+    expect(find.text('游戏pcgame1'), findsOneWidget);
+  });
 }

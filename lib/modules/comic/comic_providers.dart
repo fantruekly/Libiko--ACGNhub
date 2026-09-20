@@ -268,31 +268,24 @@ class ComicSearchResult {
   const ComicSearchResult({required this.comic, required this.sourceKey});
 }
 
-/// Search across every source that can search, merging the results.
-final comicSearchProvider =
-    FutureProvider.family<List<ComicSearchResult>, String>(
-        (ref, keyword) async {
+/// 单个漫画源的搜索结果，按源独立。
+/// 页面据此按源渐进展示：哪个源先返回就先显示。
+/// 注意：所有漫画源共用一个 JS 引擎，搜索在引擎层是串行的。
+final comicSearchSourceProvider =
+    FutureProvider.family<List<ComicSearchResult>, (String, String)>(
+        (ref, key) async {
+  final (sourceKey, keyword) = key;
+  final k = keyword.trim();
+  if (k.isEmpty) return const [];
   final manager = ref.watch(comicSourceManagerProvider);
-  final sources = ref.watch(comicSourcesProvider).valueOrNull ?? const [];
-  final searchable = sources.where((s) => s.canSearch).toList();
-  if (searchable.isEmpty) return const [];
-  final results = <ComicSearchResult>[];
-  Object? lastError;
-  var succeeded = 0;
-  for (final source in searchable) {
-    try {
-      for (final comic in await manager.search(source, keyword)) {
-        results.add(ComicSearchResult(comic: comic, sourceKey: source.key));
-      }
-      succeeded++;
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  if (succeeded == 0) {
-    throw StateError('所有漫画源搜索失败：$lastError');
-  }
-  return results;
+  final sources = await ref.watch(comicSourcesProvider.future);
+  final source = sources.where((s) => s.key == sourceKey).firstOrNull;
+  if (source == null) return const [];
+  final comics = await manager.search(source, k);
+  return [
+    for (final comic in comics)
+      ComicSearchResult(comic: comic, sourceKey: sourceKey),
+  ];
 });
 
 final comicDetailProvider =

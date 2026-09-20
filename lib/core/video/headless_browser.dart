@@ -11,6 +11,15 @@ class MediaCandidate {
   const MediaCandidate(this.url, {this.headers = const {}});
 }
 
+/// Thrown by [HeadlessBrowser.load] when the page fails to load or times out.
+class HeadlessLoadException implements Exception {
+  final String message;
+  const HeadlessLoadException(this.message);
+
+  @override
+  String toString() => 'HeadlessLoadException: $message';
+}
+
 const Map<String, String> _playerHeaderNames = {
   'referer': 'Referer',
   'user-agent': 'User-Agent',
@@ -59,7 +68,8 @@ abstract class HeadlessBrowser {
   Stream<MediaCandidate> get mediaUrls;
 
   /// Navigates to [url] and waits until the page finishes loading, at most
-  /// [timeout]. Resolves normally on timeout.
+  /// [timeout]. Throws [HeadlessLoadException] when the navigation fails or
+  /// times out.
   Future<void> load(String url,
       {Duration timeout = const Duration(seconds: 15)});
 

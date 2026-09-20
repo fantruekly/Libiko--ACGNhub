@@ -19,12 +19,14 @@ import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import '../../core/video/cancellation.dart';
+import '../../core/video/playback_error.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/title_match.dart';
 import '../../core/video/video_source.dart';
 import '../../core/video/video_sources.dart';
 import 'anime_providers.dart';
+import 'resolve_dialog.dart';
 import 'video_player_page.dart';
 
 enum _SourceStatus { loading, done, failed }
@@ -55,6 +57,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   int _searchGen = 0;
   int _searchSeq = 0;
   VideoItem? _expandedItem;
+  bool _moreOpen = false;
   VideoSource? _expandedSource;
   List<VideoEpisode>? _episodes;
   bool _episodesLoading = false;
@@ -683,10 +686,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         _episodes = null;
         _episodesError = null;
         _episodesLoading = false;
+        _moreOpen = false;
       });
       return;
     }
-    setState(() => _expandedItem = item);
+    setState(() {
+      _expandedItem = item;
+      _moreOpen = false;
+    });
     await _loadEpisodes(item, source);
   }
 
@@ -716,21 +723,22 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
 
   Future<void> _playEpisode(VideoEpisode ep) async {
     final messenger = ScaffoldMessenger.of(context);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+    final cancel = CancellationToken();
+    final outcome = await showResolveDialog(
+      context,
+      resolve: StreamResolver().resolve(ep.playUrl,
+          userAgent: ep.userAgent,
+          referer: ep.referer,
+          legacy: ep.useLegacyParser,
+          cancel: cancel),
+      cancel: cancel,
     );
-    final stream = await StreamResolver().resolve(ep.playUrl,
-        userAgent: ep.userAgent,
-        referer: ep.referer,
-        legacy: ep.useLegacyParser,
-        cancel: _searchCancel);
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (!mounted || outcome.cancelled) return;
+    final stream = outcome.result?.candidate;
     if (stream == null) {
       messenger.showSnackBar(SnackBar(
-        content: const Text('无法解析播放地址，请尝试其他线路或源'),
+        content: Text(resolveFailureMessage(
+            _expandedSource?.name ?? '', outcome.result?.failure)),
         action: SnackBarAction(
           label: '重试',
           onPressed: () => _playEpisode(ep),
@@ -746,6 +754,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           episodes: _episodes ?? const [],
           initialIndex: ep.index,
           initialResolved: stream,
+          sourceName: _expandedSource?.name ?? '',
         ),
       ),
     );
@@ -937,27 +946,49 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           ),
           if (expanded) ...[
             if (alternatives.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 8, left: 4),
-                child: Text('更多结果',
-                    style:
-                        TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-              ),
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.only(left: 12, bottom: 4),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final alt in alternatives)
-                      ActionChip(
-                        label: Text(alt.title, maxLines: 1),
-                        onPressed: () => _expandItem(alt, source),
-                      ),
-                  ],
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const ValueKey('more-results-toggle'),
+                  onTap: () => setState(() => _moreOpen = !_moreOpen),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('更多结果',
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onSurfaceVariant)),
+                        Icon(
+                          _moreOpen
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                          size: 16,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
+              if (_moreOpen) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, bottom: 4),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final alt in alternatives)
+                        ActionChip(
+                          label: Text(alt.title, maxLines: 1),
+                          onPressed: () => _expandItem(alt, source),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
             _episodeArea(cs),
           ],
@@ -1009,7 +1040,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 4),
-      child: TwoColumnButtonGrid(
+      child: ButtonGrid(
         children: [
           for (final ep in eps)
             PillButton(label: ep.title, onTap: () => _playEpisode(ep)),

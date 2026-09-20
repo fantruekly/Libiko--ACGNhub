@@ -7,7 +7,7 @@ class JM extends ComicSource {
     // unique id of the source
     key = "jm"
 
-    version = "1.4.0"
+    version = "1.5.0"
 
     minAppVersion = "1.5.0"
 
@@ -222,6 +222,22 @@ class JM extends ComicSource {
             cover: cover,
             tags: tags,
             description: description
+        })
+    }
+
+    /**
+     * Load a single comic by album id, used by numeric-id search.
+     * @param id {string}
+     * @returns {Promise<Comic>}
+     */
+    async loadComicById(id) {
+        let details = await this.comic.loadInfo(String(id))
+        if (!details || !details.title) throw 'album not found: ' + id
+        return new Comic({
+            id: String(id),
+            title: details.title,
+            cover: details.cover,
+            description: details.description,
         })
     }
 
@@ -639,10 +655,24 @@ class JM extends ComicSource {
          * @returns {Promise<{comics: Comic[], maxPage: number}>}
          */
         load: async (keyword, options, page) => {
-            keyword = keyword.trim()
-            keyword = encodeURIComponent(keyword)
-            keyword = keyword.replace(/%20/g, '+')
-            let url = `${this.baseUrl}/search?search_query=${keyword}&o=${options[0]}`
+            let raw = keyword.trim()
+            // 数字编号搜索：纯数字或 jm<数字> 直接打开该本子
+            let numericId = null
+            if (this.isNum(raw)) {
+                numericId = raw
+            } else if (/^jm\d+$/i.test(raw)) {
+                numericId = raw.substring(2)
+            }
+            if (numericId !== null && page <= 1) {
+                try {
+                    return { comics: [await this.loadComicById(numericId)], maxPage: 1 }
+                } catch (e) {
+                    // 该编号不存在时回退为普通文本搜索
+                }
+            }
+            let query = encodeURIComponent(raw)
+            query = query.replace(/%20/g, '+')
+            let url = `${this.baseUrl}/search?search_query=${query}&o=${options[0]}`
             if(page > 1) {
                 url += `&page=${page}`
             }

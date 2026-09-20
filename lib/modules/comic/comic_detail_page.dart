@@ -10,14 +10,16 @@ import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/button_grid.dart';
+import '../../core/widgets/collapsible_tag_wrap.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/pill_button.dart';
-import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/tag_chip.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_account_dialog.dart';
+import 'comic_detail_skeleton.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
 
@@ -105,11 +107,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     final logged = !needsLogin ||
         (ref.watch(comicLoginProvider(widget.sourceKey)).valueOrNull ?? false);
     return async.when(
-      loading: () => const ShimmerLoader(
-        crossAxisCount: 6,
-        itemCount: 12,
-        padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
-      ),
+      loading: () => const ComicDetailSkeleton(),
       error: (_, __) => (needsLogin && !logged)
           ? _loginRequired(source)
           : EmptyState(
@@ -152,9 +150,9 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _infoCard(details)),
-        SliverToBoxAdapter(child: _chapterSection(details)),
         if (history != null)
           SliverToBoxAdapter(child: _continueReading(history)),
+        SliverToBoxAdapter(child: _chapterSection(details)),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
@@ -217,12 +215,11 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                   _favoriteButton(details),
                   const SizedBox(height: 14),
                   if (details.tags.isNotEmpty)
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final tag in details.tags) _tagChip(tag, cs),
-                      ],
+                    CollapsibleTagWrap(
+                      tags: details.tags,
+                      labelStyle: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600),
+                      chipBuilder: (tag) => TagChip(label: tag),
                     ),
                   const SizedBox(height: 10),
                   _description(details.description, cs),
@@ -263,18 +260,6 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           size: 16),
       label: Text(isFavorite ? '已收藏' : '收藏',
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _tagChip(String label, ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-          color: cs.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(6)),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w600, color: cs.primary)),
     );
   }
 
@@ -352,7 +337,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
             const SizedBox(height: 12),
             if (chapters.isEmpty)
               _canLoadEp()
-                  ? TwoColumnButtonGrid(
+                  ? ButtonGrid(
                       children: [_chapterButton('', '开始阅读')],
                     )
                   : Text('暂无章节',
@@ -360,7 +345,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                           fontSize: 13,
                           color: cs.onSurface.withValues(alpha: 0.4)))
             else
-              TwoColumnButtonGrid(
+              ButtonGrid(
                 children: [
                   for (final chapter in chapters)
                     _chapterButton(chapter.key, chapter.value),

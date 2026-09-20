@@ -146,6 +146,16 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
         final completer = _loaded;
         if (completer != null && !completer.isCompleted) completer.complete();
       },
+      onReceivedError: (controller, request, error) {
+        if (request.isForMainFrame != true) return;
+        final description = error.description;
+        // Redirects/navigation cancellations are not load failures.
+        if (description.contains('ERR_ABORTED')) return;
+        final completer = _loaded;
+        if (completer != null && !completer.isCompleted) {
+          completer.completeError(HeadlessLoadException(description));
+        }
+      },
       shouldInterceptRequest: (controller, request) async {
         final url = request.url.toString();
         final media = looksLikeMediaUrl(url) ? url : mediaUrlFromQuery(url);
@@ -164,12 +174,16 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
   Future<void> load(String url,
       {Duration timeout = const Duration(seconds: 15)}) async {
     final controller = _headless?.webViewController;
-    if (controller == null) return;
+    if (controller == null) {
+      throw const HeadlessLoadException('headless browser not started');
+    }
     final completer = Completer<void>();
     _loaded = completer;
     try {
       await controller.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
-      await completer.future.timeout(timeout, onTimeout: () {});
+      await completer.future.timeout(timeout,
+          onTimeout: () =>
+              throw const HeadlessLoadException('load timed out'));
     } finally {
       _loaded = null;
     }

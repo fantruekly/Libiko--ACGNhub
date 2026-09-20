@@ -72,7 +72,10 @@ void main() {
     final browser = createHeadlessBrowser();
     expect(browser, isA<InAppWebViewHeadlessBrowser>());
     expect(await browser.eval('1 + 1'), isNull);
-    await browser.load('about:blank');
+    await expectLater(
+      browser.load('about:blank'),
+      throwsA(isA<HeadlessLoadException>()),
+    );
     await browser.dispose();
   });
 

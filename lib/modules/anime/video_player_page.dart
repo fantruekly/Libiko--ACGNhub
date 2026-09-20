@@ -10,8 +10,10 @@ import '../../core/account/sync_service.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
 import '../../core/services/watch_history.dart';
+import '../../core/storage/database.dart';
 import '../../core/video/cancellation.dart';
 import '../../core/video/headless_browser.dart';
+import '../../core/video/playback_error.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
 import 'player_controls.dart';
@@ -22,6 +24,7 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
   final List<VideoEpisode> episodes;
   final int initialIndex;
   final MediaCandidate? initialResolved;
+  final String sourceName;
 
   const VideoPlayerPage({
     super.key,
@@ -29,6 +32,7 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
     required this.episodes,
     required this.initialIndex,
     this.initialResolved,
+    this.sourceName = '',
   });
 
   @override
@@ -46,12 +50,17 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   bool _resolving = false;
   bool _usedInitialUrl = false;
   int _gen = 0;
+  static const int _maxAutoRetries = 2;
+  int _autoRetries = 0;
+  bool _autoRetryPending = false;
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _playing = false;
   bool _buffering = false;
   double _rate = 1.0;
+  double _volume = 100;
+  bool _muted = false;
   bool _controlsVisible = true;
   bool _fullscreen = false;
   double _doubleTapX = 0;
@@ -69,9 +78,28 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     WidgetsBinding.instance.addObserver(this);
     if (isDesktop) windowManager.addListener(this);
     _player = Player();
+    _volume = double.tryParse(
+            AppDatabase().getString('anime_player_volume') ?? '') ??
+        100;
+    _muted = AppDatabase().getString('anime_player_muted') == '1';
+    _player.setVolume(_muted ? 0 : _volume);
     _controller = VideoController(_player);
     _subs.add(_player.stream.error.listen((e) {
-      if (mounted) setState(() => _error = e);
+      debugPrint('[Player] error: $e');
+      if (!mounted) return;
+      if (!_autoRetryPending && _autoRetries < _maxAutoRetries) {
+        _autoRetries++;
+        _autoRetryPending = true;
+        debugPrint('[Player] auto-retry $_autoRetries/$_maxAutoRetries');
+        Future<void>.delayed(const Duration(milliseconds: 1000), () {
+          if (!mounted) return;
+          _autoRetryPending = false;
+          setState(() => _error = null);
+          _playIndex(_currentIndex);
+        });
+        return;
+      }
+      setState(() => _error = e);
     }));
     _subs.add(_player.stream.position.listen((p) {
       if (mounted) setState(() => _position = p);
@@ -83,6 +111,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (!mounted) return;
       setState(() => _playing = p);
       if (p) {
+        _autoRetries = 0;
         _scheduleHide();
       } else {
         _hideTimer?.cancel();
@@ -119,6 +148,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (i < 0 || i >= widget.episodes.length) return;
     final gen = ++_gen;
     final previous = _currentIndex;
+    if (i != previous) _autoRetries = 0;
     final episode = widget.episodes[i];
     final work = widget.work;
     final history = ref.read(watchHistoryProvider.notifier);
@@ -131,21 +161,23 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         i == widget.initialIndex &&
         widget.initialResolved != null;
     if (useInitial) _usedInitialUrl = true;
-    final stream = useInitial
-        ? widget.initialResolved
+    final result = useInitial
+        ? ResolveResult.success(widget.initialResolved!)
         : await StreamResolver().resolve(episode.playUrl,
             userAgent: episode.userAgent,
             referer: episode.referer,
             legacy: episode.useLegacyParser,
             cancel: _resolveCancel);
     if (!mounted || gen != _gen) return;
+    final stream = result.candidate;
     if (stream == null) {
       setState(() {
         _resolving = false;
         _currentIndex = previous;
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('无法解析播放地址，请尝试其他线路或源'),
+        content:
+            Text(resolveFailureMessage(widget.sourceName, result.failure)),
         action: SnackBarAction(
           label: '重试',
           onPressed: () => _playIndex(i),
@@ -265,6 +297,30 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _player.setRate(1.0);
   }
 
+  void _persistVolumeState() {
+    unawaited(AppDatabase().setString('anime_player_volume', _volume.toString()));
+    unawaited(
+        AppDatabase().setString('anime_player_muted', _muted ? '1' : '0'));
+  }
+
+  void _setVolume(double value) {
+    final v = value.clamp(0.0, 100.0).toDouble();
+    setState(() {
+      _volume = v;
+      if (v > 0) _muted = false;
+    });
+    _player.setVolume(_muted ? 0 : _volume);
+    _persistVolumeState();
+    _showControls();
+  }
+
+  void _toggleMute() {
+    setState(() => _muted = !_muted);
+    _player.setVolume(_muted ? 0 : _volume);
+    _persistVolumeState();
+    _showControls();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) _endBoost();
@@ -351,11 +407,16 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('播放失败：$_error',
-                          style: const TextStyle(color: Colors.white70)),
+                      Text(
+                        widget.sourceName.isEmpty
+                            ? '播放失败：${playbackErrorLabel(_error!)}'
+                            : '来源 ${widget.sourceName} · 播放失败：${playbackErrorLabel(_error!)}',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
                       TextButton(
                         onPressed: () {
                           if (_resolving) return;
+                          _autoRetries = 0;
                           setState(() => _error = null);
                           _playIndex(_currentIndex);
                         },
@@ -426,6 +487,10 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                     },
                     onNextEpisode: _nextEpisode,
                     hasNext: _currentIndex + 1 < widget.episodes.length,
+                    volume: _volume,
+                    muted: _muted,
+                    onVolumeChanged: _setVolume,
+                    onToggleMute: _toggleMute,
                   ),
                 ),
               ),

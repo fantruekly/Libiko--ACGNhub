@@ -1,26 +1,23 @@
 import 'package:flutter/material.dart';
 
-/// A thin vertical position indicator: a track with a draggable thumb whose
-/// position reflects [progress] (0..1). Tapping or dragging reports the
-/// vertical fraction via [onSeek].
+/// A thin vertical position indicator: a draggable thumb whose position
+/// reflects [progress] (0..1). Tapping or dragging reports the vertical
+/// fraction via [onSeek].
 class ReaderProgressBar extends StatelessWidget {
   final double progress;
-  final Color trackColor;
   final Color thumbColor;
   final ValueChanged<double> onSeek;
 
   const ReaderProgressBar({
     super.key,
     required this.progress,
-    required this.trackColor,
     required this.thumbColor,
     required this.onSeek,
   });
 
   static const double _thumbHeight = 40;
-  static const double _trackWidth = 4;
-  static const double _thumbWidth = 10;
-  static const double _width = 24;
+  static const double _thumbWidth = 7;
+  static const double _width = 18;
 
   @override
   Widget build(BuildContext context) {
@@ -43,19 +40,6 @@ class ReaderProgressBar extends StatelessWidget {
             width: _width,
             child: Stack(
               children: [
-                Positioned(
-                  key: const ValueKey('reader-progress-track'),
-                  right: (_width - _trackWidth) / 2,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: _trackWidth,
-                    decoration: BoxDecoration(
-                      color: trackColor,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
                 Positioned(
                   key: const ValueKey('reader-progress-thumb'),
                   right: (_width - _thumbWidth) / 2,

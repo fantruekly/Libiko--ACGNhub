@@ -7,6 +7,7 @@ import '../../core/game/models.dart';
 import '../../core/platform.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/chip_nav.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/pager_bar.dart';
 import '../../core/widgets/ratio_cover.dart';
@@ -114,21 +115,24 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
               final v = details.primaryVelocity ?? 0;
               final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
               if (delta == 0) return;
+              final sourceIndex =
+                  sources.indexWhere((s) => s.id == _sourceId);
+              final next = stepChipSelection(
+                a: sourceIndex,
+                aMin: 0,
+                aMax: sources.length - 1,
+                b: _optionIndex,
+                bMin: 0,
+                bMax: options.length - 1,
+                c: 0,
+                cMin: 0,
+                cMax: 0,
+                delta: delta,
+              );
+              if (next == null) return;
               setState(() {
-                if (options.length > 1) {
-                  final next =
-                      (_optionIndex + delta).clamp(0, options.length - 1);
-                  if (next == _optionIndex) return;
-                  _optionIndex = next;
-                } else if (sources.length > 1) {
-                  final idx = sources.indexWhere((s) => s.id == _sourceId);
-                  final next = (idx + delta).clamp(0, sources.length - 1);
-                  if (next == idx) return;
-                  _sourceId = sources[next].id;
-                  _optionIndex = 0;
-                } else {
-                  return;
-                }
+                _sourceId = sources[next.a].id;
+                _optionIndex = next.b;
                 _page = 1;
               });
             },

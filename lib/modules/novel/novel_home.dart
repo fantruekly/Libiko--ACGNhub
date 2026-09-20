@@ -11,6 +11,7 @@ import '../../core/services/cache_manager.dart';
 import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
+import '../../core/widgets/chip_nav.dart';
 import '../../core/widgets/pager_bar.dart';
 import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
@@ -194,34 +195,33 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     );
   }
 
-  void _handleSwipe(
-      DragEndDetails details, List<NovelBrowseGroup> groups, List<NovelSource> sources) {
+  void _handleSwipe(DragEndDetails details, List<NovelBrowseGroup> groups,
+      List<NovelSource> sources) {
     final v = details.primaryVelocity ?? 0;
     final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
     if (delta == 0) return;
+    final sourceIndex = sources.indexWhere((s) => s.id == _sourceId);
+    final group = (_groupIndex >= 0 && _groupIndex < groups.length)
+        ? groups[_groupIndex]
+        : null;
+    final optionCount = group?.options.length ?? 0;
+    final next = stepChipSelection(
+      a: sourceIndex,
+      aMin: 0,
+      aMax: sources.length - 1,
+      b: _groupIndex,
+      bMin: -1,
+      bMax: groups.length - 1,
+      c: _optionIndex,
+      cMin: 0,
+      cMax: optionCount > 0 ? optionCount - 1 : 0,
+      delta: delta,
+    );
+    if (next == null) return;
     setState(() {
-      final group = (_groupIndex >= 0 && _groupIndex < groups.length)
-          ? groups[_groupIndex]
-          : null;
-      if (group != null && group.options.length > 1) {
-        final next = (_optionIndex + delta).clamp(0, group.options.length - 1);
-        if (next == _optionIndex) return;
-        _optionIndex = next;
-      } else if (groups.isNotEmpty) {
-        final next = (_groupIndex + delta).clamp(-1, groups.length - 1);
-        if (next == _groupIndex) return;
-        _groupIndex = next;
-        _optionIndex = 0;
-      } else if (sources.length > 1) {
-        final idx = sources.indexWhere((s) => s.id == _sourceId);
-        final next = (idx + delta).clamp(0, sources.length - 1);
-        if (next == idx) return;
-        _sourceId = sources[next].id;
-        _groupIndex = -1;
-        _optionIndex = 0;
-      } else {
-        return;
-      }
+      _sourceId = sources[next.a].id;
+      _groupIndex = next.b;
+      _optionIndex = next.c;
       _page = 1;
       _lastHasMore = null;
     });

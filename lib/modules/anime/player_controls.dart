@@ -16,6 +16,10 @@ class PlayerControlsOverlay extends StatefulWidget {
   final VoidCallback onToggleEpisodes;
   final VoidCallback onNextEpisode;
   final bool hasNext;
+  final double volume;
+  final bool muted;
+  final ValueChanged<double> onVolumeChanged;
+  final VoidCallback onToggleMute;
 
   const PlayerControlsOverlay({
     super.key,
@@ -32,6 +36,10 @@ class PlayerControlsOverlay extends StatefulWidget {
     required this.onToggleEpisodes,
     required this.onNextEpisode,
     required this.hasNext,
+    required this.volume,
+    required this.muted,
+    required this.onVolumeChanged,
+    required this.onToggleMute,
   });
 
   @override
@@ -40,6 +48,7 @@ class PlayerControlsOverlay extends StatefulWidget {
 
 class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
   Duration? _drag;
+  bool _volumePanelOpen = false;
 
   double get _maxMs =>
       widget.duration.inMilliseconds <= 0 ? 1.0 : widget.duration.inMilliseconds.toDouble();
@@ -138,6 +147,63 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_volumePanelOpen)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4, right: 40),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  key: const ValueKey('player-volume-panel'),
+                  width: 160,
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        key: const ValueKey('player-mute'),
+                        iconSize: 18,
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
+                        icon: Icon(
+                          widget.muted || widget.volume == 0
+                              ? Icons.volume_off_rounded
+                              : Icons.volume_up_rounded,
+                          color: Colors.white,
+                        ),
+                        tooltip: '静音',
+                        onPressed: widget.onToggleMute,
+                      ),
+                      Expanded(
+                        child: SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 2,
+                            thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 5),
+                            overlayShape: const RoundSliderOverlayShape(
+                                overlayRadius: 10),
+                            activeTrackColor: cs.primary,
+                            thumbColor: cs.primary,
+                            inactiveTrackColor: Colors.white24,
+                          ),
+                          child: Slider(
+                            key: const ValueKey('player-volume-slider'),
+                            value: widget.muted ? 0 : widget.volume,
+                            min: 0,
+                            max: 100,
+                            onChanged: widget.onVolumeChanged,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Row(
             children: [
               Text(
@@ -200,6 +266,20 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
                 onPressed: widget.hasNext ? widget.onNextEpisode : null,
               ),
               const Spacer(),
+              IconButton(
+                key: const ValueKey('player-volume'),
+                icon: Icon(
+                  widget.muted || widget.volume == 0
+                      ? Icons.volume_off_rounded
+                      : widget.volume < 50
+                          ? Icons.volume_down_rounded
+                          : Icons.volume_up_rounded,
+                  color: Colors.white,
+                ),
+                tooltip: '音量',
+                onPressed: () =>
+                    setState(() => _volumePanelOpen = !_volumePanelOpen),
+              ),
               IconButton(
                 key: const ValueKey('player-episodes'),
                 icon: const Icon(Icons.list_rounded, color: Colors.white),
