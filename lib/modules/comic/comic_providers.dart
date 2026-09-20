@@ -290,33 +290,6 @@ final comicSearchSourceProvider =
   ];
 });
 
-/// Search across every source that can search, merging the results.
-final comicSearchProvider =
-    FutureProvider.family<List<ComicSearchResult>, String>(
-        (ref, keyword) async {
-  final manager = ref.watch(comicSourceManagerProvider);
-  final sources = ref.watch(comicSourcesProvider).valueOrNull ?? const [];
-  final searchable = sources.where((s) => s.canSearch).toList();
-  if (searchable.isEmpty) return const [];
-  final results = <ComicSearchResult>[];
-  Object? lastError;
-  var succeeded = 0;
-  for (final source in searchable) {
-    try {
-      for (final comic in await manager.search(source, keyword)) {
-        results.add(ComicSearchResult(comic: comic, sourceKey: source.key));
-      }
-      succeeded++;
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  if (succeeded == 0) {
-    throw StateError('所有漫画源搜索失败：$lastError');
-  }
-  return results;
-});
-
 final comicDetailProvider =
     FutureProvider.family<ComicDetails, (String, String)>(
         (ref, key) async {
