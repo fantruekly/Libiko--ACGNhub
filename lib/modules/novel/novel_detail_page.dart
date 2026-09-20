@@ -144,7 +144,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                   style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
             ),
-            TwoColumnButtonGrid(
+            ButtonGrid(
               children: [
                 for (final ch in vol.chapters)
                   PillButton(label: ch.title, onTap: () => _openChapter(ch, cover)),

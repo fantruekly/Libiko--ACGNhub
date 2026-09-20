@@ -352,7 +352,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
             const SizedBox(height: 12),
             if (chapters.isEmpty)
               _canLoadEp()
-                  ? TwoColumnButtonGrid(
+                  ? ButtonGrid(
                       children: [_chapterButton('', '开始阅读')],
                     )
                   : Text('暂无章节',
@@ -360,7 +360,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                           fontSize: 13,
                           color: cs.onSurface.withValues(alpha: 0.4)))
             else
-              TwoColumnButtonGrid(
+              ButtonGrid(
                 children: [
                   for (final chapter in chapters)
                     _chapterButton(chapter.key, chapter.value),

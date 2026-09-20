@@ -1037,7 +1037,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 4),
-      child: TwoColumnButtonGrid(
+      child: ButtonGrid(
         children: [
           for (final ep in eps)
             PillButton(label: ep.title, onTap: () => _playEpisode(ep)),
