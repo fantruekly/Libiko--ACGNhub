@@ -1086,3 +1086,14 @@ Fix 5bb4394: reverted the _verify gating (returns the candidate again; probe onl
 ## Anime more-results default collapsed (ad hoc, 2026-09-20)
 User request: default-collapse the per-source '更多结果' alternatives. Change: anime_detail_page _moreOpen default true->false and set false on expand/collapse. Full suite 482 pass / 1 skip; analyze clean.
 
+
+## Detail-page unification (plan docs/superpowers/plans/2026-09-20-detail-page-unification.md, base 675d162)
+
+Task 1 (shared TagChip + comic detail): complete (commit 675d162..a4a3206, review clean; 1 Minor deferred: TagChip test doesn't lock the visual contract).
+Task 2 (novel info card): complete (commit a4a3206..cb01f14, review clean; 2 Minor deferred: loading card now shows 暂无简介; card bottom gap 16 vs comic's 12).
+Task 3 (verification): controller-run. analyze clean; full test 483 pass / 1 skip; Windows release build OK. Interactive verification is MUST-VERIFY (human).
+Final whole-branch review (675d162..cb01f14): 'Ready to merge? Yes'. No Critical/Important; Minors: summary interaction parity, loading card 暂无简介, 16 vs 12 gap, novel covers now memCacheWidth 300.
+Fix 9d82f38 (re-review clean): summary text tappable (match comic), skip summary while loading, gap 12->16. Full suite 483 pass / 1 skip; analyze clean.
+Deferred: TagChip test doesn't lock the visual contract; novel covers decode-capped at 300px.
+Detail-page unification: implementation COMPLETE (675d162..9d82f38). MUST-VERIFY (human): compare the two detail pages on Windows.
+
