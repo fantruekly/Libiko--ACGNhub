@@ -10,6 +10,7 @@ import '../../core/account/sync_service.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
 import '../../core/services/watch_history.dart';
+import '../../core/storage/database.dart';
 import '../../core/video/cancellation.dart';
 import '../../core/video/headless_browser.dart';
 import '../../core/video/stream_resolver.dart';
@@ -52,6 +53,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   bool _playing = false;
   bool _buffering = false;
   double _rate = 1.0;
+  double _volume = 100;
+  bool _muted = false;
   bool _controlsVisible = true;
   bool _fullscreen = false;
   double _doubleTapX = 0;
@@ -69,6 +72,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     WidgetsBinding.instance.addObserver(this);
     if (isDesktop) windowManager.addListener(this);
     _player = Player();
+    _volume = double.tryParse(
+            AppDatabase().getString('anime_player_volume') ?? '') ??
+        100;
+    _muted = AppDatabase().getString('anime_player_muted') == '1';
+    _player.setVolume(_muted ? 0 : _volume);
     _controller = VideoController(_player);
     _subs.add(_player.stream.error.listen((e) {
       if (mounted) setState(() => _error = e);
@@ -265,6 +273,23 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _player.setRate(1.0);
   }
 
+  void _setVolume(double value) {
+    final v = value.clamp(0.0, 100.0).toDouble();
+    setState(() {
+      _volume = v;
+      if (v > 0) _muted = false;
+    });
+    _player.setVolume(_muted ? 0 : _volume);
+    unawaited(AppDatabase().setString('anime_player_volume', _volume.toString()));
+  }
+
+  void _toggleMute() {
+    setState(() => _muted = !_muted);
+    _player.setVolume(_muted ? 0 : _volume);
+    unawaited(
+        AppDatabase().setString('anime_player_muted', _muted ? '1' : '0'));
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) _endBoost();
@@ -426,6 +451,10 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                     },
                     onNextEpisode: _nextEpisode,
                     hasNext: _currentIndex + 1 < widget.episodes.length,
+                    volume: _volume,
+                    muted: _muted,
+                    onVolumeChanged: _setVolume,
+                    onToggleMute: _toggleMute,
                   ),
                 ),
               ),

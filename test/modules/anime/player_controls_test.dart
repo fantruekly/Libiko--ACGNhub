@@ -14,6 +14,10 @@ Widget _host({
   VoidCallback? onToggleEpisodes,
   VoidCallback? onNextEpisode,
   bool hasNext = true,
+  double volume = 100,
+  bool muted = false,
+  ValueChanged<double>? onVolumeChanged,
+  VoidCallback? onToggleMute,
 }) {
   return MaterialApp(
     theme: buildAppTheme(),
@@ -32,6 +36,10 @@ Widget _host({
         onToggleEpisodes: onToggleEpisodes ?? () {},
         onNextEpisode: onNextEpisode ?? () {},
         hasNext: hasNext,
+        volume: volume,
+        muted: muted,
+        onVolumeChanged: onVolumeChanged ?? (_) {},
+        onToggleMute: onToggleMute ?? () {},
       ),
     ),
   );
@@ -114,5 +122,29 @@ void main() {
     final button = tester.widget<IconButton>(
         find.byKey(const ValueKey('player-next')));
     expect(button.onPressed, isNull);
+  });
+
+  testWidgets('volume button reveals a slider and mute toggles', (tester) async {
+    var toggled = 0;
+    double? changed;
+    await tester.pumpWidget(_host(
+      onToggleMute: () => toggled++,
+      onVolumeChanged: (v) => changed = v,
+    ));
+    expect(find.byKey(const ValueKey('player-volume-slider')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('player-volume')));
+    await tester.pump();
+    final slider =
+        tester.widget<Slider>(find.byKey(const ValueKey('player-volume-slider')));
+    expect(slider.value, 100);
+    await tester.tap(find.byKey(const ValueKey('player-mute')));
+    expect(toggled, 1);
+    slider.onChanged!(42);
+    expect(changed, 42);
+  });
+
+  testWidgets('volume icon reflects muted state', (tester) async {
+    await tester.pumpWidget(_host(muted: true));
+    expect(find.byIcon(Icons.volume_off_rounded), findsWidgets);
   });
 }
