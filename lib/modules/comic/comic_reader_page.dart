@@ -77,6 +77,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       _ratioRebuildScheduled = false;
       if (mounted) setState(() {});
     });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   @override
