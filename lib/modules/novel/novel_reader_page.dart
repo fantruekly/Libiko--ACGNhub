@@ -292,13 +292,19 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
       top: topBar + 8,
       bottom: bottomBar + 8,
       right: 2,
-      child: ValueListenableBuilder<double>(
-        valueListenable: _progress,
-        builder: (context, progress, _) => ReaderProgressBar(
-          progress: progress,
-          trackColor: palette.fg.withValues(alpha: 0.15),
-          thumbColor: Theme.of(context).colorScheme.primary,
-          onSeek: _seekToFraction,
+      child: IgnorePointer(
+        ignoring: !_chromeVisible,
+        child: AnimatedOpacity(
+          opacity: _chromeVisible ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: ValueListenableBuilder<double>(
+            valueListenable: _progress,
+            builder: (context, progress, _) => ReaderProgressBar(
+              progress: progress,
+              thumbColor: Theme.of(context).colorScheme.primary,
+              onSeek: _seekToFraction,
+            ),
+          ),
         ),
       ),
     );

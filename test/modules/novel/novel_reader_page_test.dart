@@ -126,4 +126,32 @@ void main() {
     expect(container.read(novelHistoryProvider), hasLength(1));
     expect(container.read(novelHistoryProvider).first.chapterId, 'c1');
   });
+
+  testWidgets('hiding the chrome also hides the progress bar', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        novelChapterProvider(('linovelib', '1', 'c1')).overrideWith((ref) async =>
+            const NovelChapter(title: '第一章', blocks: [NovelText('甲段')])),
+        novelDetailProvider(('linovelib', '1')).overrideWith((ref) async =>
+            const NovelDetail(novel: Novel(id: '1', title: '书'), volumes: [])),
+      ],
+      child: const MaterialApp(
+        home: NovelReaderPage(
+            sourceKey: 'linovelib', novelId: '1', chapterId: 'c1', title: '书'),
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    AnimatedOpacity fade() => tester.widget<AnimatedOpacity>(find
+        .ancestor(
+            of: find.byKey(const ValueKey('reader-progress-bar')),
+            matching: find.byType(AnimatedOpacity))
+        .first);
+    expect(fade().opacity, 1);
+
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump();
+    expect(fade().opacity, 0);
+  });
 }
