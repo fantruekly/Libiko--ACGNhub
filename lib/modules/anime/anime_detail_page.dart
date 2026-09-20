@@ -56,6 +56,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   int _searchGen = 0;
   int _searchSeq = 0;
   VideoItem? _expandedItem;
+  bool _moreOpen = true;
   VideoSource? _expandedSource;
   List<VideoEpisode>? _episodes;
   bool _episodesLoading = false;
@@ -684,10 +685,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         _episodes = null;
         _episodesError = null;
         _episodesLoading = false;
+        _moreOpen = true;
       });
       return;
     }
-    setState(() => _expandedItem = item);
+    setState(() {
+      _expandedItem = item;
+      _moreOpen = true;
+    });
     await _loadEpisodes(item, source);
   }
 
@@ -938,27 +943,49 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           ),
           if (expanded) ...[
             if (alternatives.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 8, left: 4),
-                child: Text('更多结果',
-                    style:
-                        TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-              ),
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.only(left: 12, bottom: 4),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final alt in alternatives)
-                      ActionChip(
-                        label: Text(alt.title, maxLines: 1),
-                        onPressed: () => _expandItem(alt, source),
-                      ),
-                  ],
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const ValueKey('more-results-toggle'),
+                  onTap: () => setState(() => _moreOpen = !_moreOpen),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('更多结果',
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onSurfaceVariant)),
+                        Icon(
+                          _moreOpen
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                          size: 16,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
+              if (_moreOpen) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, bottom: 4),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final alt in alternatives)
+                        ActionChip(
+                          label: Text(alt.title, maxLines: 1),
+                          onPressed: () => _expandItem(alt, source),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
             _episodeArea(cs),
           ],
