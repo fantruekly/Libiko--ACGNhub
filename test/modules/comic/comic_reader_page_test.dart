@@ -115,7 +115,8 @@ void main() {
     final pointer = TestPointer(1, PointerDeviceKind.mouse);
     pointer.hover(tester.getCenter(find.byType(PageView)));
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(currentPage(tester), closeTo(1, 0.001));
   });
 
@@ -130,7 +131,8 @@ void main() {
     // still inside the 250ms cooldown.
     await tester.pump(const Duration(milliseconds: 150));
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(currentPage(tester), closeTo(1, 0.001));
   });
 
@@ -156,7 +158,8 @@ void main() {
     final pointer = TestPointer(1, PointerDeviceKind.mouse);
     pointer.hover(tester.getCenter(find.byType(ListView)));
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
   });
 }
