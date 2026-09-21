@@ -110,4 +110,29 @@ void main() {
     expect(source.categoryOptions, ['a', 'b']);
     expect(source.categoryOptionsFor('anything'), ['a', 'b']);
   });
+
+  test('fromMetadata reads requireLogin', () {
+    expect(
+        ComicSource.fromMetadata(
+                {'name': 'P', 'key': 'picacg', 'version': '1', 'requireLogin': true})
+            .requireLogin,
+        isTrue);
+    expect(
+        ComicSource.fromMetadata({'name': 'X', 'key': 'x', 'version': '1'})
+            .requireLogin,
+        isFalse);
+  });
+
+  test('parseForTest detects the requireLogin flag', () {
+    expect(
+        ComicSource.parseForTest(
+                'class S extends ComicSource { name="a"; key="b"; version="1"; requireLogin = true; }')
+            .requireLogin,
+        isTrue);
+    expect(
+        ComicSource.parseForTest(
+                'class S extends ComicSource { name="a"; key="b"; version="1"; }')
+            .requireLogin,
+        isFalse);
+  });
 }

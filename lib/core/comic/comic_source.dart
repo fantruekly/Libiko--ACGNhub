@@ -62,6 +62,7 @@ class ComicSource {
   final List<ComicCategoryOptionGroup> categoryOptionGroups;
   final bool hasLogin;
   final bool hasCookieLogin;
+  final bool requireLogin;
   final List<String> cookieFields;
 
   const ComicSource({
@@ -84,6 +85,7 @@ class ComicSource {
     this.categoryOptionGroups = const [],
     this.hasLogin = false,
     this.hasCookieLogin = false,
+    this.requireLogin = false,
     this.cookieFields = const [],
   });
 
@@ -141,6 +143,7 @@ class ComicSource {
           : _optionsFor(optionGroups, defaultCategory),
       hasLogin: account is Map && account['hasLogin'] == true,
       hasCookieLogin: account is Map && account['hasCookieLogin'] == true,
+      requireLogin: meta['requireLogin'] == true,
       cookieFields: account is Map && account['cookieFields'] is List
           ? (account['cookieFields'] as List).map((e) => e.toString()).toList()
           : const [],
@@ -236,6 +239,7 @@ class ComicSource {
       canLoadInfo: RegExp(r'loadInfo\s*:').hasMatch(script),
       canLoadEp: RegExp(r'loadEp\s*:').hasMatch(script),
       canOnImageLoad: RegExp(r'onImageLoad\s*:').hasMatch(script),
+      requireLogin: RegExp(r'requireLogin\s*=\s*true').hasMatch(script),
     );
   }
 }
@@ -296,6 +300,7 @@ globalThis.__libiko_registerSource = function (key) {
       name: s.name, key: s.key, version: s.version, url: s.url,
       description: s.description,
       search: !!s.search, explore: !!s.explore,
+      requireLogin: !!s.requireLogin,
       loadInfo: !!(s.comic && s.comic.loadInfo),
       loadEp: !!(s.comic && s.comic.loadEp),
       onImageLoad: !!(s.comic && s.comic.onImageLoad),

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_source.dart';
-import '../../core/theme/app_theme.dart';
 import 'comic_account_dialog.dart';
 import 'comic_providers.dart';
 
@@ -48,7 +47,6 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     final sourcesAsync = ref.watch(comicSourcesProvider);
     final hasSources = (sourcesAsync.valueOrNull ?? const []).isNotEmpty;
     return Scaffold(
-      backgroundColor: kAppBackground,
       appBar: AppBar(
         title: const Text('源管理'),
         actions: [
@@ -161,7 +159,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       key: key,
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
-      color: Colors.white,
+      color: cs.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         title: Text(source.name),
@@ -203,7 +201,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
                             value: 'account', child: Text('账号')),
                       PopupMenuItem(
                         value: 'refresh',
-                        enabled: source.url.isNotEmpty,
+                        enabled: source.fileName.isNotEmpty,
                         child: const Text('刷新'),
                       ),
                       const PopupMenuItem(value: 'delete', child: Text('删除')),
@@ -307,13 +305,14 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   }
 
   Widget _remoteEntryTile(Map<String, dynamic> entry) {
+    final cs = Theme.of(context).colorScheme;
     final name = entry['name']?.toString() ?? entry['key']?.toString() ?? '';
     final url = entry['url']?.toString() ?? '';
     final description = entry['description']?.toString();
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
-      color: Colors.white,
+      color: cs.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         title: Text(name),

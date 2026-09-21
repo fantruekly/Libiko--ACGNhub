@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,14 +22,18 @@ class _Palette {
   final Color border;
   const _Palette(this.bg, this.fg, this.bar, this.border);
 
-  static _Palette of(NovelReaderTheme theme) => switch (theme) {
-        NovelReaderTheme.light => const _Palette(
-            Color(0xFFFFFFFF), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
-        NovelReaderTheme.sepia => const _Palette(
-            Color(0xFFF5EFE0), Color(0xFF3B3226), Color(0xFFEFE6D2), Color(0xFFE0D5BC)),
-        NovelReaderTheme.dark => const _Palette(
-            Color(0xFF1C1C1E), Color(0xFFD8D8DC), Color(0xFF2C2C2E), Color(0xFF3A3A3C)),
-      };
+  static _Palette of(NovelReaderTheme theme, Brightness brightness) {
+    return switch (resolveTheme(theme, brightness)) {
+      NovelReaderTheme.light => const _Palette(
+          Color(0xFFFFFFFF), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
+      NovelReaderTheme.sepia => const _Palette(
+          Color(0xFFF5EFE0), Color(0xFF3B3226), Color(0xFFEFE6D2), Color(0xFFE0D5BC)),
+      NovelReaderTheme.dark => const _Palette(
+          Color(0xFF1C1C1E), Color(0xFFD8D8DC), Color(0xFF2C2C2E), Color(0xFF3A3A3C)),
+      NovelReaderTheme.auto => const _Palette(
+          Color(0xFFFFFFFF), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
+    };
+  }
 }
 
 class NovelReaderPage extends ConsumerStatefulWidget {
@@ -87,7 +92,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(novelReaderSettingsProvider);
-    final palette = _Palette.of(settings.theme);
+    final palette =
+        _Palette.of(settings.theme, Theme.of(context).brightness);
     final chapters = _chapters();
     final async =
         ref.watch(novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)));
@@ -152,55 +158,74 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
   Widget _content(
       NovelChapter chapter, NovelReaderSettings settings, _Palette palette) {
-    return SingleChildScrollView(
-      controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (chapter.title.isNotEmpty) ...[
-            Text(chapter.title,
-                style: TextStyle(
-                    fontSize: settings.fontSize + 4,
-                    fontWeight: FontWeight.w600,
-                    color: palette.fg)),
-            const SizedBox(height: 16),
-          ],
-          if (chapter.blocks.isEmpty)
-            Text('本章暂无内容',
-                style: TextStyle(
-                    fontSize: settings.fontSize,
-                    color: palette.fg.withValues(alpha: 0.5)))
-          else
-            for (final block in chapter.blocks)
-              switch (block) {
-                NovelText(:final text) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Text(text,
-                        style: TextStyle(
-                            fontSize: settings.fontSize,
-                            height: settings.lineHeight,
-                            color: palette.fg)),
-                  ),
-                NovelImage(:final url) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: SizedBox(
-                      height: _illustrationHeight(context),
-                      width: double.infinity,
-                      child: CachedNetworkImage(
-                        imageUrl: url,
-                        fit: BoxFit.contain,
-                        httpHeaders: novelImageHeaders,
-                        cacheManager: AppCacheManager(),
-                        placeholder: (_, __) => const Center(
-                            child: CircularProgressIndicator()),
-                        errorWidget: (_, __, ___) => const Center(
-                            child: Icon(Icons.broken_image_outlined)),
+    final imageWidth =
+        (((MediaQuery.sizeOf(context).width - 40) *
+                    MediaQuery.devicePixelRatioOf(context))
+                .round())
+            .clamp(1, 1 << 20);
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        scrollbars: false,
+        dragDevices: const {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.invertedStylus,
+          PointerDeviceKind.unknown,
+        },
+      ),
+      child: SingleChildScrollView(
+        controller: _scroll,
+        padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (chapter.title.isNotEmpty) ...[
+              Text(chapter.title,
+                  style: TextStyle(
+                      fontSize: settings.fontSize + 4,
+                      fontWeight: FontWeight.w600,
+                      color: palette.fg)),
+              const SizedBox(height: 16),
+            ],
+            if (chapter.blocks.isEmpty)
+              Text('本章暂无内容',
+                  style: TextStyle(
+                      fontSize: settings.fontSize,
+                      color: palette.fg.withValues(alpha: 0.5)))
+            else
+              for (final block in chapter.blocks)
+                switch (block) {
+                  NovelText(:final text) => Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Text(text,
+                          style: TextStyle(
+                              fontSize: settings.fontSize,
+                              height: settings.lineHeight,
+                              color: palette.fg)),
+                    ),
+                  NovelImage(:final url) => Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: SizedBox(
+                        height: _illustrationHeight(context),
+                        width: double.infinity,
+                        child: CachedNetworkImage(
+                          imageUrl: url,
+                          fit: BoxFit.contain,
+                          httpHeaders: novelImageHeaders,
+                          cacheManager: AppCacheManager(),
+                          memCacheWidth: imageWidth,
+                          placeholder: (_, __) => const Center(
+                              child: CircularProgressIndicator()),
+                          errorWidget: (_, __, ___) => const Center(
+                              child: Icon(Icons.broken_image_outlined)),
+                        ),
                       ),
                     ),
-                  ),
-              },
-        ],
+                },
+          ],
+        ),
       ),
     );
   }
@@ -332,7 +357,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
   void _openCatalog(NovelDetail? detail) {
     final cs = Theme.of(context).colorScheme;
-    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
+    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme,
+        Theme.of(context).brightness);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -378,7 +404,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   }
 
   void _openSettings() {
-    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme);
+    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme,
+        Theme.of(context).brightness);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -450,21 +477,21 @@ class _ReaderSettingsSheet extends ConsumerWidget {
           const SizedBox(height: 8),
           const Text('主题', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
             children: [
               for (final t in NovelReaderTheme.values)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: ChoiceChip(
-                    label: Text(switch (t) {
-                      NovelReaderTheme.light => '浅色',
-                      NovelReaderTheme.sepia => '米色',
-                      NovelReaderTheme.dark => '深色',
-                    }),
-                    selected: settings.theme == t,
-                    showCheckmark: false,
-                    onSelected: (_) => notifier.setTheme(t),
-                  ),
+                ChoiceChip(
+                  label: Text(switch (t) {
+                    NovelReaderTheme.auto => '跟随App',
+                    NovelReaderTheme.light => '浅色',
+                    NovelReaderTheme.sepia => '米色',
+                    NovelReaderTheme.dark => '深色',
+                  }),
+                  selected: settings.theme == t,
+                  showCheckmark: false,
+                  onSelected: (_) => notifier.setTheme(t),
                 ),
             ],
           ),

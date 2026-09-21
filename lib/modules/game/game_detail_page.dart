@@ -7,7 +7,6 @@ import '../../core/game/game_image.dart';
 import '../../core/game/models.dart';
 import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
@@ -34,7 +33,6 @@ class GameDetailPage extends ConsumerWidget {
     final key = (sourceKey, gameId);
     final async = ref.watch(gameDetailProvider(key));
     return Scaffold(
-      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(context),
@@ -79,7 +77,7 @@ class GameDetailPage extends ConsumerWidget {
         height: 48 + topInset,
         padding: EdgeInsets.only(left: 4, top: topInset),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF),
+          color: cs.surface,
           border:
               Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
@@ -160,7 +158,7 @@ class GameDetailPage extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          color: cs.surface, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

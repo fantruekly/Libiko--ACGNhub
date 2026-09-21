@@ -1,11 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:libiko/core/storage/database.dart';
 import 'package:libiko/main.dart';
 
 void main() {
   testWidgets('App launches with sidebar navigation', (tester) async {
     SharedPreferences.setMockInitialValues({});
+    await AppDatabase.init();
 
     await tester.pumpWidget(const ProviderScope(child: LibikoApp()));
     await tester.pump(const Duration(milliseconds: 100));

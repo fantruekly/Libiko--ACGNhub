@@ -15,6 +15,11 @@ import 'models.dart';
 /// evicted (and its [ui.Image] disposed).
 const int maxCachedPages = 12;
 
+/// Upper bound for a comic page's decoded width (px). Applies format-independently
+/// in memory (WebP/GIF included) with no disk re-encode; wide scans are
+/// downscaled, while tall narrow webtoon strips are already within the bound.
+const int kMaxComicDecodeWidth = 1600;
+
 /// Cache key for a processed page. Pure so it can be unit-tested.
 String pageCacheKey(
   String sourceKey,
@@ -606,10 +611,13 @@ class _CachedPageImageProvider extends ImageProvider<_CachedPageImageProvider> {
       return ImageInfo(image: cached.image.clone(), scale: 1.0);
     }
     // The disk-cached provider still applies; it is wrapped, not replaced.
-    final plain = CachedNetworkImageProvider(
-      url,
-      headers: headers,
-      cacheManager: AppCacheManager(),
+    final plain = ResizeImage(
+      CachedNetworkImageProvider(
+        url,
+        headers: headers,
+        cacheManager: AppCacheManager(),
+      ),
+      width: kMaxComicDecodeWidth,
     );
     final info = await _firstFrame(plain);
     try {

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +11,7 @@ import '../../core/comic/models.dart';
 import '../../core/comic/reader_nav.dart';
 import '../../core/platform.dart';
 import '../../core/widgets/desktop_drag_area.dart';
+import '../../core/widgets/reader_progress_bar.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_providers.dart';
 
@@ -46,14 +48,17 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   Timer? _historyTimer;
   PrefetchCancelToken? _ratioToken;
   String? _ratioPrefetchedChapter;
+  bool _ratioRebuildScheduled = false;
   final _scrollController = ScrollController();
   final _pageController = PageController();
+  final _progress = ValueNotifier<double>(0);
 
   @override
   void initState() {
     super.initState();
     _chapterId = widget.chapterId;
     _page = widget.initialPage;
+    _scrollController.addListener(_updateProgress);
     _showChrome();
   }
 
@@ -62,9 +67,23 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     _chromeTimer?.cancel();
     _historyTimer?.cancel();
     _ratioToken?.cancel();
+    _scrollController.removeListener(_updateProgress);
+    _progress.dispose();
     _scrollController.dispose();
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// Coalesces the per-image ratio callbacks so a chapter load triggers at most
+  /// one rebuild per frame instead of one per image.
+  void _scheduleRatioRebuild() {
+    if (_ratioRebuildScheduled) return;
+    _ratioRebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ratioRebuildScheduled = false;
+      if (mounted) setState(() {});
+    });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   @override
@@ -79,7 +98,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final showChrome = _chromeVisible || !epAsync.hasValue;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: cs.surface,
       body: Stack(
         children: [
           Positioned.fill(
@@ -96,6 +115,9 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
                   : _continuous(ep, details),
             ),
           ),
+          if (settings.mode == ComicReaderMode.continuousVertical &&
+              epAsync.hasValue)
+            _progressBar(cs, showChrome),
           if (showChrome) _topBar(details),
           if (showChrome) _bottomBar(epAsync.valueOrNull, details, settings),
         ],
@@ -118,101 +140,115 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         if (provider.ratioOf(url) case final ratio?) ratio,
     ]);
     final nav = _nav(details);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final viewportHeight = constraints.maxHeight;
-        return NotificationListener<ScrollMetricsNotification>(
-          onNotification: (notification) {
-            if (_resuming) _applyResumeJump(images.length);
-            return false;
-          },
-          child: NotificationListener<ScrollNotification>(
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        scrollbars: false,
+        dragDevices: const {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.invertedStylus,
+          PointerDeviceKind.unknown,
+        },
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewportHeight = constraints.maxHeight;
+          return NotificationListener<ScrollMetricsNotification>(
             onNotification: (notification) {
-              if (_programmaticScroll) return false;
-              if (notification is ScrollStartNotification &&
-                  notification.dragDetails != null) {
-                _resuming = false;
-                _restoring = false;
-              }
-              if (notification is! ScrollUpdateNotification &&
-                  notification is! ScrollEndNotification) {
-                return false;
-              }
-              final metrics = notification.metrics;
-              if (_restoring || metrics.maxScrollExtent <= 0) return false;
-              final page = currentPageFromScroll(
-                  metrics.pixels, metrics.maxScrollExtent, images.length);
-              _onPageChanged(page, images.length);
-              if (metrics.maxScrollExtent > 0 &&
-                  metrics.pixels >= metrics.maxScrollExtent - 8 &&
-                  nav.next != null) {
-                _goToChapter(nav.next!);
-              } else if (metrics.pixels <= 8 &&
-                  _page == 0 &&
-                  nav.previous != null) {
-                _goToChapter(nav.previous!, atEnd: true);
-              }
+              if (_resuming) _applyResumeJump(images.length);
+              _updateProgress();
               return false;
             },
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: images.length + (nav.next != null ? 1 : 0),
-              itemBuilder: (context, i) {
-                if (i >= images.length) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: () => _goToChapter(nav.next!),
-                          child: const Text('下一章'),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (_programmaticScroll) return false;
+                if (notification is ScrollStartNotification) {
+                  _resuming = false;
+                  _restoring = false;
+                }
+                if (notification is! ScrollUpdateNotification &&
+                    notification is! ScrollEndNotification) {
+                  return false;
+                }
+                final metrics = notification.metrics;
+                if (_restoring || metrics.maxScrollExtent <= 0) return false;
+                final page = currentPageFromScroll(
+                    metrics.pixels, metrics.maxScrollExtent, images.length);
+                _onPageChanged(page, images.length);
+                if (metrics.maxScrollExtent > 0 &&
+                    metrics.pixels >= metrics.maxScrollExtent - 8 &&
+                    nav.next != null) {
+                  _goToChapter(nav.next!);
+                } else if (metrics.pixels <= 8 &&
+                    _page == 0 &&
+                    nav.previous != null) {
+                  _goToChapter(nav.previous!, atEnd: true);
+                }
+                return false;
+              },
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: images.length + (nav.next != null ? 1 : 0),
+                itemBuilder: (context, i) {
+                  if (i >= images.length) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: () => _goToChapter(nav.next!),
+                            child: const Text('下一章'),
+                          ),
                         ),
                       ),
-                    ),
+                    );
+                  }
+                  final cached = provider.ratioOf(images[i]);
+                  final ratio =
+                      (cached != null && cached > 0) ? cached : fallback;
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _toggleChrome,
+                    child: isDesktop
+                        ? SizedBox(
+                            key: ValueKey('page-box-$i'),
+                            height: viewportHeight,
+                            width: double.infinity,
+                            child: _ReaderImage(
+                              key: ValueKey('$_chapterId-$i'),
+                              sourceKey: widget.sourceKey,
+                              comicId: widget.comicId,
+                              chapterId: _chapterId,
+                              url: images[i],
+                              fit: BoxFit.contain,
+                              fillWidth: false,
+                            ),
+                          )
+                        : AspectRatio(
+                            aspectRatio: ratio,
+                            child: _ReaderImage(
+                              key: ValueKey('$_chapterId-$i'),
+                              sourceKey: widget.sourceKey,
+                              comicId: widget.comicId,
+                              chapterId: _chapterId,
+                              url: images[i],
+                              fit: BoxFit.fitWidth,
+                              onRatio: (r) {
+                                provider.rememberRatio(images[i], r);
+                                _scheduleRatioRebuild();
+                              },
+                            ),
+                          ),
                   );
-                }
-                final cached = provider.ratioOf(images[i]);
-                final ratio = (cached != null && cached > 0) ? cached : fallback;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _toggleChrome,
-                  child: isDesktop
-                      ? SizedBox(
-                          key: ValueKey('page-box-$i'),
-                          height: viewportHeight,
-                          width: double.infinity,
-                          child: _ReaderImage(
-                            key: ValueKey('$_chapterId-$i'),
-                            sourceKey: widget.sourceKey,
-                            comicId: widget.comicId,
-                            chapterId: _chapterId,
-                            url: images[i],
-                            fit: BoxFit.contain,
-                            fillWidth: false,
-                          ),
-                        )
-                      : AspectRatio(
-                          aspectRatio: ratio,
-                          child: _ReaderImage(
-                            key: ValueKey('$_chapterId-$i'),
-                            sourceKey: widget.sourceKey,
-                            comicId: widget.comicId,
-                            chapterId: _chapterId,
-                            url: images[i],
-                            fit: BoxFit.fitWidth,
-                            onRatio: (r) {
-                              provider.rememberRatio(images[i], r);
-                              if (mounted) setState(() {});
-                            },
-                          ),
-                        ),
-                );
-              },
+                },
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -315,14 +351,51 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     if (max <= 0) return;
     final target = (_page / (total - 1)) * max;
     final current = _scrollController.position.pixels;
-    if ((current - target).abs() < 1) {
-      _restoring = false;
-      return;
-    }
+    _resuming = false;
+    _restoring = false;
+    if ((current - target).abs() < 1) return;
     _programmaticScroll = true;
     _scrollController.jumpTo(target.clamp(0.0, max));
     _programmaticScroll = false;
-    _restoring = false;
+  }
+
+  void _updateProgress() {
+    if (!_scrollController.hasClients) return;
+    final max = _scrollController.position.maxScrollExtent;
+    _progress.value =
+        max <= 0 ? 0 : (_scrollController.position.pixels / max).clamp(0.0, 1.0);
+  }
+
+  void _seekToFraction(double fraction) {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(
+        _scrollController.position.maxScrollExtent * fraction.clamp(0.0, 1.0));
+  }
+
+  Widget _progressBar(ColorScheme cs, bool showChrome) {
+    final insets = MediaQuery.paddingOf(context);
+    final topBar = 48 + (isDesktop ? 0.0 : insets.top);
+    final bottomBar = 48 + (isDesktop ? 0.0 : insets.bottom);
+    return Positioned(
+      top: topBar + 8,
+      bottom: bottomBar + 8,
+      right: 2,
+      child: IgnorePointer(
+        ignoring: !showChrome,
+        child: AnimatedOpacity(
+          opacity: showChrome ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: ValueListenableBuilder<double>(
+            valueListenable: _progress,
+            builder: (context, progress, _) => ReaderProgressBar(
+              progress: progress,
+              thumbColor: cs.primary,
+              onSeek: _seekToFraction,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _topBar(ComicDetails? details) {
@@ -338,7 +411,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
               left: 4,
               top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFFFFF),
+            color: cs.surface,
             border: Border(
                 bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
           ),
@@ -381,7 +454,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF),
+          color: cs.surface,
           border:
               Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
@@ -430,7 +503,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     final chapters = details?.chapters.entries.toList() ?? const [];
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFFFFFFFF),
+      backgroundColor: cs.surface,
       builder: (ctx) => ListView.builder(
         itemCount: chapters.length,
         itemBuilder: (_, i) {
@@ -496,6 +569,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       _chapterId = chapterId;
       _page = 0;
     });
+    _progress.value = 0;
     _recordHistory();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

@@ -8,7 +8,6 @@ import '../../core/account/sync_service.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/services/follow_manager.dart';
 import '../../core/widgets/button_grid.dart';
@@ -135,7 +134,6 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final status = w.extra['status'] as String?;
 
     return Scaffold(
-      backgroundColor: kAppBackground,
       body: Column(
         children: [
           _header(w, cs),
@@ -330,7 +328,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         height: 48 + topInset,
         padding: EdgeInsets.only(left: 4, top: topInset),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF),
+          color: cs.surface,
           border:
               Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
@@ -532,16 +530,16 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.7),
+                      color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                           color: cs.outlineVariant, width: 0.5),
                     ),
                     child: Text(
                       t,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12.5,
-                          color: Color(0xFF3A3A3C),
+                          color: cs.onSurfaceVariant,
                           fontWeight: FontWeight.w500),
                     ),
                   ))
@@ -908,7 +906,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 height: 52,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cs.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: cs.outlineVariant),
                 ),

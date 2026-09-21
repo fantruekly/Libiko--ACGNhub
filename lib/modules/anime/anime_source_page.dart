@@ -2,7 +2,6 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/app_theme.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/source_rule.dart';
 import '../../core/video/video_sources.dart';
@@ -66,7 +65,6 @@ class _AnimeSourcePageState extends ConsumerState<AnimeSourcePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAppBackground,
       appBar: AppBar(
         title: const Text('动漫源管理'),
         actions: [

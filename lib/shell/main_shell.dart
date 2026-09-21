@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../core/platform.dart';
-import '../core/theme/app_theme.dart';
 import '../core/widgets/desktop_drag_area.dart';
 import '../core/widgets/glass_surface.dart';
 import '../core/widgets/window_controls.dart';
@@ -25,6 +24,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final Set<int> _visited = {0};
   late final SidebarState _sidebarState;
 
   static const _titles = ['动漫', '漫画', '轻小说', '游戏'];
@@ -52,6 +52,13 @@ class _MainShellState extends State<MainShell> {
     _sidebarState.removeListener(_onSidebarChanged);
     _sidebarState.dispose();
     super.dispose();
+  }
+
+  void _select(int i) {
+    setState(() {
+      _currentIndex = i;
+      _visited.add(i);
+    });
   }
 
   void _openSettings() {
@@ -82,7 +89,7 @@ class _MainShellState extends State<MainShell> {
                     maxWidth: 72,
                     child: AppSidebar(
                       selectedIndex: _currentIndex,
-                      onChanged: (i) => setState(() => _currentIndex = i),
+                      onChanged: _select,
                       onSettingsTap: _openSettings,
                     ),
                   ),
@@ -91,7 +98,7 @@ class _MainShellState extends State<MainShell> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    for (var i = 0; i < _pages.length; i++)
+                    for (final i in _visited)
                       IgnorePointer(
                         ignoring: i != _currentIndex,
                         child: AnimatedOpacity(
@@ -112,13 +119,12 @@ class _MainShellState extends State<MainShell> {
     );
 
     return Scaffold(
-      backgroundColor: kAppBackground,
       body: content,
       bottomNavigationBar: isDesktop
           ? null
           : AppBottomBar(
               selectedIndex: _currentIndex,
-              onChanged: (i) => setState(() => _currentIndex = i),
+              onChanged: _select,
             ),
     );
   }
@@ -130,7 +136,6 @@ class _MainShellState extends State<MainShell> {
       child: GlassSurface(
         borderRadius: BorderRadius.zero,
         blur: 18,
-        color: kAppBackground,
         child: Container(
           height: 48 + topInset,
           padding: EdgeInsets.only(top: topInset),

@@ -271,7 +271,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
               ),
               error: (_, __) {
                 _lastPage = null;
-                final needsLogin = source.hasLogin || source.hasCookieLogin;
+                final needsLogin = source.requireLogin;
                 final logged = !needsLogin ||
                     (ref.watch(comicLoginProvider(source.key)).valueOrNull ??
                         false);

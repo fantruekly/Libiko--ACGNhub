@@ -23,10 +23,11 @@ class GlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     Widget content = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? const Color(0xF7FFFFFF),
+        color: color ?? cs.surface.withValues(alpha: 0.97),
         borderRadius: borderRadius,
         border: border,
       ),

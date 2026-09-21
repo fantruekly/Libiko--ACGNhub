@@ -13,6 +13,14 @@ const _source = ComicSource(
   key: 'needlogin',
   version: '1.0.0',
   hasLogin: true,
+  requireLogin: true,
+);
+
+const _optionalLoginSource = ComicSource(
+  name: '可选登录的源',
+  key: 'optionallogin',
+  version: '1.0.0',
+  hasLogin: true,
 );
 
 void main() {
@@ -82,5 +90,25 @@ void main() {
 
     expect(find.text('该源需要登录'), findsNothing);
     expect(find.text('去登录'), findsNothing);
+  });
+
+  testWidgets(
+      'does not prompt when a login-capable source does not require login',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        comicSourcesProvider.overrideWith((ref) async => [_optionalLoginSource]),
+        comicLoginProvider('optionallogin').overrideWith((ref) async => false),
+        comicDetailProvider(('optionallogin', '1')).overrideWith(
+            (ref) async => const ComicDetails(id: '1', title: '')),
+      ],
+      child: const MaterialApp(
+        home: ComicDetailPage(
+            sourceKey: 'optionallogin', comicId: '1', title: '测试漫画'),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('该源需要登录'), findsNothing);
   });
 }

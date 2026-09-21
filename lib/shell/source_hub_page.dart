@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme/app_theme.dart';
 import '../modules/anime/anime_source_page.dart';
 import '../modules/comic/comic_source_page.dart';
 import '../modules/game/game_source_page.dart';
@@ -18,7 +17,6 @@ class SourceHubPage extends StatelessWidget {
       (Icons.games_rounded, '游戏', '内置源', () => const GameSourcePage()),
     ];
     return Scaffold(
-      backgroundColor: kAppBackground,
       appBar: AppBar(title: const Text('添加源')),
       body: ListView(
         children: [
