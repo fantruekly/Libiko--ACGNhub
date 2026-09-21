@@ -117,18 +117,11 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
   }
 
   Widget _centerButton() {
+    // While buffering the player page draws the center spinner itself so it
+    // stays at the true screen center regardless of the control bars; keep the
+    // slot empty so the play button does not reappear behind the spinner.
     if (widget.buffering) {
-      return const SizedBox(
-        width: 56,
-        height: 56,
-        child: Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-          ),
-        ),
-      );
+      return const SizedBox(width: 56, height: 56);
     }
     return IconButton(
       key: const ValueKey('player-center-play'),

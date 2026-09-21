@@ -386,7 +386,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
             if (_seekFeedback != null) _seekFeedbackOverlay(),
             if (_dragSeekTarget != null) _dragSeekOverlay(),
             if (_rate != 1.0) _speedBadge(),
-            if (_resolving)
+            if (_resolving || _buffering)
               const Positioned.fill(
                 child: IgnorePointer(
                   child: Center(
