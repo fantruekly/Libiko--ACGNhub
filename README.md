@@ -36,7 +36,7 @@
 ## 下载
 
 - 目前支持 Windows、android系统，更多的系统正在开发中。
-- [GitHub Releases](https://github.com/libiko/libiko/releases)
+- [GitHub Releases](https://github.com/fantruekly/Libiko--ACGNhub/releases)
 
 ## 免责声明
 
