@@ -52,6 +52,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   final _scrollController = ScrollController();
   final _pageController = PageController();
   final _progress = ValueNotifier<double>(0);
+  bool _wheelFlipping = false;
+  Timer? _wheelTimer;
 
   @override
   void initState() {
@@ -67,6 +69,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     _chromeTimer?.cancel();
     _historyTimer?.cancel();
     _ratioToken?.cancel();
+    _wheelTimer?.cancel();
     _scrollController.removeListener(_updateProgress);
     _progress.dispose();
     _scrollController.dispose();
@@ -262,47 +265,51 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
     _scheduleInitialOrLanding(images.length);
     final nav = _nav(details);
     final hasNext = nav.next != null;
-    return NotificationListener<OverscrollNotification>(
-      onNotification: (notification) {
-        if (notification.metrics.axis == Axis.horizontal &&
-            notification.overscroll < 0 &&
-            _page == 0 &&
-            nav.previous != null) {
-          _goToChapter(nav.previous!, atEnd: true);
-        }
-        return false;
-      },
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: images.length + (hasNext ? 1 : 0),
-        onPageChanged: (index) {
-          if (index >= images.length) {
-            if (hasNext) _goToChapter(nav.next!);
-            return;
+    return Listener(
+      onPointerSignal: _onWheelSignal,
+      child: NotificationListener<OverscrollNotification>(
+        onNotification: (notification) {
+          if (notification.metrics.axis == Axis.horizontal &&
+              notification.overscroll < 0 &&
+              _page == 0 &&
+              nav.previous != null) {
+            _goToChapter(nav.previous!, atEnd: true);
           }
-          _onPageChanged(index, images.length);
+          return false;
         },
-        itemBuilder: (context, index) {
-          if (index >= images.length) {
-            return Center(
-                child: CircularProgressIndicator(color: cs.onSurfaceVariant));
-          }
-          return _HorizontalPage(
-            onPrev: () => _flipTo(-1),
-            onNext: () => _flipTo(1),
-            onToggleChrome: _toggleChrome,
-            desktop: isDesktop,
-            child: _ReaderImage(
-              key: ValueKey('$_chapterId-$index'),
-              sourceKey: widget.sourceKey,
-              comicId: widget.comicId,
-              chapterId: _chapterId,
-              url: images[index],
-              fit: isDesktop ? BoxFit.contain : BoxFit.fitWidth,
-              fillWidth: !isDesktop,
-            ),
-          );
-        },
+        child: PageView.builder(
+          controller: _pageController,
+          itemCount: images.length + (hasNext ? 1 : 0),
+          onPageChanged: (index) {
+            if (index >= images.length) {
+              if (hasNext) _goToChapter(nav.next!);
+              return;
+            }
+            _onPageChanged(index, images.length);
+          },
+          itemBuilder: (context, index) {
+            if (index >= images.length) {
+              return Center(
+                  child:
+                      CircularProgressIndicator(color: cs.onSurfaceVariant));
+            }
+            return _HorizontalPage(
+              onPrev: () => _flipTo(-1),
+              onNext: () => _flipTo(1),
+              onToggleChrome: _toggleChrome,
+              desktop: isDesktop,
+              child: _ReaderImage(
+                key: ValueKey('$_chapterId-$index'),
+                sourceKey: widget.sourceKey,
+                comicId: widget.comicId,
+                chapterId: _chapterId,
+                url: images[index],
+                fit: isDesktop ? BoxFit.contain : BoxFit.fitWidth,
+                fillWidth: !isDesktop,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -558,6 +565,18 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       _pageController.animateToPage(target,
           duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
     }
+  }
+
+  void _onWheelSignal(PointerSignalEvent event) {
+    if (!isDesktop || event is! PointerScrollEvent) return;
+    final delta = wheelFlipDelta(event.scrollDelta.dy);
+    if (delta == 0 || _wheelFlipping) return;
+    _wheelFlipping = true;
+    _wheelTimer?.cancel();
+    _wheelTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) _wheelFlipping = false;
+    });
+    _flipTo(delta);
   }
 
   void _goToChapter(String chapterId, {bool atEnd = false}) {
