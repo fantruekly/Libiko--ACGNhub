@@ -33,4 +33,10 @@ void main() {
     expect(currentPageFromScroll(0, 0, 1), 0);
     expect(currentPageFromScroll(10, 0, 5), 0);
   });
+
+  test('wheelFlipDelta maps the wheel direction to a page step', () {
+    expect(wheelFlipDelta(120), 1);
+    expect(wheelFlipDelta(-120), -1);
+    expect(wheelFlipDelta(0), 0);
+  });
 }
