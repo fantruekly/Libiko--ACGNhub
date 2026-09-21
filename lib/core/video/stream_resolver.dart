@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../services/app_http.dart';
 import 'cancellation.dart';
 import 'headless_browser.dart';
 import 'maccms.dart';
@@ -37,7 +38,7 @@ class StreamResolver {
     Duration overallTimeout = const Duration(seconds: 10),
     Duration overallBudget = const Duration(seconds: 12),
   })  : _maccms = maccms ?? MacCmsResolver(),
-        _dio = dio ?? Dio(),
+        _dio = dio ?? AppHttp.client,
         _browserFactory = browserFactory ?? createHeadlessBrowser,
         _grace = grace,
         _overallTimeout = overallTimeout,

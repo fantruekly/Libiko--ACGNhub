@@ -7,6 +7,7 @@ import 'package:fast_gbk/fast_gbk.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_qjs/flutter_qjs.dart';
 
+import '../services/app_http.dart';
 import '../ui/app_messenger.dart';
 import 'crypto_util.dart';
 import 'html_bridge.dart';
@@ -19,12 +20,7 @@ class JsEngine {
   JsEngine({
     Dio? dio,
     Map<String, String> Function()? settings,
-  })  : _dio = dio ??
-            Dio(BaseOptions(
-              connectTimeout: const Duration(seconds: 15),
-              receiveTimeout: const Duration(seconds: 15),
-              validateStatus: (_) => true,
-            )),
+  })  : _dio = dio ?? AppHttp.client,
         _settings = settings ?? (() => <String, String>{});
 
   final FlutterQjs _engine = FlutterQjs(

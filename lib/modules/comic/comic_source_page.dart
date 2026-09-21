@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_source.dart';
+import '../../core/services/app_http.dart';
 import 'comic_account_dialog.dart';
 import 'comic_providers.dart';
 
@@ -393,7 +394,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       _listError = null;
     });
     try {
-      final response = await Dio().get<String>(url,
+      final response = await AppHttp.client.get<String>(url,
           options: Options(responseType: ResponseType.plain));
       final data = jsonDecode(response.data ?? '');
       if (data is! List) throw const FormatException('列表格式无效');
