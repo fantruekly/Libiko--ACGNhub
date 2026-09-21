@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../services/app_http.dart';
 import '../storage/database.dart';
 import 'builtin_sources.dart';
 import 'explore_result.dart';
@@ -361,12 +362,7 @@ class ComicSourceManager {
     JsEngine? engine,
     Dio? dio,
     BuiltinSourceInstaller? builtinInstaller,
-  })  : _dio = dio ??
-            Dio(BaseOptions(
-              connectTimeout: const Duration(seconds: 15),
-              receiveTimeout: const Duration(seconds: 15),
-              validateStatus: (_) => true,
-            )),
+  })  : _dio = dio ?? AppHttp.client,
         _builtinInstaller = builtinInstaller ?? BuiltinSourceInstaller() {
     _engine = engine ?? JsEngine(settings: _appSettings);
   }

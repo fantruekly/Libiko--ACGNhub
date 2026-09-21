@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,9 +26,9 @@ class _FakeImageProvider extends ComicImageProvider {
     0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, //
     0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, //
     0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, //
-    0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, //
-    0x78, 0x9C, 0x62, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, //
-    0x0D, 0x0A, 0x2D, 0xB4, //
+    0x00, 0x00, 0x00, 0x0B, 0x49, 0x44, 0x41, 0x54, //
+    0x18, 0x57, 0x63, 0x60, 0x00, 0x02, 0x00, 0x00, 0x05, 0x00, 0x01, //
+    0xAA, 0xD5, 0xC8, 0x51, //
     0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
   ]);
   @override
@@ -84,5 +85,81 @@ void main() {
         of: find.byKey(const ValueKey('page-box-0')),
         matching: find.byType(Image)));
     expect(image.fit, BoxFit.contain);
+  });
+
+  Future<void> pumpReader(WidgetTester tester, List<String> images) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        comicEpProvider(('s', 'c', 'ch'))
+            .overrideWith((ref) async => ComicEp(images: images)),
+        comicDetailProvider(('s', 'c')).overrideWith((ref) async =>
+            const ComicDetails(id: 'c', title: 'T', chapters: {'ch': '第1话'})),
+        comicImageProvider.overrideWithValue(_FakeImageProvider()),
+      ],
+      child: const MaterialApp(
+        home: ComicReaderPage(sourceKey: 's', comicId: 'c', chapterId: 'ch'),
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  double? currentPage(WidgetTester tester) =>
+      tester.widget<PageView>(find.byType(PageView)).controller?.page;
+
+  testWidgets('mouse wheel down advances a page in page-flip mode',
+      (tester) async {
+    await pumpReader(tester, const ['u0', 'u1', 'u2']);
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    pointer.hover(tester.getCenter(find.byType(PageView)));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(currentPage(tester), closeTo(1, 0.001));
+  });
+
+  testWidgets('a second wheel notch within the cooldown does not flip again',
+      (tester) async {
+    await pumpReader(tester, const ['u0', 'u1', 'u2']);
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    pointer.hover(tester.getCenter(find.byType(PageView)));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+    await tester.pump();
+    // 150ms: past the flip animation's midpoint (so _page is already 1) but
+    // still inside the 250ms cooldown.
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(currentPage(tester), closeTo(1, 0.001));
+  });
+
+  testWidgets('wheel does not flip pages in continuous mode', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        comicEpProvider(('s', 'c', 'ch')).overrideWith(
+            (ref) async => const ComicEp(images: ['u0', 'u1'])),
+        comicDetailProvider(('s', 'c')).overrideWith((ref) async =>
+            const ComicDetails(id: 'c', title: 'T', chapters: {'ch': '第1话'})),
+        comicImageProvider.overrideWithValue(_FakeImageProvider()),
+        comicReaderSettingsProvider.overrideWith(_ContinuousSettings.new),
+      ],
+      child: const MaterialApp(
+        home: ComicReaderPage(sourceKey: 's', comicId: 'c', chapterId: 'ch'),
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(PageView), findsNothing);
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    pointer.hover(tester.getCenter(find.byType(ListView)));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
   });
 }

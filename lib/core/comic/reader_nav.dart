@@ -34,3 +34,7 @@ int currentPageFromScroll(double pixels, double maxScrollExtent, int total) {
   final fraction = (pixels / maxScrollExtent).clamp(0.0, 1.0);
   return (fraction * (total - 1)).round();
 }
+
+/// Maps a mouse-wheel vertical delta to a page step: down (positive) advances
+/// one page, up goes back, and a zero delta does not turn the page.
+int wheelFlipDelta(double dy) => dy > 0 ? 1 : (dy < 0 ? -1 : 0);

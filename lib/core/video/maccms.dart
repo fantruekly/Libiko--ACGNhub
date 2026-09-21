@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../services/app_http.dart';
 import 'headless_browser.dart';
 import 'webview_scraper.dart';
 
@@ -94,7 +95,7 @@ Map<String, dynamic>? _extractObject(String html, String marker) {
 class MacCmsResolver {
   final Dio _dio;
 
-  MacCmsResolver({Dio? dio}) : _dio = dio ?? Dio();
+  MacCmsResolver({Dio? dio}) : _dio = dio ?? AppHttp.client;
 
   Future<MediaCandidate?> resolve(
     String playPageUrl, {

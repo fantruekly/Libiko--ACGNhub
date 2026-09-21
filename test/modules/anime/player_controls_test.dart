@@ -93,11 +93,10 @@ void main() {
     expect(episodes, 1);
   });
 
-  testWidgets('shows a spinner instead of the play icon while buffering',
-      (tester) async {
+  testWidgets('hides the play icon while buffering', (tester) async {
     await tester.pumpWidget(_host(buffering: true));
     expect(find.byKey(const ValueKey('player-center-play')), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
   testWidgets('shows the pause icon while playing', (tester) async {
