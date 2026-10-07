@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/video/headless_browser.dart';
 import 'package:libiko/core/video/maccms.dart';
+import 'package:libiko/core/video/resolved_stream_cache.dart';
 import 'package:libiko/core/video/stream_resolver.dart';
 
 class _FakeMacCmsResolver extends MacCmsResolver {
@@ -40,8 +41,8 @@ class _DelayedMacCmsResolver extends MacCmsResolver {
 }
 
 class _FakeBrowser implements HeadlessBrowser {
-  _FakeBrowser({this.candidate, this.loadError, this.hang = false});
-  final MediaCandidate? candidate;
+  _FakeBrowser({this.candidates = const [], this.loadError, this.hang = false});
+  final List<MediaCandidate> candidates;
   final Object? loadError;
   final bool hang;
   final _media = StreamController<MediaCandidate>.broadcast();
@@ -61,14 +62,15 @@ class _FakeBrowser implements HeadlessBrowser {
   @override
   Future<void> load(String url,
       {Duration timeout = const Duration(seconds: 15)}) async {
-    _loadId++;
     loadCount++;
     if (loadError != null) throw loadError!;
     if (hang) {
       await _gate.future;
       return;
     }
-    if (candidate != null && !_media.isClosed) _media.add(candidate!);
+    for (final candidate in candidates) {
+      if (!_media.isClosed) _media.add(candidate);
+    }
   }
 
   @override
@@ -84,6 +86,7 @@ StreamResolver _headlessResolver(_FakeBrowser browser) => StreamResolver(
       maccms: _FakeMacCmsResolver(null),
       dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
       browserFactory: () => browser,
+      cache: ResolvedStreamCache(),
       grace: const Duration(milliseconds: 50),
       overallTimeout: const Duration(milliseconds: 200),
     );
@@ -116,6 +119,71 @@ class _HeaderAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('returns a direct candidate without touching the browser', () async {
+    final browser = _FakeBrowser(
+        candidates: const [MediaCandidate('https://cdn/x/index.m3u8')]);
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      browserFactory: () => browser,
+      cache: ResolvedStreamCache(),
+    );
+    final result = await resolver.resolve('https://cdn/x/index.m3u8');
+    expect(result.ok, isTrue);
+    expect(result.candidate?.url, 'https://cdn/x/index.m3u8');
+    expect(browser.loadCount, 0);
+  });
+
+  test('extracts a media URL embedded in a player query', () async {
+    final browser = _FakeBrowser();
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      browserFactory: () => browser,
+      cache: ResolvedStreamCache(),
+    );
+    final result = await resolver.resolve(
+        'https://proxy/a/?url=https://cdn.test/x/index.m3u8');
+    expect(result.candidate?.url, 'https://cdn.test/x/index.m3u8');
+    expect(browser.loadCount, 0);
+  });
+
+  test('serves a second resolve from the cache', () async {
+    final browser = _FakeBrowser(
+        candidates: const [MediaCandidate('https://cdn/x/index.m3u8')]);
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      browserFactory: () => browser,
+      cache: ResolvedStreamCache(),
+      grace: const Duration(milliseconds: 50),
+      overallTimeout: const Duration(milliseconds: 200),
+    );
+    await resolver.resolve('https://page/play');
+    await resolver.resolve('https://page/play');
+    expect(browser.loadCount, 1);
+  });
+
+  test('keeps reachable candidates before unreachable ones', () async {
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      // The adapter only accepts requests without a Referer.
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/bad.m3u8',
+            headers: {'Referer': 'https://site/'}),
+        MediaCandidate('https://cdn/good.m3u8'),
+      ]),
+      cache: ResolvedStreamCache(),
+      grace: const Duration(milliseconds: 50),
+      overallTimeout: const Duration(milliseconds: 300),
+    );
+    final result = await resolver.resolve('https://page/play');
+    expect(result.ok, isTrue);
+    expect(result.candidates.first.url, 'https://cdn/good.m3u8');
+    expect(result.candidates.length, 2);
+  });
+
   test('returns the MacCMS candidate while the headless browser runs',
       () async {
     final dio = Dio()
@@ -125,6 +193,7 @@ void main() {
           const MediaCandidate('https://cdn.test/x/index.m3u8')),
       dio: dio,
       browserFactory: () => _FakeBrowser(),
+      cache: ResolvedStreamCache(),
     );
     final result = await resolver.resolve('https://page/play');
     expect(result.ok, isTrue);
@@ -133,15 +202,19 @@ void main() {
 
   test('overlaps the MacCMS probe with the headless browser', () async {
     final browser = _FakeBrowser(
-        candidate: const MediaCandidate('https://cdn.test/browser/index.m3u8'));
+        candidates: const [
+          MediaCandidate('https://cdn.test/browser/index.m3u8')
+        ]);
     final resolver = StreamResolver(
       maccms: _DelayedMacCmsResolver(
           const MediaCandidate('https://cdn.test/maccms/index.m3u8'),
           const Duration(milliseconds: 300)),
       dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
       browserFactory: () => browser,
+      cache: ResolvedStreamCache(),
       grace: const Duration(milliseconds: 50),
       overallTimeout: const Duration(seconds: 2),
+      collectWindow: const Duration(milliseconds: 30),
     );
     final sw = Stopwatch()..start();
     final result = await resolver.resolve('https://page/play');
@@ -161,6 +234,7 @@ void main() {
       )),
       dio: dio,
       browserFactory: () => _FakeBrowser(),
+      cache: ResolvedStreamCache(),
     );
 
     final result = await resolver.resolve('https://page/play');
@@ -173,7 +247,7 @@ void main() {
 
   test('resolves through the headless browser', () async {
     final resolver = _headlessResolver(_FakeBrowser(
-        candidate: const MediaCandidate('https://cdn.test/x/index.m3u8')));
+        candidates: const [MediaCandidate('https://cdn.test/x/index.m3u8')]));
     final result = await resolver.resolve('https://page/play');
     expect(result.ok, isTrue);
     expect(result.candidate?.url, 'https://cdn.test/x/index.m3u8');
@@ -199,6 +273,7 @@ void main() {
       maccms: _FakeMacCmsResolver(null),
       dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
       browserFactory: () => browser,
+      cache: ResolvedStreamCache(),
       grace: const Duration(milliseconds: 50),
       overallTimeout: const Duration(milliseconds: 100),
       overallBudget: const Duration(milliseconds: 200),
