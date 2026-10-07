@@ -77,7 +77,7 @@ class HeadlessBrowserPool {
   HeadlessBrowserPool({
     HeadlessBrowser Function()? factory,
     int? maxBrowsers,
-    this.idleTimeout = const Duration(seconds: 45),
+    this.idleTimeout = const Duration(seconds: 120),
     this.maxUsesPerBrowser = 20,
     this.maxAgePerBrowser = const Duration(minutes: 10),
     DateTime Function()? clock,
