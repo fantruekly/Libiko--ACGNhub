@@ -163,7 +163,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         widget.initialResolved != null;
     if (useInitial) _usedInitialUrl = true;
     final result = useInitial
-        ? ResolveResult.success(widget.initialResolved!)
+        ? ResolveResult.success([widget.initialResolved!])
         : await StreamResolver().resolve(episode.playUrl,
             userAgent: episode.userAgent,
             referer: episode.referer,

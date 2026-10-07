@@ -8,18 +8,9 @@ import '../services/app_http.dart';
 import 'cancellation.dart';
 import 'headless_browser.dart';
 import 'maccms.dart';
+import 'resolve_result.dart';
 
-enum ResolveFailure { notFound, timeout, loadFailed, network, unknown }
-
-class ResolveResult {
-  final MediaCandidate? candidate;
-  final ResolveFailure? failure;
-
-  const ResolveResult.success(MediaCandidate this.candidate) : failure = null;
-  const ResolveResult.failed(ResolveFailure this.failure) : candidate = null;
-
-  bool get ok => candidate != null;
-}
+export 'resolve_result.dart';
 
 /// Resolves a video source's play page to a playable stream: the page is loaded
 /// in a hidden browser and the app waits for it to request the media stream. The
@@ -194,7 +185,7 @@ class StreamResolver {
       final verifySw = Stopwatch()..start();
       final verified = await _verify(candidate);
       debugPrint('[StreamResolver] verify=${verifySw.elapsedMilliseconds}ms');
-      return ResolveResult.success(verified);
+      return ResolveResult.success([verified]);
     } catch (e) {
       debugPrint('[StreamResolver] failed for $playPageUrl: $e');
       return ResolveResult.failed(_failureOf(e));
