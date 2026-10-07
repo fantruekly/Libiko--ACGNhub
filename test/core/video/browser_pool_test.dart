@@ -144,6 +144,26 @@ void main() {
     await second.release();
   });
 
+  test('filters a candidate that straddles acquire and the first load',
+      () async {
+    late _FakeBrowser browser;
+    final pool = HeadlessBrowserPool(
+      factory: () => browser = _FakeBrowser((_) {}),
+      maxBrowsers: 1,
+    );
+    final borrowed = await pool.acquire();
+    final received = <String>[];
+    final sub = borrowed.mediaUrls.listen((c) => received.add(c.url));
+    // Before load(), the handle's loadId sentinel (-1) matches nothing.
+    browser.emit(const MediaCandidate('https://stale.m3u8', loadId: 0));
+    await borrowed.load('https://page');
+    browser.emit(const MediaCandidate('https://fresh.m3u8', loadId: 1));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await sub.cancel();
+    expect(received, ['https://fresh.m3u8']);
+    await borrowed.release();
+  });
+
   test('disposes an idle browser after the idle timeout', () async {
     var now = DateTime(2026);
     final disposed = <_FakeBrowser>[];

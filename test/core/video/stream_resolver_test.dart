@@ -253,6 +253,28 @@ void main() {
     expect(sw.elapsedMilliseconds, lessThan(250));
   });
 
+  test('keeps a MacCMS candidate that arrives within the collect window',
+      () async {
+    final resolver = StreamResolver(
+      maccms: _DelayedMacCmsResolver(
+          const MediaCandidate('https://cdn/maccms/index.m3u8'),
+          const Duration(milliseconds: 50)),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/browser/index.m3u8')
+      ]),
+      cache: ResolvedStreamCache(),
+      grace: const Duration(milliseconds: 30),
+      overallTimeout: const Duration(seconds: 2),
+      collectWindow: const Duration(milliseconds: 300),
+    );
+    final result = await resolver.resolve('https://page/play');
+    expect(result.ok, isTrue);
+    final urls = result.candidates.map((c) => c.url).toSet();
+    expect(urls, contains('https://cdn/browser/index.m3u8'));
+    expect(urls, contains('https://cdn/maccms/index.m3u8'));
+  });
+
   test('drops the Referer when the candidate only works without it',
       () async {
     final adapter = _HeaderAdapter(okWithoutReferer: true);

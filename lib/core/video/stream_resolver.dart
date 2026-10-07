@@ -250,9 +250,15 @@ class StreamResolver {
             (timedOut ? ResolveFailure.timeout : ResolveFailure.notFound));
       }
 
-      // Give sibling candidates from the same page a brief window to arrive
-      // before unsubscribing.
-      await Future<void>.delayed(_collectWindow);
+      // Give sibling candidates and a still-pending MacCMS probe the same
+      // brief window to arrive before unsubscribing. A MacCMS candidate that
+      // lands later than this is best-effort only.
+      await Future.any<void>([
+        maccmsWin.future.then((candidate) {
+          maccmsResult ??= candidate;
+        }),
+        Future<void>.delayed(_collectWindow),
+      ]);
 
       try {
         cancel?.removeListener(onCancel);
