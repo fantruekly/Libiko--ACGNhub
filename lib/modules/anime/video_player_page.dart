@@ -11,7 +11,9 @@ import '../../core/models/work.dart';
 import '../../core/platform.dart';
 import '../../core/services/watch_history.dart';
 import '../../core/storage/database.dart';
+import '../../core/video/browser_pool.dart';
 import '../../core/video/cancellation.dart';
+import '../../core/video/candidate_queue.dart';
 import '../../core/video/headless_browser.dart';
 import '../../core/video/playback_error.dart';
 import '../../core/video/stream_resolver.dart';
@@ -23,7 +25,7 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
   final Work work;
   final List<VideoEpisode> episodes;
   final int initialIndex;
-  final MediaCandidate? initialResolved;
+  final List<MediaCandidate>? initialCandidates;
   final String sourceName;
 
   const VideoPlayerPage({
@@ -31,7 +33,7 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
     required this.work,
     required this.episodes,
     required this.initialIndex,
-    this.initialResolved,
+    this.initialCandidates,
     this.sourceName = '',
   });
 
@@ -51,6 +53,10 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   bool _resolving = false;
   bool _usedInitialUrl = false;
   int _gen = 0;
+  final StreamResolver _resolver = StreamResolver();
+  CandidateQueue _candidates = CandidateQueue();
+  CancellationToken _prefetchCancel = CancellationToken();
+  bool _switchingCandidate = false;
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -131,6 +137,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _hideTimer?.cancel();
     _seekFeedbackTimer?.cancel();
     _resolveCancel.cancel();
+    _prefetchCancel.cancel();
     for (final sub in _subs) {
       sub.cancel();
     }
@@ -139,7 +146,14 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   void _maybeShowError() {
-    if (_pendingError == null || _playing || _buffering) return;
+    if (!mounted) return;
+    if (_pendingError == null || _playing || _buffering || _resolving) return;
+    if (_switchingCandidate) return;
+    if (_candidates.hasNext) {
+      _pendingError = null;
+      unawaited(_tryNextCandidate());
+      return;
+    }
     if (_error == _pendingError) return;
     setState(() => _error = _pendingError);
   }
@@ -152,53 +166,113 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     final episode = widget.episodes[i];
     final work = widget.work;
     final history = ref.read(watchHistoryProvider.notifier);
+    _prefetchCancel.cancel();
+    _prefetchCancel = CancellationToken();
+    _candidates = CandidateQueue();
+    _switchingCandidate = false;
     setState(() {
       _resolving = true;
       _error = null;
       _pendingError = null;
       _currentIndex = i;
     });
+
     final useInitial = !_usedInitialUrl &&
         i == widget.initialIndex &&
-        widget.initialResolved != null;
-    if (useInitial) _usedInitialUrl = true;
-    final result = useInitial
-        ? ResolveResult.success(widget.initialResolved!)
-        : await StreamResolver().resolve(episode.playUrl,
-            userAgent: episode.userAgent,
-            referer: episode.referer,
-            legacy: episode.useLegacyParser,
-            cancel: _resolveCancel);
-    if (!mounted || gen != _gen) return;
-    final stream = result.candidate;
-    if (stream == null) {
-      setState(() {
-        _resolving = false;
-        _currentIndex = previous;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content:
-            Text(resolveFailureMessage(widget.sourceName, result.failure)),
-        action: SnackBarAction(
-          label: '重试',
-          onPressed: () => _playIndex(i),
-        ),
-      ));
-      return;
+        (widget.initialCandidates?.isNotEmpty ?? false);
+    List<MediaCandidate> candidates;
+    ResolveFailure? failure;
+    if (useInitial) {
+      _usedInitialUrl = true;
+      candidates = widget.initialCandidates!;
+    } else {
+      final result = await _resolver.resolve(
+        episode.playUrl,
+        userAgent: episode.userAgent,
+        referer: episode.referer,
+        legacy: episode.useLegacyParser,
+        cancel: _resolveCancel,
+      );
+      if (!mounted || gen != _gen) return;
+      candidates = result.candidates;
+      failure = result.failure;
+      if (candidates.isEmpty) {
+        setState(() {
+          _resolving = false;
+          _currentIndex = previous;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(resolveFailureMessage(widget.sourceName, failure)),
+          action: SnackBarAction(
+            label: '重试',
+            onPressed: () {
+              _resolver.invalidate(episode.playUrl);
+              _playIndex(i);
+            },
+          ),
+        ));
+        return;
+      }
     }
+
     setState(() => _resolving = false);
+    _pendingError = null;
+    _candidates = CandidateQueue(candidates);
+    await _openCandidate();
+    if (!mounted || gen != _gen) return;
+    await history.record(work, episode);
+    ref.read(syncProvider).schedule();
+    _showControls();
+    _prefetchNext(i);
+  }
+
+  Future<void> _openCandidate() async {
+    final candidate = _candidates.current;
+    if (candidate == null) return;
+    final episode = widget.episodes[_currentIndex];
     final headers = <String, String>{
       if (episode.userAgent != null) 'User-Agent': episode.userAgent!,
       if (episode.referer != null) 'Referer': episode.referer!,
-      ...stream.headers,
+      ...candidate.headers,
     };
     await _player.open(Media(
-      stream.url,
+      candidate.url,
       httpHeaders: headers.isEmpty ? null : headers,
     ));
-    if (gen == _gen) await history.record(work, episode);
-    ref.read(syncProvider).schedule();
-    _showControls();
+  }
+
+  Future<void> _tryNextCandidate() async {
+    if (_switchingCandidate) return;
+    if (_candidates.advance() == null) return;
+    _switchingCandidate = true;
+    try {
+      await _openCandidate();
+    } finally {
+      _switchingCandidate = false;
+      if (_pendingError != null && !_playing && !_buffering && !_resolving) {
+        scheduleMicrotask(_maybeShowError);
+      }
+    }
+  }
+
+  void _prefetchNext(int current) {
+    final next = current + 1;
+    if (next < 0 || next >= widget.episodes.length) return;
+    _prefetch(widget.episodes[next]);
+  }
+
+  void _prefetchCurrent() => _prefetch(widget.episodes[_currentIndex]);
+
+  void _prefetch(VideoEpisode episode) {
+    if (_resolver.isCached(episode.playUrl)) return;
+    unawaited(_resolver.resolve(
+      episode.playUrl,
+      userAgent: episode.userAgent,
+      referer: episode.referer,
+      legacy: episode.useLegacyParser,
+      priority: BrowserPriority.background,
+      cancel: _prefetchCancel,
+    ));
   }
 
   void _scheduleHide() {
@@ -419,6 +493,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                           if (_resolving) return;
                           _pendingError = null;
                           setState(() => _error = null);
+                          _resolver.invalidate(
+                              widget.episodes[_currentIndex].playUrl);
                           _playIndex(_currentIndex);
                         },
                         child: const Text('重试'),
@@ -483,7 +559,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                     },
                     onToggleFullscreen: _toggleFullscreen,
                     onToggleEpisodes: () {
-                      setState(() => _panelOpen = !_panelOpen);
+                      final opening = !_panelOpen;
+                      setState(() => _panelOpen = opening);
+                      if (opening) _prefetchCurrent();
                       _showControls();
                     },
                     onNextEpisode: _nextEpisode,

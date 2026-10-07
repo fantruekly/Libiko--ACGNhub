@@ -52,7 +52,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     completer.complete(
-        const ResolveResult.success(MediaCandidate('https://x/y.m3u8')));
+        const ResolveResult.success([MediaCandidate('https://x/y.m3u8')]));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
@@ -77,7 +77,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     // resolve completes after the user already cancelled
     completer.complete(
-        const ResolveResult.success(MediaCandidate('https://x/y.m3u8')));
+        const ResolveResult.success([MediaCandidate('https://x/y.m3u8')]));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     // the host page must still be present (the dialog did not pop it)

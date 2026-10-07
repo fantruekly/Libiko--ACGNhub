@@ -2,13 +2,22 @@ import 'dart:async';
 
 import 'headless_browser_inappwebview.dart';
 
+/// Browser user agent used when a source does not specify one.
+const String kBrowserUserAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
 /// One media request observed by a headless browser: its URL plus the request
 /// headers it was made with (so the player can replay them and avoid 403s).
 class MediaCandidate {
   final String url;
   final Map<String, String> headers;
 
-  const MediaCandidate(this.url, {this.headers = const {}});
+  /// The [HeadlessBrowser.load] that observed this candidate (0 for synthetic
+  /// candidates). Lets a pooled browser discard candidates from an earlier
+  /// navigation.
+  final int loadId;
+
+  const MediaCandidate(this.url, {this.headers = const {}, this.loadId = 0});
 }
 
 /// Thrown by [HeadlessBrowser.load] when the page fails to load or times out.
@@ -66,6 +75,10 @@ abstract class HeadlessBrowser {
   /// Media requests (.m3u8 / .mp4) the browser has observed, filtered by each
   /// implementation's own detection (native sniffing and/or [looksLikeMediaUrl]).
   Stream<MediaCandidate> get mediaUrls;
+
+  /// Incremented at the start of each [load]; candidates reported during a load
+  /// carry that value.
+  int get loadId;
 
   /// Navigates to [url] and waits until the page finishes loading, at most
   /// [timeout]. Throws [HeadlessLoadException] when the navigation fails or

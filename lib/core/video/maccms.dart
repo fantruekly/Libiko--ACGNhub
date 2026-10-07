@@ -4,7 +4,6 @@ import 'package:dio/dio.dart';
 
 import '../services/app_http.dart';
 import 'headless_browser.dart';
-import 'webview_scraper.dart';
 
 /// A MacCMS play-page player config: the (possibly encrypted) stream URL and
 /// its `encrypt` scheme.

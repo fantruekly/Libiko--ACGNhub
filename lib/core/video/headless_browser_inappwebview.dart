@@ -93,9 +93,13 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
   final _media = StreamController<MediaCandidate>.broadcast();
   HeadlessInAppWebView? _headless;
   Completer<void>? _loaded;
+  int _loadId = 0;
 
   @override
   Stream<MediaCandidate> get mediaUrls => _media.stream;
+
+  @override
+  int get loadId => _loadId;
 
   @override
   Future<void> start({String? userAgent, String? extraScript}) async {
@@ -135,14 +139,13 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
                 ? url
                 : mediaUrlFromQuery(url);
             if (media != null && !_media.isClosed) {
-              _media.add(MediaCandidate(media));
+              _media.add(MediaCandidate(media, loadId: _loadId));
             }
             return null;
           },
         );
       },
       onLoadStop: (controller, url) {
-        if (url == null || url.toString() == 'about:blank') return;
         final completer = _loaded;
         if (completer != null && !completer.isCompleted) completer.complete();
       },
@@ -161,7 +164,8 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
         final media = looksLikeMediaUrl(url) ? url : mediaUrlFromQuery(url);
         if (media != null && !_media.isClosed) {
           _media.add(MediaCandidate(media,
-              headers: playerHeadersFrom(request.headers ?? const {})));
+              headers: playerHeadersFrom(request.headers ?? const {}),
+              loadId: _loadId));
         }
         return null;
       },
@@ -173,6 +177,7 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
   @override
   Future<void> load(String url,
       {Duration timeout = const Duration(seconds: 15)}) async {
+    _loadId++;
     final controller = _headless?.webViewController;
     if (controller == null) {
       throw const HeadlessLoadException('headless browser not started');
@@ -185,7 +190,7 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
           onTimeout: () =>
               throw const HeadlessLoadException('load timed out'));
     } finally {
-      _loaded = null;
+      if (identical(_loaded, completer)) _loaded = null;
     }
   }
 
