@@ -299,6 +299,14 @@ void main() {
     expect(result.failure, ResolveFailure.loadFailed);
   });
 
+  test('does not cache a transient failure', () async {
+    final browser = _FakeBrowser(loadError: const HeadlessLoadException('boom'));
+    final resolver = _headlessResolver(browser);
+    await resolver.resolve('https://page/play');
+    await resolver.resolve('https://page/play');
+    expect(browser.loadCount, 6); // 3 attempts per resolve, not short-circuited
+  });
+
   test('reports network for a network error', () async {
     final resolver =
         _headlessResolver(_FakeBrowser(loadError: const SocketException('x')));

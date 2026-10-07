@@ -124,7 +124,11 @@ class StreamResolver {
     debugPrint('[StreamResolver] gave up after ${total.elapsedMilliseconds}ms '
         '($lastFailure.name)');
     final failed = ResolveResult.failed(lastFailure);
-    _cache.put(playPageUrl, failed);
+    if (lastFailure == ResolveFailure.notFound) {
+      // Only a deterministic miss is worth remembering; transient failures
+      // (timeout/loadFailed/network/cancelled) must stay retryable.
+      _cache.put(playPageUrl, failed);
+    }
     return failed;
   }
 
@@ -171,11 +175,11 @@ class StreamResolver {
       final browserFactory = _browserFactory;
       if (browserFactory != null) {
         final browser = browserFactory();
+        direct = browser;
         await browser.start(
           userAgent: userAgent ?? kBrowserUserAgent,
           extraScript: legacy ? kLegacyIframeScript : null,
         );
-        direct = browser;
         candidates = browser.mediaUrls;
         loadPage = () => browser.load(playPageUrl, timeout: timeout);
       } else {
@@ -298,12 +302,15 @@ class StreamResolver {
     final seenUrls = <String>{};
     for (final candidate in input) {
       if (candidate.url.isEmpty) continue;
-      if (seenUrls.add(candidate.url)) unique.add(candidate);
+      if (seenUrls.add(candidate.url)) {
+        unique.add(candidate);
+        if (unique.length >= _maxCandidates) break;
+      }
     }
     final results = await Future.wait([for (final c in unique) _verifyOne(c)]);
     final reachable = [for (final r in results) if (r.$2) r.$1];
     final rest = [for (final r in results) if (!r.$2) r.$1];
-    return [...reachable, ...rest].take(_maxCandidates).toList();
+    return [...reachable, ...rest];
   }
 
   /// Picks the header variant the player can actually use, falling back to the
