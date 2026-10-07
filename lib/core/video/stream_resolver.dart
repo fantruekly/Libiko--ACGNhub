@@ -8,7 +8,6 @@ import '../services/app_http.dart';
 import 'cancellation.dart';
 import 'headless_browser.dart';
 import 'maccms.dart';
-import 'webview_scraper.dart';
 
 enum ResolveFailure { notFound, timeout, loadFailed, network, unknown }
 

@@ -47,6 +47,10 @@ class _FakeBrowser implements HeadlessBrowser {
   final _media = StreamController<MediaCandidate>.broadcast();
   final _gate = Completer<void>();
   int loadCount = 0;
+  int _loadId = 0;
+
+  @override
+  int get loadId => _loadId;
 
   @override
   Stream<MediaCandidate> get mediaUrls => _media.stream;
@@ -57,6 +61,7 @@ class _FakeBrowser implements HeadlessBrowser {
   @override
   Future<void> load(String url,
       {Duration timeout = const Duration(seconds: 15)}) async {
+    _loadId++;
     loadCount++;
     if (loadError != null) throw loadError!;
     if (hang) {
