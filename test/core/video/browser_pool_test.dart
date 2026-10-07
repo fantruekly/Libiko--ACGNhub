@@ -45,8 +45,8 @@ class _FakeBrowser implements HeadlessBrowser {
 }
 
 void main() {
-  test('defaults to a pool of two browsers', () {
-    expect(HeadlessBrowserPool().maxBrowsers, 2);
+  test('defaults to a larger pool for concurrent source searches', () {
+    expect(HeadlessBrowserPool().maxBrowsers, 4);
   });
 
   test('flushes the previous page with about:blank before reuse', () async {

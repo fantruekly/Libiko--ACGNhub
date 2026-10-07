@@ -53,10 +53,10 @@ void main() {
       files.map((f) => p.basename(f.path)).toList(),
       [
         '7sefun.json',
-        'baimao.json',
         'moonci.json',
         'sorani.json',
         'xfdmneo.json',
+        'xfdmnext.json',
       ],
     );
     for (final file in files) {

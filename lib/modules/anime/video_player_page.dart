@@ -75,6 +75,13 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   Duration _dragSeekStart = Duration.zero;
   int _dragSeekPx = 0;
   final _resolveCancel = CancellationToken();
+  Timer? _startupTimer;
+  Timer? _hintTimer;
+  String? _bufferingHint;
+  bool _prefetchedForGen = false;
+
+  static const _startupTimeout = Duration(seconds: 15);
+  static const _slowHintDelay = Duration(seconds: 5);
 
   @override
   void initState() {
@@ -88,6 +95,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _muted = AppDatabase().getString('anime_player_muted') == '1';
     _player.setVolume(_muted ? 0 : _volume);
     _controller = VideoController(_player);
+    final platform = _player.platform;
+    if (platform is NativePlayer) {
+      // Bound network stalls so a dead/slow CDN errors instead of hanging.
+      unawaited(platform.setProperty('network-timeout', '15'));
+    }
     _subs.add(_player.stream.error.listen((e) {
       debugPrint('[Player] error: $e');
       if (!mounted) return;
@@ -95,7 +107,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       _maybeShowError();
     }));
     _subs.add(_player.stream.position.listen((p) {
-      if (mounted) setState(() => _position = p);
+      if (!mounted) return;
+      setState(() => _position = p);
+      if (p > Duration.zero) _markStarted();
     }));
     _subs.add(_player.stream.duration.listen((d) {
       if (mounted) setState(() => _duration = d);
@@ -136,6 +150,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (isDesktop) windowManager.removeListener(this);
     _hideTimer?.cancel();
     _seekFeedbackTimer?.cancel();
+    _startupTimer?.cancel();
+    _hintTimer?.cancel();
     _resolveCancel.cancel();
     _prefetchCancel.cancel();
     for (final sub in _subs) {
@@ -170,6 +186,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _prefetchCancel = CancellationToken();
     _candidates = CandidateQueue();
     _switchingCandidate = false;
+    _prefetchedForGen = false;
     setState(() {
       _resolving = true;
       _error = null;
@@ -223,7 +240,6 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     await history.record(work, episode);
     ref.read(syncProvider).schedule();
     _showControls();
-    _prefetchNext(i);
   }
 
   Future<void> _openCandidate() async {
@@ -239,6 +255,54 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       candidate.url,
       httpHeaders: headers.isEmpty ? null : headers,
     ));
+    if (mounted) _startStartupWatchdog();
+  }
+
+  /// Starts the timers that bound a slow/dead stream: after [_slowHintDelay]
+  /// show a hint, and after [_startupTimeout] fail over or surface an error,
+  /// so the spinner never runs forever.
+  void _startStartupWatchdog() {
+    _startupTimer?.cancel();
+    _hintTimer?.cancel();
+    _bufferingHint = null;
+    _startupTimer = Timer(_startupTimeout, _onStartupTimeout);
+    _hintTimer = Timer(_slowHintDelay, () {
+      if (!mounted) return;
+      if (_position > Duration.zero) return;
+      setState(() => _bufferingHint = '源站响应较慢，正在加载…');
+    });
+  }
+
+  /// Cancels the watchdog and prefetches the next episode once playback
+  /// actually starts (so the prefetch does not compete with startup).
+  void _markStarted() {
+    _startupTimer?.cancel();
+    _startupTimer = null;
+    _hintTimer?.cancel();
+    _hintTimer = null;
+    if (_bufferingHint != null) setState(() => _bufferingHint = null);
+    if (!_prefetchedForGen) {
+      _prefetchedForGen = true;
+      _prefetchNext(_currentIndex);
+    }
+  }
+
+  void _onStartupTimeout() {
+    if (!mounted) return;
+    _startupTimer = null;
+    if (_position > Duration.zero) return;
+    _hintTimer?.cancel();
+    _hintTimer = null;
+    if (_candidates.hasNext) {
+      _pendingError = null;
+      unawaited(_tryNextCandidate());
+      return;
+    }
+    setState(() {
+      _bufferingHint = null;
+      _pendingError = null;
+      _error = '播放超时，请重试或换源';
+    });
   }
 
   Future<void> _tryNextCandidate() async {
@@ -460,15 +524,26 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
             if (_seekFeedback != null) _seekFeedbackOverlay(),
             if (_dragSeekTarget != null) _dragSeekOverlay(),
             if (_rate != 1.0) _speedBadge(),
-            if (_resolving || _buffering)
-              const Positioned.fill(
+            if ((_resolving || _buffering) && _error == null)
+              Positioned.fill(
                 child: IgnorePointer(
                   child: Center(
-                    child: SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2.5, color: Colors.white),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: Colors.white),
+                        ),
+                        if (_bufferingHint != null) ...[
+                          const SizedBox(height: 12),
+                          Text(_bufferingHint!,
+                              style: const TextStyle(
+                                  color: Colors.white70, fontSize: 12)),
+                        ],
+                      ],
                     ),
                   ),
                 ),
