@@ -43,6 +43,10 @@ class _FakeBrowser implements HeadlessBrowser {
 }
 
 void main() {
+  test('defaults to a pool of two browsers', () {
+    expect(HeadlessBrowserPool().maxBrowsers, 2);
+  });
+
   test('reuses an idle browser for the same user agent', () async {
     final created = <_FakeBrowser>[];
     final pool = HeadlessBrowserPool(

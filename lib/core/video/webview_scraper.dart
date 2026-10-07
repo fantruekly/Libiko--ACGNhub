@@ -108,6 +108,7 @@ class WebviewScraper {
         userAgent: userAgent ?? kBrowserUserAgent,
         priority: BrowserPriority.background,
       );
+      if (cancel?.isCancelled ?? false) return const <dynamic>[];
       final browser = pooled;
       unawaited(() async {
         try {

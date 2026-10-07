@@ -191,7 +191,7 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
           onTimeout: () =>
               throw const HeadlessLoadException('load timed out'));
     } finally {
-      _loaded = null;
+      if (identical(_loaded, completer)) _loaded = null;
     }
   }
 
