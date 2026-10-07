@@ -146,7 +146,6 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
         );
       },
       onLoadStop: (controller, url) {
-        if (url == null || url.toString() == 'about:blank') return;
         final completer = _loaded;
         if (completer != null && !completer.isCompleted) completer.complete();
       },

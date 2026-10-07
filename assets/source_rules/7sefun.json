@@ -12,6 +12,6 @@
   "searchList": "//div[@class='videos']/div",
   "searchName": ".//div[@class='video-by']/text()",
   "searchResult": ".//a[@class='video-wrapper']",
-  "chapterRoads": "//div[contains(@class,'vod-play-list-container')]",
+  "chapterRoads": "(//div[contains(@class,'vod-play-list-container')])[position()>1]",
   "chapterResult": ".//a"
 }

@@ -10,6 +10,7 @@ class _FakeBrowser implements HeadlessBrowser {
   final Object? startError;
   int _loadId = 0;
   int startCount = 0;
+  final List<String> loads = [];
   final _media = StreamController<MediaCandidate>.broadcast();
 
   @override
@@ -28,6 +29,7 @@ class _FakeBrowser implements HeadlessBrowser {
   Future<void> load(String url,
       {Duration timeout = const Duration(seconds: 15)}) async {
     _loadId++;
+    loads.add(url);
   }
 
   @override
@@ -45,6 +47,23 @@ class _FakeBrowser implements HeadlessBrowser {
 void main() {
   test('defaults to a pool of two browsers', () {
     expect(HeadlessBrowserPool().maxBrowsers, 2);
+  });
+
+  test('flushes the previous page with about:blank before reuse', () async {
+    late _FakeBrowser browser;
+    final pool = HeadlessBrowserPool(
+      factory: () => browser = _FakeBrowser((_) {}),
+      maxBrowsers: 1,
+    );
+    final first = await pool.acquire();
+    await first.load('https://a');
+    await first.release();
+
+    final second = await pool.acquire();
+    await second.load('https://b');
+
+    expect(browser.loads, ['https://a', 'about:blank', 'https://b']);
+    await second.release();
   });
 
   test('reuses an idle browser for the same user agent', () async {
@@ -133,11 +152,11 @@ void main() {
     await first.release();
 
     final second = await pool.acquire();
-    await second.load('https://b'); // loadId = 2
+    await second.load('https://b');
     final received = <String>[];
     final sub = second.mediaUrls.listen((c) => received.add(c.url));
     browser.emit(const MediaCandidate('https://old.m3u8', loadId: 1));
-    browser.emit(const MediaCandidate('https://new.m3u8', loadId: 2));
+    browser.emit(MediaCandidate('https://new.m3u8', loadId: browser.loadId));
     await Future<void>.delayed(const Duration(milliseconds: 10));
     await sub.cancel();
     expect(received, ['https://new.m3u8']);
@@ -157,7 +176,8 @@ void main() {
     // Before load(), the handle's loadId sentinel (-1) matches nothing.
     browser.emit(const MediaCandidate('https://stale.m3u8', loadId: 0));
     await borrowed.load('https://page');
-    browser.emit(const MediaCandidate('https://fresh.m3u8', loadId: 1));
+    browser.emit(
+        MediaCandidate('https://fresh.m3u8', loadId: browser.loadId));
     await Future<void>.delayed(const Duration(milliseconds: 10));
     await sub.cancel();
     expect(received, ['https://fresh.m3u8']);

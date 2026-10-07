@@ -1,14 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'gimy_source.dart';
 import 'rule_source.dart';
 import 'rule_store.dart';
 import 'source_rule.dart';
 import 'video_source.dart';
 
-/// All playback sources: the hand-written HTTP sources plus every rule source.
+/// All playback sources: one [RuleVideoSource] per bundled/imported rule.
 List<VideoSource> buildSources(List<SourceRule> rules) => [
-      GimySource(),
       for (final rule in rules) RuleVideoSource(rule),
     ];
 

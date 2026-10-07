@@ -27,8 +27,18 @@ class PooledBrowser {
       _browser.mediaUrls.where((c) => c.loadId == _loadId);
 
   Future<void> load(String url,
-      {Duration timeout = const Duration(seconds: 8)}) {
+      {Duration timeout = const Duration(seconds: 8)}) async {
+    if (_entry.dirty) {
+      // Tear down the previous page so its still-in-flight media requests
+      // cannot leak into this session, and the next navigation starts clean.
+      try {
+        await _browser.load('about:blank',
+            timeout: const Duration(seconds: 2));
+      } catch (_) {}
+      _entry.dirty = false;
+    }
     final future = _browser.load(url, timeout: timeout);
+    _entry.dirty = true;
     _loadId = _browser.loadId;
     return future;
   }
@@ -49,6 +59,7 @@ class _PoolEntry {
   final DateTime createdAt;
   DateTime lastUsed;
   int uses = 0;
+  bool dirty = false;
 }
 
 class _Waiter {
