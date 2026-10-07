@@ -120,6 +120,34 @@ class _HeaderAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Delays (and rejects) probes for [slowUrl] while accepting every other probe
+/// immediately, so a slow unreachable sibling can be used to prove fast-start.
+class _SlowAdapter implements HttpClientAdapter {
+  _SlowAdapter({required this.slowUrl, required this.slowDelay});
+  final String slowUrl;
+  final Duration slowDelay;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    if (options.uri.toString() == slowUrl) {
+      await Future<void>.delayed(slowDelay);
+      return ResponseBody.fromString('no', 400, headers: {
+        Headers.contentTypeHeader: [Headers.textPlainContentType],
+      });
+    }
+    return ResponseBody.fromString('x', 200, headers: {
+      Headers.contentTypeHeader: [Headers.textPlainContentType],
+    });
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   test('returns a direct candidate without touching the browser', () async {
     final browser = _FakeBrowser(
@@ -352,5 +380,53 @@ void main() {
     final result = await resolver2.resolve('https://page/play');
     expect(result.ok, isTrue);
     expect(working.loadCount, 1);
+  });
+
+  test('returns a reachable candidate without waiting for a slow sibling',
+      () async {
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      dio: Dio()
+        ..httpClientAdapter = _SlowAdapter(
+          slowUrl: 'https://cdn/bad.m3u8',
+          slowDelay: const Duration(milliseconds: 800),
+        ),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/bad.m3u8',
+            headers: {'Referer': 'https://site/'}),
+        MediaCandidate('https://cdn/good.m3u8'),
+      ]),
+      cache: ResolvedStreamCache(),
+      grace: const Duration(milliseconds: 50),
+      overallTimeout: const Duration(seconds: 2),
+      collectWindow: const Duration(milliseconds: 30),
+    );
+    final sw = Stopwatch()..start();
+    final result = await resolver.resolve('https://page/play');
+    final elapsed = sw.elapsedMilliseconds;
+    expect(result.ok, isTrue);
+    expect(result.candidates.first.url, 'https://cdn/good.m3u8');
+    expect(elapsed, lessThan(500));
+  });
+
+  test('does not cache a result whose candidates are all unreachable',
+      () async {
+    final browser = _FakeBrowser(candidates: const [
+      MediaCandidate('https://cdn/bad.m3u8',
+          headers: {'Referer': 'https://site/'}),
+    ]);
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      browserFactory: () => browser,
+      cache: ResolvedStreamCache(),
+      grace: const Duration(milliseconds: 50),
+      overallTimeout: const Duration(milliseconds: 300),
+      collectWindow: const Duration(milliseconds: 30),
+    );
+    final first = await resolver.resolve('https://page/play');
+    expect(first.ok, isTrue);
+    await resolver.resolve('https://page/play');
+    expect(browser.loadCount, 2);
   });
 }

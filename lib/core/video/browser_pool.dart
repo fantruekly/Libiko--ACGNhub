@@ -14,7 +14,7 @@ class PooledBrowser {
   PooledBrowser._(this._pool, this._entry)
       : _browser = _entry.browser,
         userAgent = _entry.userAgent,
-        _loadId = _entry.browser.loadId;
+        _loadId = -1;
 
   final HeadlessBrowserPool _pool;
   final _PoolEntry _entry;
@@ -52,8 +52,9 @@ class _PoolEntry {
 }
 
 class _Waiter {
-  _Waiter(this.userAgent, this.completer);
+  _Waiter(this.userAgent, this.priority, this.completer);
   final String userAgent;
+  final BrowserPriority priority;
   final Completer<_PoolEntry> completer;
 }
 
@@ -84,6 +85,7 @@ class HeadlessBrowserPool {
   final List<_Waiter> _foreground = [];
   final List<_Waiter> _background = [];
   int _creating = 0;
+  bool _shutdown = false;
 
   @visibleForTesting
   int get idleCount => _idle.length;
@@ -91,6 +93,13 @@ class HeadlessBrowserPool {
   int get activeCount => _active.length;
 
   int get _total => _idle.length + _active.length + _creating;
+
+  /// Background work may use at most [maxBrowsers] - 1 browsers so one is kept
+  /// free for a foreground (user-initiated) resolve.
+  int _capFor(BrowserPriority priority) =>
+      priority == BrowserPriority.background && maxBrowsers > 1
+          ? maxBrowsers - 1
+          : maxBrowsers;
 
   /// Releases the in-flight creation slot and re-pumps the queues. A failed
   /// create must still serve queued waiters (creating or erroring), otherwise
@@ -104,11 +113,12 @@ class HeadlessBrowserPool {
     String? userAgent,
     BrowserPriority priority = BrowserPriority.foreground,
   }) async {
+    if (_shutdown) throw StateError('browser pool has been shut down');
     final ua = userAgent ?? kBrowserUserAgent;
     _evictExpired();
     final reused = _takeIdle(ua);
     if (reused != null) return _borrow(reused);
-    if (_total < maxBrowsers) {
+    if (_total < _capFor(priority)) {
       _creating++;
       try {
         return _borrow(await _create(ua));
@@ -116,7 +126,7 @@ class HeadlessBrowserPool {
         _releaseCreateSlot();
       }
     }
-    if (_idle.isNotEmpty) {
+    if (priority == BrowserPriority.foreground && _idle.isNotEmpty) {
       final stale = _idle.removeAt(0);
       _creating++;
       try {
@@ -126,7 +136,7 @@ class HeadlessBrowserPool {
         _releaseCreateSlot();
       }
     }
-    final waiter = _Waiter(ua, Completer<_PoolEntry>());
+    final waiter = _Waiter(ua, priority, Completer<_PoolEntry>());
     (priority == BrowserPriority.foreground ? _foreground : _background)
         .add(waiter);
     final entry = await waiter.completer.future;
@@ -156,6 +166,7 @@ class HeadlessBrowserPool {
   }
 
   Future<void> release(PooledBrowser pooled) async {
+    if (_shutdown) return;
     final entry = pooled._entry;
     _active.remove(entry);
     if (_expired(entry) || entry.uses >= maxUsesPerBrowser) {
@@ -185,6 +196,7 @@ class HeadlessBrowserPool {
   }
 
   void _pump() {
+    if (_shutdown) return;
     while (true) {
       final queue = _foreground.isNotEmpty
           ? _foreground
@@ -200,7 +212,7 @@ class HeadlessBrowserPool {
         waiter.completer.complete(idle);
         continue;
       }
-      if (_total < maxBrowsers) {
+      if (_total < _capFor(waiter.priority)) {
         queue.removeAt(0);
         _creating++;
         unawaited(_create(waiter.userAgent).then((entry) {
@@ -215,7 +227,7 @@ class HeadlessBrowserPool {
         }));
         continue;
       }
-      if (_idle.isNotEmpty) {
+      if (waiter.priority == BrowserPriority.foreground && _idle.isNotEmpty) {
         queue.removeAt(0);
         final stale = _idle.removeAt(0);
         _creating++;
@@ -270,6 +282,7 @@ class HeadlessBrowserPool {
   }
 
   Future<void> shutdown() async {
+    _shutdown = true;
     final error = StateError('pool shut down');
     for (final waiter in [..._foreground, ..._background]) {
       if (!waiter.completer.isCompleted) {

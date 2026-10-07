@@ -259,4 +259,47 @@ void main() {
     await firstExpectation;
     await secondExpectation;
   }, timeout: const Timeout(Duration(seconds: 5)));
+
+  test('reserves one browser for foreground work', () async {
+    final created = <_FakeBrowser>[];
+    final pool = HeadlessBrowserPool(
+      factory: () {
+        final browser = _FakeBrowser((_) {});
+        created.add(browser);
+        return browser;
+      },
+      maxBrowsers: 2,
+    );
+
+    final bg1 = await pool.acquire(priority: BrowserPriority.background);
+    expect(created.length, 1);
+
+    var bg2Done = false;
+    final bg2 = pool
+        .acquire(priority: BrowserPriority.background)
+        .then((b) { bg2Done = true; return b; });
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(bg2Done, isFalse);
+    expect(created.length, 1);
+
+    final fg = await pool.acquire();
+    expect(created.length, 2);
+
+    await fg.release();
+    await bg1.release();
+    final bg2Browser = await bg2;
+    await bg2Browser.release();
+  });
+
+  test('does not resurrect a browser released after shutdown', () async {
+    final pool = HeadlessBrowserPool(
+      factory: () => _FakeBrowser((_) {}),
+      maxBrowsers: 1,
+    );
+    final holder = await pool.acquire();
+    await pool.shutdown();
+    await holder.release();
+    expect(pool.idleCount, 0);
+    expect(pool.activeCount, 0);
+  });
 }

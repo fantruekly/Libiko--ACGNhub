@@ -29,6 +29,7 @@ class StreamResolver {
     Duration overallTimeout = const Duration(seconds: 8),
     Duration overallBudget = const Duration(seconds: 10),
     Duration collectWindow = const Duration(milliseconds: 120),
+    Duration verifyBudget = const Duration(milliseconds: 1500),
   })  : _maccms = maccms ?? MacCmsResolver(),
         _dio = dio ?? AppHttp.client,
         _browserFactory = browserFactory,
@@ -37,7 +38,8 @@ class StreamResolver {
         _grace = grace,
         _overallTimeout = overallTimeout,
         _overallBudget = overallBudget,
-        _collectWindow = collectWindow;
+        _collectWindow = collectWindow,
+        _verifyBudget = verifyBudget;
 
   final MacCmsResolver _maccms;
   final Dio _dio;
@@ -48,6 +50,7 @@ class StreamResolver {
   final Duration _overallTimeout;
   final Duration _overallBudget;
   final Duration _collectWindow;
+  final Duration _verifyBudget;
 
   static const int _maxAttempts = 3;
   static const int _maxCandidates = 5;
@@ -106,7 +109,9 @@ class StreamResolver {
       if (result.ok) {
         debugPrint('[StreamResolver] resolved in ${total.elapsedMilliseconds}ms '
             '(attempt ${attempt + 1})');
-        _cache.put(playPageUrl, result);
+        if (result.verified) {
+          _cache.put(playPageUrl, result);
+        }
         return result;
       }
       lastFailure = result.failure ?? ResolveFailure.unknown;
@@ -151,6 +156,7 @@ class StreamResolver {
   }) async {
     final maccmsSw = Stopwatch()..start();
     final maccmsWin = Completer<MediaCandidate>();
+    MediaCandidate? maccmsResult;
     unawaited(_maccms
         .resolve(
           playPageUrl,
@@ -159,8 +165,9 @@ class StreamResolver {
           timeout: const Duration(seconds: 4),
         )
         .then((candidate) {
-      if (candidate != null && !maccmsWin.isCompleted) {
-        maccmsWin.complete(candidate);
+      if (candidate != null) {
+        maccmsResult = candidate;
+        if (!maccmsWin.isCompleted) maccmsWin.complete(candidate);
       }
     }, onError: (_) {}));
 
@@ -254,16 +261,17 @@ class StreamResolver {
 
       final all = <MediaCandidate>[
         if (winner is MediaCandidate) winner,
+        if (maccmsResult != null) maccmsResult!,
         ...seen.values,
       ];
-      final ordered = await _verifyAll(all);
+      final (ordered, verified) = await _verifyAll(all);
       debugPrint('[StreamResolver] maccms=${maccmsSw.elapsedMilliseconds}ms '
           'candidates=${ordered.length} hit=${ordered.isNotEmpty}');
       if (ordered.isEmpty) {
         return ResolveResult.failed(loadFailure ??
             (timedOut ? ResolveFailure.timeout : ResolveFailure.notFound));
       }
-      return ResolveResult.success(ordered);
+      return ResolveResult.success(ordered, verified: verified);
     } catch (e) {
       debugPrint('[StreamResolver] failed for $playPageUrl: $e');
       return ResolveResult.failed(_failureOf(e));
@@ -296,22 +304,53 @@ class StreamResolver {
     return fallback;
   }
 
-  /// Verifies every distinct candidate concurrently, returning reachable
-  /// candidates first (keeping at most [_maxCandidates]).
-  Future<List<MediaCandidate>> _verifyAll(List<MediaCandidate> input) async {
+  /// Verifies distinct candidates concurrently and returns them reachable-first.
+  /// Returns as soon as one candidate verifies reachable (so a slow sibling
+  /// cannot delay playback), or once all settle / [_verifyBudget] elapses.
+  /// Candidates not yet verified are kept as fallbacks.
+  Future<(List<MediaCandidate>, bool)> _verifyAll(
+      List<MediaCandidate> input) async {
     final unique = <MediaCandidate>[];
     final seenUrls = <String>{};
     for (final candidate in input) {
       if (candidate.url.isEmpty) continue;
-      if (seenUrls.add(candidate.url)) {
-        unique.add(candidate);
-        if (unique.length >= _maxCandidates) break;
+      if (seenUrls.add(candidate.url)) unique.add(candidate);
+      if (unique.length >= _maxCandidates) break;
+    }
+    if (unique.isEmpty) return (const <MediaCandidate>[], false);
+
+    final results = List<(MediaCandidate, bool)?>.filled(unique.length, null);
+    final firstReachable = Completer<void>();
+    final allDone = Completer<void>();
+    var remaining = unique.length;
+    for (var i = 0; i < unique.length; i++) {
+      final index = i;
+      unawaited(_verifyOne(unique[index]).then((r) {
+        results[index] = r;
+        remaining--;
+        if (r.$2 && !firstReachable.isCompleted) firstReachable.complete();
+        if (remaining == 0 && !allDone.isCompleted) allDone.complete();
+      }));
+    }
+    await Future.any<void>([
+      firstReachable.future,
+      allDone.future,
+      Future<void>.delayed(_verifyBudget),
+    ]);
+
+    final reachable = <MediaCandidate>[];
+    final rest = <MediaCandidate>[];
+    for (var i = 0; i < unique.length; i++) {
+      final r = results[i];
+      if (r == null) {
+        rest.add(unique[i]); // not verified yet: keep as a fallback
+      } else if (r.$2) {
+        reachable.add(r.$1);
+      } else {
+        rest.add(r.$1);
       }
     }
-    final results = await Future.wait([for (final c in unique) _verifyOne(c)]);
-    final reachable = [for (final r in results) if (r.$2) r.$1];
-    final rest = [for (final r in results) if (!r.$2) r.$1];
-    return [...reachable, ...rest];
+    return ([...reachable, ...rest], reachable.isNotEmpty);
   }
 
   /// Picks the header variant the player can actually use, falling back to the
