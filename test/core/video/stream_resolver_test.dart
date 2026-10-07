@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:libiko/core/video/cancellation.dart';
 import 'package:libiko/core/video/headless_browser.dart';
 import 'package:libiko/core/video/maccms.dart';
 import 'package:libiko/core/video/resolved_stream_cache.dart';
@@ -318,5 +319,38 @@ void main() {
     final resolver = _headlessResolver(_FakeBrowser(hang: true));
     final result = await resolver.resolve('https://page/play');
     expect(result.failure, ResolveFailure.timeout);
+  });
+
+  test('does not negative-cache a cancelled resolve', () async {
+    final cache = ResolvedStreamCache();
+    final hanging = _FakeBrowser(hang: true);
+    final resolver1 = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      browserFactory: () => hanging,
+      cache: cache,
+      grace: const Duration(milliseconds: 50),
+      overallTimeout: const Duration(milliseconds: 200),
+    );
+    final cancel = CancellationToken();
+    final pending = resolver1.resolve('https://page/play', cancel: cancel);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    cancel.cancel();
+    final cancelled = await pending;
+    expect(cancelled.failure, ResolveFailure.notFound);
+
+    final working = _FakeBrowser(
+        candidates: const [MediaCandidate('https://cdn/x/index.m3u8')]);
+    final resolver2 = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      browserFactory: () => working,
+      cache: cache,
+      grace: const Duration(milliseconds: 50),
+      overallTimeout: const Duration(milliseconds: 200),
+    );
+    final result = await resolver2.resolve('https://page/play');
+    expect(result.ok, isTrue);
+    expect(working.loadCount, 1);
   });
 }

@@ -124,9 +124,10 @@ class StreamResolver {
     debugPrint('[StreamResolver] gave up after ${total.elapsedMilliseconds}ms '
         '($lastFailure.name)');
     final failed = ResolveResult.failed(lastFailure);
-    if (lastFailure == ResolveFailure.notFound) {
+    if (lastFailure == ResolveFailure.notFound &&
+        !(cancel?.isCancelled ?? false)) {
       // Only a deterministic miss is worth remembering; transient failures
-      // (timeout/loadFailed/network/cancelled) must stay retryable.
+      // (timeout/loadFailed/network) and cancelled resolves must stay retryable.
       _cache.put(playPageUrl, failed);
     }
     return failed;
