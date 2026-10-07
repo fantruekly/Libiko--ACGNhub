@@ -12,7 +12,7 @@
 
 ### 动漫
 
-- 聚合多个动漫源（内置七色番、baimao、moonci、sorani、xfdmneo 等源），同一部番有多条线路。
+- 聚合多个动漫源（内置七色番、moonci、sorani、xfdmneo、xfdmnext 等源），同一部番有多条线路。
 - 元数据来自 Bangumi / AniList / Jikan，评分、简介、角色、关联作品自动补齐。
 - 搜索、追番、观看历史一条龙。
 - 特意没有弹幕——只想安安静静看片。
