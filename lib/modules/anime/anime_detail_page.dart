@@ -641,7 +641,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     try {
       final items = await r.source
           .search(_work.title, cancel: _searchCancel)
-          .timeout(const Duration(seconds: 25));
+          .timeout(const Duration(seconds: 12));
       if (!mounted || gen != _searchGen) return;
       setState(() {
         r.items = items;
@@ -732,11 +732,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       cancel: cancel,
     );
     if (!mounted || outcome.cancelled) return;
-    final stream = outcome.result?.candidate;
-    if (stream == null) {
+    final result = outcome.result;
+    if (result == null || !result.ok) {
       messenger.showSnackBar(SnackBar(
         content: Text(resolveFailureMessage(
-            _expandedSource?.name ?? '', outcome.result?.failure)),
+            _expandedSource?.name ?? '', result?.failure)),
         action: SnackBarAction(
           label: '重试',
           onPressed: () => _playEpisode(ep),
@@ -751,7 +751,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           work: _work,
           episodes: _episodes ?? const [],
           initialIndex: ep.index,
-          initialCandidates: outcome.result?.candidates,
+          initialCandidates: result.candidates,
           sourceName: _expandedSource?.name ?? '',
         ),
       ),
