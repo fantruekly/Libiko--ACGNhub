@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../platform.dart';
 import 'headless_browser.dart';
 
 /// Scheduling priority for a pooled browser: foreground work (the user tapped
@@ -81,7 +82,7 @@ class HeadlessBrowserPool {
     this.maxAgePerBrowser = const Duration(minutes: 10),
     DateTime Function()? clock,
   })  : _factory = factory ?? createHeadlessBrowser,
-        maxBrowsers = maxBrowsers ?? 2,
+        maxBrowsers = maxBrowsers ?? (isDesktop ? 4 : 3),
         _now = clock ?? DateTime.now;
 
   final HeadlessBrowser Function() _factory;

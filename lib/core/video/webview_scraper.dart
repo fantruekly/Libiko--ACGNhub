@@ -110,13 +110,22 @@ class WebviewScraper {
       );
       if (cancel?.isCancelled ?? false) return const <dynamic>[];
       final browser = pooled;
+
+      var loaded = false;
+      Object? loadError;
+      DateTime? loadedAt;
       unawaited(() async {
         try {
           await browser.load(url, timeout: timeout);
         } catch (e) {
+          loadError = e;
           debugPrint('[WebviewScraper] load failed for $url: $e');
+        } finally {
+          loaded = true;
+          loadedAt = DateTime.now();
         }
       }());
+
       final deadline = DateTime.now().add(timeout);
       while (DateTime.now().isBefore(deadline)) {
         if (cancel?.isCancelled ?? false) return const <dynamic>[];
@@ -130,6 +139,17 @@ class WebviewScraper {
         }
         final list = decodeResult(result);
         if (list.isNotEmpty) return list;
+        // Give up shortly after the page has loaded (rather than burning the
+        // whole timeout) so a stale/empty source does not block other sources.
+        if (loaded) {
+          if (loadError != null) return const <dynamic>[];
+          final at = loadedAt;
+          if (at != null &&
+              DateTime.now().difference(at) >=
+                  const Duration(seconds: 2)) {
+            return const <dynamic>[];
+          }
+        }
         await Future<void>.delayed(const Duration(milliseconds: 250));
       }
       return const <dynamic>[];

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'api_rule.dart';
 import 'cancellation.dart';
+import 'source_cache.dart';
 import 'source_rule.dart';
 import 'video_source.dart';
 import 'webview_scraper.dart';
@@ -14,10 +15,13 @@ class RuleVideoSource implements VideoSource {
   final SourceRule rule;
   final WebviewScraper _scraper;
   final ApiRuleClient _api;
+  final SourceCache _cache;
 
-  RuleVideoSource(this.rule, {WebviewScraper? scraper, ApiRuleClient? apiClient})
+  RuleVideoSource(this.rule,
+      {WebviewScraper? scraper, ApiRuleClient? apiClient, SourceCache? cache})
       : _scraper = scraper ?? WebviewScraper(),
-        _api = apiClient ?? ApiRuleClient(rule);
+        _api = apiClient ?? ApiRuleClient(rule),
+        _cache = cache ?? sharedSourceCache;
 
   @override
   String get id => rule.id;
@@ -31,31 +35,45 @@ class RuleVideoSource implements VideoSource {
   @override
   Future<List<VideoItem>> search(String keyword,
       {CancellationToken? cancel}) async {
+    final cached = _cache.search(id, keyword);
+    if (cached != null) return cached;
+    final List<VideoItem> items;
     if (rule.searchMode == 'api') {
-      return _api.search(keyword, cancel: cancel);
+      items = await _api.search(keyword, cancel: cancel);
+    } else {
+      final result = await _scraper.fetchJson(
+        url: rule.buildSearchUrl(keyword),
+        script: buildSearchScript(rule),
+        userAgent: rule.userAgent,
+        cancel: cancel,
+      );
+      items = mapSearch(rule, result);
     }
-    final result = await _scraper.fetchJson(
-      url: rule.buildSearchUrl(keyword),
-      script: buildSearchScript(rule),
-      userAgent: rule.userAgent,
-      cancel: cancel,
-    );
-    return mapSearch(rule, result);
+    if (!(cancel?.isCancelled ?? false)) _cache.putSearch(id, keyword, items);
+    return items;
   }
 
   @override
   Future<List<VideoEpisode>> episodes(String detailUrl,
       {CancellationToken? cancel}) async {
+    final cached = _cache.episodes(id, detailUrl);
+    if (cached != null) return cached;
+    final List<VideoEpisode> episodes;
     if (rule.chapterMode == 'api') {
-      return _api.episodes(detailUrl, cancel: cancel);
+      episodes = await _api.episodes(detailUrl, cancel: cancel);
+    } else {
+      final result = await _scraper.fetchJson(
+        url: detailUrl,
+        script: buildEpisodesScript(rule),
+        userAgent: rule.userAgent,
+        cancel: cancel,
+      );
+      episodes = mapEpisodes(rule, result);
     }
-    final result = await _scraper.fetchJson(
-      url: detailUrl,
-      script: buildEpisodesScript(rule),
-      userAgent: rule.userAgent,
-      cancel: cancel,
-    );
-    return mapEpisodes(rule, result);
+    if (!(cancel?.isCancelled ?? false)) {
+      _cache.putEpisodes(id, detailUrl, episodes);
+    }
+    return episodes;
   }
 
   @visibleForTesting
