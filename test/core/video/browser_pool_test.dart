@@ -5,8 +5,9 @@ import 'package:libiko/core/video/browser_pool.dart';
 import 'package:libiko/core/video/headless_browser.dart';
 
 class _FakeBrowser implements HeadlessBrowser {
-  _FakeBrowser(this.onDispose);
+  _FakeBrowser(this.onDispose, {this.startError});
   final void Function(_FakeBrowser) onDispose;
+  final Object? startError;
   int _loadId = 0;
   int startCount = 0;
   final _media = StreamController<MediaCandidate>.broadcast();
@@ -20,6 +21,7 @@ class _FakeBrowser implements HeadlessBrowser {
   @override
   Future<void> start({String? userAgent, String? extraScript}) async {
     startCount++;
+    if (startError != null) throw startError!;
   }
 
   @override
@@ -173,5 +175,66 @@ void main() {
     final c = await pool.acquire();
     expect(created.length, 2);
     await c.release();
+  });
+
+  test('never exceeds maxBrowsers when waiters queue across a disposal',
+      () async {
+    var alive = 0;
+    var peak = 0;
+    final pool = HeadlessBrowserPool(
+      factory: () {
+        alive++;
+        if (alive > peak) peak = alive;
+        return _FakeBrowser((_) => alive--);
+      },
+      maxBrowsers: 2,
+      maxUsesPerBrowser: 1,
+    );
+
+    final a = await pool.acquire(userAgent: 'UA1');
+    final b = await pool.acquire(userAgent: 'UA2');
+    expect(alive, 2);
+
+    final waiting1 = pool.acquire(userAgent: 'UA1');
+    final waiting2 = pool.acquire(userAgent: 'UA2');
+
+    await a.release();
+    await b.release();
+
+    final r1 = await waiting1;
+    final r2 = await waiting2;
+    expect(peak, lessThanOrEqualTo(2));
+    await r1.release();
+    await r2.release();
+  });
+
+  test('fails queued waiters on shutdown instead of hanging', () async {
+    final pool = HeadlessBrowserPool(
+      factory: () => _FakeBrowser((_) {}),
+      maxBrowsers: 1,
+    );
+    final holder = await pool.acquire();
+    final waiting = pool.acquire();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    final expectation = expectLater(
+      waiting.timeout(const Duration(seconds: 1)),
+      throwsA(isA<StateError>()),
+    );
+    await pool.shutdown();
+    await expectation;
+    expect(holder.userAgent, isNotEmpty);
+  });
+
+  test('disposes a browser whose start fails', () async {
+    final disposed = <_FakeBrowser>[];
+    final pool = HeadlessBrowserPool(
+      factory: () =>
+          _FakeBrowser(disposed.add, startError: StateError('start failed')),
+      maxBrowsers: 1,
+    );
+
+    await expectLater(pool.acquire(), throwsA(isA<StateError>()));
+    expect(disposed, hasLength(1));
   });
 }

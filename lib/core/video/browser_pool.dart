@@ -84,13 +84,14 @@ class HeadlessBrowserPool {
   final List<_PoolEntry> _active = [];
   final List<_Waiter> _foreground = [];
   final List<_Waiter> _background = [];
+  int _creating = 0;
 
   @visibleForTesting
   int get idleCount => _idle.length;
   @visibleForTesting
   int get activeCount => _active.length;
 
-  int get _total => _idle.length + _active.length;
+  int get _total => _idle.length + _active.length + _creating;
 
   Future<PooledBrowser> acquire({
     String? userAgent,
@@ -100,10 +101,23 @@ class HeadlessBrowserPool {
     _evictExpired();
     final reused = _takeIdle(ua);
     if (reused != null) return _borrow(reused);
-    if (_total < maxBrowsers) return _borrow(await _create(ua));
+    if (_total < maxBrowsers) {
+      _creating++;
+      try {
+        return _borrow(await _create(ua));
+      } finally {
+        _creating--;
+      }
+    }
     if (_idle.isNotEmpty) {
-      await _dispose(_idle.removeAt(0));
-      return _borrow(await _create(ua));
+      final stale = _idle.removeAt(0);
+      _creating++;
+      try {
+        await _dispose(stale);
+        return _borrow(await _create(ua));
+      } finally {
+        _creating--;
+      }
     }
     final waiter = _Waiter(ua, Completer<_PoolEntry>());
     (priority == BrowserPriority.foreground ? _foreground : _background)
@@ -181,6 +195,7 @@ class HeadlessBrowserPool {
       }
       if (_total < maxBrowsers) {
         queue.removeAt(0);
+        _creating++;
         unawaited(_create(waiter.userAgent).then((entry) {
           entry.lastUsed = _now();
           entry.uses++;
@@ -188,12 +203,15 @@ class HeadlessBrowserPool {
           waiter.completer.complete(entry);
         }, onError: (Object e, StackTrace st) {
           waiter.completer.completeError(e, st);
+        }).whenComplete(() {
+          _creating--;
         }));
         continue;
       }
       if (_idle.isNotEmpty) {
         queue.removeAt(0);
         final stale = _idle.removeAt(0);
+        _creating++;
         unawaited(_dispose(stale)
             .then((_) => _create(waiter.userAgent))
             .then((entry) {
@@ -203,6 +221,8 @@ class HeadlessBrowserPool {
           waiter.completer.complete(entry);
         }, onError: (Object e, StackTrace st) {
           waiter.completer.completeError(e, st);
+        }).whenComplete(() {
+          _creating--;
         }));
         continue;
       }
@@ -224,7 +244,14 @@ class HeadlessBrowserPool {
 
   Future<_PoolEntry> _create(String ua) async {
     final browser = _factory();
-    await browser.start(userAgent: ua);
+    try {
+      await browser.start(userAgent: ua);
+    } catch (_) {
+      try {
+        await browser.dispose();
+      } catch (_) {}
+      rethrow;
+    }
     final now = _now();
     return _PoolEntry(browser, ua, now, now);
   }
@@ -236,13 +263,19 @@ class HeadlessBrowserPool {
   }
 
   Future<void> shutdown() async {
+    final error = StateError('pool shut down');
+    for (final waiter in [..._foreground, ..._background]) {
+      if (!waiter.completer.isCompleted) {
+        waiter.completer.completeError(error);
+      }
+    }
+    _foreground.clear();
+    _background.clear();
     for (final entry in [..._idle, ..._active]) {
       await _dispose(entry);
     }
     _idle.clear();
     _active.clear();
-    _foreground.clear();
-    _background.clear();
   }
 }
 
