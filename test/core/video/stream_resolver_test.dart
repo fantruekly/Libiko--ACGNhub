@@ -63,6 +63,7 @@ class _FakeBrowser implements HeadlessBrowser {
   Future<void> load(String url,
       {Duration timeout = const Duration(seconds: 15)}) async {
     loadCount++;
+    _loadId++;
     if (loadError != null) throw loadError!;
     if (hang) {
       await _gate.future;

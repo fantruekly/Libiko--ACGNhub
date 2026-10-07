@@ -168,8 +168,9 @@ class StreamResolver {
     try {
       final Stream<MediaCandidate> candidates;
       final Future<void> Function() loadPage;
-      if (_browserFactory != null) {
-        final browser = _browserFactory!();
+      final browserFactory = _browserFactory;
+      if (browserFactory != null) {
+        final browser = browserFactory();
         await browser.start(
           userAgent: userAgent ?? kBrowserUserAgent,
           extraScript: legacy ? kLegacyIframeScript : null,
