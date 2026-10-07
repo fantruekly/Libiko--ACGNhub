@@ -146,6 +146,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   void _maybeShowError() {
+    if (!mounted) return;
     if (_pendingError == null || _playing || _buffering || _resolving) return;
     if (_switchingCandidate) return;
     if (_candidates.hasNext) {
@@ -215,6 +216,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }
 
     setState(() => _resolving = false);
+    _pendingError = null;
     _candidates = CandidateQueue(candidates);
     await _openCandidate();
     if (!mounted || gen != _gen) return;
