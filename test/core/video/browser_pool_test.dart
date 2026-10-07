@@ -237,4 +237,22 @@ void main() {
     await expectLater(pool.acquire(), throwsA(isA<StateError>()));
     expect(disposed, hasLength(1));
   });
+
+  test(
+      're-pumps the queue when a create fails instead of hanging waiters',
+      () async {
+    final pool = HeadlessBrowserPool(
+      factory: () =>
+          _FakeBrowser((_) {}, startError: StateError('start failed')),
+      maxBrowsers: 1,
+    );
+
+    final first = pool.acquire();
+    final second = pool.acquire();
+
+    final firstExpectation = expectLater(first, throwsA(isA<StateError>()));
+    final secondExpectation = expectLater(second, throwsA(isA<StateError>()));
+    await firstExpectation;
+    await secondExpectation;
+  }, timeout: const Timeout(Duration(seconds: 5)));
 }

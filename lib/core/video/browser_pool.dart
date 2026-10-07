@@ -93,6 +93,14 @@ class HeadlessBrowserPool {
 
   int get _total => _idle.length + _active.length + _creating;
 
+  /// Releases the in-flight creation slot and re-pumps the queues. A failed
+  /// create must still serve queued waiters (creating or erroring), otherwise
+  /// they would hang forever.
+  void _releaseCreateSlot() {
+    _creating--;
+    _pump();
+  }
+
   Future<PooledBrowser> acquire({
     String? userAgent,
     BrowserPriority priority = BrowserPriority.foreground,
@@ -106,7 +114,7 @@ class HeadlessBrowserPool {
       try {
         return _borrow(await _create(ua));
       } finally {
-        _creating--;
+        _releaseCreateSlot();
       }
     }
     if (_idle.isNotEmpty) {
@@ -116,7 +124,7 @@ class HeadlessBrowserPool {
         await _dispose(stale);
         return _borrow(await _create(ua));
       } finally {
-        _creating--;
+        _releaseCreateSlot();
       }
     }
     final waiter = _Waiter(ua, Completer<_PoolEntry>());
@@ -204,7 +212,7 @@ class HeadlessBrowserPool {
         }, onError: (Object e, StackTrace st) {
           waiter.completer.completeError(e, st);
         }).whenComplete(() {
-          _creating--;
+          _releaseCreateSlot();
         }));
         continue;
       }
@@ -222,7 +230,7 @@ class HeadlessBrowserPool {
         }, onError: (Object e, StackTrace st) {
           waiter.completer.completeError(e, st);
         }).whenComplete(() {
-          _creating--;
+          _releaseCreateSlot();
         }));
         continue;
       }
