@@ -751,7 +751,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           work: _work,
           episodes: _episodes ?? const [],
           initialIndex: ep.index,
-          initialResolved: stream,
+          initialCandidates: outcome.result?.candidates,
           sourceName: _expandedSource?.name ?? '',
         ),
       ),
