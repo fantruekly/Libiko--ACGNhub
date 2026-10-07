@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'browser_pool.dart';
 import 'cancellation.dart';
 import 'headless_browser.dart';
 import 'source_rule.dart';
@@ -72,8 +73,13 @@ String buildEpisodesScript(SourceRule rule) => '''
 })()
 ''';
 
-/// Loads a URL in a [HeadlessBrowser] and evaluates an extraction script.
+/// Loads a URL in a pooled [HeadlessBrowser] and evaluates an extraction script.
 class WebviewScraper {
+  WebviewScraper({HeadlessBrowserPool? pool})
+      : _pool = pool ?? sharedBrowserPool;
+
+  final HeadlessBrowserPool _pool;
+
   /// Normalizes an `executeScript` result to a list. The webview returns the
   /// decoded JSON value; accept a `List` directly and tolerate a JSON string.
   @visibleForTesting
@@ -95,10 +101,14 @@ class WebviewScraper {
     Duration timeout = const Duration(seconds: 12),
     CancellationToken? cancel,
   }) async {
-    final browser = createHeadlessBrowser();
+    PooledBrowser? pooled;
     try {
       if (cancel?.isCancelled ?? false) return const <dynamic>[];
-      await browser.start(userAgent: userAgent ?? kBrowserUserAgent);
+      pooled = await _pool.acquire(
+        userAgent: userAgent ?? kBrowserUserAgent,
+        priority: BrowserPriority.background,
+      );
+      final browser = pooled;
       unawaited(() async {
         try {
           await browser.load(url, timeout: timeout);
@@ -127,7 +137,7 @@ class WebviewScraper {
       return null;
     } finally {
       try {
-        await browser.dispose();
+        await pooled?.release();
       } catch (_) {}
     }
   }
