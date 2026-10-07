@@ -146,8 +146,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   void _maybeShowError() {
-    if (_pendingError == null || _playing || _buffering) return;
-    if (!_switchingCandidate && _candidates.hasNext) {
+    if (_pendingError == null || _playing || _buffering || _resolving) return;
+    if (_switchingCandidate) return;
+    if (_candidates.hasNext) {
       _pendingError = null;
       unawaited(_tryNextCandidate());
       return;
@@ -166,6 +167,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     final history = ref.read(watchHistoryProvider.notifier);
     _prefetchCancel.cancel();
     _prefetchCancel = CancellationToken();
+    _candidates = CandidateQueue();
+    _switchingCandidate = false;
     setState(() {
       _resolving = true;
       _error = null;
@@ -244,6 +247,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       await _openCandidate();
     } finally {
       _switchingCandidate = false;
+      if (_pendingError != null && !_playing && !_buffering && !_resolving) {
+        scheduleMicrotask(_maybeShowError);
+      }
     }
   }
 
