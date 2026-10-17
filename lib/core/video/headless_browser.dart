@@ -17,7 +17,12 @@ class MediaCandidate {
   /// navigation.
   final int loadId;
 
-  const MediaCandidate(this.url, {this.headers = const {}, this.loadId = 0});
+  /// True when resolution has already chosen the exact playback headers.
+  /// Callers must not reintroduce headers deliberately removed by verification.
+  final bool headersResolved;
+
+  const MediaCandidate(this.url,
+      {this.headers = const {}, this.loadId = 0, this.headersResolved = false});
 }
 
 /// Thrown by [HeadlessBrowser.load] when the page fails to load or times out.
@@ -126,7 +131,9 @@ String? mediaUrlFromQuery(String url) {
 /// because some HLS playlists are served from extension-less URLs.
 bool looksLikeMediaResponse(String url, String mime) {
   final m = mime.toLowerCase();
-  if (m.contains('mpegurl') || m.contains('mp2t')) return true;
+  // MPEG-TS responses are individual HLS segments, not playlist candidates.
+  if (m.contains('mp2t')) return false;
+  if (m.contains('mpegurl')) return true;
   return looksLikeMediaUrl(url);
 }
 

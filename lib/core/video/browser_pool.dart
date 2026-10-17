@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../platform.dart';
 import 'headless_browser.dart';
+import 'cancellation.dart';
 
 /// Scheduling priority for a pooled browser: foreground work (the user tapped
 /// play) is served before background work (prefetch, source search).
@@ -23,40 +24,65 @@ class PooledBrowser {
   final String userAgent;
   int _loadId;
   bool _released = false;
+  Future<void>? _pendingLoad;
 
   Stream<MediaCandidate> get mediaUrls =>
-      _browser.mediaUrls.where((c) => c.loadId == _loadId);
+      _browser.mediaUrls.where((c) => !_released && c.loadId == _loadId);
 
   Future<void> load(String url,
-      {Duration timeout = const Duration(seconds: 8)}) async {
+      {Duration timeout = const Duration(seconds: 8)}) {
+    if (_released) {
+      return Future.error(StateError('browser handle has been released'));
+    }
+    if (_pendingLoad != null) {
+      return Future.error(StateError('browser is already loading'));
+    }
+    final pending = _load(url, timeout: timeout);
+    _pendingLoad = pending;
+    return pending.whenComplete(() => _pendingLoad = null);
+  }
+
+  Future<void> _load(String url, {required Duration timeout}) async {
+    _loadId = -1;
     if (_entry.dirty) {
       // Tear down the previous page so its still-in-flight media requests
       // cannot leak into this session, and the next navigation starts clean.
       try {
-        await _browser.load('about:blank',
-            timeout: const Duration(seconds: 2));
+        await _browser.load('about:blank', timeout: const Duration(seconds: 2));
       } catch (_) {}
       _entry.dirty = false;
     }
+    if (_released) return;
     final future = _browser.load(url, timeout: timeout);
     _entry.dirty = true;
     _loadId = _browser.loadId;
     return future;
   }
 
-  Future<dynamic> eval(String script) => _browser.eval(script);
+  Future<dynamic> eval(String script) {
+    if (_released) throw StateError('browser handle has been released');
+    return _browser.eval(script);
+  }
 
   Future<void> release() async {
     if (_released) return;
     _released = true;
+    // Do not lend this WebView while its previous navigation is still active.
+    // In particular, a cancellation during the blank-page barrier must not
+    // start a late navigation after the next caller has borrowed it.
+    try {
+      await _pendingLoad;
+    } catch (_) {}
     await _pool.release(this);
   }
 }
 
 class _PoolEntry {
-  _PoolEntry(this.browser, this.userAgent, this.createdAt, this.lastUsed);
+  _PoolEntry(this.browser, this.userAgent, this.extraScript, this.createdAt,
+      this.lastUsed);
   final HeadlessBrowser browser;
   final String userAgent;
+  final String? extraScript;
   final DateTime createdAt;
   DateTime lastUsed;
   int uses = 0;
@@ -64,10 +90,11 @@ class _PoolEntry {
 }
 
 class _Waiter {
-  _Waiter(this.userAgent, this.priority, this.completer);
+  _Waiter(this.userAgent, this.extraScript, this.priority);
   final String userAgent;
+  final String? extraScript;
   final BrowserPriority priority;
-  final Completer<_PoolEntry> completer;
+  final completer = Completer<_PoolEntry>();
 }
 
 /// Reuses warm headless browsers instead of creating and disposing one per
@@ -96,6 +123,7 @@ class HeadlessBrowserPool {
   final List<_PoolEntry> _active = [];
   final List<_Waiter> _foreground = [];
   final List<_Waiter> _background = [];
+  final Set<_Waiter> _starting = {};
   int _creating = 0;
   bool _shutdown = false;
 
@@ -123,52 +151,58 @@ class HeadlessBrowserPool {
 
   Future<PooledBrowser> acquire({
     String? userAgent,
+    String? extraScript,
+    CancellationToken? cancel,
     BrowserPriority priority = BrowserPriority.foreground,
   }) async {
     if (_shutdown) throw StateError('browser pool has been shut down');
-    final ua = userAgent ?? kBrowserUserAgent;
-    _evictExpired();
-    final reused = _takeIdle(ua);
-    if (reused != null) return _borrow(reused);
-    if (_total < _capFor(priority)) {
-      _creating++;
-      try {
-        return _borrow(await _create(ua));
-      } finally {
-        _releaseCreateSlot();
-      }
+    if (cancel?.isCancelled == true) {
+      throw StateError('browser acquisition cancelled');
     }
-    if (priority == BrowserPriority.foreground && _idle.isNotEmpty) {
-      final stale = _idle.removeAt(0);
-      _creating++;
-      try {
-        await _dispose(stale);
-        return _borrow(await _create(ua));
-      } finally {
-        _releaseCreateSlot();
+    final waiter =
+        _Waiter(userAgent ?? kBrowserUserAgent, extraScript, priority);
+    void cancelled() {
+      _foreground.remove(waiter);
+      _background.remove(waiter);
+      if (!waiter.completer.isCompleted) {
+        waiter.completer
+            .completeError(StateError('browser acquisition cancelled'));
       }
+      _pump();
     }
-    final waiter = _Waiter(ua, priority, Completer<_PoolEntry>());
+
     (priority == BrowserPriority.foreground ? _foreground : _background)
         .add(waiter);
-    final entry = await waiter.completer.future;
-    return PooledBrowser._(this, entry);
+    cancel?.addListener(cancelled);
+    _evictExpired();
+    _pump();
+    try {
+      final entry = await waiter.completer.future;
+      // Cancellation can happen after handoff but before this continuation.
+      if (cancel?.isCancelled == true || _shutdown) {
+        await PooledBrowser._(this, entry).release();
+        throw StateError('browser acquisition cancelled');
+      }
+      return PooledBrowser._(this, entry);
+    } finally {
+      cancel?.removeListener(cancelled);
+    }
   }
 
-  PooledBrowser _borrow(_PoolEntry entry) {
+  void _deliver(_Waiter waiter, _PoolEntry entry) {
     entry.lastUsed = _now();
     entry.uses++;
     _active.add(entry);
-    return PooledBrowser._(this, entry);
+    waiter.completer.complete(entry);
   }
 
-  _PoolEntry? _takeIdle(String ua) {
+  _PoolEntry? _takeIdle(String ua, String? extraScript) {
     for (var i = 0; i < _idle.length; i++) {
       final entry = _idle[i];
-      if (entry.userAgent != ua) continue;
+      if (entry.userAgent != ua || entry.extraScript != extraScript) continue;
       _idle.removeAt(i);
       if (_expired(entry)) {
-        unawaited(_dispose(entry));
+        unawaited(_retire(entry));
         i--;
         continue;
       }
@@ -182,8 +216,12 @@ class HeadlessBrowserPool {
     final entry = pooled._entry;
     _active.remove(entry);
     if (_expired(entry) || entry.uses >= maxUsesPerBrowser) {
-      await _dispose(entry);
-      _pump();
+      _creating++;
+      try {
+        await _dispose(entry);
+      } finally {
+        _releaseCreateSlot();
+      }
       return;
     }
     entry.lastUsed = _now();
@@ -194,17 +232,36 @@ class HeadlessBrowserPool {
   bool _handOff(_PoolEntry entry) {
     for (final queue in [_foreground, _background]) {
       for (var i = 0; i < queue.length; i++) {
-        if (queue[i].userAgent == entry.userAgent) {
-          final waiter = queue.removeAt(i);
-          entry.lastUsed = _now();
-          entry.uses++;
-          _active.add(entry);
-          waiter.completer.complete(entry);
+        final waiter = queue[i];
+        if (waiter.userAgent == entry.userAgent &&
+            waiter.extraScript == entry.extraScript) {
+          queue.removeAt(i);
+          _deliver(waiter, entry);
           return true;
         }
       }
     }
     return false;
+  }
+
+  Future<void> _startWaiter(_Waiter waiter, _PoolEntry? stale) async {
+    try {
+      if (stale != null) await _dispose(stale);
+      if (_shutdown || waiter.completer.isCompleted) return;
+      final entry = await _create(waiter.userAgent, waiter.extraScript);
+      // start() cannot be interrupted on every platform. Keep its slot until
+      // the late browser has been disposed, rather than exceeding the cap.
+      if (_shutdown || waiter.completer.isCompleted) {
+        await _dispose(entry);
+      } else {
+        _deliver(waiter, entry);
+      }
+    } catch (e, st) {
+      if (!waiter.completer.isCompleted) waiter.completer.completeError(e, st);
+    } finally {
+      _starting.remove(waiter);
+      _releaseCreateSlot();
+    }
   }
 
   void _pump() {
@@ -215,56 +272,30 @@ class HeadlessBrowserPool {
           : (_background.isNotEmpty ? _background : null);
       if (queue == null) return;
       final waiter = queue.first;
-      final idle = _takeIdle(waiter.userAgent);
+      final idle = _takeIdle(waiter.userAgent, waiter.extraScript);
       if (idle != null) {
         queue.removeAt(0);
-        idle.lastUsed = _now();
-        idle.uses++;
-        _active.add(idle);
-        waiter.completer.complete(idle);
+        _deliver(waiter, idle);
         continue;
       }
-      if (_total < _capFor(waiter.priority)) {
-        queue.removeAt(0);
-        _creating++;
-        unawaited(_create(waiter.userAgent).then((entry) {
-          entry.lastUsed = _now();
-          entry.uses++;
-          _active.add(entry);
-          waiter.completer.complete(entry);
-        }, onError: (Object e, StackTrace st) {
-          waiter.completer.completeError(e, st);
-        }).whenComplete(() {
-          _releaseCreateSlot();
-        }));
-        continue;
+      _PoolEntry? stale;
+      if (_total >= _capFor(waiter.priority)) {
+        if (waiter.priority != BrowserPriority.foreground || _idle.isEmpty) {
+          return;
+        }
+        stale = _idle.removeAt(0);
       }
-      if (waiter.priority == BrowserPriority.foreground && _idle.isNotEmpty) {
-        queue.removeAt(0);
-        final stale = _idle.removeAt(0);
-        _creating++;
-        unawaited(_dispose(stale)
-            .then((_) => _create(waiter.userAgent))
-            .then((entry) {
-          entry.lastUsed = _now();
-          entry.uses++;
-          _active.add(entry);
-          waiter.completer.complete(entry);
-        }, onError: (Object e, StackTrace st) {
-          waiter.completer.completeError(e, st);
-        }).whenComplete(() {
-          _releaseCreateSlot();
-        }));
-        continue;
-      }
-      return;
+      queue.removeAt(0);
+      _creating++;
+      _starting.add(waiter);
+      unawaited(_startWaiter(waiter, stale));
     }
   }
 
   void _evictExpired() {
     _idle.removeWhere((e) {
       if (!_expired(e)) return false;
-      unawaited(_dispose(e));
+      unawaited(_retire(e));
       return true;
     });
   }
@@ -273,10 +304,10 @@ class HeadlessBrowserPool {
       _now().difference(e.lastUsed) >= idleTimeout ||
       _now().difference(e.createdAt) >= maxAgePerBrowser;
 
-  Future<_PoolEntry> _create(String ua) async {
+  Future<_PoolEntry> _create(String ua, String? extraScript) async {
     final browser = _factory();
     try {
-      await browser.start(userAgent: ua);
+      await browser.start(userAgent: ua, extraScript: extraScript);
     } catch (_) {
       try {
         await browser.dispose();
@@ -284,7 +315,16 @@ class HeadlessBrowserPool {
       rethrow;
     }
     final now = _now();
-    return _PoolEntry(browser, ua, now, now);
+    return _PoolEntry(browser, ua, extraScript, now, now);
+  }
+
+  Future<void> _retire(_PoolEntry entry) async {
+    _creating++;
+    try {
+      await _dispose(entry);
+    } finally {
+      _releaseCreateSlot();
+    }
   }
 
   Future<void> _dispose(_PoolEntry entry) async {
@@ -296,7 +336,7 @@ class HeadlessBrowserPool {
   Future<void> shutdown() async {
     _shutdown = true;
     final error = StateError('pool shut down');
-    for (final waiter in [..._foreground, ..._background]) {
+    for (final waiter in [..._foreground, ..._background, ..._starting]) {
       if (!waiter.completer.isCompleted) {
         waiter.completer.completeError(error);
       }
