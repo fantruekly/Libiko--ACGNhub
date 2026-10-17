@@ -162,7 +162,8 @@ List<dynamic> jsonPathAll(dynamic root, String path) {
     if (char == '.') {
       index++;
       final start = index;
-      while (index < expression.length && _fieldChar.hasMatch(expression[index])) {
+      while (
+          index < expression.length && _fieldChar.hasMatch(expression[index])) {
         index++;
       }
       if (index == start) return const [];
@@ -206,8 +207,7 @@ final RegExp _fieldChar = RegExp(r'[A-Za-z0-9_$-]');
 /// `@episode` variable. Unknown tokens are left untouched.
 String resolveEpisodeUrl(String template, Map<String, String> vars) {
   if (vars.isEmpty || !template.contains('@')) return template;
-  final keys = vars.keys.toList()
-    ..sort((a, b) => b.length.compareTo(a.length));
+  final keys = vars.keys.toList()..sort((a, b) => b.length.compareTo(a.length));
   var result = template;
   for (final key in keys) {
     result = result.replaceAll('@$key', vars[key] ?? '');
@@ -268,13 +268,14 @@ class ApiRuleClient {
     Map<String, String> rootVariables,
   ) {
     final hasRoads = config.roadsPath.trim().isNotEmpty;
-    final roads =
-        hasRoads ? jsonPathAll(document, config.roadsPath) : <dynamic>[document];
+    final roads = hasRoads
+        ? jsonPathAll(document, config.roadsPath)
+        : <dynamic>[document];
     final episodes = <VideoEpisode>[];
     final multipleRoads = roads.length > 1;
     for (var roadIndex = 0; roadIndex < roads.length; roadIndex++) {
       final road = roads[roadIndex];
-      final roadName = multipleRoads && config.roadNamePath.trim().isNotEmpty
+      final roadName = config.roadNamePath.trim().isNotEmpty
           ? _firstString(jsonPathAll(road, config.roadNamePath))
           : '';
       var roadEpisodeIndex = 0;
@@ -291,14 +292,17 @@ class ApiRuleClient {
           episodeIndex: roadEpisodeIndex,
         );
         if (url.isEmpty) continue;
-        final title =
-            (multipleRoads && roadName.isNotEmpty && name.isNotEmpty)
-                ? '$roadName $name'
-                : name;
+        final title = (multipleRoads && roadName.isNotEmpty && name.isNotEmpty)
+            ? '$roadName $name'
+            : name;
         episodes.add(_episode(
           url,
           title,
           episodes.length,
+          roadIndex: roadIndex,
+          roadName: roadName,
+          episodeTitle: name,
+          roadEpisodeIndex: roadEpisodeIndex,
         ));
         roadEpisodeIndex++;
       }
@@ -337,20 +341,38 @@ class ApiRuleClient {
           episodeIndex: roadEpisodeIndex,
         );
         if (url.isEmpty) continue;
-        final title =
-            (groups.length > 1 && roadName.isNotEmpty) ? '$roadName $name' : name;
-        episodes.add(_episode(url, title, episodes.length));
+        final title = (groups.length > 1 && roadName.isNotEmpty)
+            ? '$roadName $name'
+            : name;
+        episodes.add(_episode(url, title, episodes.length,
+            roadIndex: roadIndex,
+            roadName: roadName,
+            episodeTitle: name,
+            roadEpisodeIndex: roadEpisodeIndex));
         roadEpisodeIndex++;
       }
     }
     return episodes;
   }
 
-  VideoEpisode _episode(String url, String name, int index) => VideoEpisode(
+  VideoEpisode _episode(
+    String url,
+    String name,
+    int index, {
+    required int roadIndex,
+    required String roadName,
+    required String episodeTitle,
+    required int roadEpisodeIndex,
+  }) =>
+      VideoEpisode(
         id: url,
-        title: name.isEmpty ? '第${index + 1}集' : name,
+        title: name.isEmpty ? '第${roadEpisodeIndex + 1}集' : name,
         index: index,
         playUrl: url,
+        sourceId: rule.id,
+        lineId: 'road:$roadIndex',
+        lineName: roadName.isEmpty ? '线路${roadIndex + 1}' : roadName,
+        episodeKey: episodeKeyFromTitle(episodeTitle),
         userAgent: rule.userAgent,
         referer: rule.referer,
         useLegacyParser: rule.useLegacyParser,
@@ -394,12 +416,12 @@ class ApiRuleClient {
       rule.baseUrl,
     );
     final headers = config.headers.map(
-      (key, value) =>
-          MapEntry(resolveEpisodeUrl(key, variables), resolveEpisodeUrl(value, variables)),
+      (key, value) => MapEntry(resolveEpisodeUrl(key, variables),
+          resolveEpisodeUrl(value, variables)),
     );
     final query = config.query.map(
-      (key, value) =>
-          MapEntry(resolveEpisodeUrl(key, variables), resolveEpisodeUrl(value, variables)),
+      (key, value) => MapEntry(resolveEpisodeUrl(key, variables),
+          resolveEpisodeUrl(value, variables)),
     );
     final response = await _dio.request<dynamic>(
       url,
@@ -460,7 +482,8 @@ class ApiRuleClient {
 
 Map<String, String> _stringMap(Object? value) {
   if (value is! Map) return const {};
-  return value.map((key, item) => MapEntry(key.toString(), item?.toString() ?? ''));
+  return value
+      .map((key, item) => MapEntry(key.toString(), item?.toString() ?? ''));
 }
 
 Map<String, dynamic> _stringKeyMap(Object? value) {

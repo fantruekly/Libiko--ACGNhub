@@ -43,7 +43,8 @@ class _FakeApi implements AccountApi {
   Future<AccountUser> me(String token) async {
     meCalls++;
     if (meThrows401 && token == 't1') {
-      throw const AccountException(statusCode: 401, code: 'unauthorized', message: 'expired');
+      throw const AccountException(
+          statusCode: 401, code: 'unauthorized', message: 'expired');
     }
     return const AccountUser(id: 1, username: 'alice');
   }
@@ -61,14 +62,16 @@ class _FakeApi implements AccountApi {
 
   @override
   Future<void> putHistory(String token, Map<String, dynamic> work,
-      String episodeTitle, int episodeIndex, int watchedAt, int updatedAt) async {}
+      String episodeTitle, int episodeIndex, int watchedAt, int updatedAt,
+      {Map<String, dynamic>? playback}) async {}
 
   @override
   Future<void> clearHistory(String token, int updatedAt) async {}
 }
 
 ProviderContainer _container(_FakeApi api) => ProviderContainer(overrides: [
-      accountProvider.overrideWith(() => AccountNotifier(apiFactory: (_) => api)),
+      accountProvider
+          .overrideWith(() => AccountNotifier(apiFactory: (_) => api)),
     ]);
 
 void main() {
@@ -145,7 +148,8 @@ void main() {
     expect(container.read(accountProvider.notifier).token, 't2');
   });
 
-  test('load clears the session when validation and refresh both fail', () async {
+  test('load clears the session when validation and refresh both fail',
+      () async {
     await AppDatabase.init();
     final api = _FakeApi(meThrows401: true, refreshOk: false);
     final container = _container(api);
@@ -164,7 +168,9 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(accountProvider.notifier).login('alice', 'secret1');
-    await container.read(accountProvider.notifier).setBaseUrl('http://example.com/');
+    await container
+        .read(accountProvider.notifier)
+        .setBaseUrl('http://example.com/');
 
     expect(container.read(accountProvider).baseUrl, 'http://example.com');
     expect(container.read(accountProvider).isLoggedIn, isTrue);
@@ -191,7 +197,8 @@ void main() {
     expect(prefs.getString('account_user'), isNull);
   });
 
-  test('refreshSession does not clear the session on a network error', () async {
+  test('refreshSession does not clear the session on a network error',
+      () async {
     await AppDatabase.init();
     final container = _container(_NetworkErrorApi());
     addTearDown(container.dispose);
@@ -199,8 +206,8 @@ void main() {
     await prefs.setString('account_token', 't1');
     await prefs.setString('account_refresh_token', 'r1');
 
-    expect(
-        await container.read(accountProvider.notifier).refreshSession(), isFalse);
+    expect(await container.read(accountProvider.notifier).refreshSession(),
+        isFalse);
     expect(prefs.getString('account_refresh_token'), 'r1');
   });
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:libiko_server/src/database.dart';
 import 'package:sqlite3/sqlite3.dart' hide Database;
 import 'package:test/test.dart';
@@ -18,7 +20,8 @@ void main() {
 
   test('rejects a duplicate username', () {
     db.createUser('alice', 'hash');
-    expect(() => db.createUser('alice', 'other'), throwsA(isA<SqliteException>()));
+    expect(
+        () => db.createUser('alice', 'other'), throwsA(isA<SqliteException>()));
   });
 
   test('currentSeq starts at 0 and follows the counter', () {
@@ -29,35 +32,57 @@ void main() {
   test('upsertFollow stores and lists, and delete tombstones it', () {
     final id = db.createUser('alice', 'hash');
     db.upsertFollow(
-        userId: id, workId: 'w1', work: {'id': 'w1', 'title': 'A'}, updatedAt: 100);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1', 'title': 'A'},
+        updatedAt: 100);
     db.upsertFollow(
-        userId: id, workId: 'w2', work: {'id': 'w2', 'title': 'B'}, updatedAt: 200);
+        userId: id,
+        workId: 'w2',
+        work: {'id': 'w2', 'title': 'B'},
+        updatedAt: 200);
 
     expect(db.listFollows(id).map((r) => r['work_id']).toList(), ['w2', 'w1']);
 
     db.upsertFollow(
-        userId: id, workId: 'w1', work: {'id': 'w1'}, updatedAt: 300, deleted: true);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1'},
+        updatedAt: 300,
+        deleted: true);
     expect(db.listFollows(id).map((r) => r['work_id']).toList(), ['w2']);
   });
 
   test('upsertFollow keeps the newer row on an older write (LWW)', () {
     final id = db.createUser('alice', 'hash');
     db.upsertFollow(
-        userId: id, workId: 'w1', work: {'id': 'w1', 'title': 'new'}, updatedAt: 200);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1', 'title': 'new'},
+        updatedAt: 200);
     final stored = db.upsertFollow(
-        userId: id, workId: 'w1', work: {'id': 'w1', 'title': 'old'}, updatedAt: 100);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1', 'title': 'old'},
+        updatedAt: 100);
 
     expect(stored['client_updated_at'], 200);
     expect(stored['work_json'], contains('new'));
     expect(db.currentSeq(id), 1);
   });
 
-  test('followsSince returns rows whose seq is greater, including tombstones', () {
+  test('followsSince returns rows whose seq is greater, including tombstones',
+      () {
     final id = db.createUser('alice', 'hash');
-    db.upsertFollow(userId: id, workId: 'w1', work: {'id': 'w1'}, updatedAt: 100);
+    db.upsertFollow(
+        userId: id, workId: 'w1', work: {'id': 'w1'}, updatedAt: 100);
     final afterFirst = db.currentSeq(id);
     db.upsertFollow(
-        userId: id, workId: 'w1', work: {'id': 'w1'}, updatedAt: 200, deleted: true);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1'},
+        updatedAt: 200,
+        deleted: true);
 
     expect(db.followsSince(id, 0), hasLength(1));
     final delta = db.followsSince(id, afterFirst);
@@ -65,14 +90,25 @@ void main() {
     expect(delta.first['deleted'], 1);
   });
 
-  test('upsertHistory stores and lists by watchedAt desc; clearHistory empties', () {
+  test('upsertHistory stores and lists by watchedAt desc; clearHistory empties',
+      () {
     final id = db.createUser('alice', 'hash');
     db.upsertHistory(
-        userId: id, workId: 'w1', work: {'id': 'w1'}, episodeTitle: '第1集',
-        episodeIndex: 0, watchedAt: 100, updatedAt: 100);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1'},
+        episodeTitle: '第1集',
+        episodeIndex: 0,
+        watchedAt: 100,
+        updatedAt: 100);
     db.upsertHistory(
-        userId: id, workId: 'w2', work: {'id': 'w2'}, episodeTitle: '第9集',
-        episodeIndex: 8, watchedAt: 300, updatedAt: 300);
+        userId: id,
+        workId: 'w2',
+        work: {'id': 'w2'},
+        episodeTitle: '第9集',
+        episodeIndex: 8,
+        watchedAt: 300,
+        updatedAt: 300);
 
     expect(db.listHistory(id).map((r) => r['work_id']).toList(), ['w2', 'w1']);
     expect(db.historySince(id, 0), hasLength(2));
@@ -86,38 +122,65 @@ void main() {
   test('upsertHistory keeps the newer row on an older write (LWW)', () {
     final id = db.createUser('alice', 'hash');
     db.upsertHistory(
-        userId: id, workId: 'w1', work: {'id': 'w1'}, episodeTitle: '第5集',
-        episodeIndex: 4, watchedAt: 200, updatedAt: 200);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1'},
+        episodeTitle: '第5集',
+        episodeIndex: 4,
+        watchedAt: 200,
+        updatedAt: 200);
     final stored = db.upsertHistory(
-        userId: id, workId: 'w1', work: {'id': 'w1'}, episodeTitle: '第1集',
-        episodeIndex: 0, watchedAt: 100, updatedAt: 100);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1'},
+        episodeTitle: '第1集',
+        episodeIndex: 0,
+        watchedAt: 100,
+        updatedAt: 100);
 
     expect(stored['episode_title'], '第5集');
     expect(stored['client_updated_at'], 200);
   });
 
-  test('clearHistory tombstones a row even when its timestamp is in the future', () {
+  test('clearHistory tombstones a row even when its timestamp is in the future',
+      () {
     final id = db.createUser('alice', 'hash');
     db.upsertHistory(
-        userId: id, workId: 'w1', work: {'id': 'w1'}, episodeTitle: '第1集',
-        episodeIndex: 0, watchedAt: 100, updatedAt: 9999);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1'},
+        episodeTitle: '第1集',
+        episodeIndex: 0,
+        watchedAt: 100,
+        updatedAt: 9999);
 
     expect(db.clearHistory(id, 400), 1);
     expect(db.listHistory(id), isEmpty);
     expect(db.historySince(id, 0).single['deleted'], 1);
   });
 
-  test('clearHistory stores the client timestamp so later writes still win', () {
+  test('clearHistory stores the client timestamp so later writes still win',
+      () {
     final id = db.createUser('alice', 'hash');
     db.upsertHistory(
-        userId: id, workId: 'w1', work: {'id': 'w1'}, episodeTitle: '第1集',
-        episodeIndex: 0, watchedAt: 100, updatedAt: 9999);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1'},
+        episodeTitle: '第1集',
+        episodeIndex: 0,
+        watchedAt: 100,
+        updatedAt: 9999);
 
     expect(db.clearHistory(id, 400), 1);
 
     final row = db.upsertHistory(
-        userId: id, workId: 'w1', work: {'id': 'w1'}, episodeTitle: '第2集',
-        episodeIndex: 1, watchedAt: 500, updatedAt: 500);
+        userId: id,
+        workId: 'w1',
+        work: {'id': 'w1'},
+        episodeTitle: '第2集',
+        episodeIndex: 1,
+        watchedAt: 500,
+        updatedAt: 500);
     expect(row['deleted'], 0);
     expect(row['episode_title'], '第2集');
   });
@@ -125,8 +188,72 @@ void main() {
   test('rows are scoped per user', () {
     final a = db.createUser('alice', 'hash');
     final b = db.createUser('bob', 'hash');
-    db.upsertFollow(userId: a, workId: 'w1', work: {'id': 'w1'}, updatedAt: 100);
+    db.upsertFollow(
+        userId: a, workId: 'w1', work: {'id': 'w1'}, updatedAt: 100);
     expect(db.listFollows(a), hasLength(1));
     expect(db.listFollows(b), isEmpty);
+  });
+
+  test('history preserves playback for legacy same-episode writes only', () {
+    final id = db.createUser('alice', 'hash');
+    db.upsertHistory(
+        userId: id,
+        workId: 'w',
+        work: {'id': 'w'},
+        episodeTitle: '第1集',
+        episodeIndex: 0,
+        watchedAt: 100,
+        updatedAt: 100,
+        playback: {'positionMs': 12000, 'lineId': 'road:1'});
+    final same = db.upsertHistory(
+        userId: id,
+        workId: 'w',
+        work: {'id': 'w'},
+        episodeTitle: '第1集',
+        episodeIndex: 0,
+        watchedAt: 200,
+        updatedAt: 200);
+    expect(same['playback_json'], contains('12000'));
+    final other = db.upsertHistory(
+        userId: id,
+        workId: 'w',
+        work: {'id': 'w'},
+        episodeTitle: '第2集',
+        episodeIndex: 1,
+        watchedAt: 300,
+        updatedAt: 300);
+    expect(other['playback_json'], isNull);
+  });
+
+  test('opening an old database migrates playback and is safe to repeat', () {
+    final temporary = Directory.systemTemp.createTempSync('acgnhub-migration-');
+    final path = '${temporary.path}/history.sqlite';
+    try {
+      // Opening once configures the system SQLite DLL on Windows.
+      final initial = Database.open(path);
+      initial.dispose();
+      final old = sqlite3.open(path);
+      old.execute('DROP TABLE history');
+      old.execute('''CREATE TABLE history (
+        user_id INTEGER NOT NULL, work_id TEXT NOT NULL, work_json TEXT NOT NULL,
+        episode_title TEXT NOT NULL, episode_index INTEGER NOT NULL,
+        watched_at INTEGER NOT NULL, client_updated_at INTEGER NOT NULL,
+        seq INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, work_id))''');
+      old.execute('''INSERT INTO history VALUES
+        (1, 'w', '{"id":"w"}', '第1集', 0, 100, 100, 1, 0)''');
+      old.dispose();
+      for (var i = 0; i < 2; i++) {
+        final migrated = Database.open(path);
+        try {
+          expect(migrated.getHistory(1, 'w')!['episode_title'], '第1集');
+          expect(migrated.getHistory(1, 'w')!['playback_json'], isNull);
+        } finally {
+          migrated.dispose();
+        }
+      }
+    } finally {
+      temporary.deleteSync(recursive: true);
+    }
   });
 }

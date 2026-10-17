@@ -32,6 +32,42 @@ void main() {
   Future<Map<String, dynamic>> jsonOf(Response res) async =>
       jsonDecode(await res.readAsString()) as Map<String, dynamic>;
 
+  test('history playback round-trips through writes, listing and sync',
+      () async {
+    final registration = await jsonOf(await call('POST', '/api/auth/register',
+        body: {'username': 'alice', 'password': 'secret1'}));
+    final token = registration['token'] as String;
+    final playback = {
+      'positionMs': 12000,
+      'durationMs': 90000,
+      'sourceId': 's',
+      'lineId': 'road:1',
+      'episodeKey': 'episode:2',
+      'completed': false
+    };
+    final body = {
+      'work': {'id': 'w'},
+      'episodeTitle': '第2集',
+      'episodeIndex': 1,
+      'watchedAt': 100,
+      'updatedAt': 100,
+      'playback': playback
+    };
+    final written = await call('PUT', '/api/history', token: token, body: body);
+    expect(written.statusCode, 200);
+    expect((await jsonOf(written))['playback'], playback);
+    final listing =
+        await jsonOf(await call('GET', '/api/history', token: token));
+    expect((listing['items'] as List).single['playback'], playback);
+    final sync = await jsonOf(await call('GET', '/api/sync', token: token));
+    expect((sync['history'] as List).single['playback'], playback);
+    final invalid = await call('PUT', '/api/history', token: token, body: {
+      ...body,
+      'playback': {'positionMs': -1}
+    });
+    expect(invalid.statusCode, 400);
+  });
+
   test('register returns tokens and the user', () async {
     final res = await call('POST', '/api/auth/register',
         body: {'username': 'alice', 'password': 'secret1'});
@@ -64,11 +100,10 @@ void main() {
   });
 
   test('register rejects a password longer than 72 bytes with 400', () async {
-    final res = await call('POST', '/api/auth/register',
-        body: {
-          'username': 'alice',
-          'password': List.filled(25, '中').join(),
-        });
+    final res = await call('POST', '/api/auth/register', body: {
+      'username': 'alice',
+      'password': List.filled(25, '中').join(),
+    });
     expect(res.statusCode, 400);
     expect((await jsonOf(res))['error'], 'bad_request');
   });
@@ -115,19 +150,18 @@ void main() {
 
   test('follows: put, list, delete', () async {
     final token = await registerToken('alice');
-    final put = await call('PUT', '/api/follows',
-        token: token,
-        body: {
-          'work': {'id': 'w1', 'title': 'A'},
-          'updatedAt': 100,
-        });
+    final put = await call('PUT', '/api/follows', token: token, body: {
+      'work': {'id': 'w1', 'title': 'A'},
+      'updatedAt': 100,
+    });
     expect(put.statusCode, 200);
 
     final list = await jsonOf(await call('GET', '/api/follows', token: token));
     expect((list['items'] as List), hasLength(1));
     expect((list['items'] as List).first['work']['id'], 'w1');
 
-    final del = await call('DELETE', '/api/follows/w1?updatedAt=200', token: token);
+    final del =
+        await call('DELETE', '/api/follows/w1?updatedAt=200', token: token);
     expect(del.statusCode, 200);
     final after = await jsonOf(await call('GET', '/api/follows', token: token));
     expect(after['items'], isEmpty);
@@ -135,10 +169,15 @@ void main() {
 
   test('follows: an older put does not overwrite a newer one (LWW)', () async {
     final token = await registerToken('alice');
-    await call('PUT', '/api/follows',
-        token: token, body: {'work': {'id': 'w1', 'title': 'new'}, 'updatedAt': 200});
-    final stale = await jsonOf(await call('PUT', '/api/follows',
-        token: token, body: {'work': {'id': 'w1', 'title': 'old'}, 'updatedAt': 100}));
+    await call('PUT', '/api/follows', token: token, body: {
+      'work': {'id': 'w1', 'title': 'new'},
+      'updatedAt': 200
+    });
+    final stale =
+        await jsonOf(await call('PUT', '/api/follows', token: token, body: {
+      'work': {'id': 'w1', 'title': 'old'},
+      'updatedAt': 100
+    }));
     expect(stale['work']['title'], 'new');
     expect(stale['updatedAt'], 200);
   });
@@ -146,12 +185,18 @@ void main() {
   test('history: put, list by watchedAt desc, clear', () async {
     final token = await registerToken('alice');
     await call('PUT', '/api/history', token: token, body: {
-      'work': {'id': 'w1'}, 'episodeTitle': '第1集', 'episodeIndex': 0,
-      'watchedAt': 100, 'updatedAt': 100,
+      'work': {'id': 'w1'},
+      'episodeTitle': '第1集',
+      'episodeIndex': 0,
+      'watchedAt': 100,
+      'updatedAt': 100,
     });
     await call('PUT', '/api/history', token: token, body: {
-      'work': {'id': 'w2'}, 'episodeTitle': '第9集', 'episodeIndex': 8,
-      'watchedAt': 300, 'updatedAt': 300,
+      'work': {'id': 'w2'},
+      'episodeTitle': '第9集',
+      'episodeIndex': 8,
+      'watchedAt': 300,
+      'updatedAt': 300,
     });
 
     final list = await jsonOf(await call('GET', '/api/history', token: token));
@@ -159,55 +204,72 @@ void main() {
     expect(items.map((e) => e['work']['id']).toList(), ['w2', 'w1']);
     expect(items.first['episodeTitle'], '第9集');
 
-    final cleared = await call('DELETE', '/api/history?updatedAt=400', token: token);
+    final cleared =
+        await call('DELETE', '/api/history?updatedAt=400', token: token);
     expect(cleared.statusCode, 200);
-    expect((await jsonOf(await call('GET', '/api/history', token: token)))['items'],
+    expect(
+        (await jsonOf(
+            await call('GET', '/api/history', token: token)))['items'],
         isEmpty);
   });
 
   test('follows and history reject a missing body field with 400', () async {
     final token = await registerToken('alice');
-    expect((await call('PUT', '/api/follows',
-            token: token, body: {'updatedAt': 1}))
-        .statusCode, 400);
-    expect((await call('PUT', '/api/history',
-            token: token, body: {'work': {'id': 'w1'}}))
-        .statusCode, 400);
+    expect(
+        (await call('PUT', '/api/follows',
+                token: token, body: {'updatedAt': 1}))
+            .statusCode,
+        400);
+    expect(
+        (await call('PUT', '/api/history', token: token, body: {
+          'work': {'id': 'w1'}
+        }))
+            .statusCode,
+        400);
   });
 
   test('one user cannot see another user\'s follows', () async {
     final a = await registerToken('alice');
     final b = await registerToken('bob');
-    await call('PUT', '/api/follows',
-        token: a, body: {'work': {'id': 'w1'}, 'updatedAt': 1});
+    await call('PUT', '/api/follows', token: a, body: {
+      'work': {'id': 'w1'},
+      'updatedAt': 1
+    });
     final list = await jsonOf(await call('GET', '/api/follows', token: b));
     expect(list['items'], isEmpty);
   });
 
-  test('sync returns changes after the given seq and a nextSeq cursor', () async {
+  test('sync returns changes after the given seq and a nextSeq cursor',
+      () async {
     final token = await registerToken('alice');
-    await call('PUT', '/api/follows',
-        token: token, body: {'work': {'id': 'w1'}, 'updatedAt': 100});
+    await call('PUT', '/api/follows', token: token, body: {
+      'work': {'id': 'w1'},
+      'updatedAt': 100
+    });
 
-    final first = await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
+    final first =
+        await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
     expect((first['follows'] as List), hasLength(1));
     expect((first['follows'] as List).first['deleted'], false);
     final next = first['nextSeq'] as int;
     expect(next, greaterThan(0));
 
-    final second =
-        await jsonOf(await call('GET', '/api/sync?sinceSeq=$next', token: token));
+    final second = await jsonOf(
+        await call('GET', '/api/sync?sinceSeq=$next', token: token));
     expect(second['follows'], isEmpty);
     expect(second['history'], isEmpty);
   });
 
   test('sync surfaces tombstones with deleted true', () async {
     final token = await registerToken('alice');
-    await call('PUT', '/api/follows',
-        token: token, body: {'work': {'id': 'w1'}, 'updatedAt': 100});
+    await call('PUT', '/api/follows', token: token, body: {
+      'work': {'id': 'w1'},
+      'updatedAt': 100
+    });
     await call('DELETE', '/api/follows/w1?updatedAt=200', token: token);
 
-    final sync = await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
+    final sync =
+        await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
     final follows = sync['follows'] as List;
     expect(follows, hasLength(1));
     expect(follows.first['deleted'], true);
@@ -217,10 +279,14 @@ void main() {
   test('sync includes history with its fields', () async {
     final token = await registerToken('alice');
     await call('PUT', '/api/history', token: token, body: {
-      'work': {'id': 'w1'}, 'episodeTitle': '第3集', 'episodeIndex': 2,
-      'watchedAt': 100, 'updatedAt': 100,
+      'work': {'id': 'w1'},
+      'episodeTitle': '第3集',
+      'episodeIndex': 2,
+      'watchedAt': 100,
+      'updatedAt': 100,
     });
-    final sync = await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
+    final sync =
+        await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
     final history = sync['history'] as List;
     expect(history, hasLength(1));
     expect(history.first['episodeTitle'], '第3集');
@@ -230,12 +296,16 @@ void main() {
   test('sync history tombstones stay identifiable after a clear', () async {
     final token = await registerToken('alice');
     await call('PUT', '/api/history', token: token, body: {
-      'work': {'id': 'w1', 'title': 'A'}, 'episodeTitle': '第3集',
-      'episodeIndex': 2, 'watchedAt': 100, 'updatedAt': 100,
+      'work': {'id': 'w1', 'title': 'A'},
+      'episodeTitle': '第3集',
+      'episodeIndex': 2,
+      'watchedAt': 100,
+      'updatedAt': 100,
     });
     await call('DELETE', '/api/history?updatedAt=200', token: token);
 
-    final sync = await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
+    final sync =
+        await jsonOf(await call('GET', '/api/sync?sinceSeq=0', token: token));
     final history = sync['history'] as List;
     expect(history, hasLength(1));
     expect(history.first['deleted'], true);

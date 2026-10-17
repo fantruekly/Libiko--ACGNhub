@@ -49,7 +49,17 @@ class WatchHistoryManager {
     return next;
   }
 
-  Future<void> record(Work work, VideoEpisode episode) => _enqueue(() async {
+  Future<void> record(
+    Work work,
+    VideoEpisode episode, {
+    int positionMs = 0,
+    int durationMs = 0,
+    String? sourceId,
+    String? lineId,
+    String? episodeKey,
+    bool completed = false,
+  }) =>
+      _enqueue(() async {
         final now = DateTime.now();
         final record = WatchRecord(
           work: work,
@@ -58,6 +68,12 @@ class WatchHistoryManager {
           watchedAt: now,
           updatedAt: now,
           dirty: true,
+          positionMs: positionMs < 0 ? 0 : positionMs,
+          durationMs: durationMs < 0 ? 0 : durationMs,
+          sourceId: sourceId ?? episode.sourceId,
+          lineId: lineId ?? episode.lineId,
+          episodeKey: episodeKey ?? episode.episodeKey,
+          completed: completed,
         );
         await _save(upsert(_readAll(), record));
       });
@@ -66,8 +82,7 @@ class WatchHistoryManager {
         final now = DateTime.now();
         final tombstones = _readAll()
             .where((r) => !r.deleted)
-            .map((r) => r.copyWith(
-                deleted: true, dirty: true, updatedAt: now))
+            .map((r) => r.copyWith(deleted: true, dirty: true, updatedAt: now))
             .toList();
         for (final tombstone in tombstones) {
           await _save(upsert(_readAll(), tombstone));
@@ -132,8 +147,23 @@ class WatchHistoryNotifier extends Notifier<List<WatchRecord>> {
   @override
   List<WatchRecord> build() => _manager.all();
 
-  Future<void> record(Work work, VideoEpisode episode) async {
-    await _manager.record(work, episode);
+  Future<void> record(
+    Work work,
+    VideoEpisode episode, {
+    int positionMs = 0,
+    int durationMs = 0,
+    String? sourceId,
+    String? lineId,
+    String? episodeKey,
+    bool completed = false,
+  }) async {
+    await _manager.record(work, episode,
+        positionMs: positionMs,
+        durationMs: durationMs,
+        sourceId: sourceId,
+        lineId: lineId,
+        episodeKey: episodeKey,
+        completed: completed);
     state = _manager.all();
   }
 

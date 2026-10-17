@@ -45,6 +45,7 @@ class FollowItem {
 }
 
 class HistoryItem {
+  final Map<String, dynamic>? playback;
   final Map<String, dynamic> work;
   final String episodeTitle;
   final int episodeIndex;
@@ -58,9 +59,11 @@ class HistoryItem {
     required this.watchedAt,
     required this.updatedAt,
     required this.deleted,
+    this.playback,
   });
 
   factory HistoryItem.fromJson(Map<String, dynamic> json) => HistoryItem(
+        playback: json['playback'] as Map<String, dynamic>?,
         work: json['work'] as Map<String, dynamic>? ?? const {},
         episodeTitle: json['episodeTitle'] as String? ?? '',
         episodeIndex: json['episodeIndex'] as int? ?? 0,

@@ -100,12 +100,31 @@ class RuleVideoSource implements VideoSource {
       final href = (row['href'] ?? '').toString().trim();
       if (href.isEmpty) continue;
       final rawTitle = (row['title'] ?? '').toString().trim();
+      final legacyRoad = RegExp(r'^线路(\d+)\s+').firstMatch(rawTitle);
+      final lineId = row['lineId']?.toString() ??
+          (legacyRoad == null
+              ? 'road:0'
+              : 'road:${int.parse(legacyRoad.group(1)!) - 1}');
+      final lineName = row['lineName']?.toString() ??
+          (legacyRoad == null ? '线路1' : '线路${legacyRoad.group(1)}');
+      final episodeTitle = (row['episodeTitle'] ??
+              (legacyRoad == null
+                  ? rawTitle
+                  : rawTitle.substring(legacyRoad.end)))
+          .toString()
+          .trim();
+      final linePosition = eps.where((e) => e.lineId == lineId).length + 1;
       final url = resolveUrl(href, rule.baseUrl);
       eps.add(VideoEpisode(
         id: url,
-        title: rawTitle.isEmpty ? '第${eps.length + 1}集' : rawTitle,
+        title: episodeTitle.isEmpty ? '第$linePosition集' : rawTitle,
         index: eps.length,
         playUrl: url,
+        sourceId: rule.id,
+        lineId: lineId,
+        lineName: lineName,
+        // An absent label is not enough evidence to map across lines.
+        episodeKey: episodeKeyFromTitle(episodeTitle),
         userAgent: rule.userAgent,
         referer: rule.referer,
         useLegacyParser: rule.useLegacyParser,

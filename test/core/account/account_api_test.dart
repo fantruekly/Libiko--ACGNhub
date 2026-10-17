@@ -51,7 +51,8 @@ void main() {
     expect(session.refreshToken, 'r1');
     expect(session.user.username, 'alice');
     expect(adapter.last!.method, 'POST');
-    expect(adapter.last!.uri.toString(), 'http://127.0.0.1:8080/api/auth/login');
+    expect(
+        adapter.last!.uri.toString(), 'http://127.0.0.1:8080/api/auth/login');
     expect(adapter.last!.data, {'username': 'alice', 'password': 'secret1'});
   });
 
@@ -102,7 +103,11 @@ void main() {
       200,
       jsonEncode({
         'follows': [
-          {'work': {'id': 'w1'}, 'updatedAt': 5, 'deleted': false}
+          {
+            'work': {'id': 'w1'},
+            'updatedAt': 5,
+            'deleted': false
+          }
         ],
         'history': [
           {
@@ -131,10 +136,14 @@ void main() {
     await _api(adapter).putFollow('tok', {'id': 'w1'}, 5);
     expect(adapter.last!.method, 'PUT');
     expect(adapter.last!.uri.path, '/api/follows');
-    expect(adapter.last!.data, {'work': {'id': 'w1'}, 'updatedAt': 5});
+    expect(adapter.last!.data, {
+      'work': {'id': 'w1'},
+      'updatedAt': 5
+    });
   });
 
-  test('deleteFollow sends workId and updatedAt as a query parameter', () async {
+  test('deleteFollow sends workId and updatedAt as a query parameter',
+      () async {
     final adapter = _FakeAdapter(200, jsonEncode({'workId': 'w1'}));
     await _api(adapter).deleteFollow('tok', 'w1', 7);
     expect(adapter.last!.method, 'DELETE');
@@ -161,6 +170,21 @@ void main() {
     expect(adapter.last!.method, 'DELETE');
     expect(adapter.last!.uri.path, '/api/history');
     expect(adapter.last!.uri.queryParameters['updatedAt'], '11');
+  });
+
+  test('putHistory sends playback when supplied', () async {
+    final adapter = _FakeAdapter(200, jsonEncode({}));
+    final playback = {
+      'positionMs': 12000,
+      'durationMs': 90000,
+      'sourceId': 's',
+      'lineId': 'road:0',
+      'episodeKey': 'episode:1',
+      'completed': false
+    };
+    await _api(adapter)
+        .putHistory('tok', {'id': 'w'}, '第1集', 0, 9, 9, playback: playback);
+    expect((adapter.last!.data as Map)['playback'], playback);
   });
 }
 

@@ -64,6 +64,10 @@ String buildEpisodesScript(SourceRule rule) => '''
       if (h) {
         out.push({
           title: (roads.length > 1 ? '线路' + (r + 1) + ' ' : '') + t,
+          episodeTitle: t,
+          lineId: 'road:' + r,
+          lineName: '线路' + (r + 1),
+          episodeNumber: i + 1,
           href: h
         });
       }
@@ -145,8 +149,7 @@ class WebviewScraper {
           if (loadError != null) return const <dynamic>[];
           final at = loadedAt;
           if (at != null &&
-              DateTime.now().difference(at) >=
-                  const Duration(seconds: 2)) {
+              DateTime.now().difference(at) >= const Duration(seconds: 2)) {
             return const <dynamic>[];
           }
         }

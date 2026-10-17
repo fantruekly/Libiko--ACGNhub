@@ -60,6 +60,10 @@ class Database {
         PRIMARY KEY (user_id, work_id)
       );
     ''');
+    final columns = db.select('PRAGMA table_info(history)');
+    if (!columns.any((row) => row['name'] == 'playback_json')) {
+      db.execute('ALTER TABLE history ADD COLUMN playback_json TEXT');
+    }
   }
 
   void dispose() => _db.dispose();
@@ -73,8 +77,8 @@ class Database {
   }
 
   Row? findUserByName(String username) {
-    final rows = _db.select(
-        'SELECT * FROM users WHERE username = ? LIMIT 1', [username]);
+    final rows = _db
+        .select('SELECT * FROM users WHERE username = ? LIMIT 1', [username]);
     return rows.isEmpty ? null : rows.first;
   }
 
@@ -90,7 +94,8 @@ class Database {
   }
 
   int _bumpSeq(int userId) {
-    _db.execute('UPDATE users SET next_seq = next_seq + 1 WHERE id = ?', [userId]);
+    _db.execute(
+        'UPDATE users SET next_seq = next_seq + 1 WHERE id = ?', [userId]);
     return currentSeq(userId);
   }
 
@@ -109,7 +114,8 @@ class Database {
     bool deleted = false,
   }) {
     final existing = getFollow(userId, workId);
-    if (existing != null && (existing['client_updated_at'] as int) > updatedAt) {
+    if (existing != null &&
+        (existing['client_updated_at'] as int) > updatedAt) {
       return existing;
     }
     final seq = _bumpSeq(userId);
@@ -155,26 +161,57 @@ class Database {
     required int watchedAt,
     required int updatedAt,
     bool deleted = false,
+    Map<String, dynamic>? playback,
   }) {
     final existing = getHistory(userId, workId);
-    if (existing != null && (existing['client_updated_at'] as int) > updatedAt) {
+    if (existing != null &&
+        (existing['client_updated_at'] as int) > updatedAt) {
       return existing;
     }
     final seq = _bumpSeq(userId);
     final json = jsonEncode(work);
+    // An older client may update the same episode without playback fields.
+    // Preserve progress only when its episode identity still agrees.
+    final playbackJson = playback != null
+        ? jsonEncode(playback)
+        : existing != null &&
+                existing['episode_title'] == episodeTitle &&
+                existing['episode_index'] == episodeIndex
+            ? existing['playback_json']
+            : null;
     if (existing == null) {
       _db.execute(
         'INSERT INTO history (user_id, work_id, work_json, episode_title, episode_index, '
-        'watched_at, client_updated_at, seq, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, workId, json, episodeTitle, episodeIndex, watchedAt, updatedAt, seq,
-         deleted ? 1 : 0],
+        'watched_at, client_updated_at, seq, deleted, playback_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          userId,
+          workId,
+          json,
+          episodeTitle,
+          episodeIndex,
+          watchedAt,
+          updatedAt,
+          seq,
+          deleted ? 1 : 0,
+          playbackJson
+        ],
       );
     } else {
       _db.execute(
         'UPDATE history SET work_json = ?, episode_title = ?, episode_index = ?, watched_at = ?, '
-        'client_updated_at = ?, seq = ?, deleted = ? WHERE user_id = ? AND work_id = ?',
-        [json, episodeTitle, episodeIndex, watchedAt, updatedAt, seq, deleted ? 1 : 0,
-         userId, workId],
+        'client_updated_at = ?, seq = ?, deleted = ?, playback_json = ? WHERE user_id = ? AND work_id = ?',
+        [
+          json,
+          episodeTitle,
+          episodeIndex,
+          watchedAt,
+          updatedAt,
+          seq,
+          deleted ? 1 : 0,
+          playbackJson,
+          userId,
+          workId
+        ],
       );
     }
     return getHistory(userId, workId)!;
@@ -225,7 +262,16 @@ class Database {
       'UPDATE history SET work_json = ?, episode_title = ?, episode_index = ?, '
       'watched_at = ?, client_updated_at = ?, seq = ?, deleted = 1 '
       'WHERE user_id = ? AND work_id = ?',
-      [workJson, episodeTitle, episodeIndex, watchedAt, updatedAt, seq, userId, workId],
+      [
+        workJson,
+        episodeTitle,
+        episodeIndex,
+        watchedAt,
+        updatedAt,
+        seq,
+        userId,
+        workId
+      ],
     );
   }
 }
