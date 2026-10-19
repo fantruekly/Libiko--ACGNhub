@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:libiko/core/comic/comic_favorite.dart';
@@ -47,15 +49,11 @@ void main() {
   });
 
   test('a malformed stored entry is skipped', () async {
+    SharedPreferences.setMockInitialValues({
+      'comic_favorites': ['not json', jsonEncode(_fav('a', 100).toJson())]
+    });
     await AppDatabase.init();
     final manager = ComicFavoriteManager();
-    await manager.toggle(_fav('a', 100));
-
-    final prefs = await SharedPreferences.getInstance();
-    final key =
-        prefs.getKeys().firstWhere((k) => k.endsWith('comic_favorites'));
-    await prefs.setStringList(key, ['not json', ...prefs.getStringList(key)!]);
-
     expect(manager.all().map((f) => f.comicId), ['a']);
   });
 }

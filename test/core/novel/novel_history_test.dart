@@ -65,13 +65,11 @@ void main() {
   });
 
   test('a malformed stored history entry is skipped', () async {
+    SharedPreferences.setMockInitialValues({
+      'novel_history': ['not json', jsonEncode(_entry('a', '1', 100).toJson())]
+    });
     await AppDatabase.init();
     final manager = NovelHistoryManager();
-    await manager.record(_entry('a', '1', 100));
-    final prefs = await SharedPreferences.getInstance();
-    final key =
-        prefs.getKeys().firstWhere((k) => k.endsWith('novel_history'));
-    await prefs.setStringList(key, ['not json', ...prefs.getStringList(key)!]);
     expect(manager.all().map((e) => e.novelId), ['a']);
   });
 }

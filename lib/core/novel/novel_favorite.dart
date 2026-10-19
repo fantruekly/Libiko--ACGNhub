@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,10 +41,9 @@ class NovelFavoriteManager {
 
   List<NovelFavorite> all() {
     final favorites = <NovelFavorite>[];
-    for (final raw in AppDatabase().getStringList(_key)) {
+    for (final row in AppDatabase().collections.all(_key)) {
       try {
-        favorites.add(
-            NovelFavorite.fromJson(json.decode(raw) as Map<String, dynamic>));
+        favorites.add(NovelFavorite.fromJson(row));
       } catch (_) {
         // Skip a malformed entry.
       }
@@ -55,8 +52,14 @@ class NovelFavoriteManager {
     return favorites;
   }
 
-  bool isFavorite(String sourceKey, String novelId) =>
-      all().any((f) => f.sourceKey == sourceKey && f.novelId == novelId);
+  bool isFavorite(String sourceKey, String novelId) {
+    final store = AppDatabase().collections;
+    return store.get(
+            _key,
+            store.recordKey(
+                _key, {'sourceKey': sourceKey, 'novelId': novelId})) !=
+        null;
+  }
 
   Future<void> _pending = Future.value();
 
@@ -67,42 +70,31 @@ class NovelFavoriteManager {
   }
 
   Future<void> toggle(NovelFavorite favorite) => _enqueue(() async {
-        final favorites = all();
-        final exists = favorites.any((f) =>
-            f.sourceKey == favorite.sourceKey && f.novelId == favorite.novelId);
+        final exists = isFavorite(favorite.sourceKey, favorite.novelId);
         if (exists) {
-          final remaining = favorites
-              .where((f) =>
-                  !(f.sourceKey == favorite.sourceKey &&
-                      f.novelId == favorite.novelId))
-              .toList();
-          await _save(remaining);
+          AppDatabase().collections.remove(_key, favorite.toJson());
         } else {
-          await _save(upsert(favorites, favorite));
+          AppDatabase().collections.upsert(_key, favorite.toJson());
         }
       });
 
   Future<void> remove(String sourceKey, String novelId) => _enqueue(() async {
-        final favorites = all()
-            .where((f) => !(f.sourceKey == sourceKey && f.novelId == novelId))
-            .toList();
-        await _save(favorites);
+        final store = AppDatabase().collections;
+        final row = store.get(
+            _key,
+            store
+                .recordKey(_key, {'sourceKey': sourceKey, 'novelId': novelId}));
+        if (row != null) store.remove(_key, row);
       });
 
   Future<void> clear() => _enqueue(() => AppDatabase().remove(_key));
-
-  Future<void> _save(List<NovelFavorite> favorites) async {
-    await AppDatabase().setStringList(
-        _key, favorites.map((f) => json.encode(f.toJson())).toList());
-  }
 
   @visibleForTesting
   static List<NovelFavorite> upsert(
       List<NovelFavorite> current, NovelFavorite favorite) {
     final out = current
-        .where((f) =>
-            !(f.sourceKey == favorite.sourceKey &&
-                f.novelId == favorite.novelId))
+        .where((f) => !(f.sourceKey == favorite.sourceKey &&
+            f.novelId == favorite.novelId))
         .toList();
     out.insert(0, favorite);
     return out;

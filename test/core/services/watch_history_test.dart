@@ -97,11 +97,14 @@ void main() {
     expect(all.map((r) => r.work.id).toList(), ['a', 'b']);
     expect(all.first.episodeTitle, '第5集');
 
-    // A malformed stored entry must be skipped, not fail the whole list.
+    // Legacy preference values are migration input, never the new write path.
     final prefs = await SharedPreferences.getInstance();
-    final key = prefs.getKeys().firstWhere((k) => k.endsWith('watch_history'));
-    final raw = prefs.getStringList(key)!;
-    await prefs.setStringList(key, ['not json', ...raw]);
+    expect(prefs.getStringList('watch_history'), isNull);
+    final raw = AppDatabase().getStringList('watch_history');
+    SharedPreferences.setMockInitialValues({
+      'watch_history': ['not json', ...raw]
+    });
+    await AppDatabase.init();
     expect(manager.all().map((r) => r.work.id).toList(), ['a', 'b']);
 
     await manager.clear();

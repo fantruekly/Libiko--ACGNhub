@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,10 +10,9 @@ class FollowManager {
 
   List<FollowRecord> _readAll() {
     final records = <FollowRecord>[];
-    for (final raw in AppDatabase().getStringList(_key)) {
+    for (final row in AppDatabase().collections.all(_key)) {
       try {
-        records.add(
-            FollowRecord.fromJson(json.decode(raw) as Map<String, dynamic>));
+        records.add(FollowRecord.fromJson(row));
       } catch (_) {
         // Skip a malformed entry.
       }
@@ -24,15 +21,15 @@ class FollowManager {
   }
 
   Future<void> _save(List<FollowRecord> records) async {
-    await AppDatabase().setStringList(
-        _key, records.map((r) => json.encode(r.toJson())).toList());
+    AppDatabase()
+        .collections
+        .replace(_key, records.map((r) => r.toJson()).toList());
   }
 
   List<FollowRecord> all() =>
       sortDescending(_readAll().where((r) => !r.deleted).toList());
 
-  bool isFollowing(String workId) =>
-      all().any((r) => r.work.id == workId);
+  bool isFollowing(String workId) => all().any((r) => r.work.id == workId);
 
   List<FollowRecord> dirty() => _readAll().where((r) => r.dirty).toList();
 
@@ -47,16 +44,16 @@ class FollowManager {
   Future<void> follow(Work work) => _enqueue(() async {
         final record =
             FollowRecord(work: work, updatedAt: DateTime.now(), dirty: true);
-        await _save(upsert(_readAll(), record));
+        AppDatabase().collections.upsert(_key, record.toJson());
       });
 
   Future<void> unfollow(String workId) => _enqueue(() async {
         final records = _readAll();
         final existing = records.where((r) => r.work.id == workId).toList();
         if (existing.isEmpty) return;
-        final tombstone = existing.first.copyWith(
-            updatedAt: DateTime.now(), deleted: true, dirty: true);
-        await _save(upsert(records, tombstone));
+        final tombstone = existing.first
+            .copyWith(updatedAt: DateTime.now(), deleted: true, dirty: true);
+        AppDatabase().collections.upsert(_key, tombstone.toJson());
       });
 
   Future<void> markSynced(Map<String, DateTime> pushedUpdatedAt) =>
@@ -112,8 +109,7 @@ class FollowNotifier extends Notifier<List<FollowRecord>> {
   @override
   List<FollowRecord> build() => _manager.all();
 
-  bool isFollowing(String workId) =>
-      state.any((r) => r.work.id == workId);
+  bool isFollowing(String workId) => state.any((r) => r.work.id == workId);
 
   Future<void> toggle(Work work) async {
     if (isFollowing(work.id)) {
