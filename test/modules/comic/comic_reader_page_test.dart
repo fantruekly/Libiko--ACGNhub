@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/comic/comic_image.dart';
+import 'package:libiko/core/comic/comic_history.dart';
 import 'package:libiko/core/comic/comic_reader_settings.dart';
 import 'package:libiko/core/comic/comic_source.dart';
 import 'package:libiko/core/comic/models.dart';
@@ -32,8 +33,8 @@ class _FakeImageProvider extends ComicImageProvider {
     0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
   ]);
   @override
-  Future<ImageProvider> resolve(
-          String sourceKey, String comicId, String chapterId, String url) async =>
+  Future<ImageProvider> resolve(String sourceKey, String comicId,
+          String chapterId, String url) async =>
       MemoryImage(_png);
   @override
   double? ratioOf(String url) => null;
@@ -55,6 +56,36 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();
+  });
+
+  testWidgets(
+      'immediate exit flushes the last page before the history throttle',
+      (tester) async {
+    final scope = ProviderContainer(overrides: [
+      comicEpProvider(('s', 'c', 'ch')).overrideWith(
+          (ref) async => const ComicEp(images: ['u0', 'u1', 'u2'])),
+      comicDetailProvider(('s', 'c')).overrideWith((ref) async =>
+          const ComicDetails(id: 'c', title: '漫画', chapters: {'ch': '第一章'})),
+      comicImageProvider.overrideWithValue(_FakeImageProvider()),
+    ]);
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: scope,
+        child: const MaterialApp(
+            home: ComicReaderPage(
+                sourceKey: 's', comicId: 'c', chapterId: 'ch'))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final controller =
+        tester.widget<PageView>(find.byType(PageView)).controller!;
+    controller.jumpToPage(1);
+    await tester.pump();
+    controller.jumpToPage(2);
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    expect(ComicHistoryManager().forComic('s', 'c')!.page, 2);
+    scope.dispose();
+    await tester.pump();
   });
 
   testWidgets('desktop fits each page to the viewport height', (tester) async {
@@ -141,8 +172,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(ProviderScope(
       overrides: [
-        comicEpProvider(('s', 'c', 'ch')).overrideWith(
-            (ref) async => const ComicEp(images: ['u0', 'u1'])),
+        comicEpProvider(('s', 'c', 'ch'))
+            .overrideWith((ref) async => const ComicEp(images: ['u0', 'u1'])),
         comicDetailProvider(('s', 'c')).overrideWith((ref) async =>
             const ComicDetails(id: 'c', title: 'T', chapters: {'ch': '第1话'})),
         comicImageProvider.overrideWithValue(_FakeImageProvider()),

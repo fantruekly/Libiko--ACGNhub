@@ -33,7 +33,8 @@ class ComicReaderPage extends ConsumerStatefulWidget {
   ConsumerState<ComicReaderPage> createState() => _ComicReaderPageState();
 }
 
-class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
+class _ComicReaderPageState extends ConsumerState<ComicReaderPage>
+    with WidgetsBindingObserver {
   late String _chapterId;
   late int _page;
   bool _chromeVisible = true;
@@ -54,18 +55,25 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   final _progress = ValueNotifier<double>(0);
   bool _wheelFlipping = false;
   Timer? _wheelTimer;
+  late final ComicHistoryNotifier _history;
+  ComicDetails? _lastDetails;
+  String? _loadedChapterId;
 
   @override
   void initState() {
     super.initState();
     _chapterId = widget.chapterId;
     _page = widget.initialPage;
+    _history = ref.read(comicHistoryProvider.notifier);
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_updateProgress);
     _showChrome();
   }
 
   @override
   void dispose() {
+    _recordHistory();
+    WidgetsBinding.instance.removeObserver(this);
     _chromeTimer?.cancel();
     _historyTimer?.cancel();
     _ratioToken?.cancel();
@@ -92,12 +100,13 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final epAsync = ref.watch(
-        comicEpProvider((widget.sourceKey, widget.comicId, _chapterId)));
-    final details =
-        ref.watch(comicDetailProvider((widget.sourceKey, widget.comicId)))
-            .valueOrNull;
+    final epAsync = ref
+        .watch(comicEpProvider((widget.sourceKey, widget.comicId, _chapterId)));
+    final details = ref
+        .watch(comicDetailProvider((widget.sourceKey, widget.comicId)))
+        .valueOrNull;
     final settings = ref.watch(comicReaderSettingsProvider);
+    if (details != null) _lastDetails = details;
     final showChrome = _chromeVisible || !epAsync.hasValue;
 
     return Scaffold(
@@ -290,8 +299,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
           itemBuilder: (context, index) {
             if (index >= images.length) {
               return Center(
-                  child:
-                      CircularProgressIndicator(color: cs.onSurfaceVariant));
+                  child: CircularProgressIndicator(color: cs.onSurfaceVariant));
             }
             return _HorizontalPage(
               onPrev: () => _flipTo(-1),
@@ -315,6 +323,13 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   }
 
   void _scheduleInitialOrLanding(int total) {
+    if (_loadedChapterId != _chapterId) {
+      _loadedChapterId = _chapterId;
+      final chapterId = _chapterId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && chapterId == _chapterId) _recordHistory();
+      });
+    }
     if (_pendingLandAtEnd) {
       _pendingLandAtEnd = false;
       _restoring = true;
@@ -369,8 +384,9 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   void _updateProgress() {
     if (!_scrollController.hasClients) return;
     final max = _scrollController.position.maxScrollExtent;
-    _progress.value =
-        max <= 0 ? 0 : (_scrollController.position.pixels / max).clamp(0.0, 1.0);
+    _progress.value = max <= 0
+        ? 0
+        : (_scrollController.position.pixels / max).clamp(0.0, 1.0);
   }
 
   void _seekToFraction(double fraction) {
@@ -411,7 +427,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       top: 0,
       left: 0,
       right: 0,
-            child: DesktopDragArea(
+      child: DesktopDragArea(
         child: Container(
           height: 48 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
           padding: EdgeInsets.only(
@@ -462,8 +478,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: cs.surface,
-          border:
-              Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
+          border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
         ),
         child: Row(
           children: [
@@ -581,6 +596,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
 
   void _goToChapter(String chapterId, {bool atEnd = false}) {
     if (_switchingChapter || chapterId == _chapterId) return;
+    _recordHistory();
     _switchingChapter = true;
     _pendingLandAtEnd = atEnd;
     _resuming = false;
@@ -589,7 +605,7 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       _page = 0;
     });
     _progress.value = 0;
-    _recordHistory();
+    _loadedChapterId = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _programmaticScroll = true;
@@ -689,27 +705,37 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
 
   void _recordHistory() {
     _historyTimer?.cancel();
+    if (_loadedChapterId != _chapterId) return;
     _lastHistoryWrite = DateTime.now();
-    final details =
-        ref.read(comicDetailProvider((widget.sourceKey, widget.comicId)))
-            .valueOrNull;
+    final details = _lastDetails;
     final chapterTitle = details?.chapters[_chapterId] ?? _chapterId;
-    ref.read(comicHistoryProvider.notifier).record(ComicHistoryEntry(
-          sourceKey: widget.sourceKey,
-          comicId: widget.comicId,
-          title: details?.title ?? '',
-          cover: details?.cover,
-          chapterId: _chapterId,
-          chapterTitle: chapterTitle,
-          page: _page,
-          readAt: DateTime.now(),
-        ));
+    unawaited(_history
+        .record(ComicHistoryEntry(
+      sourceKey: widget.sourceKey,
+      comicId: widget.comicId,
+      title: details?.title ?? '',
+      cover: details?.cover,
+      chapterId: _chapterId,
+      chapterTitle: chapterTitle,
+      page: _page,
+      readAt: DateTime.now(),
+    ))
+        .catchError((Object error) {
+      debugPrint('[ComicReader] progress save failed: $error');
+    }));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _recordHistory();
+    }
   }
 
   Future<void> _preload(int page, int total) async {
     final images = ref
-        .read(comicEpProvider(
-            (widget.sourceKey, widget.comicId, _chapterId)))
+        .read(comicEpProvider((widget.sourceKey, widget.comicId, _chapterId)))
         .valueOrNull
         ?.images;
     if (images == null) return;
@@ -724,9 +750,9 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         // A preload failure must not disturb reading.
       }
     }
-    final details =
-        ref.read(comicDetailProvider((widget.sourceKey, widget.comicId)))
-            .valueOrNull;
+    final details = ref
+        .read(comicDetailProvider((widget.sourceKey, widget.comicId)))
+        .valueOrNull;
     final nav = _nav(details);
     if (nav.next != null) {
       await _preloadChapterImage(nav.next!, last: false);
@@ -739,9 +765,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
   Future<void> _preloadChapterImage(String chapterId,
       {required bool last}) async {
     try {
-      final ep = await ref
-          .read(comicEpProvider(
-              (widget.sourceKey, widget.comicId, chapterId))
+      final ep = await ref.read(
+          comicEpProvider((widget.sourceKey, widget.comicId, chapterId))
               .future);
       if (ep.images.isEmpty || !mounted) return;
       final url = last ? ep.images.last : ep.images.first;
@@ -760,10 +785,10 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline_rounded, color: cs.onSurfaceVariant, size: 40),
+          Icon(Icons.error_outline_rounded,
+              color: cs.onSurfaceVariant, size: 40),
           const SizedBox(height: 12),
-          Text('章节加载失败',
-              style: TextStyle(color: cs.onSurface)),
+          Text('章节加载失败', style: TextStyle(color: cs.onSurface)),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -877,8 +902,7 @@ class _ReaderImageState extends ConsumerState<_ReaderImage> {
 
   Widget _loading() {
     final cs = Theme.of(context).colorScheme;
-    return Center(
-        child: CircularProgressIndicator(color: cs.onSurfaceVariant));
+    return Center(child: CircularProgressIndicator(color: cs.onSurfaceVariant));
   }
 
   Widget _retry() {

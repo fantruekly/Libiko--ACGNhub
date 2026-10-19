@@ -4,11 +4,26 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:share_plus/share_plus.dart'
+    show SharePlus, ShareParams, ShareResultStatus;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../core/services/cache_manager.dart';
+import '../core/account/sync_service.dart';
+import '../core/comic/comic_favorite.dart';
+import '../core/comic/comic_history.dart';
+import '../core/novel/novel_favorite.dart';
+import '../core/novel/novel_history.dart';
+import '../core/platform.dart';
+import '../core/services/follow_manager.dart';
+import '../core/services/watch_history.dart';
+import '../core/sources/source_preferences.dart';
+import '../core/storage/database.dart';
+import '../core/storage/personal_backup.dart';
+import 'dart:convert';
 import '../core/services/update_service.dart';
 import '../core/theme/theme_mode.dart';
 import '../core/ui/open_url.dart';
@@ -25,6 +40,121 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   String _version = '';
   int _cacheBytes = -1;
   bool _checking = false;
+  bool _backupBusy = false;
+
+  PersonalBackupService get _backup => PersonalBackupService(
+        store: AppDatabase().collections,
+        readSources: () => ref.read(sourcePreferencesProvider),
+        writeSources: (value) => ref
+            .read(sourcePreferencesProvider.notifier)
+            .restoreSnapshot(value.toJson()),
+      );
+
+  Future<void> _exportBackup() async {
+    if (_backupBusy) return;
+    setState(() => _backupBusy = true);
+    try {
+      final bytes = utf8.encode(_backup.exportText());
+      final date = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')
+          .first;
+      final name = 'Libiko-backup-$date.json';
+      final file =
+          XFile.fromData(bytes, mimeType: 'application/json', name: name);
+      if (isDesktop) {
+        final location = await getSaveLocation(
+            suggestedName: name,
+            acceptedTypeGroups: const [
+              XTypeGroup(label: 'JSON', extensions: ['json'])
+            ]);
+        if (location == null) return;
+        await file.saveTo(location.path);
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('备份已保存')));
+        }
+      } else {
+        final result = await SharePlus.instance.share(ShareParams(
+            files: [file],
+            fileNameOverrides: [name],
+            subject: 'Libiko 个人资料备份'));
+        if (mounted && result.status != ShareResultStatus.dismissed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('请选择分享面板中的保存位置，完成备份')));
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('备份导出失败，请重试')));
+      }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _importBackup() async {
+    if (_backupBusy) return;
+    setState(() => _backupBusy = true);
+    try {
+      final file = await openFile(acceptedTypeGroups: const [
+        XTypeGroup(
+            label: 'Libiko 备份',
+            extensions: ['json'],
+            mimeTypes: ['application/json'])
+      ]);
+      if (file == null) return;
+      if (await file.length() > PersonalBackupService.maxBytes) {
+        throw const FormatException('备份文件超过 20 MB');
+      }
+      final service = _backup;
+      final preview = service.preview(await file.readAsString());
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: const Text('合并恢复备份'),
+                content: Text(
+                    '此备份包含 ${preview.records} 条收藏与历史记录。\n\n将合并资料并保留较新的本地进度${preview.sources == null ? "。" : "，同时恢复源开关与排序。"}'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('取消')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('合并恢复')),
+                ],
+              ));
+      if (confirmed != true || !mounted) return;
+      final report = await service.restore(preview);
+      ref.invalidate(watchHistoryProvider);
+      ref.invalidate(followProvider);
+      ref.invalidate(comicHistoryProvider);
+      ref.invalidate(comicFavoritesProvider);
+      ref.invalidate(novelHistoryProvider);
+      ref.invalidate(novelFavoritesProvider);
+      ref.read(syncProvider).schedule();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                '已恢复 ${report.imported} 条记录，保留或跳过 ${report.skipped} 条记录')));
+      }
+    } on FormatException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('无法导入：${error.message}')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('恢复失败，请重试')));
+      }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
 
   @override
   void initState() {
@@ -54,7 +184,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       for (final name in [AppCacheManager.key, 'libCachedImageData']) {
         final dir = Directory(p.join(tmp.path, name));
         if (!await dir.exists()) continue;
-        await for (final entity in dir.list(recursive: true, followLinks: false)) {
+        await for (final entity
+            in dir.list(recursive: true, followLinks: false)) {
           if (entity is File) total += await entity.length();
         }
       }
@@ -157,6 +288,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onTap: _clearCache,
           ),
           const Divider(),
+          const _SectionHeader(title: '资料备份'),
+          ListTile(
+            key: const ValueKey('export-backup'),
+            leading: const Icon(Icons.file_upload_outlined),
+            title: const Text('导出备份'),
+            subtitle: const Text('收藏、历史、阅读位置、源开关与顺序；不包含账号凭据和源脚本'),
+            onTap: _backupBusy ? null : _exportBackup,
+          ),
+          ListTile(
+            key: const ValueKey('import-backup'),
+            leading: const Icon(Icons.file_download_outlined),
+            title: const Text('恢复备份'),
+            subtitle: const Text('合并导入，保留较新的本地进度'),
+            onTap: _backupBusy ? null : _importBackup,
+          ),
+          if (_backupBusy) const LinearProgressIndicator(),
+          const Divider(),
           const _SectionHeader(title: '关于与更新'),
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -177,7 +325,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ListTile(
             leading: const Icon(Icons.description_outlined),
             title: const Text('开源许可'),
-            onTap: () => showLicensePage(context: context, applicationName: 'Libiko'),
+            onTap: () =>
+                showLicensePage(context: context, applicationName: 'Libiko'),
           ),
           const Divider(),
           const _SectionHeader(title: '源'),

@@ -12,6 +12,7 @@ import '../modules/novel/novel_search.dart';
 import '../modules/game/game_home.dart';
 import '../modules/game/game_search.dart';
 import 'settings_page.dart';
+import 'recent_activity_page.dart';
 import 'app_sidebar.dart';
 import 'app_bottom_bar.dart';
 
@@ -162,6 +163,16 @@ class _MainShellState extends State<MainShell> {
                     height: 1.4),
               ),
               const Spacer(),
+              IconButton(
+                key: const ValueKey('recent-activity'),
+                tooltip: '最近观看与阅读',
+                icon: const Icon(Icons.history_rounded, size: 20),
+                color: cs.onSurfaceVariant,
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                        builder: (_) => const RecentActivityPage())),
+              ),
               if (_currentIndex >= 0 && _currentIndex <= 3)
                 IconButton(
                   icon: const Icon(Icons.search_rounded, size: 20),
