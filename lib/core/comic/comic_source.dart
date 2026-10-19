@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../services/app_http.dart';
 import '../storage/database.dart';
+import '../sources/source_preferences.dart';
 import 'builtin_sources.dart';
 import 'explore_result.dart';
 import 'js_engine.dart';
@@ -90,8 +91,7 @@ class ComicSource {
     this.cookieFields = const [],
   });
 
-  static final _classRe =
-      RegExp(r'class\s+(\w+)\s+extends\s+ComicSource\b');
+  static final _classRe = RegExp(r'class\s+(\w+)\s+extends\s+ComicSource\b');
 
   static String _classNameOf(String script) {
     final match = _classRe.firstMatch(script);
@@ -154,12 +154,13 @@ class ComicSource {
   /// The default option value of every [categoryOptionGroups] group that applies
   /// to [category], in order. Falls back to the flat [categoryOptions] when the
   /// source supplied no per-group metadata.
-  List<String> categoryOptionsFor(String category) => categoryOptionGroups.isEmpty
-      ? categoryOptions
-      : _optionsFor(categoryOptionGroups, category);
+  List<String> categoryOptionsFor(String category) =>
+      categoryOptionGroups.isEmpty
+          ? categoryOptions
+          : _optionsFor(categoryOptionGroups, category);
 
   static List<String> _optionsFor(
-      List<ComicCategoryOptionGroup> groups, String category) =>
+          List<ComicCategoryOptionGroup> groups, String category) =>
       [
         for (final group in groups)
           if (group.options.isNotEmpty && group.visibleFor(category))
@@ -198,7 +199,8 @@ class ComicSource {
         .toList();
   }
 
-  static bool _hasCategory(dynamic raw) => raw is Map && raw['hasComics'] == true;
+  static bool _hasCategory(dynamic raw) =>
+      raw is Map && raw['hasComics'] == true;
 
   static String _categoryStr(dynamic raw, String key) =>
       raw is Map ? (raw[key]?.toString() ?? '') : '';
@@ -362,11 +364,13 @@ class ComicSourceManager {
     JsEngine? engine,
     Dio? dio,
     BuiltinSourceInstaller? builtinInstaller,
+    this.health,
   })  : _dio = dio ?? AppHttp.client,
         _builtinInstaller = builtinInstaller ?? BuiltinSourceInstaller() {
     _engine = engine ?? JsEngine(settings: _appSettings);
   }
 
+  final SourceHealthRepository? health;
   late final JsEngine _engine;
   final Dio _dio;
   final BuiltinSourceInstaller _builtinInstaller;
@@ -399,7 +403,10 @@ class ComicSourceManager {
 
   static final _fileNameRe = RegExp(r'^[A-Za-z0-9_.-]+\.js$');
   static final _reservedNames = <String>{
-    'CON', 'PRN', 'AUX', 'NUL',
+    'CON',
+    'PRN',
+    'AUX',
+    'NUL',
     for (var i = 1; i <= 9; i++) 'COM$i',
     for (var i = 1; i <= 9; i++) 'LPT$i',
   };
@@ -496,12 +503,16 @@ class ComicSourceManager {
     // needed before `init()` runs.
     final declared = await _engine.evaluate('(function(){\n$script\n;'
         'return globalThis.__libiko_declareSource($className);\n})()');
-    if (declared is! Map) throw const FormatException('source metadata missing');
+    if (declared is! Map) {
+      throw const FormatException('source metadata missing');
+    }
     final key = declared['key']?.toString().trim() ?? '';
-    if (key.isEmpty) throw const FormatException('comic source is missing "key"');
+    if (key.isEmpty) {
+      throw const FormatException('comic source is missing "key"');
+    }
     try {
-      final meta = await _engine.evaluate(
-          'globalThis.__libiko_registerSource(${jsonEncode(key)})');
+      final meta = await _engine
+          .evaluate('globalThis.__libiko_registerSource(${jsonEncode(key)})');
       if (meta is! Map) {
         throw const FormatException('source metadata missing');
       }
@@ -587,6 +598,13 @@ class ComicSourceManager {
   }
 
   Future<List<Comic>> search(ComicSource source, String keyword,
+          {int page = 1}) =>
+      health == null
+          ? _search(source, keyword, page: page)
+          : health!.track(SourceKind.comic, source.key,
+              () => _search(source, keyword, page: page));
+
+  Future<List<Comic>> _search(ComicSource source, String keyword,
       {int page = 1}) async {
     await _ensureInitialized();
     if (!source.canSearch) return const [];
@@ -600,6 +618,13 @@ class ComicSourceManager {
   }
 
   Future<ExplorePage> explore(ComicSource source, int sectionIndex,
+          {int page = 1, String? cursor}) =>
+      health == null
+          ? _explore(source, sectionIndex, page: page, cursor: cursor)
+          : health!.track(SourceKind.comic, source.key,
+              () => _explore(source, sectionIndex, page: page, cursor: cursor));
+
+  Future<ExplorePage> _explore(ComicSource source, int sectionIndex,
       {int page = 1, String? cursor}) async {
     await _ensureInitialized();
     if (!source.canExplore) return const ExplorePage(comics: []);
@@ -619,6 +644,17 @@ class ComicSourceManager {
   }
 
   Future<ExplorePage> category(ComicSource source, int page,
+          {String? category, String? param, List<String>? options}) =>
+      health == null
+          ? _category(source, page,
+              category: category, param: param, options: options)
+          : health!.track(
+              SourceKind.comic,
+              source.key,
+              () => _category(source, page,
+                  category: category, param: param, options: options));
+
+  Future<ExplorePage> _category(ComicSource source, int page,
       {String? category, String? param, List<String>? options}) async {
     await _ensureInitialized();
     if (!source.hasCategoryComics) return const ExplorePage(comics: []);
@@ -664,8 +700,7 @@ class ComicSourceManager {
     }
   }
 
-  Future<bool> loginWithCookies(
-      ComicSource source, List<String> values) async {
+  Future<bool> loginWithCookies(ComicSource source, List<String> values) async {
     await _ensureInitialized();
     if (!source.hasCookieLogin) return false;
     try {
@@ -712,8 +747,7 @@ class ComicSourceManager {
 
   Future<bool> isLogged(ComicSource source) async {
     await _ensureInitialized();
-    if (AppDatabase().getString('source_data.${source.key}.logged_in') ==
-        '1') {
+    if (AppDatabase().getString('source_data.${source.key}.logged_in') == '1') {
       return true;
     }
     try {
@@ -729,7 +763,12 @@ class ComicSourceManager {
     }
   }
 
-  Future<ComicDetails> loadInfo(ComicSource source, String id) async {
+  Future<ComicDetails> loadInfo(ComicSource source, String id) => health == null
+      ? _loadInfo(source, id)
+      : health!
+          .track(SourceKind.comic, source.key, () => _loadInfo(source, id));
+
+  Future<ComicDetails> _loadInfo(ComicSource source, String id) async {
     await _ensureInitialized();
     final result = await _engine.evaluate('''
       (async () => {
@@ -743,7 +782,13 @@ class ComicSourceManager {
     return ComicDetails.fromJs(result);
   }
 
-  Future<ComicEp> loadEp(
+  Future<ComicEp> loadEp(ComicSource source, String comicId, String epId) =>
+      health == null
+          ? _loadEp(source, comicId, epId)
+          : health!.track(SourceKind.comic, source.key,
+              () => _loadEp(source, comicId, epId));
+
+  Future<ComicEp> _loadEp(
       ComicSource source, String comicId, String epId) async {
     await _ensureInitialized();
     final result = await _engine.evaluate('''
@@ -812,8 +857,7 @@ class ComicSourceManager {
     final image = frame.image;
     final width = image.width;
     final height = image.height;
-    final raw =
-        await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final raw = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     image.dispose();
     codec.dispose();
     if (raw == null) throw StateError('could not read image pixels');

@@ -1,17 +1,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/sources/managed_sources.dart';
+import '../../core/sources/source_preferences.dart';
 
 import '../../core/game/galgamezywz_source.dart';
 import '../../core/game/game_source.dart';
 import '../../core/game/models.dart';
 import '../../core/game/nekogal_source.dart';
 
-final gameSourceManagerProvider = Provider<GameSourceManager>(
-  (ref) => GameSourceManager(sources: [GalgameZywzSource(), NekogalSource()]),
-);
+final gameSourceManagerProvider = Provider<GameSourceManager>((ref) {
+  final health = ref.read(sourceHealthProvider);
+  return GameSourceManager(sources: [
+    for (final source in [GalgameZywzSource(), NekogalSource()])
+      ManagedGameSource(source, health),
+  ]);
+});
 
-final gameSourcesProvider = Provider<List<GameSource>>(
+final allGameSourcesProvider = Provider<List<GameSource>>(
   (ref) => ref.watch(gameSourceManagerProvider).sources,
 );
+
+final gameSourcesProvider = Provider<List<GameSource>>((ref) => ref
+    .watch(sourcePreferencesProvider)
+    .apply(SourceKind.game, ref.watch(allGameSourcesProvider),
+        (source) => source.id));
 
 final gameBrowseProvider =
     FutureProvider.family<GameList, (String, String, int)>((ref, key) async {
@@ -47,8 +58,7 @@ final gameSearchSourceProvider =
   if (source == null) return const [];
   final games = await source.search(k).timeout(gameSearchTimeout);
   return [
-    for (final game in games)
-      GameSearchResult(game: game, sourceKey: sourceId),
+    for (final game in games) GameSearchResult(game: game, sourceKey: sourceId),
   ];
 });
 
@@ -56,7 +66,7 @@ final gameSearchProvider =
     FutureProvider.family<List<GameSearchResult>, String>((ref, keyword) async {
   final k = keyword.trim();
   if (k.isEmpty) return const [];
-  final sources = ref.watch(gameSourceManagerProvider).sources;
+  final sources = ref.watch(gameSourcesProvider);
   if (sources.isEmpty) return const [];
   final perSource = await Future.wait(sources.map((source) async {
     try {
@@ -67,7 +77,7 @@ final gameSearchProvider =
     }
   }));
   final out = <GameSearchResult>[];
-  final seen = <String>{};
+  final seen = <(String, String)>{};
   Object? lastError;
   var succeeded = 0;
   for (final (sourceId, games, error) in perSource) {
@@ -77,7 +87,7 @@ final gameSearchProvider =
     }
     succeeded++;
     for (final game in games) {
-      if (seen.add(game.title.trim())) {
+      if (game.id.isEmpty || seen.add((sourceId, game.id))) {
         out.add(GameSearchResult(game: game, sourceKey: sourceId));
       }
     }

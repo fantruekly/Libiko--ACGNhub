@@ -44,7 +44,12 @@ class _SourceResult {
 class AnimeDetailPage extends ConsumerStatefulWidget {
   final Work work;
   final WatchRecord? resumeRecord;
-  const AnimeDetailPage({super.key, required this.work, this.resumeRecord});
+  final bool autoResume;
+  const AnimeDetailPage(
+      {super.key,
+      required this.work,
+      this.resumeRecord,
+      this.autoResume = false});
 
   @override
   ConsumerState<AnimeDetailPage> createState() => _AnimeDetailPageState();
@@ -59,6 +64,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   int _searchSeq = 0;
   VideoItem? _expandedItem;
   bool _moreOpen = false;
+  final _confirmingSources = <String>{};
+  bool _autoResumeAttempted = false;
   VideoSource? _expandedSource;
   List<VideoEpisode>? _episodes;
   bool _episodesLoading = false;
@@ -657,6 +664,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       _episodes = null;
       _episodesError = null;
       _episodesLoading = false;
+      _confirmingSources.clear();
     });
 
     final queue = [..._sourceResults];
@@ -671,14 +679,47 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
 
     await Future.wait([for (var i = 0; i < 3; i++) worker()]);
+    if (mounted &&
+        gen == _searchGen &&
+        widget.autoResume &&
+        widget.resumeRecord != null &&
+        !_autoResumeAttempted) {
+      _autoResumeAttempted = true;
+      await _resumeHistory();
+    }
   }
 
   Future<void> _searchOne(_SourceResult r, int gen) async {
     if (_disposed) return;
     try {
-      final items = await r.source
-          .search(_work.title, cancel: _searchCancel)
-          .timeout(const Duration(seconds: 12));
+      final queries = titleSearchQueries(_work.title, _work.extra);
+      final items = <VideoItem>[];
+      final seen = <String>{};
+      final clock = Stopwatch()..start();
+      var succeeded = false;
+      for (final query in queries) {
+        if (_disposed || gen != _searchGen) return;
+        final remaining = const Duration(seconds: 12) - clock.elapsed;
+        if (remaining <= Duration.zero) break;
+        try {
+          final found = await r.source
+              .search(query, cancel: _searchCancel)
+              .timeout(remaining);
+          succeeded = true;
+          for (final item in found) {
+            if (seen.add(item.detailUrl)) items.add(item);
+          }
+        } catch (_) {
+          // Another metadata alias may still be searchable on this source.
+        }
+        if (bestMatchIndex(_work.title, [for (final it in items) it.title],
+                aliases: queries.skip(1),
+                format: _work.extra['format'] as String?) >=
+            0) {
+          break;
+        }
+      }
+      if (!succeeded) throw StateError('搜索源未返回结果');
       if (!mounted || gen != _searchGen) return;
       setState(() {
         r.items = items;
@@ -686,9 +727,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           r.best = null;
           r.alternatives = const [];
         } else {
-          final idx =
-              bestMatchIndex(_work.title, [for (final it in items) it.title]);
-          r.best = items[idx];
+          final idx = bestMatchIndex(
+              _work.title, [for (final it in items) it.title],
+              aliases: queries.skip(1),
+              format: _work.extra['format'] as String?);
+          r.best = idx < 0 ? null : items[idx];
           r.alternatives = [
             for (var i = 0; i < items.length; i++)
               if (i != idx) items[i],
@@ -703,14 +746,31 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
   }
 
-  List<(VideoItem, VideoSource, List<VideoItem>)> get _flatResults {
+  List<(VideoItem, VideoSource, List<VideoItem>, bool)> get _flatResults {
     final done = _sourceResults
-        .where((r) => r.status == _SourceStatus.done && r.best != null)
+        .where((r) => r.status == _SourceStatus.done && r.items.isNotEmpty)
         .toList()
       ..sort((a, b) => a.seq.compareTo(b.seq));
     return [
-      for (final r in done) (r.best!, r.source, r.alternatives),
+      for (final r in done)
+        (
+          r.best ?? r.items.first,
+          r.source,
+          r.best == null ? r.items.skip(1).toList() : r.alternatives,
+          r.best == null
+        ),
     ];
+  }
+
+  void _confirmMatch(VideoItem item, VideoSource source) {
+    setState(() {
+      final result = _sourceResults.firstWhere((r) => r.source.id == source.id);
+      result.best = item;
+      result.alternatives =
+          result.items.where((it) => !identical(it, item)).toList();
+      _confirmingSources.remove(source.id);
+    });
+    _expandItem(item, source);
   }
 
   Future<void> _expandItem(VideoItem item, VideoSource source) async {
@@ -811,8 +871,14 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       }
     }
     if (found == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('原播放源暂不可用，请手动选择线路与集数'),
+      final needsConfirmation = _sourceResults.any((result) =>
+          result.source.id == record.sourceId &&
+          result.items.isNotEmpty &&
+          result.best == null);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(needsConfirmation
+            ? '原播放源的作品匹配待确认，请手动核对后继续观看'
+            : '原播放源暂不可用，请手动选择线路与集数'),
       ));
       return;
     }
@@ -853,6 +919,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       final rule = await ref.read(ruleStoreProvider).importJson(
             await file.readAsString(),
           );
+      ref.invalidate(allVideoSourcesProvider);
       ref.invalidate(videoSourcesProvider);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('已导入规则：${rule.name}')));
@@ -965,8 +1032,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final (item, source, alternatives) in results)
-                      _resourceCard(item, source, alternatives, cs),
+                    for (final (item, source, alternatives, needsConfirmation)
+                        in results)
+                      _resourceCard(item, source, alternatives, cs,
+                          needsConfirmation: needsConfirmation),
                   ],
                 ),
               if (failed.isNotEmpty) ...[
@@ -984,7 +1053,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Widget _resourceCard(VideoItem item, VideoSource source,
-      List<VideoItem> alternatives, ColorScheme cs) {
+      List<VideoItem> alternatives, ColorScheme cs,
+      {bool needsConfirmation = false}) {
     final expanded = identical(_expandedItem, item) ||
         alternatives.any((a) => identical(a, _expandedItem));
     return Padding(
@@ -995,7 +1065,17 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => _expandItem(item, source),
+              onTap: () {
+                if (needsConfirmation) {
+                  setState(() {
+                    if (!_confirmingSources.add(source.id)) {
+                      _confirmingSources.remove(source.id);
+                    }
+                  });
+                } else {
+                  _expandItem(item, source);
+                }
+              },
               borderRadius: BorderRadius.circular(12),
               hoverColor: cs.primary.withValues(alpha: 0.08),
               child: Container(
@@ -1017,6 +1097,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       ),
                     ),
                     const SizedBox(width: 12),
+                    if (needsConfirmation) ...[
+                      Text('待确认匹配',
+                          style: TextStyle(fontSize: 12, color: cs.error)),
+                      const SizedBox(width: 8),
+                    ],
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
@@ -1037,7 +1122,22 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               ),
             ),
           ),
-          if (expanded) ...[
+          if (needsConfirmation && _confirmingSources.contains(source.id))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('标题或季数暂未可靠匹配，请核对后选择作品：'),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final candidate in [item, ...alternatives])
+                        ActionChip(
+                            label: Text(candidate.title),
+                            onPressed: () => _confirmMatch(candidate, source)),
+                    ]),
+                  ]),
+            ),
+          if (expanded && !needsConfirmation) ...[
             if (alternatives.isNotEmpty) ...[
               Material(
                 color: Colors.transparent,

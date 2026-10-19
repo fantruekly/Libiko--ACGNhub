@@ -37,6 +37,9 @@ void main() {
     final w = works.first;
     expect(w.id, 'anilist_21');
     expect(w.title, 'ワンピース');
+    expect(w.extra['titleNative'], 'ワンピース');
+    expect(w.extra['titleEnglish'], 'One Piece');
+    expect(w.extra['titleRomaji'], 'ONE PIECE');
     expect(w.coverUrl, 'https://img/xl.jpg');
     expect(w.bannerUrl, 'https://img/banner.jpg');
     expect(w.summary, 'A pirate adventure.');
@@ -58,5 +61,15 @@ void main() {
       }
     });
     expect(works.single.id, 'anilist_21');
+  });
+  test(
+      'keeps synonyms already present in the response without coercing metadata',
+      () {
+    final work = AniListProvider.parseMedia({
+      ...media,
+      'synonyms': ['Pirate Adventure', 21]
+    });
+    expect(work.extra['titleRomaji'], 'ONE PIECE');
+    expect(work.extra['synonyms'], ['Pirate Adventure']);
   });
 }

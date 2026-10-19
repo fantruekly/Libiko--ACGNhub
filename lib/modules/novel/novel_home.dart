@@ -54,7 +54,10 @@ class NovelCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w500, height: 1.45, color: cs.onSurface),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                  color: cs.onSurface),
             ),
           ),
         ],
@@ -64,14 +67,21 @@ class NovelCard extends StatelessWidget {
 
   Widget _placeholder(ColorScheme cs) {
     final hash = novel.title.hashCode.abs();
-    const bg = [Color(0xFFF3E5F5), Color(0xFFEDE7F6), Color(0xFFE8EAF6), Color(0xFFE0F2F1)];
+    const bg = [
+      Color(0xFFF3E5F5),
+      Color(0xFFEDE7F6),
+      Color(0xFFE8EAF6),
+      Color(0xFFE0F2F1)
+    ];
     return Container(
       color: bg[hash % bg.length],
       child: Center(
         child: Text(
           novel.title.isEmpty ? '书' : novel.title.characters.first,
           style: TextStyle(
-              color: cs.primary.withValues(alpha: 0.2), fontSize: 28, fontWeight: FontWeight.w400),
+              color: cs.primary.withValues(alpha: 0.2),
+              fontSize: 28,
+              fontWeight: FontWeight.w400),
         ),
       ),
     );
@@ -137,6 +147,17 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
   Widget build(BuildContext context) {
     super.build(context);
     final sources = ref.watch(novelSourcesProvider);
+    if (sources.isEmpty) {
+      return const EmptyState(
+          icon: Icons.extension_off_rounded, message: '所有源已禁用，请在源管理中启用');
+    }
+    if (!sources.any((source) => source.id == _sourceId)) {
+      _sourceId = sources.first.id;
+      _optionIndex = 0;
+      _page = 1;
+      _groupIndex = -1;
+      _lastHasMore = null;
+    }
     final source = ref.watch(novelSourceManagerProvider).byId(_sourceId);
     final groups = source?.browseGroups ?? const <NovelBrowseGroup>[];
     return Column(
@@ -253,7 +274,8 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
                     icon: Icons.cloud_off_rounded,
                     message: '加载失败',
                     actionLabel: '重试',
-                    onAction: () => ref.invalidate(novelHomeProvider(_sourceId)),
+                    onAction: () =>
+                        ref.invalidate(novelHomeProvider(_sourceId)),
                   ),
                   data: (home) => _grid(flattenHome(home)),
                 ),
@@ -267,8 +289,10 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
     if (group.options.isEmpty) {
       return const EmptyState(icon: Icons.menu_book_rounded, message: '暂无内容');
     }
-    final option = group.options[_optionIndex.clamp(0, group.options.length - 1)];
-    final async = ref.watch(novelBrowseProvider((_sourceId, option.key, _page)));
+    final option =
+        group.options[_optionIndex.clamp(0, group.options.length - 1)];
+    final async =
+        ref.watch(novelBrowseProvider((_sourceId, option.key, _page)));
     return Column(
       children: [
         Expanded(
@@ -461,7 +485,9 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w500, color: cs.onSurface),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: cs.onSurface),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -510,8 +536,7 @@ Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('取消')),
         TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('清空')),
+            onPressed: () => Navigator.pop(ctx, true), child: const Text('清空')),
       ],
     ),
   );

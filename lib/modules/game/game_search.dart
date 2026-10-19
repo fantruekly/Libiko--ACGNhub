@@ -135,22 +135,22 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
   Widget _body() {
     final cs = Theme.of(context).colorScheme;
     if (_keyword.isEmpty) {
-      return const EmptyState(
-          icon: Icons.search_rounded, message: '输入关键词搜索游戏');
+      return const EmptyState(icon: Icons.search_rounded, message: '输入关键词搜索游戏');
     }
     final sources = ref.watch(gameSourcesProvider);
     final results = <GameSearchResult>[];
-    final seen = <String>{};
+    final seen = <(String, String)>{};
     var pending = 0;
     var failed = 0;
     Object? lastError;
     for (final source in sources) {
-      final async =
-          ref.watch(gameSearchSourceProvider((source.id, _keyword)));
+      final async = ref.watch(gameSearchSourceProvider((source.id, _keyword)));
       async.when(
         data: (list) {
           for (final r in list) {
-            if (seen.add(r.game.title.trim())) results.add(r);
+            if (r.game.id.isEmpty || seen.add((r.sourceKey, r.game.id))) {
+              results.add(r);
+            }
           }
         },
         loading: () {
@@ -208,22 +208,43 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
   }
 
   Widget _grid(List<GameSearchResult> results) {
+    final names = {
+      for (final source in ref.watch(gameSourcesProvider))
+        source.id: source.name
+    };
     return LayoutBuilder(builder: (context, constraints) {
       Widget gameCell(BuildContext context, int i) {
         final r = results[i];
-        return GameCard(
-          game: r.game,
-          heroTag: 'game_${r.sourceKey}_${r.game.id}',
-          onTap: () => Navigator.push(
-            context,
-            smoothRoute(GameDetailPage(
-              sourceKey: r.sourceKey,
-              gameId: r.game.id,
-              title: r.game.title,
-              cover: r.game.coverUrl,
-            )),
-          ),
-        );
+        return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('来源：${names[r.sourceKey] ?? r.sourceKey}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 4),
+              Expanded(
+                  child: GameCard(
+                game: r.game,
+                heroTag: 'game_${r.sourceKey}_${r.game.id}',
+                onTap: () => Navigator.push(
+                  context,
+                  smoothRoute(GameDetailPage(
+                    sourceKey: r.sourceKey,
+                    gameId: r.game.id,
+                    title: r.game.title,
+                    cover: r.game.coverUrl,
+                  )),
+                ),
+              )),
+              if (r.game.extra['version'] is String)
+                Text('版本：${r.game.extra['version']}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11)),
+            ]);
       }
 
       if (isDesktop) {

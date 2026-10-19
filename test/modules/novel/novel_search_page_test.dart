@@ -91,4 +91,26 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
     expect(find.text('慢源结果'), findsOneWidget);
   });
+  testWidgets('same-title results expose both sources and authors',
+      (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(overrides: [
+      novelSourceManagerProvider.overrideWithValue(NovelSourceManager(sources: [
+        _FakeSource(const [Novel(id: '1', title: '同名作品', author: '作者甲')],
+            id: 'alpha'),
+        _FakeSource(const [Novel(id: '1', title: '同名作品', author: '作者乙')],
+            id: 'beta'),
+      ])),
+    ], child: const MaterialApp(home: NovelSearchPage(initialKeyword: '同名'))));
+    await tester.pumpAndSettle();
+    expect(find.text('同名作品'), findsNWidgets(2));
+    expect(find.text('来源：alpha'), findsOneWidget);
+    expect(find.text('来源：beta'), findsOneWidget);
+    expect(find.text('作者：作者甲'), findsOneWidget);
+    expect(find.text('作者：作者乙'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

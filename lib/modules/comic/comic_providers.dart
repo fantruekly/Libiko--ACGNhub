@@ -8,24 +8,42 @@ import '../../core/comic/comic_source.dart';
 import '../../core/comic/explore_result.dart';
 import '../../core/comic/models.dart';
 import '../../core/storage/database.dart';
+import '../../core/sources/source_preferences.dart';
 
-final comicSourceManagerProvider =
-    Provider<ComicSourceManager>((ref) => ComicSourceManager());
+final comicSourceManagerProvider = Provider<ComicSourceManager>(
+    (ref) => ComicSourceManager(health: ref.read(sourceHealthProvider)));
 
-final comicSourcesProvider = FutureProvider<List<ComicSource>>((ref) async {
+final allComicSourcesProvider = FutureProvider<List<ComicSource>>((ref) async {
   final manager = ref.watch(comicSourceManagerProvider);
   await manager.load();
   return manager.sources;
 });
 
+final comicSourcesProvider = FutureProvider<List<ComicSource>>((ref) async {
+  final config = ref.watch(sourcePreferencesProvider);
+  final sources = await ref.watch(allComicSourcesProvider.future);
+  return config.apply(SourceKind.comic, sources, (source) => source.key);
+});
+
+/// Wait for the registry on cold entry, while retaining access to disabled
+/// sources for an explicit history/favorite entry. Disabled sources are only
+/// excluded from discovery and search lists.
+final comicSourceByKeyProvider =
+    FutureProvider.family<ComicSource?, String>((ref, key) async {
+  final enabled = await ref.watch(comicSourcesProvider.future);
+  return enabled.where((s) => s.key == key).firstOrNull ??
+      ref
+          .watch(comicSourceManagerProvider)
+          .sources
+          .where((s) => s.key == key)
+          .firstOrNull;
+});
+
 /// Whether the user is logged in to the comic source with [sourceKey].
-final comicLoginProvider = FutureProvider.family<bool, String>((ref, sourceKey) async {
+final comicLoginProvider =
+    FutureProvider.family<bool, String>((ref, sourceKey) async {
   final manager = ref.watch(comicSourceManagerProvider);
-  final source = ref
-      .watch(comicSourcesProvider)
-      .valueOrNull
-      ?.where((s) => s.key == sourceKey)
-      .firstOrNull;
+  final source = await ref.watch(comicSourceByKeyProvider(sourceKey).future);
   if (source == null) return false;
   return manager.isLogged(source);
 });
@@ -159,8 +177,8 @@ final comicExploreAllProvider =
 /// One source page for a server- or cursor-paged section. Cursor sections
 /// chain: source page N reads page N-1's `next`.
 final FutureProviderFamily<ExplorePage, (String, int, int)>
-    comicSourcePageProvider = FutureProvider.family<ExplorePage,
-        (String, int, int)>((ref, key) async {
+    comicSourcePageProvider =
+    FutureProvider.family<ExplorePage, (String, int, int)>((ref, key) async {
   final (sourceKey, section, sourceIndex) = key;
   final manager = ref.watch(comicSourceManagerProvider);
   final source = ref
@@ -191,8 +209,9 @@ final FutureProviderFamily<ExplorePage, (String, int, int)>
 /// here, then continues into the source's category listing after its explore
 /// content.
 final FutureProviderFamily<ComicExplorePage, (String, int, int, int)>
-    comicExploreProvider = FutureProvider.family<ComicExplorePage,
-        (String, int, int, int)>((ref, key) async {
+    comicExploreProvider =
+    FutureProvider.family<ComicExplorePage, (String, int, int, int)>(
+        (ref, key) async {
   final (sourceKey, section, part, page) = key;
   final manager = ref.watch(comicSourceManagerProvider);
   final source = ref
@@ -289,29 +308,19 @@ final comicSearchSourceProvider =
 });
 
 final comicDetailProvider =
-    FutureProvider.family<ComicDetails, (String, String)>(
-        (ref, key) async {
+    FutureProvider.family<ComicDetails, (String, String)>((ref, key) async {
   final manager = ref.watch(comicSourceManagerProvider);
   final (sourceKey, comicId) = key;
-  final source = ref
-      .watch(comicSourcesProvider)
-      .valueOrNull
-      ?.where((s) => s.key == sourceKey)
-      .firstOrNull;
+  final source = await ref.watch(comicSourceByKeyProvider(sourceKey).future);
   if (source == null) throw StateError('source $sourceKey not loaded');
   return manager.loadInfo(source, comicId);
 });
 
 final comicEpProvider =
-    FutureProvider.family<ComicEp, (String, String, String)>(
-        (ref, key) async {
+    FutureProvider.family<ComicEp, (String, String, String)>((ref, key) async {
   final manager = ref.watch(comicSourceManagerProvider);
   final (sourceKey, comicId, chapterId) = key;
-  final source = ref
-      .watch(comicSourcesProvider)
-      .valueOrNull
-      ?.where((s) => s.key == sourceKey)
-      .firstOrNull;
+  final source = await ref.watch(comicSourceByKeyProvider(sourceKey).future);
   if (source == null) throw StateError('source $sourceKey not loaded');
   return manager.loadEp(source, comicId, chapterId);
 });

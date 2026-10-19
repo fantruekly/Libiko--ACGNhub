@@ -32,6 +32,11 @@ class RuleVideoSource implements VideoSource {
   @override
   String get baseUrl => rule.baseUrl;
 
+  /// Health observers must not label a cache read as a fresh source request.
+  bool hasCachedSearch(String keyword) => _cache.search(id, keyword) != null;
+  bool hasCachedEpisodes(String detailUrl) =>
+      _cache.episodes(id, detailUrl) != null;
+
   @override
   Future<List<VideoItem>> search(String keyword,
       {CancellationToken? cancel}) async {

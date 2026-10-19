@@ -45,13 +45,15 @@ ProviderContainer _container(List<NovelSource> sources) {
 }
 
 void main() {
-  test('aggregates across sources and dedupes by title', () async {
+  test('preserves every source for the same title', () async {
     final c = _container([
-      _SearchSource('a', const [Novel(id: '1', title: 'X'), Novel(id: '2', title: 'Y')]),
-      _SearchSource('b', const [Novel(id: '3', title: 'X'), Novel(id: '4', title: 'Z')]),
+      _SearchSource(
+          'a', const [Novel(id: '1', title: 'X'), Novel(id: '2', title: 'Y')]),
+      _SearchSource(
+          'b', const [Novel(id: '3', title: 'X'), Novel(id: '4', title: 'Z')]),
     ]);
     final results = await c.read(novelSearchProvider('k').future);
-    expect(results.map((r) => r.novel.title), ['X', 'Y', 'Z']);
+    expect(results.map((r) => r.novel.title), ['X', 'Y', 'X', 'Z']);
     expect(results.first.sourceKey, 'a');
     expect(results.last.sourceKey, 'b');
   });
@@ -67,16 +69,52 @@ void main() {
 
   test('throws when every source fails', () async {
     final c = _container([_SearchSource('a', const [], throws: true)]);
-    await expectLater(c.read(novelSearchProvider('k').future), throwsA(isA<StateError>()));
+    await expectLater(
+        c.read(novelSearchProvider('k').future), throwsA(isA<StateError>()));
   });
 
   test('empty keyword returns no results', () async {
-    final c = _container([_SearchSource('a', const [Novel(id: '1', title: 'X')])]);
+    final c = _container([
+      _SearchSource('a', const [Novel(id: '1', title: 'X')])
+    ]);
     expect(await c.read(novelSearchProvider('  ').future), isEmpty);
   });
 
   test('no sources returns empty', () async {
     final c = _container([]);
     expect(await c.read(novelSearchProvider('k').future), isEmpty);
+  });
+  test('same-title authors and versions remain separate, duplicate ids do not',
+      () async {
+    final c = _container([
+      _SearchSource('a', const [
+        Novel(id: '1', title: '同名', author: '作者甲'),
+        Novel(id: '1', title: '同名', author: '作者甲'),
+        Novel(id: '2', title: '同名', author: '作者乙'),
+        Novel(id: '3', title: '同名', author: '作者甲', extra: {'version': '文库版'}),
+      ]),
+      _SearchSource('b', const [Novel(id: '1', title: '同名', author: '作者甲')]),
+    ]);
+    final results = await c.read(novelSearchProvider('同名').future);
+    expect(results, hasLength(4));
+    expect(results.map((r) => (r.sourceKey, r.novel.id)),
+        [('a', '1'), ('a', '2'), ('a', '3'), ('b', '1')]);
+    expect(results[1].novel.author, '作者乙');
+    expect(results[2].novel.extra['version'], '文库版');
+  });
+  test('aggregate search uses the enabled source list, not the full manager',
+      () async {
+    final enabled =
+        _SearchSource('enabled', const [Novel(id: '1', title: '启用结果')]);
+    final disabled =
+        _SearchSource('disabled', const [Novel(id: '2', title: '禁用结果')]);
+    final c = ProviderContainer(overrides: [
+      novelSourceManagerProvider
+          .overrideWithValue(NovelSourceManager(sources: [enabled, disabled])),
+      novelSourcesProvider.overrideWithValue([enabled]),
+    ]);
+    addTearDown(c.dispose);
+    final results = await c.read(novelSearchProvider('作品').future);
+    expect(results.map((r) => r.sourceKey), ['enabled']);
   });
 }

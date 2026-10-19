@@ -123,9 +123,10 @@ class StreamResolver {
       if (lastFailure == ResolveFailure.notFound) break;
       if (attempt + 1 < _maxAttempts) {
         final rest = _overallBudget - total.elapsed;
-        if (rest <= Duration.zero) break;
-        final delay = rest < _retryDelay ? rest : _retryDelay;
-        await _waitOrCancel(delay, cancel);
+        // A shortened timer can fire just before the deadline and start a
+        // useless retry with less than a millisecond left in the budget.
+        if (rest <= _retryDelay) break;
+        await _waitOrCancel(_retryDelay, cancel);
       }
     }
     final failed = ResolveResult.failed(lastFailure);

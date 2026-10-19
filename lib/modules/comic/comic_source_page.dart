@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/comic/comic_source.dart';
 import '../../core/services/app_http.dart';
+import '../../core/sources/source_preferences.dart';
+import '../../core/sources/source_management_widgets.dart';
 import 'comic_account_dialog.dart';
 import 'comic_providers.dart';
 
@@ -45,7 +47,11 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
 
   @override
   Widget build(BuildContext context) {
-    final sourcesAsync = ref.watch(comicSourcesProvider);
+    final config = ref.watch(sourcePreferencesProvider);
+    final sourcesAsync = ref.watch(allComicSourcesProvider).whenData(
+        (sources) => config.apply(
+            SourceKind.comic, sources, (source) => source.key,
+            includeDisabled: true));
     final hasSources = (sourcesAsync.valueOrNull ?? const []).isNotEmpty;
     return Scaffold(
       appBar: AppBar(
@@ -54,8 +60,8 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
           if (hasSources)
             IconButton(
               tooltip: _reordering ? '完成' : '排序',
-              icon: Icon(
-                  _reordering ? Icons.check_rounded : Icons.sort_rounded),
+              icon:
+                  Icon(_reordering ? Icons.check_rounded : Icons.sort_rounded),
               onPressed: _toggleReorder,
             ),
         ],
@@ -78,11 +84,19 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   Future<void> _toggleReorder() async {
     if (_reordering) {
       await _manager.saveOrder(_draft.map((s) => s.key).toList());
+      await ref
+          .read(sourcePreferencesProvider.notifier)
+          .setOrder(SourceKind.comic, _draft.map((s) => s.key).toList());
+      ref.invalidate(allComicSourcesProvider);
       ref.invalidate(comicSourcesProvider);
       if (mounted) setState(() => _reordering = false);
       return;
     }
-    final sources = ref.read(comicSourcesProvider).valueOrNull ?? const [];
+    final sources = ref.read(sourcePreferencesProvider).apply(
+        SourceKind.comic,
+        ref.read(allComicSourcesProvider).valueOrNull ?? <ComicSource>[],
+        (source) => source.key,
+        includeDisabled: true);
     setState(() {
       _draft = List.of(sources);
       _reordering = true;
@@ -121,10 +135,11 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       error: (_, __) => [
         Row(
           children: [
-            Text('加载失败', style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant)),
+            Text('加载失败',
+                style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant)),
             const SizedBox(width: 8),
             TextButton(
-              onPressed: () => ref.invalidate(comicSourcesProvider),
+              onPressed: () => ref.invalidate(allComicSourcesProvider),
               child: const Text('重试'),
             ),
           ],
@@ -169,6 +184,21 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
           children: [
             const SizedBox(height: 2),
             Text('${source.key} · v${source.version}'),
+            SourceHealthSummary(kind: SourceKind.comic, sourceId: source.key),
+            if (reorderIndex == null)
+              SourcePreferenceControls(
+                  kind: SourceKind.comic,
+                  sourceId: source.key,
+                  order: ref
+                      .read(sourcePreferencesProvider)
+                      .apply(
+                          SourceKind.comic,
+                          ref.read(allComicSourcesProvider).valueOrNull ??
+                              <ComicSource>[],
+                          (source) => source.key,
+                          includeDisabled: true)
+                      .map((s) => s.key)
+                      .toList()),
             if (caps.isNotEmpty) ...[
               const SizedBox(height: 6),
               Wrap(
@@ -183,8 +213,8 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
         trailing: reorderIndex != null
             ? ReorderableDragStartListener(
                 index: reorderIndex,
-                child: Icon(Icons.drag_handle_rounded,
-                    color: cs.onSurfaceVariant),
+                child:
+                    Icon(Icons.drag_handle_rounded, color: cs.onSurfaceVariant),
               )
             : Row(
                 mainAxisSize: MainAxisSize.min,
@@ -336,6 +366,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     });
     try {
       final source = await _manager.importFromUrl(url);
+      ref.invalidate(allComicSourcesProvider);
       ref.invalidate(comicSourcesProvider);
       if (!mounted) return;
       setState(() => _importing = false);
@@ -367,6 +398,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     });
     try {
       final source = await _manager.importFromFile(file.path);
+      ref.invalidate(allComicSourcesProvider);
       ref.invalidate(comicSourcesProvider);
       if (!mounted) return;
       setState(() => _importing = false);
@@ -394,14 +426,12 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       _listError = null;
     });
     try {
-      final response = await AppHttp.client.get<String>(url,
-          options: Options(responseType: ResponseType.plain));
+      final response = await AppHttp.client
+          .get<String>(url, options: Options(responseType: ResponseType.plain));
       final data = jsonDecode(response.data ?? '');
       if (data is! List) throw const FormatException('列表格式无效');
-      final entries = data
-          .whereType<Map>()
-          .map((e) => e.cast<String, dynamic>())
-          .toList();
+      final entries =
+          data.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
       if (!mounted) return;
       setState(() {
         _remoteEntries = entries;
@@ -426,6 +456,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final source = await _manager.importFromUrl(url);
+      ref.invalidate(allComicSourcesProvider);
       ref.invalidate(comicSourcesProvider);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('已导入：${source.name}')));
@@ -461,8 +492,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
               Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: Text(username,
-                    style: TextStyle(
-                        fontSize: 12, color: cs.onSurfaceVariant)),
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -486,6 +516,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final refreshed = await _manager.refresh(source);
+      ref.invalidate(allComicSourcesProvider);
       ref.invalidate(comicSourcesProvider);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('已刷新：${refreshed.name}')));
@@ -519,6 +550,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await _manager.remove(source);
+      ref.invalidate(allComicSourcesProvider);
       ref.invalidate(comicSourcesProvider);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('已删除：${source.name}')));
@@ -548,4 +580,3 @@ class _SectionTitle extends StatelessWidget {
     );
   }
 }
-

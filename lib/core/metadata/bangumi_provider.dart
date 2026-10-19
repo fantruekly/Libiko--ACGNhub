@@ -112,7 +112,8 @@ class BangumiProvider implements MetadataProvider {
       out.add(AnimeCharacter(
         name: name,
         relation: m['relation'] as String?,
-        image: _https(images?['grid'] as String? ?? images?['medium'] as String?),
+        image:
+            _https(images?['grid'] as String? ?? images?['medium'] as String?),
         actors: actors,
       ));
     }
@@ -136,7 +137,8 @@ class BangumiProvider implements MetadataProvider {
         bangumiId: id,
         title: title,
         relation: m['relation'] as String?,
-        image: _https(images?['grid'] as String? ?? images?['medium'] as String?),
+        image:
+            _https(images?['grid'] as String? ?? images?['medium'] as String?),
       ));
     }
     return out;
@@ -165,8 +167,8 @@ class BangumiProvider implements MetadataProvider {
       final info = li.querySelector('p.info.tip')?.text ?? '';
       final score = double.tryParse(
           li.querySelector('p.rateInfo small.fade')?.text.trim() ?? '');
-      final rank = int.tryParse(
-          (li.querySelector('span.rank')?.text ?? '').replaceAll(RegExp(r'\D'), ''));
+      final rank = int.tryParse((li.querySelector('span.rank')?.text ?? '')
+          .replaceAll(RegExp(r'\D'), ''));
       out.add(Work(
         id: 'bangumi_$id',
         sourceId: 'bangumi',
@@ -177,6 +179,8 @@ class BangumiProvider implements MetadataProvider {
         tags: const [],
         extra: {
           'bangumiId': id,
+          'titleNative': name.isEmpty ? null : name,
+          'aliases': [if (nameCn.isNotEmpty) nameCn],
           'score': score,
           'episodes': _episodesFromInfo(info),
           'airDate': _airDateFromInfo(info),
@@ -217,9 +221,9 @@ class BangumiProvider implements MetadataProvider {
 
   @visibleForTesting
   static List<Work> parseSearch(dynamic data) {
-    final list =
-        ((data is Map ? (data['list'] ?? data['data']) : data) as List<dynamic>?) ??
-            [];
+    final list = ((data is Map ? (data['list'] ?? data['data']) : data)
+            as List<dynamic>?) ??
+        [];
     return list
         .map((e) => _parseItem(e as Map<String, dynamic>))
         .whereType<Work>()
@@ -262,12 +266,42 @@ class BangumiProvider implements MetadataProvider {
       tags: isDetail ? tags : const [],
       extra: {
         'bangumiId': id,
+        'titleNative': name.isEmpty ? null : name,
+        'aliases': [
+          if (nameCn.isNotEmpty) nameCn,
+          ..._parseAliases(item['infobox']),
+        ],
         'score': score,
         'episodes': episodes,
         'airDate': item['air_date'] ?? item['date'],
         'rank': item['rank'],
       },
     );
+  }
+
+  /// Detail responses may already contain alternative names in the infobox.
+  /// Keep only known alias values; staff names and other metadata are not titles.
+  static List<String> _parseAliases(dynamic infobox) {
+    if (infobox is! List) return const [];
+    final aliases = <String>{};
+    void add(dynamic value) {
+      if (value is String && value.trim().isNotEmpty) {
+        aliases.add(value.trim());
+      }
+    }
+
+    for (final entry in infobox) {
+      if (entry is! Map || !const ['别名', '別名'].contains(entry['key'])) continue;
+      final value = entry['value'];
+      if (value is List) {
+        for (final alias in value) {
+          add(alias is Map ? alias['v'] : alias);
+        }
+      } else {
+        add(value);
+      }
+    }
+    return aliases.toList();
   }
 
   static String? _cover(String? url) {

@@ -85,4 +85,28 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
     expect(find.text('慢源结果'), findsOneWidget);
   });
+  testWidgets('same-title versions retain separate source cards',
+      (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(overrides: [
+      gameSourceManagerProvider.overrideWithValue(GameSourceManager(sources: [
+        _FakeSource(const [
+          Game(id: '1', title: '同名游戏', extra: {'version': '原版'})
+        ], id: 'alpha'),
+        _FakeSource(const [
+          Game(id: '1', title: '同名游戏', extra: {'version': '重制版'})
+        ], id: 'beta'),
+      ])),
+    ], child: const MaterialApp(home: GameSearchPage(initialKeyword: '同名'))));
+    await tester.pumpAndSettle();
+    expect(find.text('同名游戏'), findsNWidgets(2));
+    expect(find.text('来源：alpha'), findsOneWidget);
+    expect(find.text('来源：beta'), findsOneWidget);
+    expect(find.text('版本：原版'), findsOneWidget);
+    expect(find.text('版本：重制版'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

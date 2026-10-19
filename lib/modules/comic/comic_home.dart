@@ -98,7 +98,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
         actionLabel: '重试',
-        onAction: () => ref.invalidate(comicSourcesProvider),
+        onAction: () => ref.invalidate(allComicSourcesProvider),
       ),
       data: (sources) {
         if (sources.isEmpty) {

@@ -83,6 +83,26 @@ class _VideoSource implements VideoSource {
       ];
 }
 
+class _MatchingSource extends _VideoSource {
+  _MatchingSource(this.find);
+  final List<VideoItem> Function(String) find;
+  final queries = <String>[];
+  int episodeRequests = 0;
+  @override
+  Future<List<VideoItem>> search(String keyword,
+      {CancellationToken? cancel}) async {
+    queries.add(keyword);
+    return find(keyword);
+  }
+
+  @override
+  Future<List<VideoEpisode>> episodes(String detailUrl,
+      {CancellationToken? cancel}) {
+    episodeRequests++;
+    return super.episodes(detailUrl, cancel: cancel);
+  }
+}
+
 const _playbackWork = Work(
     id: 'test',
     sourceId: 'seed',
@@ -254,5 +274,123 @@ void main() {
     expect(find.text('2024'), findsOneWidget);
     expect(find.text('已完结'), findsOneWidget);
     expect(find.text('TV'), findsOneWidget);
+  });
+  testWidgets(
+      'low confidence is visible and requires explicit candidate confirmation',
+      (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final source = _MatchingSource((_) => const [
+          VideoItem(id: 'wrong', title: '完全无关的作品', detailUrl: 'wrong'),
+        ]);
+    await tester.pumpWidget(ProviderScope(overrides: [
+      metadataServiceProvider.overrideWithValue(_offlineService()),
+      videoSourcesProvider.overrideWith((ref) async => [source]),
+    ], child: const MaterialApp(home: AnimeDetailPage(work: _playbackWork))));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.text('待确认匹配'), findsOneWidget);
+    expect(source.episodeRequests, 0);
+    await tester.ensureVisible(find.text('测试源'));
+    await tester.tap(find.text('测试源'));
+    await tester.pumpAndSettle();
+    expect(source.episodeRequests, 0);
+    final candidate = find.widgetWithText(ActionChip, '完全无关的作品');
+    await tester.ensureVisible(candidate);
+    await tester.tap(candidate);
+    await tester.pumpAndSettle();
+    expect(source.episodeRequests, 1);
+    expect(find.text('待确认匹配'), findsNothing);
+    expect(find.text('高清线路'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('metadata native title is searched when the display title misses',
+      (tester) async {
+    final source = _MatchingSource((query) => query == '日本語別名'
+        ? const [VideoItem(id: 'matched', title: '日本語別名', detailUrl: 'matched')]
+        : const []);
+    const work = Work(
+        id: 'alias',
+        sourceId: 'seed',
+        sourceName: 'Offline',
+        type: WorkType.anime,
+        title: '中文显示标题',
+        extra: {'titleNative': '日本語別名'});
+    await tester.pumpWidget(ProviderScope(overrides: [
+      metadataServiceProvider.overrideWithValue(_offlineService()),
+      videoSourcesProvider.overrideWith((ref) async => [source]),
+    ], child: const MaterialApp(home: AnimeDetailPage(work: work))));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(source.queries, ['中文显示标题', '日本語別名']);
+    expect(find.text('日本語別名'), findsOneWidget);
+    expect(find.text('待确认匹配'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets(
+      'auto resume runs once after discovery and does not guess a missing episode',
+      (tester) async {
+    final source = _MatchingSource((_) => const [
+          VideoItem(id: 'matched', title: 'Test Anime', detailUrl: 'matched'),
+        ]);
+    final record = WatchRecord(
+        work: _playbackWork,
+        episodeTitle: '不存在的剧集',
+        episodeIndex: 99,
+        watchedAt: DateTime(2026),
+        sourceId: 'test-source',
+        lineId: 'a',
+        episodeKey: 'episode:99');
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          metadataServiceProvider.overrideWithValue(_offlineService()),
+          videoSourcesProvider.overrideWith((ref) async => [source]),
+        ],
+        child: MaterialApp(
+            home: AnimeDetailPage(
+                work: _playbackWork, resumeRecord: record, autoResume: true))));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(source.episodeRequests, 1);
+    expect(find.text('无法确定上次观看的剧集，请手动选集'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(source.episodeRequests, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('auto resume stops at a low-confidence work match',
+      (tester) async {
+    final source = _MatchingSource((_) => const [
+          VideoItem(id: 'other', title: '完全不相干作品', detailUrl: 'other'),
+        ]);
+    final record = WatchRecord(
+        work: _playbackWork,
+        episodeTitle: '第1集',
+        episodeIndex: 0,
+        watchedAt: DateTime(2026),
+        sourceId: 'test-source',
+        lineId: 'a',
+        episodeKey: 'episode:1');
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          metadataServiceProvider.overrideWithValue(_offlineService()),
+          videoSourcesProvider.overrideWith((ref) async => [source]),
+        ],
+        child: MaterialApp(
+            home: AnimeDetailPage(
+                work: _playbackWork, resumeRecord: record, autoResume: true))));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(source.episodeRequests, 0);
+    expect(find.text('原播放源的作品匹配待确认，请手动核对后继续观看'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

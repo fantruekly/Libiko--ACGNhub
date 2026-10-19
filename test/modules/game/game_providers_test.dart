@@ -15,8 +15,7 @@ class _FakeSource implements GameSource {
   List<GameBrowseOption> get browseOptions =>
       const [GameBrowseOption(key: 'latest', label: '最近更新')];
   @override
-  Future<GameList> browse(String optionKey, {int page = 1}) async =>
-      GameList(
+  Future<GameList> browse(String optionKey, {int page = 1}) async => GameList(
         items: [Game(id: '$optionKey-$page', title: '游戏$optionKey')],
         page: page,
         hasMore: false,
@@ -32,9 +31,10 @@ class _FakeSource implements GameSource {
 }
 
 class _TitleSource implements GameSource {
-  _TitleSource(this._id, this._title);
+  _TitleSource(this._id, this._title, {this.items});
   final String _id;
   final String _title;
+  final List<Game>? items;
   @override
   String get id => _id;
   @override
@@ -51,7 +51,7 @@ class _TitleSource implements GameSource {
       GameDetail(game: Game(id: id, title: id), sourceUrl: 'https://fake/$id');
   @override
   Future<List<Game>> search(String keyword) async =>
-      [Game(id: _id, title: _title)];
+      items ?? [Game(id: _id, title: _title)];
 }
 
 class _FailingSource implements GameSource {
@@ -91,7 +91,8 @@ void main() {
   test('gameDetailProvider delegates to the registered source', () async {
     final container = _container();
     addTearDown(container.dispose);
-    final detail = await container.read(gameDetailProvider(('fake', '1')).future);
+    final detail =
+        await container.read(gameDetailProvider(('fake', '1')).future);
     expect(detail.game.id, '1');
     expect(detail.sourceUrl, 'https://fake/game/1');
   });
@@ -131,15 +132,16 @@ void main() {
         isEmpty);
   });
 
-  test('gameSearchProvider merges and dedupes by title', () async {
+  test('gameSearchProvider preserves both sources for a shared title',
+      () async {
     final container = ProviderContainer(overrides: [
       gameSourceManagerProvider.overrideWithValue(GameSourceManager(
           sources: [_TitleSource('a', '同名游戏'), _TitleSource('b', '同名游戏')])),
     ]);
     addTearDown(container.dispose);
     final results = await container.read(gameSearchProvider('x').future);
-    expect(results, hasLength(1));
-    expect(results.single.sourceKey, 'a');
+    expect(results, hasLength(2));
+    expect(results.map((r) => r.sourceKey), ['a', 'b']);
   });
 
   test('gameSearchProvider is empty for a blank keyword', () async {
@@ -160,10 +162,42 @@ void main() {
 
   test('gameSearchProvider throws when all sources fail', () async {
     final container = ProviderContainer(overrides: [
-      gameSourceManagerProvider.overrideWithValue(
-          GameSourceManager(sources: [_FailingSource()])),
+      gameSourceManagerProvider
+          .overrideWithValue(GameSourceManager(sources: [_FailingSource()])),
     ]);
     addTearDown(container.dispose);
     expect(container.read(gameSearchProvider('x').future), throwsStateError);
+  });
+  test(
+      'same-title game versions remain distinct while repeated source ids collapse',
+      () async {
+    final container = ProviderContainer(overrides: [
+      gameSourceManagerProvider.overrideWithValue(GameSourceManager(sources: [
+        _TitleSource('a', '同名', items: const [
+          Game(id: '1', title: '同名', extra: {'version': '原版'}),
+          Game(id: '1', title: '同名', extra: {'version': '原版'}),
+          Game(id: '2', title: '同名', extra: {'version': '重制版'}),
+        ]),
+        _TitleSource('b', '同名', items: const [Game(id: '1', title: '同名')]),
+      ])),
+    ]);
+    addTearDown(container.dispose);
+    final results = await container.read(gameSearchProvider('同名').future);
+    expect(results, hasLength(3));
+    expect(results.map((r) => (r.sourceKey, r.game.id)),
+        [('a', '1'), ('a', '2'), ('b', '1')]);
+    expect(results[1].game.extra['version'], '重制版');
+  });
+  test('game aggregate searches only enabled sources', () async {
+    final enabled = _TitleSource('enabled', '启用结果');
+    final disabled = _TitleSource('disabled', '禁用结果');
+    final c = ProviderContainer(overrides: [
+      gameSourceManagerProvider
+          .overrideWithValue(GameSourceManager(sources: [enabled, disabled])),
+      gameSourcesProvider.overrideWithValue([enabled]),
+    ]);
+    addTearDown(c.dispose);
+    final results = await c.read(gameSearchProvider('作品').future);
+    expect(results.map((r) => r.sourceKey), ['enabled']);
   });
 }
