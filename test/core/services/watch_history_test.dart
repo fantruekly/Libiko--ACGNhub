@@ -24,9 +24,38 @@ WatchRecord _record(String id, String ep, int ms, {bool dirty = false}) =>
     );
 
 void main() {
+  test('old history defaults to zero and new playback fields round-trip', () {
+    final legacy = _record('a', '第1集', 1000).toJson()
+      ..remove('positionMs')
+      ..remove('durationMs')
+      ..remove('sourceId')
+      ..remove('lineId')
+      ..remove('episodeKey')
+      ..remove('completed');
+    final old = WatchRecord.fromJson(legacy);
+    expect(old.positionMs, 0);
+    expect(old.completed, false);
+    final progress = WatchRecord.fromJson(old
+        .copyWith(
+            positionMs: 12000,
+            durationMs: 100000,
+            sourceId: 's',
+            lineId: 'road:1',
+            episodeKey: 'episode:1',
+            completed: true)
+        .toJson());
+    expect(progress.positionMs, 12000);
+    expect(progress.durationMs, 100000);
+    expect(progress.sourceId, 's');
+    expect(progress.lineId, 'road:1');
+    expect(progress.episodeKey, 'episode:1');
+    expect(progress.completed, true);
+  });
+
   test('upsert dedupes by work id and puts the new record first', () {
     final existing = [_record('a', '第1集', 1000), _record('b', '第1集', 2000)];
-    final result = WatchHistoryManager.upsert(existing, _record('a', '第5集', 3000));
+    final result =
+        WatchHistoryManager.upsert(existing, _record('a', '第5集', 3000));
 
     expect(result, hasLength(2));
     expect(result.first.work.id, 'a');
@@ -35,17 +64,22 @@ void main() {
   });
 
   test('upsert inserts a new work at the front', () {
-    final result = WatchHistoryManager.upsert([_record('a', '第1集', 1000)], _record('c', '第2集', 2000));
+    final result = WatchHistoryManager.upsert(
+        [_record('a', '第1集', 1000)], _record('c', '第2集', 2000));
     expect(result.map((r) => r.work.id).toList(), ['c', 'a']);
   });
 
   test('sortDescending orders by watchedAt newest first', () {
-    final sorted = WatchHistoryManager.sortDescending(
-        [_record('a', 'e', 1000), _record('b', 'e', 3000), _record('c', 'e', 2000)]);
+    final sorted = WatchHistoryManager.sortDescending([
+      _record('a', 'e', 1000),
+      _record('b', 'e', 3000),
+      _record('c', 'e', 2000)
+    ]);
     expect(sorted.map((r) => r.work.id).toList(), ['b', 'c', 'a']);
   });
 
-  test('persists, dedupes, clears, and skips malformed stored entries', () async {
+  test('persists, dedupes, clears, and skips malformed stored entries',
+      () async {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();
 
@@ -63,11 +97,14 @@ void main() {
     expect(all.map((r) => r.work.id).toList(), ['a', 'b']);
     expect(all.first.episodeTitle, '第5集');
 
-    // A malformed stored entry must be skipped, not fail the whole list.
+    // Legacy preference values are migration input, never the new write path.
     final prefs = await SharedPreferences.getInstance();
-    final key = prefs.getKeys().firstWhere((k) => k.endsWith('watch_history'));
-    final raw = prefs.getStringList(key)!;
-    await prefs.setStringList(key, ['not json', ...raw]);
+    expect(prefs.getStringList('watch_history'), isNull);
+    final raw = AppDatabase().getStringList('watch_history');
+    SharedPreferences.setMockInitialValues({
+      'watch_history': ['not json', ...raw]
+    });
+    await AppDatabase.init();
     expect(manager.all().map((r) => r.work.id).toList(), ['a', 'b']);
 
     await manager.clear();
@@ -86,7 +123,8 @@ void main() {
     expect(byId['b']!.dirty, isFalse);
   });
 
-  test('record marks dirty and clear writes tombstones plus pendingClear', () async {
+  test('record marks dirty and clear writes tombstones plus pendingClear',
+      () async {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();
     final manager = WatchHistoryManager();

@@ -100,6 +100,7 @@ class MacCmsResolver {
     String playPageUrl, {
     String? userAgent,
     String? referer,
+    CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     final origin = _originOf(playPageUrl);
@@ -113,6 +114,7 @@ class MacCmsResolver {
     try {
       final response = await _dio.get<String>(
         playPageUrl,
+        cancelToken: cancelToken,
         options: Options(
           responseType: ResponseType.plain,
           headers: headers,

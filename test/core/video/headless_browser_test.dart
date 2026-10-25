@@ -86,14 +86,20 @@ void main() {
           'application/vnd.apple.mpegurl'),
       isTrue,
     );
-    expect(looksLikeMediaResponse('https://cdn.test/x', 'application/x-mpegURL'),
+    expect(
+        looksLikeMediaResponse('https://cdn.test/x', 'application/x-mpegURL'),
         isTrue);
   });
 
   test('still accepts media URLs and rejects plain responses', () {
     expect(looksLikeMediaResponse('https://cdn.test/v/1.m3u8', ''), isTrue);
-    expect(
-        looksLikeMediaResponse('https://cdn.test/page.html', 'text/html'), isFalse);
+    expect(looksLikeMediaResponse('https://cdn.test/page.html', 'text/html'),
+        isFalse);
     expect(looksLikeMediaResponse('https://cdn.test/time', ''), isFalse);
+  });
+
+  test('does not mistake a MPEG-TS segment for a playlist', () {
+    expect(looksLikeMediaResponse('https://cdn.test/seg001.ts', 'video/mp2t'),
+        isFalse);
   });
 }

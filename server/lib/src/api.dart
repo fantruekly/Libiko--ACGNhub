@@ -55,7 +55,8 @@ class Api {
         return await inner(req);
       } catch (e, st) {
         // ignore: avoid_print
-        print('Unhandled error on ${req.method} ${req.requestedUri.path}: $e\n$st');
+        print(
+            'Unhandled error on ${req.method} ${req.requestedUri.path}: $e\n$st');
         return _error(500, 'internal', 'Internal server error');
       }
     };
@@ -83,7 +84,8 @@ class Api {
 
   Future<Response> _register(Request req) async {
     final body = await _readJson(req);
-    if (body == null) return _error(400, 'bad_request', 'Expected a JSON object');
+    if (body == null)
+      return _error(400, 'bad_request', 'Expected a JSON object');
 
     final username = body['username'];
     final password = body['password'];
@@ -92,7 +94,8 @@ class Api {
           'username must be 3-32 characters of A-Z a-z 0-9 _ -');
     }
     if (password is! String || password.length < 6) {
-      return _error(400, 'bad_request', 'password must be at least 6 characters');
+      return _error(
+          400, 'bad_request', 'password must be at least 6 characters');
     }
     if (utf8.encode(password as String).length > 72) {
       return _error(400, 'bad_request', 'password must be at most 72 bytes');
@@ -111,7 +114,8 @@ class Api {
 
   Future<Response> _login(Request req) async {
     final body = await _readJson(req);
-    if (body == null) return _error(400, 'bad_request', 'Expected a JSON object');
+    if (body == null)
+      return _error(400, 'bad_request', 'Expected a JSON object');
 
     final username = body['username'];
     final password = body['password'];
@@ -135,7 +139,8 @@ class Api {
 
   Future<Response> _refresh(Request req) async {
     final body = await _readJson(req);
-    if (body == null) return _error(400, 'bad_request', 'Expected a JSON object');
+    if (body == null)
+      return _error(400, 'bad_request', 'Expected a JSON object');
 
     final refreshToken = body['refreshToken'];
     if (refreshToken is! String) {
@@ -170,7 +175,8 @@ class Api {
 
   Future<Response> _putFollow(Request req) async {
     final body = await _readJson(req);
-    if (body == null) return _error(400, 'bad_request', 'Expected a JSON object');
+    if (body == null)
+      return _error(400, 'bad_request', 'Expected a JSON object');
     final work = body['work'];
     final updatedAt = body['updatedAt'];
     if (work is! Map<String, dynamic> || work['id'] is! String) {
@@ -192,10 +198,10 @@ class Api {
   }
 
   Future<Response> _deleteFollow(Request req, String workId) async {
-    final updatedAt =
-        int.tryParse(req.url.queryParameters['updatedAt'] ?? '');
+    final updatedAt = int.tryParse(req.url.queryParameters['updatedAt'] ?? '');
     if (updatedAt == null) {
-      return _error(400, 'bad_request', 'updatedAt query parameter is required');
+      return _error(
+          400, 'bad_request', 'updatedAt query parameter is required');
     }
     final userId = _ctxUserId(req);
     final existing = db.getFollow(userId, workId);
@@ -209,7 +215,8 @@ class Api {
       updatedAt: updatedAt,
       deleted: true,
     );
-    return _json(200, {'workId': workId, 'updatedAt': row['client_updated_at']});
+    return _json(
+        200, {'workId': workId, 'updatedAt': row['client_updated_at']});
   }
 
   Future<Response> _listHistory(Request req) async {
@@ -218,6 +225,8 @@ class Api {
         'work': jsonDecode(row['work_json'] as String),
         'episodeTitle': row['episode_title'],
         'episodeIndex': row['episode_index'],
+        if (row['playback_json'] != null)
+          'playback': jsonDecode(row['playback_json'] as String),
         'watchedAt': row['watched_at'],
         'updatedAt': row['client_updated_at'],
       };
@@ -227,10 +236,15 @@ class Api {
 
   Future<Response> _putHistory(Request req) async {
     final body = await _readJson(req);
-    if (body == null) return _error(400, 'bad_request', 'Expected a JSON object');
+    if (body == null)
+      return _error(400, 'bad_request', 'Expected a JSON object');
     final work = body['work'];
     final episodeTitle = body['episodeTitle'];
     final episodeIndex = body['episodeIndex'];
+    final playback = body['playback'];
+    if (playback != null && !_validPlayback(playback)) {
+      return _error(400, 'bad_request', 'Invalid playback data');
+    }
     final watchedAt = body['watchedAt'];
     final updatedAt = body['updatedAt'];
     if (work is! Map<String, dynamic> || work['id'] is! String) {
@@ -249,6 +263,7 @@ class Api {
       work: work,
       episodeTitle: episodeTitle,
       episodeIndex: episodeIndex,
+      playback: playback as Map<String, dynamic>?,
       watchedAt: watchedAt,
       updatedAt: updatedAt,
     );
@@ -256,6 +271,8 @@ class Api {
       'work': jsonDecode(row['work_json'] as String),
       'episodeTitle': row['episode_title'],
       'episodeIndex': row['episode_index'],
+      if (row['playback_json'] != null)
+        'playback': jsonDecode(row['playback_json'] as String),
       'watchedAt': row['watched_at'],
       'updatedAt': row['client_updated_at'],
     });
@@ -264,7 +281,8 @@ class Api {
   Future<Response> _clearHistory(Request req) async {
     final updatedAt = int.tryParse(req.url.queryParameters['updatedAt'] ?? '');
     if (updatedAt == null) {
-      return _error(400, 'bad_request', 'updatedAt query parameter is required');
+      return _error(
+          400, 'bad_request', 'updatedAt query parameter is required');
     }
     final count = db.clearHistory(_ctxUserId(req), updatedAt);
     return _json(200, {'deleted': count});
@@ -272,7 +290,8 @@ class Api {
 
   Future<Response> _sync(Request req) async {
     final userId = _ctxUserId(req);
-    final sinceSeq = int.tryParse(req.url.queryParameters['sinceSeq'] ?? '0') ?? 0;
+    final sinceSeq =
+        int.tryParse(req.url.queryParameters['sinceSeq'] ?? '0') ?? 0;
 
     final follows = db.followsSince(userId, sinceSeq).map((row) {
       return {
@@ -287,6 +306,8 @@ class Api {
         'work': jsonDecode(row['work_json'] as String),
         'episodeTitle': row['episode_title'],
         'episodeIndex': row['episode_index'],
+        if (row['playback_json'] != null)
+          'playback': jsonDecode(row['playback_json'] as String),
         'watchedAt': row['watched_at'],
         'updatedAt': row['client_updated_at'],
         'deleted': (row['deleted'] as int) == 1,
@@ -298,5 +319,17 @@ class Api {
       'history': history,
       'nextSeq': db.currentSeq(userId),
     });
+  }
+
+  bool _validPlayback(Object value) {
+    if (value is! Map<String, dynamic>) return false;
+    for (final key in ['positionMs', 'durationMs']) {
+      final number = value[key];
+      if (number != null && (number is! int || number < 0)) return false;
+    }
+    for (final key in ['sourceId', 'lineId', 'episodeKey']) {
+      if (value[key] != null && value[key] is! String) return false;
+    }
+    return value['completed'] == null || value['completed'] is bool;
   }
 }

@@ -77,8 +77,7 @@ void main() {
     expect(jsonPathAll(data, 'not-a-path'), isEmpty);
   });
 
-  test('episode page template keeps unknown tokens and prefers long keys',
-      () {
+  test('episode page template keeps unknown tokens and prefers long keys', () {
     expect(
       resolveEpisodeUrl('@episodeIndex-@unknown', {'episodeIndex': '7'}),
       '7-@unknown',
@@ -201,8 +200,7 @@ void main() {
     expect(episodes.map((e) => e.index), [0, 1]);
   });
 
-  test('nested multi-road episodes prefix titles with the road name',
-      () async {
+  test('nested multi-road episodes prefix titles with the road name', () async {
     final adapter = _JsonAdapter('''
       {"data": {"roads": [
         {"name": "线路1", "episodes": [
@@ -230,9 +228,11 @@ void main() {
 
     final episodes = await client.episodes('https://api.test/detail/1');
 
-    expect(episodes.map((e) => e.title),
-        ['线路1 第1集', '线路1 第2集', '线路2 第1集']);
+    expect(episodes.map((e) => e.title), ['线路1 第1集', '线路1 第2集', '线路2 第1集']);
     expect(episodes.map((e) => e.index), [0, 1, 2]);
+    expect(episodes.map((e) => e.lineId), ['road:0', 'road:0', 'road:1']);
+    expect(episodes[0].episodeKey, episodes[2].episodeKey);
+    expect(episodes[2].sourceId, rule.id);
   });
 
   test('episodePage url and query templates are substituted', () async {

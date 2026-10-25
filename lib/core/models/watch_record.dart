@@ -8,6 +8,12 @@ class WatchRecord {
   final DateTime updatedAt;
   final bool deleted;
   final bool dirty;
+  final int positionMs;
+  final int durationMs;
+  final String? sourceId;
+  final String? lineId;
+  final String? episodeKey;
+  final bool completed;
 
   WatchRecord({
     required this.work,
@@ -17,6 +23,12 @@ class WatchRecord {
     DateTime? updatedAt,
     this.deleted = false,
     this.dirty = false,
+    this.positionMs = 0,
+    this.durationMs = 0,
+    this.sourceId,
+    this.lineId,
+    this.episodeKey,
+    this.completed = false,
   }) : updatedAt = updatedAt ?? watchedAt;
 
   factory WatchRecord.fromJson(Map<String, dynamic> json) {
@@ -33,6 +45,12 @@ class WatchRecord {
           : DateTime.fromMillisecondsSinceEpoch(updatedMs),
       deleted: json['deleted'] as bool? ?? false,
       dirty: json['dirty'] as bool? ?? false,
+      positionMs: json['positionMs'] as int? ?? 0,
+      durationMs: json['durationMs'] as int? ?? 0,
+      sourceId: json['sourceId'] as String?,
+      lineId: json['lineId'] as String?,
+      episodeKey: json['episodeKey'] as String?,
+      completed: json['completed'] as bool? ?? false,
     );
   }
 
@@ -44,6 +62,12 @@ class WatchRecord {
         'updatedAt': updatedAt.millisecondsSinceEpoch,
         'deleted': deleted,
         'dirty': dirty,
+        'positionMs': positionMs,
+        'durationMs': durationMs,
+        'sourceId': sourceId,
+        'lineId': lineId,
+        'episodeKey': episodeKey,
+        'completed': completed,
       };
 
   WatchRecord copyWith({
@@ -53,6 +77,12 @@ class WatchRecord {
     DateTime? updatedAt,
     bool? deleted,
     bool? dirty,
+    int? positionMs,
+    int? durationMs,
+    String? sourceId,
+    String? lineId,
+    String? episodeKey,
+    bool? completed,
   }) =>
       WatchRecord(
         work: work,
@@ -62,5 +92,11 @@ class WatchRecord {
         updatedAt: updatedAt ?? this.updatedAt,
         deleted: deleted ?? this.deleted,
         dirty: dirty ?? this.dirty,
+        positionMs: positionMs ?? this.positionMs,
+        durationMs: durationMs ?? this.durationMs,
+        sourceId: sourceId ?? this.sourceId,
+        lineId: lineId ?? this.lineId,
+        episodeKey: episodeKey ?? this.episodeKey,
+        completed: completed ?? this.completed,
       );
 }

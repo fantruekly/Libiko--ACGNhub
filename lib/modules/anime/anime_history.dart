@@ -54,8 +54,10 @@ class AnimeHistoryView extends ConsumerWidget {
                     return WorkCard(
                       work: record.work,
                       subtitle: '看到 ${record.episodeTitle}',
-                      onTap: () => Navigator.push(context,
-                          smoothRoute(AnimeDetailPage(work: record.work))),
+                      onTap: () => Navigator.push(
+                          context,
+                          smoothRoute(AnimeDetailPage(
+                              work: record.work, resumeRecord: record))),
                     );
                   },
                 ),

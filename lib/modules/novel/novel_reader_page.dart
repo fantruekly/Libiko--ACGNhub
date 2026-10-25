@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_history.dart';
+import '../../core/novel/reading_position.dart';
 import '../../core/novel/novel_reader_settings.dart';
 import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
@@ -24,14 +27,14 @@ class _Palette {
 
   static _Palette of(NovelReaderTheme theme, Brightness brightness) {
     return switch (resolveTheme(theme, brightness)) {
-      NovelReaderTheme.light => const _Palette(
-          Color(0xFFFFFFFF), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
-      NovelReaderTheme.sepia => const _Palette(
-          Color(0xFFF5EFE0), Color(0xFF3B3226), Color(0xFFEFE6D2), Color(0xFFE0D5BC)),
-      NovelReaderTheme.dark => const _Palette(
-          Color(0xFF1C1C1E), Color(0xFFD8D8DC), Color(0xFF2C2C2E), Color(0xFF3A3A3C)),
-      NovelReaderTheme.auto => const _Palette(
-          Color(0xFFFFFFFF), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
+      NovelReaderTheme.light => const _Palette(Color(0xFFFFFFFF),
+          Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
+      NovelReaderTheme.sepia => const _Palette(Color(0xFFF5EFE0),
+          Color(0xFF3B3226), Color(0xFFEFE6D2), Color(0xFFE0D5BC)),
+      NovelReaderTheme.dark => const _Palette(Color(0xFF1C1C1E),
+          Color(0xFFD8D8DC), Color(0xFF2C2C2E), Color(0xFF3A3A3C)),
+      NovelReaderTheme.auto => const _Palette(Color(0xFFFFFFFF),
+          Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFFE5E5EA)),
     };
   }
 }
@@ -55,9 +58,18 @@ class NovelReaderPage extends ConsumerStatefulWidget {
   ConsumerState<NovelReaderPage> createState() => _NovelReaderPageState();
 }
 
-class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
+class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
+    with WidgetsBindingObserver {
   late String _chapterId = widget.chapterId;
   String? _lastRecordedChapterId;
+  late final NovelHistoryNotifier _history;
+  NovelChapter? _activeChapter;
+  NovelHistoryEntry? _lastCaptured;
+  final _blockKeys = <int, GlobalKey>{};
+  final _viewportKey = GlobalKey();
+  Timer? _historyTimer;
+  bool _restoring = false;
+  double? _layoutWidth;
   bool _chromeVisible = true;
   final _scroll = ScrollController();
   final _progress = ValueNotifier<double>(0);
@@ -65,11 +77,16 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _history = ref.read(novelHistoryProvider.notifier);
     _scroll.addListener(_updateProgress);
   }
 
   @override
   void dispose() {
+    _flushHistory();
+    _historyTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _scroll.removeListener(_updateProgress);
     _progress.dispose();
     _scroll.dispose();
@@ -81,22 +98,31 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
     final position = _scroll.position;
     final max = position.maxScrollExtent;
     _progress.value = max <= 0 ? 0 : (position.pixels / max).clamp(0.0, 1.0);
+    if (!_restoring) _capturePosition();
+    if (!_restoring && _activeChapter != null && _historyTimer == null) {
+      _historyTimer = Timer(const Duration(seconds: 1), _flushHistory);
+    }
   }
 
   void _seekToFraction(double fraction) {
     if (!_scroll.hasClients) return;
-    _scroll.jumpTo(_scroll.position.maxScrollExtent *
-        fraction.clamp(0.0, 1.0));
+    _scroll.jumpTo(_scroll.position.maxScrollExtent * fraction.clamp(0.0, 1.0));
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(novelReaderSettingsProvider);
-    final palette =
-        _Palette.of(settings.theme, Theme.of(context).brightness);
+    ref.listen(
+        novelReaderSettingsProvider, (_, __) => _preserveLayoutPosition());
+    final width = MediaQuery.sizeOf(context).width;
+    if (_layoutWidth != null && width != _layoutWidth) {
+      _preserveLayoutPosition();
+    }
+    _layoutWidth = width;
+    final palette = _Palette.of(settings.theme, Theme.of(context).brightness);
     final chapters = _chapters();
-    final async =
-        ref.watch(novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)));
+    final async = ref.watch(
+        novelChapterProvider((widget.sourceKey, widget.novelId, _chapterId)));
     final index = chapters.indexWhere((c) => c.id == _chapterId);
 
     ref.listen(
@@ -137,16 +163,144 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   void _recordHistory(NovelChapter chapter) {
     if (_lastRecordedChapterId == _chapterId) return;
     _lastRecordedChapterId = _chapterId;
-    ref.read(novelHistoryProvider.notifier).record(NovelHistoryEntry(
-          sourceKey: widget.sourceKey,
-          novelId: widget.novelId,
-          title: widget.title,
-          cover: widget.cover,
-          chapterId: _chapterId,
-          chapterTitle:
-              chapter.title.isEmpty ? '第 $_chapterId 章' : chapter.title,
-          updatedAt: DateTime.now(),
-        ));
+    _activeChapter = chapter;
+    final saved =
+        NovelHistoryManager().forNovel(widget.sourceKey, widget.novelId);
+    final sameChapter = saved?.chapterId == _chapterId;
+    _lastCaptured = NovelHistoryEntry(
+      sourceKey: widget.sourceKey,
+      novelId: widget.novelId,
+      title: widget.title,
+      cover: widget.cover,
+      chapterId: _chapterId,
+      chapterTitle: chapter.title.isEmpty ? '第 $_chapterId 章' : chapter.title,
+      updatedAt: DateTime.now(),
+      blockIndex: sameChapter ? saved!.blockIndex : 0,
+      characterOffset: sameChapter ? saved!.characterOffset : 0,
+      scrollFraction: sameChapter ? saved!.scrollFraction : 0,
+      anchorText: sameChapter ? saved!.anchorText : null,
+    );
+    _restoring = true;
+    final chapterId = _chapterId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || chapterId != _chapterId) return;
+      if (saved != null && saved.chapterId == chapterId) {
+        _restorePosition(saved);
+      }
+      _restoring = false;
+      _flushHistory();
+    });
+  }
+
+  NovelHistoryEntry? _capturePosition() {
+    final chapter = _activeChapter;
+    if (chapter == null || _lastRecordedChapterId != _chapterId) return null;
+    var blockIndex = 0;
+    var characterOffset = 0;
+    final viewport = _viewportKey.currentContext?.findRenderObject();
+    if (viewport is! RenderBox || !viewport.hasSize || !viewport.attached) {
+      return _lastCaptured;
+    }
+    var foundBlock = false;
+    {
+      final visibleTop = viewport.localToGlobal(const Offset(0, 72)).dy;
+      for (var i = 0; i < chapter.blocks.length; i++) {
+        final render = _blockKeys[i]?.currentContext?.findRenderObject();
+        if (render is! RenderBox || !render.hasSize || !render.attached) {
+          continue;
+        }
+        final top = render.localToGlobal(Offset.zero).dy;
+        if (top + render.size.height <= visibleTop) continue;
+        blockIndex = i;
+        foundBlock = true;
+        if (render is RenderParagraph) {
+          characterOffset = render
+              .getPositionForOffset(
+                  Offset(0, (visibleTop - top).clamp(0, render.size.height)))
+              .offset;
+        }
+        break;
+      }
+    }
+    if (!foundBlock) return _lastCaptured;
+    final captured = NovelHistoryEntry(
+      sourceKey: widget.sourceKey,
+      novelId: widget.novelId,
+      title: widget.title,
+      cover: widget.cover,
+      chapterId: _chapterId,
+      chapterTitle: chapter.title.isEmpty ? '第 $_chapterId 章' : chapter.title,
+      updatedAt: DateTime.now(),
+      blockIndex: blockIndex,
+      characterOffset: characterOffset,
+      scrollFraction: _progress.value,
+      anchorText: chapter.blocks.isEmpty
+          ? null
+          : novelAnchorText(chapter.blocks[blockIndex], characterOffset),
+    );
+    _lastCaptured = captured;
+    return captured;
+  }
+
+  void _flushHistory() {
+    _historyTimer?.cancel();
+    _historyTimer = null;
+    final entry = _restoring ? _lastCaptured : _capturePosition();
+    if (entry != null) {
+      unawaited(_history.record(entry).catchError((Object error) {
+        debugPrint('[NovelReader] progress save failed: $error');
+      }));
+    }
+  }
+
+  void _restorePosition(NovelHistoryEntry saved) {
+    if (!_scroll.hasClients || _activeChapter == null) return;
+    if (saved.scrollFraction == 0 &&
+        saved.characterOffset == 0 &&
+        saved.blockIndex == 0) {
+      return;
+    }
+    final anchor = resolveNovelAnchor(_activeChapter!, saved);
+    var target = _scroll.position.maxScrollExtent * saved.scrollFraction;
+    final viewport = _viewportKey.currentContext?.findRenderObject();
+    final block = anchor == null
+        ? null
+        : _blockKeys[anchor.blockIndex]?.currentContext?.findRenderObject();
+    if (viewport is RenderBox && block is RenderBox && block.hasSize) {
+      final caret = block is RenderParagraph
+          ? block
+              .getOffsetForCaret(
+                  TextPosition(offset: anchor!.characterOffset), Rect.zero)
+              .dy
+          : 0.0;
+      target = _scroll.offset +
+          block.localToGlobal(Offset.zero).dy -
+          viewport.localToGlobal(const Offset(0, 72)).dy +
+          caret;
+    }
+    _scroll.jumpTo(target.clamp(0, _scroll.position.maxScrollExtent));
+  }
+
+  void _preserveLayoutPosition() {
+    if (_restoring) return;
+    final saved = _capturePosition();
+    if (saved == null) return;
+    _restoring = true;
+    final chapterId = _chapterId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || chapterId != _chapterId) return;
+      _restorePosition(saved);
+      _restoring = false;
+      _flushHistory();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _flushHistory();
+    }
   }
 
   List<NovelChapterRef> _chapters() {
@@ -158,11 +312,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
   Widget _content(
       NovelChapter chapter, NovelReaderSettings settings, _Palette palette) {
-    final imageWidth =
-        (((MediaQuery.sizeOf(context).width - 40) *
-                    MediaQuery.devicePixelRatioOf(context))
-                .round())
-            .clamp(1, 1 << 20);
+    final imageWidth = (((MediaQuery.sizeOf(context).width - 40) *
+                MediaQuery.devicePixelRatioOf(context))
+            .round())
+        .clamp(1, 1 << 20);
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(
         scrollbars: false,
@@ -176,6 +329,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
         },
       ),
       child: SingleChildScrollView(
+        key: _viewportKey,
         controller: _scroll,
         padding: const EdgeInsets.fromLTRB(20, 72, 20, 96),
         child: Column(
@@ -195,11 +349,15 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                       fontSize: settings.fontSize,
                       color: palette.fg.withValues(alpha: 0.5)))
             else
-              for (final block in chapter.blocks)
-                switch (block) {
+              for (var blockIndex = 0;
+                  blockIndex < chapter.blocks.length;
+                  blockIndex++)
+                switch (chapter.blocks[blockIndex]) {
                   NovelText(:final text) => Padding(
                       padding: const EdgeInsets.only(bottom: 14),
                       child: Text(text,
+                          key:
+                              _blockKeys.putIfAbsent(blockIndex, GlobalKey.new),
                           style: TextStyle(
                               fontSize: settings.fontSize,
                               height: settings.lineHeight,
@@ -208,6 +366,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                   NovelImage(:final url) => Padding(
                       padding: const EdgeInsets.only(bottom: 14),
                       child: SizedBox(
+                        key: _blockKeys.putIfAbsent(blockIndex, GlobalKey.new),
                         height: _illustrationHeight(context),
                         width: double.infinity,
                         child: CachedNetworkImage(
@@ -216,8 +375,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                           httpHeaders: novelImageHeaders,
                           cacheManager: AppCacheManager(),
                           memCacheWidth: imageWidth,
-                          placeholder: (_, __) => const Center(
-                              child: CircularProgressIndicator()),
+                          placeholder: (_, __) =>
+                              const Center(child: CircularProgressIndicator()),
                           errorWidget: (_, __, ___) => const Center(
                               child: Icon(Icons.broken_image_outlined)),
                         ),
@@ -268,7 +427,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
                 widget.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: palette.fg),
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: palette.fg),
               ),
             ),
             if (isDesktop) const WindowControls(),
@@ -278,7 +440,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
     );
   }
 
-  Widget _bottomBar(_Palette palette, List<NovelChapterRef> chapters, int index) {
+  Widget _bottomBar(
+      _Palette palette, List<NovelChapterRef> chapters, int index) {
     final hasPrev = index > 0;
     final hasNext = index >= 0 && index < chapters.length - 1;
     final detail = ref
@@ -299,7 +462,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
           children: [
             _barButton(palette, Icons.chevron_left_rounded, '上一章',
                 hasPrev ? () => _goChapter(chapters[index - 1].id) : null),
-            _barButton(palette, Icons.list_rounded, '目录', () => _openCatalog(detail)),
+            _barButton(
+                palette, Icons.list_rounded, '目录', () => _openCatalog(detail)),
             _barButton(palette, Icons.text_fields_rounded, '设置', _openSettings),
             _barButton(palette, Icons.chevron_right_rounded, '下一章',
                 hasNext ? () => _goChapter(chapters[index + 1].id) : null),
@@ -337,7 +501,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
 
   Widget _barButton(
       _Palette palette, IconData icon, String label, VoidCallback? onTap) {
-    final color = onTap == null ? palette.fg.withValues(alpha: 0.3) : palette.fg;
+    final color =
+        onTap == null ? palette.fg.withValues(alpha: 0.3) : palette.fg;
     return TextButton(
       onPressed: onTap,
       child: Column(
@@ -351,8 +516,15 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage> {
   }
 
   void _goChapter(String chapterId) {
-    setState(() => _chapterId = chapterId);
+    _flushHistory();
+    _restoring = true;
     if (_scroll.hasClients) _scroll.jumpTo(0);
+    _blockKeys.clear();
+    _lastCaptured = null;
+    _activeChapter = null;
+    _lastRecordedChapterId = null;
+    _progress.value = 0;
+    setState(() => _chapterId = chapterId);
   }
 
   void _openCatalog(NovelDetail? detail) {
@@ -436,7 +608,8 @@ class _ReaderSettingsSheet extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('字号', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const Text('字号',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           Row(
             children: [
               IconButton(
@@ -445,7 +618,8 @@ class _ReaderSettingsSheet extends ConsumerWidget {
                     : null,
                 icon: const Icon(Icons.remove_rounded),
               ),
-              Text('${settings.fontSize.round()}', style: const TextStyle(fontSize: 15)),
+              Text('${settings.fontSize.round()}',
+                  style: const TextStyle(fontSize: 15)),
               IconButton(
                 onPressed: settings.fontSize < 28
                     ? () => notifier.setFontSize(settings.fontSize + 1)
@@ -455,7 +629,8 @@ class _ReaderSettingsSheet extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('行距', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const Text('行距',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           Row(
             children: [
               IconButton(
@@ -475,7 +650,8 @@ class _ReaderSettingsSheet extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('主题', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const Text('主题',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 10,

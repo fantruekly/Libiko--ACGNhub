@@ -2,12 +2,16 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/video/browser_pool.dart';
+import 'package:libiko/core/video/cancellation.dart';
 import 'package:libiko/core/video/headless_browser.dart';
 
 class _FakeBrowser implements HeadlessBrowser {
-  _FakeBrowser(this.onDispose, {this.startError});
+  _FakeBrowser(this.onDispose, {this.startError, this.startGate});
   final void Function(_FakeBrowser) onDispose;
   final Object? startError;
+  final Completer<void>? startGate;
+  String? script;
+  Completer<void>? loadGate;
   int _loadId = 0;
   int startCount = 0;
   final List<String> loads = [];
@@ -22,6 +26,8 @@ class _FakeBrowser implements HeadlessBrowser {
   @override
   Future<void> start({String? userAgent, String? extraScript}) async {
     startCount++;
+    script = extraScript;
+    await startGate?.future;
     if (startError != null) throw startError!;
   }
 
@@ -30,6 +36,7 @@ class _FakeBrowser implements HeadlessBrowser {
       {Duration timeout = const Duration(seconds: 15)}) async {
     _loadId++;
     loads.add(url);
+    await loadGate?.future;
   }
 
   @override
@@ -45,6 +52,139 @@ class _FakeBrowser implements HeadlessBrowser {
 }
 
 void main() {
+  test('does not reuse a browser with a different document script', () async {
+    final created = <_FakeBrowser>[];
+    final pool = HeadlessBrowserPool(
+        factory: () {
+          final browser = _FakeBrowser((_) {});
+          created.add(browser);
+          return browser;
+        },
+        maxBrowsers: 1);
+    final plain = await pool.acquire(userAgent: 'UA');
+    await plain.release();
+    final legacy =
+        await pool.acquire(userAgent: 'UA', extraScript: kLegacyIframeScript);
+    expect(legacy.userAgent, 'UA');
+    expect(created, hasLength(2));
+    expect(created.last.script, kLegacyIframeScript);
+    await legacy.release();
+    final again =
+        await pool.acquire(userAgent: 'UA', extraScript: kLegacyIframeScript);
+    expect(created, hasLength(2));
+    await again.release();
+    await pool.shutdown();
+  });
+
+  test('cancelled queued waiter cannot consume the next released browser',
+      () async {
+    final pool = HeadlessBrowserPool(
+        factory: () => _FakeBrowser((_) {}), maxBrowsers: 1);
+    final holder = await pool.acquire();
+    final cancel = CancellationToken();
+    final cancelled = pool.acquire(cancel: cancel);
+    final rejected = expectLater(cancelled, throwsA(isA<StateError>()));
+    final next = pool.acquire();
+    cancel.cancel();
+    await rejected;
+    await holder.release();
+    final browser = await next.timeout(const Duration(seconds: 1));
+    expect(pool.activeCount, 1);
+    await browser.release();
+    await pool.shutdown();
+  });
+
+  test('cancelled creation disposes late browser before serving another waiter',
+      () async {
+    final gate = Completer<void>();
+    final disposed = <_FakeBrowser>[];
+    final created = <_FakeBrowser>[];
+    final pool = HeadlessBrowserPool(
+        factory: () {
+          final browser = _FakeBrowser(disposed.add,
+              startGate: created.isEmpty ? gate : null);
+          created.add(browser);
+          return browser;
+        },
+        maxBrowsers: 1);
+    final cancel = CancellationToken();
+    final first = pool.acquire(cancel: cancel);
+    final rejected = expectLater(first, throwsA(isA<StateError>()));
+    cancel.cancel();
+    await rejected;
+    final next = pool.acquire();
+    expect(created, hasLength(1));
+    gate.complete();
+    final browser = await next.timeout(const Duration(seconds: 1));
+    expect(disposed, contains(created.first));
+    expect(created, hasLength(2));
+    await browser.release();
+    await pool.shutdown();
+  });
+
+  test('shutdown rejects in-flight acquisition and disposes late creation',
+      () async {
+    final gate = Completer<void>();
+    final disposed = <_FakeBrowser>[];
+    final pool = HeadlessBrowserPool(
+        factory: () => _FakeBrowser(disposed.add, startGate: gate));
+    final pending = pool.acquire();
+    final rejected = expectLater(pending, throwsA(isA<StateError>()));
+    await pool.shutdown();
+    await rejected;
+    gate.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(disposed, hasLength(1));
+    expect(pool.activeCount, 0);
+    expect(pool.idleCount, 0);
+  });
+
+  test('released handle stops observing events after browser reuse', () async {
+    late _FakeBrowser fake;
+    final pool =
+        HeadlessBrowserPool(factory: () => fake = _FakeBrowser((_) {}));
+    final first = await pool.acquire();
+    await first.load('https://first');
+    final seen = <MediaCandidate>[];
+    final subscription = first.mediaUrls.listen(seen.add);
+    await first.release();
+    fake.emit(MediaCandidate('https://stale.m3u8', loadId: fake.loadId));
+    await Future<void>.delayed(Duration.zero);
+    expect(seen, isEmpty);
+    await expectLater(
+        first.load('https://illegal'), throwsA(isA<StateError>()));
+    await subscription.cancel();
+    await pool.shutdown();
+  });
+
+  test('does not reuse a browser before a released handle finishes loading',
+      () async {
+    late _FakeBrowser fake;
+    final pool = HeadlessBrowserPool(
+        factory: () => fake = _FakeBrowser((_) {}), maxBrowsers: 1);
+    final first = await pool.acquire();
+    final gate = Completer<void>();
+    fake.loadGate = gate;
+    final loading = first.load('https://first');
+    final releasing = first.release();
+    var borrowed = false;
+    final next = pool.acquire().then((browser) {
+      borrowed = true;
+      return browser;
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(borrowed, isFalse);
+    fake.loadGate = null;
+    gate.complete();
+    await loading;
+    await releasing;
+    final second = await next;
+    await second.load('https://second');
+    expect(fake.loads, ['https://first', 'about:blank', 'https://second']);
+    await second.release();
+    await pool.shutdown();
+  });
+
   test('defaults to a larger pool for concurrent source searches', () {
     expect(HeadlessBrowserPool().maxBrowsers, 4);
   });
@@ -127,12 +267,16 @@ void main() {
     );
     final holder = await pool.acquire();
     final order = <String>[];
-    final background = pool
-        .acquire(priority: BrowserPriority.background)
-        .then((b) { order.add('bg'); return b; });
-    final foreground = pool
-        .acquire(priority: BrowserPriority.foreground)
-        .then((b) { order.add('fg'); return b; });
+    final background =
+        pool.acquire(priority: BrowserPriority.background).then((b) {
+      order.add('bg');
+      return b;
+    });
+    final foreground =
+        pool.acquire(priority: BrowserPriority.foreground).then((b) {
+      order.add('fg');
+      return b;
+    });
     await holder.release();
     final fgBrowser = await foreground;
     await fgBrowser.release();
@@ -176,8 +320,7 @@ void main() {
     // Before load(), the handle's loadId sentinel (-1) matches nothing.
     browser.emit(const MediaCandidate('https://stale.m3u8', loadId: 0));
     await borrowed.load('https://page');
-    browser.emit(
-        MediaCandidate('https://fresh.m3u8', loadId: browser.loadId));
+    browser.emit(MediaCandidate('https://fresh.m3u8', loadId: browser.loadId));
     await Future<void>.delayed(const Duration(milliseconds: 10));
     await sub.cancel();
     expect(received, ['https://fresh.m3u8']);
@@ -282,8 +425,7 @@ void main() {
     expect(disposed, hasLength(1));
   });
 
-  test(
-      're-pumps the queue when a create fails instead of hanging waiters',
+  test('re-pumps the queue when a create fails instead of hanging waiters',
       () async {
     final pool = HeadlessBrowserPool(
       factory: () =>
@@ -315,9 +457,10 @@ void main() {
     expect(created.length, 1);
 
     var bg2Done = false;
-    final bg2 = pool
-        .acquire(priority: BrowserPriority.background)
-        .then((b) { bg2Done = true; return b; });
+    final bg2 = pool.acquire(priority: BrowserPriority.background).then((b) {
+      bg2Done = true;
+      return b;
+    });
     await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(bg2Done, isFalse);
     expect(created.length, 1);

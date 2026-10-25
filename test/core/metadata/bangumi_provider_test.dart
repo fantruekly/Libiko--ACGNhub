@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/metadata/bangumi_provider.dart';
 import 'package:libiko/core/metadata/metadata_provider.dart';
+import 'package:libiko/core/video/title_match.dart';
 
 class _RecordingAdapter implements HttpClientAdapter {
   _RecordingAdapter(this.data);
@@ -86,6 +87,9 @@ void main() {
     final w = works.first;
     expect(w.id, 'bangumi_456080');
     expect(w.title, '转学后班上的清纯可爱美少女');
+    expect(w.extra['titleNative'], calendarItem['name']);
+    expect(
+        titleSearchQueries(w.title, w.extra), [w.title, calendarItem['name']]);
     expect(w.coverUrl,
         'https://images.weserv.nl/?url=https%3A%2F%2Flain.bgm.tv%2Fpic%2Fcover%2Fl%2Fce%2Fe2%2F456080_C4q4C.jpg&w=300');
     expect(w.summary, '幼かった夏の終わり。');
@@ -139,12 +143,14 @@ void main() {
       ],
     });
     expect(w.title, 'Sousou no Frieren');
+    expect(w.extra['titleNative'], 'Sousou no Frieren');
     expect(w.tags, ['奇幻', '冒险']);
     expect(w.extra['episodes'], 28);
     expect(w.extra['score'], closeTo(8.9, 0.001));
   });
 
-  test('feed(today) filters to the injected weekday; page>1 is empty', () async {
+  test('feed(today) filters to the injected weekday; page>1 is empty',
+      () async {
     final days = [
       {
         'weekday': {'id': 4},
@@ -213,6 +219,7 @@ void main() {
     final w = works.first;
     expect(w.id, 'bangumi_633836');
     expect(w.title, 'Re：从零开始的异世界生活 第四季 夺还篇');
+    expect(w.extra['titleNative'], 'Re:ゼロから始める異世界生活 4th season 奪還篇');
     expect(w.coverUrl,
         'https://images.weserv.nl/?url=https%3A%2F%2Flain.bgm.tv%2Fr%2F400%2Fpic%2Fcover%2Fl%2F43%2Fca%2F633836_ql0f3.jpg&w=300');
     expect(w.extra['bangumiId'], 633836);
@@ -249,8 +256,7 @@ void main() {
     expect(chars.first.relation, '主角');
     expect(chars.first.image, 'https://lain.bgm.tv/crt/g/1.jpg');
     expect(chars.first.actors.single.name, '福山润');
-    expect(
-        chars.first.actors.single.image, 'https://lain.bgm.tv/prsn/g/2.jpg');
+    expect(chars.first.actors.single.image, 'https://lain.bgm.tv/prsn/g/2.jpg');
   });
 
   test('parseRelated prefers name_cn and keeps relation', () {
@@ -270,5 +276,42 @@ void main() {
     expect(rel.first.title, '超级机器人大战X');
     expect(rel.first.relation, '游戏');
     expect(rel.first.image, 'https://lain.bgm.tv/cover/g/231989.jpg');
+  });
+  test(
+      'detail retains native title and existing infobox aliases for source queries',
+      () {
+    final work = BangumiProvider.parseDetail({
+      'id': 7,
+      'name': ' Original Native Title ',
+      'name_cn': '中文标题',
+      'infobox': [
+        {
+          'key': '别名',
+          'value': [
+            {'v': ' English Alias '},
+            {'v': 'English Alias'},
+            {'v': null},
+            1,
+          ]
+        },
+        {'key': '別名', 'value': 'Romanized Alias'},
+        {'key': '导演', 'value': '不能当作品名查询'},
+      ],
+    });
+    expect(work.title, '中文标题');
+    expect(work.extra['titleNative'], 'Original Native Title');
+    expect(work.extra['aliases'], ['中文标题', 'English Alias', 'Romanized Alias']);
+    expect(titleSearchQueries(work.title, work.extra),
+        ['中文标题', 'Original Native Title', 'English Alias', 'Romanized Alias']);
+  });
+
+  test('search retains original names alongside translated display titles', () {
+    final work = BangumiProvider.parseSearch({
+      'data': [
+        {'id': 9, 'name': '日本語の作品', 'name_cn': '译名作品'},
+      ]
+    }).single;
+    expect(work.title, '译名作品');
+    expect(work.extra['titleNative'], '日本語の作品');
   });
 }

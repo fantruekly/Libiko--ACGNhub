@@ -101,6 +101,14 @@ class JikanProvider implements MetadataProvider {
         'malId': malId,
         'titleNative': item['title_japanese'],
         'titleEnglish': item['title_english'],
+        'aliases': {
+          if (item['title_synonyms'] is List)
+            ...(item['title_synonyms'] as List).whereType<String>(),
+          if (item['titles'] is List)
+            for (final title in item['titles'] as List)
+              if (title is Map && title['title'] is String)
+                title['title'] as String,
+        }.where((title) => title.trim().isNotEmpty).toList(),
         'score': item['score'],
         'episodes': item['episodes'],
         'status': item['status'],

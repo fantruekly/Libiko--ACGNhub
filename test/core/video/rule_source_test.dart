@@ -49,6 +49,9 @@ void main() {
     expect(eps[0].title, '线路1 第1集');
     expect(eps[2].title, '线路2 第1集');
     expect(eps[2].playUrl, 'https://www.7sefun.top/play/3');
+    expect(eps.map((e) => e.lineId), ['road:0', 'road:0', 'road:1']);
+    expect(eps[0].sourceId, _rule.id);
+    expect(eps[0].episodeKey, eps[2].episodeKey);
   });
 
   test('mapSearch returns empty for non-list input', () {

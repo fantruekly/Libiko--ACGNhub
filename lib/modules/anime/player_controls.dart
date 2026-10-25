@@ -20,6 +20,8 @@ class PlayerControlsOverlay extends StatefulWidget {
   final bool muted;
   final ValueChanged<double> onVolumeChanged;
   final VoidCallback onToggleMute;
+  final bool autoNext;
+  final ValueChanged<bool>? onAutoNextChanged;
 
   const PlayerControlsOverlay({
     super.key,
@@ -40,6 +42,8 @@ class PlayerControlsOverlay extends StatefulWidget {
     required this.muted,
     required this.onVolumeChanged,
     required this.onToggleMute,
+    this.autoNext = true,
+    this.onAutoNextChanged,
   });
 
   @override
@@ -50,8 +54,9 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
   Duration? _drag;
   bool _volumePanelOpen = false;
 
-  double get _maxMs =>
-      widget.duration.inMilliseconds <= 0 ? 1.0 : widget.duration.inMilliseconds.toDouble();
+  double get _maxMs => widget.duration.inMilliseconds <= 0
+      ? 1.0
+      : widget.duration.inMilliseconds.toDouble();
 
   Duration get _displayPosition {
     final current = _drag ?? widget.position;
@@ -259,6 +264,14 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
                 onPressed: widget.hasNext ? widget.onNextEpisode : null,
               ),
               const Spacer(),
+              if (widget.onAutoNextChanged != null)
+                IconButton(
+                  key: const ValueKey('player-auto-next'),
+                  icon: Icon(Icons.playlist_play_rounded,
+                      color: widget.autoNext ? cs.primary : Colors.white38),
+                  tooltip: widget.autoNext ? '自动连播：开' : '自动连播：关',
+                  onPressed: () => widget.onAutoNextChanged!(!widget.autoNext),
+                ),
               IconButton(
                 key: const ValueKey('player-volume'),
                 icon: Icon(

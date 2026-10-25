@@ -31,3 +31,12 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      - name: Test media sniffer
+        run: node test/core/video/media_sniffer_test.js
+
+      - name: Test sync backend
+        working-directory: server
+        run: |
+          dart pub get
+          dart test

@@ -7,6 +7,7 @@ import 'package:file_selector/file_selector.dart';
 import '../../core/account/sync_service.dart';
 import '../../core/models/anime_extra.dart';
 import '../../core/models/work.dart';
+import '../../core/models/watch_record.dart';
 import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/services/follow_manager.dart';
@@ -42,7 +43,13 @@ class _SourceResult {
 
 class AnimeDetailPage extends ConsumerStatefulWidget {
   final Work work;
-  const AnimeDetailPage({super.key, required this.work});
+  final WatchRecord? resumeRecord;
+  final bool autoResume;
+  const AnimeDetailPage(
+      {super.key,
+      required this.work,
+      this.resumeRecord,
+      this.autoResume = false});
 
   @override
   ConsumerState<AnimeDetailPage> createState() => _AnimeDetailPageState();
@@ -57,6 +64,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   int _searchSeq = 0;
   VideoItem? _expandedItem;
   bool _moreOpen = false;
+  final _confirmingSources = <String>{};
+  bool _autoResumeAttempted = false;
   VideoSource? _expandedSource;
   List<VideoEpisode>? _episodes;
   bool _episodesLoading = false;
@@ -149,7 +158,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     unselectedLabelColor: cs.onSurfaceVariant,
                     indicatorColor: cs.primary,
                     dividerColor: cs.outlineVariant,
-                    tabs: const [Tab(text: '概览'), Tab(text: '角色'), Tab(text: '关联')],
+                    tabs: const [
+                      Tab(text: '概览'),
+                      Tab(text: '角色'),
+                      Tab(text: '关联')
+                    ],
                   ),
                   Expanded(
                     child: TabBarView(
@@ -184,7 +197,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     if (_loadingExtras) return const Center(child: CircularProgressIndicator());
     final chars = _characters ?? const <AnimeCharacter>[];
     if (chars.isEmpty) {
-      return Center(child: Text('暂无角色信息', style: TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.4))));
+      return Center(
+          child: Text('暂无角色信息',
+              style: TextStyle(
+                  fontSize: 14, color: cs.onSurface.withValues(alpha: 0.4))));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -198,7 +214,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: SizedBox(width: 56, height: 56, child: _image(c.image, cs)),
+                child:
+                    SizedBox(width: 56, height: 56, child: _image(c.image, cs)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -212,17 +229,21 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                             c.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w600),
                           ),
                         ),
                         if (c.relation != null && c.relation!.isNotEmpty)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: cs.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(c.relation!, style: TextStyle(fontSize: 11, color: cs.primary)),
+                            child: Text(c.relation!,
+                                style:
+                                    TextStyle(fontSize: 11, color: cs.primary)),
                           ),
                       ],
                     ),
@@ -231,9 +252,17 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                         padding: const EdgeInsets.only(top: 6),
                         child: Row(
                           children: [
-                            ClipOval(child: SizedBox(width: 24, height: 24, child: _image(a.image, cs))),
+                            ClipOval(
+                                child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: _image(a.image, cs))),
                             const SizedBox(width: 8),
-                            Text('CV: ${a.name}', style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6))),
+                            Text('CV: ${a.name}',
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    color:
+                                        cs.onSurface.withValues(alpha: 0.6))),
                           ],
                         ),
                       ),
@@ -251,7 +280,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     if (_loadingExtras) return const Center(child: CircularProgressIndicator());
     final rel = _related ?? const <RelatedWork>[];
     if (rel.isEmpty) {
-      return Center(child: Text('暂无关联作品', style: TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.4))));
+      return Center(
+          child: Text('暂无关联作品',
+              style: TextStyle(
+                  fontSize: 14, color: cs.onSurface.withValues(alpha: 0.4))));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -282,23 +314,33 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: SizedBox(width: 56, height: 80, child: _image(r.image, cs)),
+                  child: SizedBox(
+                      width: 56, height: 80, child: _image(r.image, cs)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(r.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, height: 1.35)),
+                      Text(r.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              height: 1.35)),
                       if (r.relation != null && r.relation!.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 6),
-                          child: Text(r.relation!, style: TextStyle(fontSize: 12, color: cs.primary)),
+                          child: Text(r.relation!,
+                              style:
+                                  TextStyle(fontSize: 12, color: cs.primary)),
                         ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: cs.onSurface.withValues(alpha: 0.2)),
+                Icon(Icons.chevron_right_rounded,
+                    color: cs.onSurface.withValues(alpha: 0.2)),
               ],
             ),
           ),
@@ -316,8 +358,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       fit: BoxFit.cover,
       memCacheWidth: 160,
       cacheManager: AppCacheManager(),
-      placeholder: (_, __) => Container(color: cs.primary.withValues(alpha: 0.06)),
-      errorWidget: (_, __, ___) => Container(color: cs.primary.withValues(alpha: 0.08)),
+      placeholder: (_, __) =>
+          Container(color: cs.primary.withValues(alpha: 0.06)),
+      errorWidget: (_, __, ___) =>
+          Container(color: cs.primary.withValues(alpha: 0.08)),
     );
   }
 
@@ -436,8 +480,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                       runSpacing: 6,
                       children: [
                         if (episodes != null)
-                          _metaChip(Icons.live_tv_rounded, '$episodes 话',
-                              cs.primary),
+                          _metaChip(
+                              Icons.live_tv_rounded, '$episodes 话', cs.primary),
                         if (seasonYear != null)
                           _metaChip(Icons.calendar_today_rounded, '$seasonYear',
                               const Color(0xFF5856D6)),
@@ -474,7 +518,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           ref.read(followProvider.notifier).toggle(w);
           ref.read(syncProvider).schedule();
         },
-        icon: Icon(followed ? Icons.check_rounded : Icons.add_rounded, size: 16),
+        icon:
+            Icon(followed ? Icons.check_rounded : Icons.add_rounded, size: 16),
         label: Text(followed ? '已追番' : '追番',
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       );
@@ -532,8 +577,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: cs.outlineVariant, width: 0.5),
+                      border: Border.all(color: cs.outlineVariant, width: 0.5),
                     ),
                     child: Text(
                       t,
@@ -620,6 +664,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       _episodes = null;
       _episodesError = null;
       _episodesLoading = false;
+      _confirmingSources.clear();
     });
 
     final queue = [..._sourceResults];
@@ -634,14 +679,47 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
 
     await Future.wait([for (var i = 0; i < 3; i++) worker()]);
+    if (mounted &&
+        gen == _searchGen &&
+        widget.autoResume &&
+        widget.resumeRecord != null &&
+        !_autoResumeAttempted) {
+      _autoResumeAttempted = true;
+      await _resumeHistory();
+    }
   }
 
   Future<void> _searchOne(_SourceResult r, int gen) async {
     if (_disposed) return;
     try {
-      final items = await r.source
-          .search(_work.title, cancel: _searchCancel)
-          .timeout(const Duration(seconds: 12));
+      final queries = titleSearchQueries(_work.title, _work.extra);
+      final items = <VideoItem>[];
+      final seen = <String>{};
+      final clock = Stopwatch()..start();
+      var succeeded = false;
+      for (final query in queries) {
+        if (_disposed || gen != _searchGen) return;
+        final remaining = const Duration(seconds: 12) - clock.elapsed;
+        if (remaining <= Duration.zero) break;
+        try {
+          final found = await r.source
+              .search(query, cancel: _searchCancel)
+              .timeout(remaining);
+          succeeded = true;
+          for (final item in found) {
+            if (seen.add(item.detailUrl)) items.add(item);
+          }
+        } catch (_) {
+          // Another metadata alias may still be searchable on this source.
+        }
+        if (bestMatchIndex(_work.title, [for (final it in items) it.title],
+                aliases: queries.skip(1),
+                format: _work.extra['format'] as String?) >=
+            0) {
+          break;
+        }
+      }
+      if (!succeeded) throw StateError('搜索源未返回结果');
       if (!mounted || gen != _searchGen) return;
       setState(() {
         r.items = items;
@@ -649,9 +727,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           r.best = null;
           r.alternatives = const [];
         } else {
-          final idx =
-              bestMatchIndex(_work.title, [for (final it in items) it.title]);
-          r.best = items[idx];
+          final idx = bestMatchIndex(
+              _work.title, [for (final it in items) it.title],
+              aliases: queries.skip(1),
+              format: _work.extra['format'] as String?);
+          r.best = idx < 0 ? null : items[idx];
           r.alternatives = [
             for (var i = 0; i < items.length; i++)
               if (i != idx) items[i],
@@ -666,14 +746,31 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
   }
 
-  List<(VideoItem, VideoSource, List<VideoItem>)> get _flatResults {
+  List<(VideoItem, VideoSource, List<VideoItem>, bool)> get _flatResults {
     final done = _sourceResults
-        .where((r) => r.status == _SourceStatus.done && r.best != null)
+        .where((r) => r.status == _SourceStatus.done && r.items.isNotEmpty)
         .toList()
       ..sort((a, b) => a.seq.compareTo(b.seq));
     return [
-      for (final r in done) (r.best!, r.source, r.alternatives),
+      for (final r in done)
+        (
+          r.best ?? r.items.first,
+          r.source,
+          r.best == null ? r.items.skip(1).toList() : r.alternatives,
+          r.best == null
+        ),
     ];
+  }
+
+  void _confirmMatch(VideoItem item, VideoSource source) {
+    setState(() {
+      final result = _sourceResults.firstWhere((r) => r.source.id == source.id);
+      result.best = item;
+      result.alternatives =
+          result.items.where((it) => !identical(it, item)).toList();
+      _confirmingSources.remove(source.id);
+    });
+    _expandItem(item, source);
   }
 
   Future<void> _expandItem(VideoItem item, VideoSource source) async {
@@ -703,8 +800,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       _episodesLoading = true;
     });
     try {
-      final eps =
-          await source.episodes(item.detailUrl, cancel: _searchCancel);
+      final eps = await source.episodes(item.detailUrl, cancel: _searchCancel);
       if (!mounted || !identical(_expandedItem, item)) return;
       setState(() {
         _episodes = eps;
@@ -719,7 +815,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
   }
 
-  Future<void> _playEpisode(VideoEpisode ep) async {
+  Future<void> _playEpisode(VideoEpisode ep,
+      {Duration initialPosition = Duration.zero}) async {
+    final episodes = List<VideoEpisode>.of(_episodes ?? const []);
+    final sourceName = _expandedSource?.name ?? '';
+    final index = episodes.indexOf(ep);
+    if (index < 0) return;
     final messenger = ScaffoldMessenger.of(context);
     final cancel = CancellationToken();
     final outcome = await showResolveDialog(
@@ -749,13 +850,64 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       MaterialPageRoute(
         builder: (_) => VideoPlayerPage(
           work: _work,
-          episodes: _episodes ?? const [],
-          initialIndex: ep.index,
+          episodes: episodes,
+          initialIndex: index,
           initialCandidates: result.candidates,
-          sourceName: _expandedSource?.name ?? '',
+          sourceName: sourceName,
+          initialPosition: initialPosition,
         ),
       ),
     );
+  }
+
+  Future<void> _resumeHistory() async {
+    final record = widget.resumeRecord;
+    if (record == null) return;
+    _SourceResult? found;
+    for (final result in _sourceResults) {
+      if (result.source.id == record.sourceId && result.best != null) {
+        found = result;
+        break;
+      }
+    }
+    if (found == null) {
+      final needsConfirmation = _sourceResults.any((result) =>
+          result.source.id == record.sourceId &&
+          result.items.isNotEmpty &&
+          result.best == null);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(needsConfirmation
+            ? '原播放源的作品匹配待确认，请手动核对后继续观看'
+            : '原播放源暂不可用，请手动选择线路与集数'),
+      ));
+      return;
+    }
+    setState(() {
+      _expandedItem = found!.best;
+    });
+    await _loadEpisodes(found.best!, found.source);
+    if (!mounted) return;
+    if (!identical(_expandedItem, found.best) ||
+        _expandedSource != found.source) {
+      return;
+    }
+    final matches = (_episodes ?? const <VideoEpisode>[])
+        .where((episode) =>
+            episode.lineId == record.lineId &&
+            (record.episodeKey != null
+                ? episode.episodeKey == record.episodeKey
+                : episode.title == record.episodeTitle))
+        .toList();
+    if (matches.length != 1) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('无法确定上次观看的剧集，请手动选集'),
+      ));
+      return;
+    }
+    await _playEpisode(matches.single,
+        initialPosition: record.completed
+            ? Duration.zero
+            : Duration(milliseconds: record.positionMs));
   }
 
   Future<void> _importRule() async {
@@ -767,19 +919,17 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       final rule = await ref.read(ruleStoreProvider).importJson(
             await file.readAsString(),
           );
+      ref.invalidate(allVideoSourcesProvider);
       ref.invalidate(videoSourcesProvider);
       if (!mounted) return;
-      messenger.showSnackBar(
-          SnackBar(content: Text('已导入规则：${rule.name}')));
+      messenger.showSnackBar(SnackBar(content: Text('已导入规则：${rule.name}')));
       _searchAllSources();
     } on FormatException catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(
-          SnackBar(content: Text('规则无效：${e.message}')));
+      messenger.showSnackBar(SnackBar(content: Text('规则无效：${e.message}')));
     } catch (_) {
       if (!mounted) return;
-      messenger.showSnackBar(
-          const SnackBar(content: Text('导入失败，请重试')));
+      messenger.showSnackBar(const SnackBar(content: Text('导入失败，请重试')));
     }
   }
 
@@ -790,7 +940,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final doneCount =
         _sourceResults.where((r) => r.status != _SourceStatus.loading).length;
     final failed = _sourceResults
-        .where((r) => r.status == _SourceStatus.failed ||
+        .where((r) =>
+            r.status == _SourceStatus.failed ||
             (r.status == _SourceStatus.done && r.items.isEmpty))
         .toList();
 
@@ -819,8 +970,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   const SizedBox(width: 10),
                   if (loading)
                     Text('搜索中 $doneCount/${_sourceResults.length}',
-                        style: TextStyle(
-                            fontSize: 12, color: cs.onSurfaceVariant))
+                        style:
+                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant))
                   else
                     Text('共 ${results.length} 条',
                         style: TextStyle(
@@ -848,6 +999,17 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 ],
               ),
               const SizedBox(height: 8),
+              if (widget.resumeRecord != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    key: const ValueKey('resume-playback'),
+                    onPressed:
+                        loading || _episodesLoading ? null : _resumeHistory,
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: Text('继续观看 · ${widget.resumeRecord!.episodeTitle}'),
+                  ),
+                ),
               if (_sourceResults.isEmpty)
                 Text('正在准备播放源…',
                     style: TextStyle(
@@ -862,15 +1024,18 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                             fontSize: 13,
                             color: cs.onSurface.withValues(alpha: 0.5))),
                     const SizedBox(height: 8),
-                    TextButton(onPressed: _searchAllSources, child: const Text('重试')),
+                    TextButton(
+                        onPressed: _searchAllSources, child: const Text('重试')),
                   ],
                 )
               else
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final (item, source, alternatives) in results)
-                      _resourceCard(item, source, alternatives, cs),
+                    for (final (item, source, alternatives, needsConfirmation)
+                        in results)
+                      _resourceCard(item, source, alternatives, cs,
+                          needsConfirmation: needsConfirmation),
                   ],
                 ),
               if (failed.isNotEmpty) ...[
@@ -887,8 +1052,9 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _resourceCard(
-      VideoItem item, VideoSource source, List<VideoItem> alternatives, ColorScheme cs) {
+  Widget _resourceCard(VideoItem item, VideoSource source,
+      List<VideoItem> alternatives, ColorScheme cs,
+      {bool needsConfirmation = false}) {
     final expanded = identical(_expandedItem, item) ||
         alternatives.any((a) => identical(a, _expandedItem));
     return Padding(
@@ -899,7 +1065,17 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => _expandItem(item, source),
+              onTap: () {
+                if (needsConfirmation) {
+                  setState(() {
+                    if (!_confirmingSources.add(source.id)) {
+                      _confirmingSources.remove(source.id);
+                    }
+                  });
+                } else {
+                  _expandItem(item, source);
+                }
+              },
               borderRadius: BorderRadius.circular(12),
               hoverColor: cs.primary.withValues(alpha: 0.08),
               child: Container(
@@ -917,11 +1093,15 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                         item.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 14, color: cs.onSurface),
+                        style: TextStyle(fontSize: 14, color: cs.onSurface),
                       ),
                     ),
                     const SizedBox(width: 12),
+                    if (needsConfirmation) ...[
+                      Text('待确认匹配',
+                          style: TextStyle(fontSize: 12, color: cs.error)),
+                      const SizedBox(width: 8),
+                    ],
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
@@ -942,7 +1122,22 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               ),
             ),
           ),
-          if (expanded) ...[
+          if (needsConfirmation && _confirmingSources.contains(source.id))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('标题或季数暂未可靠匹配，请核对后选择作品：'),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final candidate in [item, ...alternatives])
+                        ActionChip(
+                            label: Text(candidate.title),
+                            onPressed: () => _confirmMatch(candidate, source)),
+                    ]),
+                  ]),
+            ),
+          if (expanded && !needsConfirmation) ...[
             if (alternatives.isNotEmpty) ...[
               Material(
                 color: Colors.transparent,
@@ -1012,8 +1207,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         child: Row(
           children: [
             Text(_episodesError!,
-                style: const TextStyle(
-                    fontSize: 12, color: Colors.redAccent)),
+                style: const TextStyle(fontSize: 12, color: Colors.redAccent)),
             const SizedBox(width: 8),
             TextButton(
               onPressed: () {
@@ -1036,14 +1230,34 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
             style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       );
     }
-    return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 4),
-      child: ButtonGrid(
-        children: [
-          for (final ep in eps)
-            PillButton(label: ep.title, onTap: () => _playEpisode(ep)),
-        ],
-      ),
+    final lines = <String, List<VideoEpisode>>{};
+    for (final ep in eps) {
+      lines.putIfAbsent(ep.lineId ?? '', () => []).add(ep);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final line in lines.values)
+          Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (lines.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(line.first.lineName ?? '默认线路',
+                        style: TextStyle(
+                            color: cs.primary, fontWeight: FontWeight.w600)),
+                  ),
+                ButtonGrid(children: [
+                  for (final ep in line)
+                    PillButton(label: ep.title, onTap: () => _playEpisode(ep)),
+                ]),
+              ],
+            ),
+          ),
+      ],
     );
   }
 

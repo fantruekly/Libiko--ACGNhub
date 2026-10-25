@@ -138,17 +138,18 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
     }
     final sources = ref.watch(novelSourcesProvider);
     final results = <NovelSearchResult>[];
-    final seen = <String>{};
+    final seen = <(String, String)>{};
     var pending = 0;
     var failed = 0;
     Object? lastError;
     for (final source in sources) {
-      final async =
-          ref.watch(novelSearchSourceProvider((source.id, _keyword)));
+      final async = ref.watch(novelSearchSourceProvider((source.id, _keyword)));
       async.when(
         data: (list) {
           for (final r in list) {
-            if (seen.add(r.novel.title.trim())) results.add(r);
+            if (r.novel.id.isEmpty || seen.add((r.sourceKey, r.novel.id))) {
+              results.add(r);
+            }
           }
         },
         loading: () {
@@ -199,6 +200,10 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
   }
 
   Widget _grid(List<NovelSearchResult> results) {
+    final names = {
+      for (final source in ref.watch(novelSourcesProvider))
+        source.id: source.name
+    };
     return AdaptiveGridView(
       itemCount: results.length,
       mobileColumns: 3,
@@ -206,19 +211,41 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (_, i) {
         final r = results[i];
-        return NovelCard(
-          novel: r.novel,
-          heroTag: 'novel_${r.sourceKey}_${r.novel.id}',
-          onTap: () => Navigator.push(
-            context,
-            smoothRoute(NovelDetailPage(
-              sourceKey: r.sourceKey,
-              novelId: r.novel.id,
-              title: r.novel.title,
-              cover: r.novel.coverUrl,
-            )),
-          ),
-        );
+        return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('来源：${names[r.sourceKey] ?? r.sourceKey}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 4),
+              Expanded(
+                  child: NovelCard(
+                novel: r.novel,
+                heroTag: 'novel_${r.sourceKey}_${r.novel.id}',
+                onTap: () => Navigator.push(
+                  context,
+                  smoothRoute(NovelDetailPage(
+                    sourceKey: r.sourceKey,
+                    novelId: r.novel.id,
+                    title: r.novel.title,
+                    cover: r.novel.coverUrl,
+                  )),
+                ),
+              )),
+              if (r.novel.author?.trim().isNotEmpty ?? false)
+                Text('作者：${r.novel.author}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11)),
+              if (r.novel.extra['version'] is String)
+                Text('版本：${r.novel.extra['version']}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11)),
+            ]);
       },
     );
   }

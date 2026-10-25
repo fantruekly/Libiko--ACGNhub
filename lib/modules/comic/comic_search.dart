@@ -174,7 +174,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
         icon: Icons.cloud_off_rounded,
         message: '漫画源加载失败',
         actionLabel: '重试',
-        onAction: () => ref.invalidate(comicSourcesProvider),
+        onAction: () => ref.invalidate(allComicSourcesProvider),
       );
     }
     if (searchable.isEmpty) {

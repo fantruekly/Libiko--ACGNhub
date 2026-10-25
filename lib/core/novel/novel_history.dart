@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +11,10 @@ class NovelHistoryEntry {
   final String chapterId;
   final String chapterTitle;
   final DateTime updatedAt;
+  final int blockIndex;
+  final int characterOffset;
+  final double scrollFraction;
+  final String? anchorText;
 
   const NovelHistoryEntry({
     required this.sourceKey,
@@ -22,6 +24,10 @@ class NovelHistoryEntry {
     required this.chapterId,
     required this.chapterTitle,
     required this.updatedAt,
+    this.blockIndex = 0,
+    this.characterOffset = 0,
+    this.scrollFraction = 0,
+    this.anchorText,
   });
 
   factory NovelHistoryEntry.fromJson(Map<String, dynamic> json) =>
@@ -34,6 +40,12 @@ class NovelHistoryEntry {
         chapterTitle: json['chapterTitle'] as String? ?? '',
         updatedAt:
             DateTime.fromMillisecondsSinceEpoch(json['updatedAt'] as int? ?? 0),
+        blockIndex: (json['blockIndex'] as int? ?? 0).clamp(0, 1 << 30),
+        characterOffset:
+            (json['characterOffset'] as int? ?? 0).clamp(0, 1 << 30),
+        scrollFraction:
+            ((json['scrollFraction'] as num?)?.toDouble() ?? 0).clamp(0, 1),
+        anchorText: json['anchorText'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -44,6 +56,10 @@ class NovelHistoryEntry {
         'chapterId': chapterId,
         'chapterTitle': chapterTitle,
         'updatedAt': updatedAt.millisecondsSinceEpoch,
+        'blockIndex': blockIndex,
+        'characterOffset': characterOffset,
+        'scrollFraction': scrollFraction,
+        if (anchorText != null) 'anchorText': anchorText,
       };
 }
 
@@ -52,10 +68,9 @@ class NovelHistoryManager {
 
   List<NovelHistoryEntry> all() {
     final entries = <NovelHistoryEntry>[];
-    for (final raw in AppDatabase().getStringList(_key)) {
+    for (final row in AppDatabase().collections.all(_key)) {
       try {
-        entries.add(NovelHistoryEntry.fromJson(
-            json.decode(raw) as Map<String, dynamic>));
+        entries.add(NovelHistoryEntry.fromJson(row));
       } catch (_) {
         // Skip a malformed entry.
       }
@@ -65,12 +80,10 @@ class NovelHistoryManager {
   }
 
   NovelHistoryEntry? forNovel(String sourceKey, String novelId) {
-    for (final entry in all()) {
-      if (entry.sourceKey == sourceKey && entry.novelId == novelId) {
-        return entry;
-      }
-    }
-    return null;
+    final store = AppDatabase().collections;
+    final row = store.get(_key,
+        store.recordKey(_key, {'sourceKey': sourceKey, 'novelId': novelId}));
+    return row == null ? null : NovelHistoryEntry.fromJson(row);
   }
 
   Future<void> _pending = Future.value();
@@ -82,15 +95,10 @@ class NovelHistoryManager {
   }
 
   Future<void> record(NovelHistoryEntry entry) => _enqueue(() async {
-        await _save(upsert(all(), entry));
+        AppDatabase().collections.upsert(_key, entry.toJson());
       });
 
   Future<void> clear() => _enqueue(() => AppDatabase().remove(_key));
-
-  Future<void> _save(List<NovelHistoryEntry> entries) async {
-    await AppDatabase().setStringList(
-        _key, entries.map((e) => json.encode(e.toJson())).toList());
-  }
 
   @visibleForTesting
   static List<NovelHistoryEntry> upsert(

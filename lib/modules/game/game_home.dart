@@ -100,6 +100,15 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
   @override
   Widget build(BuildContext context) {
     final sources = ref.watch(gameSourcesProvider);
+    if (sources.isEmpty) {
+      return const EmptyState(
+          icon: Icons.extension_off_rounded, message: '所有源已禁用，请在源管理中启用');
+    }
+    if (!sources.any((source) => source.id == _sourceId)) {
+      _sourceId = sources.first.id;
+      _optionIndex = 0;
+      _page = 1;
+    }
     final source = ref.watch(gameSourceManagerProvider).byId(_sourceId);
     final options = source?.browseOptions ?? const <GameBrowseOption>[];
     return Column(
@@ -115,8 +124,7 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
               final v = details.primaryVelocity ?? 0;
               final delta = v < -100 ? 1 : (v > 100 ? -1 : 0);
               if (delta == 0) return;
-              final sourceIndex =
-                  sources.indexWhere((s) => s.id == _sourceId);
+              final sourceIndex = sources.indexWhere((s) => s.id == _sourceId);
               final next = stepChipSelection(
                 a: sourceIndex,
                 aMin: 0,
@@ -191,8 +199,8 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
               loading: () => LayoutBuilder(builder: (context, constraints) {
                 final cellW = gameGridCellWidth(constraints.maxWidth);
                 final mobileCellW = constraints.maxWidth - 32;
-                final mobileAspect = mobileCellW /
-                    (mobileCellW * 2 / 3 + gameGridTitleExtent);
+                final mobileAspect =
+                    mobileCellW / (mobileCellW * 2 / 3 + gameGridTitleExtent);
                 return ShimmerLoader(
                     crossAxisCount: gameGridColumns,
                     mobileColumns: 1,

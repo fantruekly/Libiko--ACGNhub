@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -17,12 +16,14 @@ const String _mediaSnifferJs = r'''
   function report(url, mime) {
     try {
       if (!url) return;
-      window.flutter_inappwebview.callHandler('mediaSniffer', String(url), String(mime || ''));
+      var absolute = new URL(String(url), document.baseURI).href;
+      window.flutter_inappwebview.callHandler('mediaSniffer', absolute, String(mime || ''));
     } catch (e) {}
   }
   function media(u, m) {
     m = String(m || '').toLowerCase();
-    if (m.indexOf('mpegurl') >= 0 || m.indexOf('mp2t') >= 0) return true;
+    if (m.indexOf('mp2t') >= 0) return false;
+    if (m.indexOf('mpegurl') >= 0) return true;
     u = String(u || '').toLowerCase();
     return u.indexOf('.m3u8') >= 0 || u.indexOf('.mp4') >= 0;
   }
@@ -94,6 +95,9 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
   HeadlessInAppWebView? _headless;
   Completer<void>? _loaded;
   int _loadId = 0;
+  String? _extraScript;
+  String? _handlerName;
+  bool _acceptCandidates = false;
 
   @override
   Stream<MediaCandidate> get mediaUrls => _media.stream;
@@ -103,6 +107,7 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
 
   @override
   Future<void> start({String? userAgent, String? extraScript}) async {
+    _extraScript = extraScript;
     final headless = HeadlessInAppWebView(
       initialSettings: InAppWebViewSettings(
         userAgent: userAgent,
@@ -113,38 +118,6 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
         javaScriptCanOpenWindowsAutomatically: false,
         mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
       ),
-      initialUserScripts: UnmodifiableListView<UserScript>([
-        UserScript(
-          source: _mediaSnifferJs,
-          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-          forMainFrameOnly: false,
-        ),
-        if (extraScript != null)
-          UserScript(
-            source: extraScript,
-            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-            forMainFrameOnly: false,
-          ),
-      ]),
-      onWebViewCreated: (controller) {
-        controller.addJavaScriptHandler(
-          handlerName: 'mediaSniffer',
-          callback: (args) {
-            final url =
-                args.isNotEmpty ? (args[0] ?? '').toString() : '';
-            final mime =
-                args.length > 1 ? (args[1] ?? '').toString() : '';
-            if (url.isEmpty) return null;
-            final media = looksLikeMediaResponse(url, mime)
-                ? url
-                : mediaUrlFromQuery(url);
-            if (media != null && !_media.isClosed) {
-              _media.add(MediaCandidate(media, loadId: _loadId));
-            }
-            return null;
-          },
-        );
-      },
       onLoadStop: (controller, url) {
         final completer = _loaded;
         if (completer != null && !completer.isCompleted) completer.complete();
@@ -162,7 +135,7 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
       shouldInterceptRequest: (controller, request) async {
         final url = request.url.toString();
         final media = looksLikeMediaUrl(url) ? url : mediaUrlFromQuery(url);
-        if (media != null && !_media.isClosed) {
+        if (media != null && _acceptCandidates && !_media.isClosed) {
           _media.add(MediaCandidate(media,
               headers: playerHeadersFrom(request.headers ?? const {}),
               loadId: _loadId));
@@ -177,18 +150,52 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
   @override
   Future<void> load(String url,
       {Duration timeout = const Duration(seconds: 15)}) async {
-    _loadId++;
+    final session = ++_loadId;
+    _acceptCandidates = false;
     final controller = _headless?.webViewController;
     if (controller == null) {
       throw const HeadlessLoadException('headless browser not started');
     }
+    await controller.stopLoading();
+    if (_handlerName != null) {
+      controller.removeJavaScriptHandler(handlerName: _handlerName!);
+    }
+    await controller.removeAllUserScripts();
+    final handler = 'mediaSniffer$session';
+    _handlerName = handler;
+    controller.addJavaScriptHandler(
+        handlerName: handler,
+        callback: (args) {
+          if (session != _loadId || !_acceptCandidates || _media.isClosed) {
+            return null;
+          }
+          final url = args.isNotEmpty ? (args[0] ?? '').toString() : '';
+          final mime = args.length > 1 ? (args[1] ?? '').toString() : '';
+          final media =
+              looksLikeMediaResponse(url, mime) ? url : mediaUrlFromQuery(url);
+          if (media != null) _media.add(MediaCandidate(media, loadId: session));
+          return null;
+        });
+    // Handler names are captured in each document's script. A delayed callback
+    // from a previous document can no longer acquire the current loadId.
+    await controller.addUserScripts(userScripts: [
+      for (final script in [
+        _mediaSnifferJs,
+        if (_extraScript != null) _extraScript!
+      ])
+        UserScript(
+          source: script.replaceAll("'mediaSniffer'", "'$handler'"),
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          forMainFrameOnly: false,
+        ),
+    ]);
     final completer = Completer<void>();
     _loaded = completer;
     try {
+      _acceptCandidates = url != 'about:blank';
       await controller.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
       await completer.future.timeout(timeout,
-          onTimeout: () =>
-              throw const HeadlessLoadException('load timed out'));
+          onTimeout: () => throw const HeadlessLoadException('load timed out'));
     } finally {
       if (identical(_loaded, completer)) _loaded = null;
     }
@@ -201,6 +208,8 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
   @override
   Future<void> dispose() async {
     _loaded = null;
+    _acceptCandidates = false;
+    _loadId++;
     if (!_media.isClosed) await _media.close();
     try {
       await _headless?.dispose();

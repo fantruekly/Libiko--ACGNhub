@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,7 +33,8 @@ class ComicHistoryEntry {
         chapterId: json['chapterId'] as String? ?? '',
         chapterTitle: json['chapterTitle'] as String? ?? '',
         page: json['page'] as int? ?? 0,
-        readAt: DateTime.fromMillisecondsSinceEpoch(json['readAt'] as int? ?? 0),
+        readAt:
+            DateTime.fromMillisecondsSinceEpoch(json['readAt'] as int? ?? 0),
       );
 
   Map<String, dynamic> toJson() => {
@@ -72,10 +71,9 @@ class ComicHistoryManager {
 
   List<ComicHistoryEntry> all() {
     final entries = <ComicHistoryEntry>[];
-    for (final raw in AppDatabase().getStringList(_key)) {
+    for (final row in AppDatabase().collections.all(_key)) {
       try {
-        entries.add(ComicHistoryEntry.fromJson(
-            json.decode(raw) as Map<String, dynamic>));
+        entries.add(ComicHistoryEntry.fromJson(row));
       } catch (_) {
         // Skip a malformed entry.
       }
@@ -85,12 +83,10 @@ class ComicHistoryManager {
   }
 
   ComicHistoryEntry? forComic(String sourceKey, String comicId) {
-    for (final entry in all()) {
-      if (entry.sourceKey == sourceKey && entry.comicId == comicId) {
-        return entry;
-      }
-    }
-    return null;
+    final store = AppDatabase().collections;
+    final row = store.get(_key,
+        store.recordKey(_key, {'sourceKey': sourceKey, 'comicId': comicId}));
+    return row == null ? null : ComicHistoryEntry.fromJson(row);
   }
 
   Future<void> _pending = Future.value();
@@ -102,15 +98,10 @@ class ComicHistoryManager {
   }
 
   Future<void> record(ComicHistoryEntry entry) => _enqueue(() async {
-        await _save(upsert(all(), entry));
+        AppDatabase().collections.upsert(_key, entry.toJson());
       });
 
   Future<void> clear() => _enqueue(() => AppDatabase().remove(_key));
-
-  Future<void> _save(List<ComicHistoryEntry> entries) async {
-    await AppDatabase().setStringList(
-        _key, entries.map((e) => json.encode(e.toJson())).toList());
-  }
 
   @visibleForTesting
   static List<ComicHistoryEntry> upsert(

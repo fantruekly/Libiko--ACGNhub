@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:libiko/core/video/browser_pool.dart';
 import 'package:libiko/core/video/cancellation.dart';
 import 'package:libiko/core/video/headless_browser.dart';
 import 'package:libiko/core/video/maccms.dart';
@@ -19,6 +20,7 @@ class _FakeMacCmsResolver extends MacCmsResolver {
     String playPageUrl, {
     String? userAgent,
     String? referer,
+    CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 15),
   }) async =>
       candidate;
@@ -34,6 +36,7 @@ class _DelayedMacCmsResolver extends MacCmsResolver {
     String playPageUrl, {
     String? userAgent,
     String? referer,
+    CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     await Future<void>.delayed(delay);
@@ -42,10 +45,19 @@ class _DelayedMacCmsResolver extends MacCmsResolver {
 }
 
 class _FakeBrowser implements HeadlessBrowser {
-  _FakeBrowser({this.candidates = const [], this.loadError, this.hang = false});
+  _FakeBrowser(
+      {this.candidates = const [],
+      this.loadError,
+      this.hang = false,
+      this.startGate,
+      this.startError});
   final List<MediaCandidate> candidates;
   final Object? loadError;
   final bool hang;
+  final Completer<void>? startGate;
+  final Object? startError;
+  String? script;
+  bool disposed = false;
   final _media = StreamController<MediaCandidate>.broadcast();
   final _gate = Completer<void>();
   int loadCount = 0;
@@ -58,7 +70,11 @@ class _FakeBrowser implements HeadlessBrowser {
   Stream<MediaCandidate> get mediaUrls => _media.stream;
 
   @override
-  Future<void> start({String? userAgent, String? extraScript}) async {}
+  Future<void> start({String? userAgent, String? extraScript}) async {
+    script = extraScript;
+    if (startError != null) throw startError!;
+    await startGate?.future;
+  }
 
   @override
   Future<void> load(String url,
@@ -71,7 +87,10 @@ class _FakeBrowser implements HeadlessBrowser {
       return;
     }
     for (final candidate in candidates) {
-      if (!_media.isClosed) _media.add(candidate);
+      if (!_media.isClosed) {
+        _media.add(MediaCandidate(candidate.url,
+            headers: candidate.headers, loadId: _loadId));
+      }
     }
   }
 
@@ -80,6 +99,7 @@ class _FakeBrowser implements HeadlessBrowser {
 
   @override
   Future<void> dispose() async {
+    disposed = true;
     if (!_media.isClosed) await _media.close();
   }
 }
@@ -108,7 +128,7 @@ class _HeaderAdapter implements HttpClientAdapter {
     final hasReferer = options.headers.containsKey('Referer');
     final ok = hasReferer ? false : okWithoutReferer;
     return ResponseBody.fromString(
-      ok ? 'x' : 'no',
+      ok ? '#EXTM3U' : 'no',
       ok ? 200 : 400,
       headers: {
         Headers.contentTypeHeader: [Headers.textPlainContentType],
@@ -139,10 +159,23 @@ class _SlowAdapter implements HttpClientAdapter {
         Headers.contentTypeHeader: [Headers.textPlainContentType],
       });
     }
-    return ResponseBody.fromString('x', 200, headers: {
+    return ResponseBody.fromString('#EXTM3U', 200, headers: {
       Headers.contentTypeHeader: [Headers.textPlainContentType],
     });
   }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _CallbackAdapter implements HttpClientAdapter {
+  _CallbackAdapter(this.respond);
+  final Future<ResponseBody> Function(RequestOptions, Future<void>?) respond;
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+          Stream<Uint8List>? requestStream, Future<void>? cancelFuture) =>
+      respond(options, cancelFuture);
 
   @override
   void close({bool force = false}) {}
@@ -172,8 +205,8 @@ void main() {
       browserFactory: () => browser,
       cache: ResolvedStreamCache(),
     );
-    final result = await resolver.resolve(
-        'https://proxy/a/?url=https://cdn.test/x/index.m3u8');
+    final result = await resolver
+        .resolve('https://proxy/a/?url=https://cdn.test/x/index.m3u8');
     expect(result.candidate?.url, 'https://cdn.test/x/index.m3u8');
     expect(browser.loadCount, 0);
   });
@@ -197,8 +230,9 @@ void main() {
   test('keeps reachable candidates before unreachable ones', () async {
     final resolver = StreamResolver(
       maccms: _FakeMacCmsResolver(null),
-      // The adapter only accepts requests without a Referer.
-      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      dio: Dio()
+        ..httpClientAdapter = _SlowAdapter(
+            slowUrl: 'https://cdn/bad.m3u8', slowDelay: Duration.zero),
       browserFactory: () => _FakeBrowser(candidates: const [
         MediaCandidate('https://cdn/bad.m3u8',
             headers: {'Referer': 'https://site/'}),
@@ -231,10 +265,9 @@ void main() {
   });
 
   test('overlaps the MacCMS probe with the headless browser', () async {
-    final browser = _FakeBrowser(
-        candidates: const [
-          MediaCandidate('https://cdn.test/browser/index.m3u8')
-        ]);
+    final browser = _FakeBrowser(candidates: const [
+      MediaCandidate('https://cdn.test/browser/index.m3u8')
+    ]);
     final resolver = StreamResolver(
       maccms: _DelayedMacCmsResolver(
           const MediaCandidate('https://cdn.test/maccms/index.m3u8'),
@@ -260,9 +293,8 @@ void main() {
           const MediaCandidate('https://cdn/maccms/index.m3u8'),
           const Duration(milliseconds: 50)),
       dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
-      browserFactory: () => _FakeBrowser(candidates: const [
-        MediaCandidate('https://cdn/browser/index.m3u8')
-      ]),
+      browserFactory: () => _FakeBrowser(
+          candidates: const [MediaCandidate('https://cdn/browser/index.m3u8')]),
       cache: ResolvedStreamCache(),
       grace: const Duration(milliseconds: 30),
       overallTimeout: const Duration(seconds: 2),
@@ -275,8 +307,7 @@ void main() {
     expect(urls, contains('https://cdn/maccms/index.m3u8'));
   });
 
-  test('drops the Referer when the candidate only works without it',
-      () async {
+  test('drops the Referer when the candidate only works without it', () async {
     final adapter = _HeaderAdapter(okWithoutReferer: true);
     final dio = Dio()..httpClientAdapter = adapter;
     final resolver = StreamResolver(
@@ -336,7 +367,8 @@ void main() {
   });
 
   test('retries a transient load failure', () async {
-    final browser = _FakeBrowser(loadError: const HeadlessLoadException('boom'));
+    final browser =
+        _FakeBrowser(loadError: const HeadlessLoadException('boom'));
     final resolver = _headlessResolver(browser);
     final result = await resolver.resolve('https://page/play');
     expect(result.failure, ResolveFailure.loadFailed);
@@ -351,7 +383,8 @@ void main() {
   });
 
   test('does not cache a transient failure', () async {
-    final browser = _FakeBrowser(loadError: const HeadlessLoadException('boom'));
+    final browser =
+        _FakeBrowser(loadError: const HeadlessLoadException('boom'));
     final resolver = _headlessResolver(browser);
     await resolver.resolve('https://page/play');
     await resolver.resolve('https://page/play');
@@ -387,7 +420,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 20));
     cancel.cancel();
     final cancelled = await pending;
-    expect(cancelled.failure, ResolveFailure.notFound);
+    expect(cancelled.failure, ResolveFailure.unknown);
 
     final working = _FakeBrowser(
         candidates: const [MediaCandidate('https://cdn/x/index.m3u8')]);
@@ -439,7 +472,9 @@ void main() {
     ]);
     final resolver = StreamResolver(
       maccms: _FakeMacCmsResolver(null),
-      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      dio: Dio()
+        ..httpClientAdapter = _SlowAdapter(
+            slowUrl: 'https://cdn/bad.m3u8', slowDelay: Duration.zero),
       browserFactory: () => browser,
       cache: ResolvedStreamCache(),
       grace: const Duration(milliseconds: 50),
@@ -450,5 +485,310 @@ void main() {
     expect(first.ok, isTrue);
     await resolver.resolve('https://page/play');
     expect(browser.loadCount, 2);
+  });
+  test('direct candidates preserve authoritative episode headers', () async {
+    final resolver = StreamResolver(cache: ResolvedStreamCache());
+    final result = await resolver.resolve('https://cdn/video.m3u8',
+        userAgent: 'episode-agent', referer: 'https://source/play');
+    expect(result.candidate!.headersResolved, isTrue);
+    expect(result.candidate!.headers, {
+      'User-Agent': 'episode-agent',
+      'Referer': 'https://source/play',
+    });
+  });
+
+  test('MacCMS succeeds even if browser startup fails', () async {
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      browserFactory: () => _FakeBrowser(startError: StateError('no WebView')),
+      maccms:
+          _FakeMacCmsResolver(const MediaCandidate('https://cdn/video.m3u8')),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      collectWindow: const Duration(milliseconds: 5),
+    );
+    final result = await resolver.resolve('https://source/play');
+    expect(result.verified, isTrue);
+    expect(result.candidate!.url, 'https://cdn/video.m3u8');
+  });
+
+  test('MacCMS does not wait for hung startup and late browser is disposed',
+      () async {
+    final start = Completer<void>();
+    final browser = _FakeBrowser(startGate: start);
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      browserFactory: () => browser,
+      maccms:
+          _FakeMacCmsResolver(const MediaCandidate('https://cdn/video.m3u8')),
+      dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true),
+      collectWindow: const Duration(milliseconds: 5),
+    );
+    final result = await resolver
+        .resolve('https://source/play')
+        .timeout(const Duration(milliseconds: 400));
+    expect(result.verified, isTrue);
+    start.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(browser.disposed, isTrue);
+    expect(browser.loadCount, 0);
+  });
+
+  test('the deadline includes browser pool queueing', () async {
+    final pool =
+        HeadlessBrowserPool(factory: () => _FakeBrowser(), maxBrowsers: 1);
+    final held = await pool.acquire();
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      browserPool: pool,
+      maccms: _FakeMacCmsResolver(null),
+      overallBudget: const Duration(milliseconds: 60),
+      overallTimeout: const Duration(milliseconds: 60),
+    );
+    final result = await resolver
+        .resolve('https://source/play')
+        .timeout(const Duration(milliseconds: 400));
+    expect(result.failure, ResolveFailure.timeout);
+    await held.release();
+    expect(pool.activeCount, 0);
+    await pool.shutdown();
+  });
+
+  test('cancellation wakes a queued resolve and leaves no borrower', () async {
+    final pool =
+        HeadlessBrowserPool(factory: () => _FakeBrowser(), maxBrowsers: 1);
+    final held = await pool.acquire();
+    final cancel = CancellationToken();
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      browserPool: pool,
+      maccms: _FakeMacCmsResolver(null),
+    );
+    final pending = resolver.resolve('https://source/play', cancel: cancel);
+    await Future<void>.delayed(Duration.zero);
+    cancel.cancel();
+    final result = await pending.timeout(const Duration(milliseconds: 400));
+    expect(result.failure, ResolveFailure.unknown);
+    await held.release();
+    expect(pool.activeCount, 0);
+    await pool.shutdown();
+  });
+
+  test('legacy script reaches the production browser pool path', () async {
+    final browser = _FakeBrowser();
+    final pool = HeadlessBrowserPool(factory: () => browser);
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      browserPool: pool,
+      maccms: _FakeMacCmsResolver(null),
+      grace: Duration.zero,
+    );
+    await resolver.resolve('https://source/play', legacy: true);
+    expect(browser.script, kLegacyIframeScript);
+    await pool.shutdown();
+  });
+
+  test('later network headers enrich an earlier JS URL observation', () async {
+    final adapter = _CallbackAdapter((options, _) async {
+      final okay = options.headers['Referer'] == 'https://source/actual-frame';
+      return ResponseBody.fromString(
+          okay ? '#EXTM3U' : 'denied', okay ? 200 : 403);
+    });
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      maccms: _FakeMacCmsResolver(null),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/video.m3u8'),
+        MediaCandidate('https://cdn/video.m3u8', headers: {
+          'Referer': 'https://source/actual-frame',
+        }),
+      ]),
+      dio: Dio()..httpClientAdapter = adapter,
+      collectWindow: const Duration(milliseconds: 5),
+    );
+    final result = await resolver.resolve('https://source/play',
+        referer: 'https://source/configured');
+    expect(result.verified, isTrue);
+    expect(result.candidates, hasLength(1));
+    expect(result.candidate!.headers['Referer'], 'https://source/actual-frame');
+    expect(result.candidate!.headersResolved, isTrue);
+  });
+
+  test('successful header variant wins while original probe hangs', () async {
+    var cancelledRequests = 0;
+    final adapter = _CallbackAdapter((options, cancelled) async {
+      if (options.headers.containsKey('Referer')) {
+        await cancelled;
+        cancelledRequests++;
+        throw StateError('request cancelled');
+      }
+      return ResponseBody.fromString('#EXTM3U', 200);
+    });
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      maccms: _FakeMacCmsResolver(null),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/video.m3u8'),
+      ]),
+      dio: Dio()..httpClientAdapter = adapter,
+      collectWindow: const Duration(milliseconds: 5),
+    );
+    final result = await resolver
+        .resolve('https://source/play', referer: 'https://source/bad-referer')
+        .timeout(const Duration(milliseconds: 400));
+    expect(result.verified, isTrue);
+    expect(result.candidate!.headers.containsKey('Referer'), isFalse);
+    expect(result.candidate!.headersResolved, isTrue);
+    await Future<void>.delayed(Duration.zero);
+    expect(cancelledRequests, greaterThan(0));
+  });
+
+  test('rejects HTTP 200 HTML instead of caching a verified stream', () async {
+    final cache = ResolvedStreamCache();
+    final resolver = StreamResolver(
+      cache: cache,
+      maccms: _FakeMacCmsResolver(null),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/video.m3u8'),
+      ]),
+      dio: Dio()
+        ..httpClientAdapter = _CallbackAdapter((_, __) async =>
+            ResponseBody.fromString('<html>access denied</html>', 200,
+                headers: {
+                  Headers.contentTypeHeader: ['text/html']
+                })),
+      collectWindow: const Duration(milliseconds: 5),
+    );
+    final result = await resolver.resolve('https://source/play');
+    expect(result.ok, isFalse);
+    expect(result.verified, isFalse);
+    expect(cache.get('https://source/play')!.verified, isFalse);
+  });
+
+  test('a server ignoring Range is cut off after a bounded prefix', () async {
+    var streamCancelled = false;
+    var requestCancelled = false;
+    final adapter = _CallbackAdapter((options, cancelled) async {
+      expect(options.headers['Range'], 'bytes=0-4095');
+      unawaited(cancelled!.then((_) => requestCancelled = true));
+      final body = StreamController<Uint8List>(onCancel: () {
+        streamCancelled = true;
+      });
+      body.add(Uint8List.fromList(List<int>.filled(8192, 0x41)));
+      return ResponseBody(body.stream, 200, headers: {
+        Headers.contentTypeHeader: ['video/mp4']
+      });
+    });
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      maccms: _FakeMacCmsResolver(null),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/video.mp4'),
+      ]),
+      dio: Dio()..httpClientAdapter = adapter,
+      collectWindow: const Duration(milliseconds: 5),
+    );
+    final result = await resolver
+        .resolve('https://source/play')
+        .timeout(const Duration(milliseconds: 400));
+    expect(result.verified, isTrue);
+    await Future<void>.delayed(Duration.zero);
+    expect(streamCancelled, isTrue);
+    expect(requestCancelled, isTrue);
+  });
+
+  test('cancellation stops active verification requests', () async {
+    final probeStarted = Completer<void>();
+    var requestCancelled = false;
+    final adapter = _CallbackAdapter((options, cancelled) async {
+      if (!probeStarted.isCompleted) probeStarted.complete();
+      await cancelled;
+      requestCancelled = true;
+      throw StateError('cancelled');
+    });
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      maccms: _FakeMacCmsResolver(null),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/video.m3u8'),
+      ]),
+      dio: Dio()..httpClientAdapter = adapter,
+      collectWindow: Duration.zero,
+    );
+    final cancel = CancellationToken();
+    final pending = resolver.resolve('https://source/play', cancel: cancel);
+    await probeStarted.future;
+    cancel.cancel();
+    final result = await pending.timeout(const Duration(milliseconds: 400));
+    expect(result.failure, ResolveFailure.unknown);
+    await Future<void>.delayed(Duration.zero);
+    expect(requestCancelled, isTrue);
+  });
+  test('MacCMS guessed headers cannot replace actual browser headers',
+      () async {
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      maccms: _DelayedMacCmsResolver(
+          const MediaCandidate('https://cdn/video.m3u8',
+              headers: {'Referer': 'https://source/'}),
+          const Duration(milliseconds: 10)),
+      browserFactory: () => _FakeBrowser(candidates: const [
+        MediaCandidate('https://cdn/video.m3u8',
+            headers: {'Referer': 'https://source/player/frame'}),
+      ]),
+      dio: Dio()
+        ..httpClientAdapter = _CallbackAdapter((options, _) async {
+          final okay =
+              options.headers['Referer'] == 'https://source/player/frame';
+          return ResponseBody.fromString(
+              okay ? '#EXTM3U' : 'no', okay ? 200 : 403);
+        }),
+      collectWindow: const Duration(milliseconds: 30),
+    );
+    final result = await resolver.resolve('https://source/play');
+    expect(result.verified, isTrue);
+    expect(result.candidate!.headers['Referer'], 'https://source/player/frame');
+  });
+
+  test('deadline covers hung browser creation without a MacCMS hit', () async {
+    final start = Completer<void>();
+    final browser = _FakeBrowser(startGate: start);
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      browserFactory: () => browser,
+      maccms: _FakeMacCmsResolver(null),
+      overallBudget: const Duration(milliseconds: 50),
+    );
+    final result = await resolver
+        .resolve('https://source/play')
+        .timeout(const Duration(milliseconds: 400));
+    expect(result.failure, ResolveFailure.timeout);
+    start.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(browser.disposed, isTrue);
+  });
+
+  test('cancellation stops the MacCMS HTTP request', () async {
+    final pageRequested = Completer<void>();
+    var pageCancelled = false;
+    final pageHttp = Dio()
+      ..httpClientAdapter = _CallbackAdapter((_, cancelled) async {
+        pageRequested.complete();
+        await cancelled;
+        pageCancelled = true;
+        throw StateError('cancelled');
+      });
+    final resolver = StreamResolver(
+      cache: ResolvedStreamCache(),
+      maccms: MacCmsResolver(dio: pageHttp),
+      browserFactory: () => _FakeBrowser(hang: true),
+    );
+    final cancel = CancellationToken();
+    final pending = resolver.resolve('https://source/play', cancel: cancel);
+    await pageRequested.future;
+    cancel.cancel();
+    final result = await pending.timeout(const Duration(milliseconds: 400));
+    expect(result.failure, ResolveFailure.unknown);
+    await Future<void>.delayed(Duration.zero);
+    expect(pageCancelled, isTrue);
   });
 }

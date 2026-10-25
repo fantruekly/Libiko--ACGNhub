@@ -101,8 +101,7 @@ class SyncService {
     final clearedHistory = _history.pendingClear;
     if (clearedHistory) {
       await api.clearHistory(
-          token,
-          _history.clearAt ?? DateTime.now().millisecondsSinceEpoch);
+          token, _history.clearAt ?? DateTime.now().millisecondsSinceEpoch);
       for (final record in _history.dirty()) {
         if (record.deleted) {
           // Covered by the clearHistory call above.
@@ -116,6 +115,7 @@ class SyncService {
             record.episodeIndex,
             record.watchedAt.millisecondsSinceEpoch,
             record.updatedAt.millisecondsSinceEpoch,
+            playback: _playback(record),
           );
           history[record.work.id] = record.updatedAt;
         }
@@ -129,6 +129,7 @@ class SyncService {
           record.episodeIndex,
           record.watchedAt.millisecondsSinceEpoch,
           record.updatedAt.millisecondsSinceEpoch,
+          playback: _playback(record),
         );
         history[record.work.id] = record.updatedAt;
       }
@@ -143,28 +144,53 @@ class SyncService {
     await _follows.mergeFromServer(page.follows
         .map((item) => FollowRecord(
               work: Work.fromJson(item.work),
-              updatedAt:
-                  DateTime.fromMillisecondsSinceEpoch(item.updatedAt),
-              deleted: item.deleted,
-            ))
-        .toList());
-
-    await _history.mergeFromServer(page.history
-        .map((item) => WatchRecord(
-              work: Work.fromJson(item.work),
-              episodeTitle: item.episodeTitle,
-              episodeIndex: item.episodeIndex,
-              watchedAt: DateTime.fromMillisecondsSinceEpoch(item.watchedAt),
               updatedAt: DateTime.fromMillisecondsSinceEpoch(item.updatedAt),
               deleted: item.deleted,
             ))
         .toList());
+
+    final localHistory = {for (final r in _history.all()) r.work.id: r};
+    await _history.mergeFromServer(page.history.map((item) {
+      final local = localHistory[item.work['id']];
+      // Older servers omit playback. Preserve only a known identical
+      // episode; carrying its position to a different episode is unsafe.
+      final fallback = !item.deleted &&
+              local != null &&
+              local.episodeTitle == item.episodeTitle &&
+              local.episodeIndex == item.episodeIndex
+          ? _playback(local)
+          : null;
+      final playback = item.playback ?? fallback ?? const <String, dynamic>{};
+      return WatchRecord(
+        work: Work.fromJson(item.work),
+        episodeTitle: item.episodeTitle,
+        episodeIndex: item.episodeIndex,
+        watchedAt: DateTime.fromMillisecondsSinceEpoch(item.watchedAt),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(item.updatedAt),
+        deleted: item.deleted,
+        positionMs: playback['positionMs'] as int? ?? 0,
+        durationMs: playback['durationMs'] as int? ?? 0,
+        sourceId: playback['sourceId'] as String?,
+        lineId: playback['lineId'] as String?,
+        episodeKey: playback['episodeKey'] as String?,
+        completed: playback['completed'] as bool? ?? false,
+      );
+    }).toList());
 
     await db.setString(_kCursor, page.nextSeq.toString());
   }
 
   String _baseUrl(AppDatabase db) =>
       db.getString('account_base_url') ?? kDefaultBaseUrl;
+
+  static Map<String, dynamic> _playback(WatchRecord record) => {
+        'positionMs': record.positionMs,
+        'durationMs': record.durationMs,
+        'sourceId': record.sourceId,
+        'lineId': record.lineId,
+        'episodeKey': record.episodeKey,
+        'completed': record.completed,
+      };
 
   Future<bool> _refresh() async {
     // AccountNotifier.refreshSession needs a ProviderContainer; the service is
@@ -187,7 +213,7 @@ class _Pushed {
 
 final syncProvider = Provider<SyncService>((ref) {
   final service = SyncService();
-  service.refreshSession = () =>
-      ref.read(accountProvider.notifier).refreshSession();
+  service.refreshSession =
+      () => ref.read(accountProvider.notifier).refreshSession();
   return service;
 });

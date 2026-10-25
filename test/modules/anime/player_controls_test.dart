@@ -18,6 +18,8 @@ Widget _host({
   bool muted = false,
   ValueChanged<double>? onVolumeChanged,
   VoidCallback? onToggleMute,
+  bool autoNext = true,
+  ValueChanged<bool>? onAutoNextChanged,
 }) {
   return MaterialApp(
     theme: buildAppTheme(),
@@ -40,12 +42,33 @@ Widget _host({
         muted: muted,
         onVolumeChanged: onVolumeChanged ?? (_) {},
         onToggleMute: onToggleMute ?? () {},
+        autoNext: autoNext,
+        onAutoNextChanged: onAutoNextChanged,
       ),
     ),
   );
 }
 
 void main() {
+  testWidgets('auto-next toggle reports the inverse of its current setting',
+      (tester) async {
+    final changes = <bool>[];
+    await tester.pumpWidget(_host(onAutoNextChanged: changes.add));
+    expect(find.byTooltip('自动连播：开'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('player-auto-next')));
+    expect(changes, [false]);
+
+    await tester
+        .pumpWidget(_host(autoNext: false, onAutoNextChanged: changes.add));
+    expect(find.byTooltip('自动连播：关'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('player-auto-next')));
+    expect(changes, [false, true]);
+  });
+
+  testWidgets('auto-next control is absent without a callback', (tester) async {
+    await tester.pumpWidget(_host());
+    expect(find.byKey(const ValueKey('player-auto-next')), findsNothing);
+  });
   testWidgets('shows the title, times and a primary-coloured seek bar',
       (tester) async {
     await tester.pumpWidget(_host());
@@ -63,7 +86,8 @@ void main() {
           .ancestor(of: find.byType(Slider), matching: find.byType(SliderTheme))
           .first,
     );
-    expect(sliderTheme.data.activeTrackColor, buildAppTheme().colorScheme.primary);
+    expect(
+        sliderTheme.data.activeTrackColor, buildAppTheme().colorScheme.primary);
     expect(sliderTheme.data.thumbColor, buildAppTheme().colorScheme.primary);
   });
 
@@ -118,12 +142,13 @@ void main() {
     expect(next, 1);
 
     await tester.pumpWidget(_host(hasNext: false));
-    final button = tester.widget<IconButton>(
-        find.byKey(const ValueKey('player-next')));
+    final button =
+        tester.widget<IconButton>(find.byKey(const ValueKey('player-next')));
     expect(button.onPressed, isNull);
   });
 
-  testWidgets('volume button reveals a slider and mute toggles', (tester) async {
+  testWidgets('volume button reveals a slider and mute toggles',
+      (tester) async {
     var toggled = 0;
     double? changed;
     await tester.pumpWidget(_host(
@@ -137,8 +162,8 @@ void main() {
         tester.getSize(find.byKey(const ValueKey('player-volume-panel')));
     expect(panel.width, 160);
     expect(panel.height, 40);
-    final slider =
-        tester.widget<Slider>(find.byKey(const ValueKey('player-volume-slider')));
+    final slider = tester
+        .widget<Slider>(find.byKey(const ValueKey('player-volume-slider')));
     expect(slider.value, 100);
     await tester.tap(find.byKey(const ValueKey('player-mute')));
     expect(toggled, 1);

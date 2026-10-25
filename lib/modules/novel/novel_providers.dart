@@ -1,16 +1,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/sources/managed_sources.dart';
+import '../../core/sources/source_preferences.dart';
 
 import '../../core/novel/linovelib_source.dart';
 import '../../core/novel/lknovel_source.dart';
 import '../../core/novel/models.dart';
 import '../../core/novel/novel_source.dart';
 
-final novelSourceManagerProvider = Provider<NovelSourceManager>(
-  (ref) => NovelSourceManager(sources: [LinovelibSource(), LknovelSource()]),
+final novelSourceManagerProvider = Provider<NovelSourceManager>((ref) {
+  final health = ref.read(sourceHealthProvider);
+  return NovelSourceManager(sources: [
+    for (final source in [LinovelibSource(), LknovelSource()])
+      ManagedNovelSource(source, health),
+  ]);
+});
+
+final allNovelSourcesProvider = Provider<List<NovelSource>>(
+  (ref) => ref.watch(novelSourceManagerProvider).sources,
 );
 
-final novelSourcesProvider =
-    Provider<List<NovelSource>>((ref) => ref.watch(novelSourceManagerProvider).sources);
+final novelSourcesProvider = Provider<List<NovelSource>>((ref) => ref
+    .watch(sourcePreferencesProvider)
+    .apply(SourceKind.novel, ref.watch(allNovelSourcesProvider),
+        (source) => source.id));
 
 /// 合并首页各书单并按 id 去重。
 List<Novel> flattenHome(NovelHome home) {
@@ -86,12 +98,13 @@ final novelSearchSourceProvider =
   ];
 });
 
-/// 并发搜索所有源并合并（按源顺序、标题去重）。慢的源不会叠加等待时间。
+/// 保留所有来源及同名不同作者/版本，只移除同一来源的重复条目。
 final novelSearchProvider =
-    FutureProvider.family<List<NovelSearchResult>, String>((ref, keyword) async {
+    FutureProvider.family<List<NovelSearchResult>, String>(
+        (ref, keyword) async {
   final k = keyword.trim();
   if (k.isEmpty) return const [];
-  final sources = ref.watch(novelSourceManagerProvider).sources;
+  final sources = ref.watch(novelSourcesProvider);
   if (sources.isEmpty) return const [];
   final perSource = await Future.wait(sources.map((source) async {
     try {
@@ -102,7 +115,7 @@ final novelSearchProvider =
     }
   }));
   final out = <NovelSearchResult>[];
-  final seen = <String>{};
+  final seen = <(String, String)>{};
   Object? lastError;
   var succeeded = 0;
   for (final (sourceId, novels, error) in perSource) {
@@ -112,7 +125,7 @@ final novelSearchProvider =
     }
     succeeded++;
     for (final novel in novels) {
-      if (seen.add(novel.title.trim())) {
+      if (novel.id.isEmpty || seen.add((sourceId, novel.id))) {
         out.add(NovelSearchResult(novel: novel, sourceKey: sourceId));
       }
     }

@@ -179,6 +179,9 @@ class AniListProvider implements MetadataProvider {
         'anilistId': id,
         'titleNative': native,
         'titleEnglish': english,
+        'titleRomaji': romaji,
+        if (m['synonyms'] is List)
+          'synonyms': (m['synonyms'] as List).whereType<String>().toList(),
         'bannerUrl': m['bannerImage'],
         'score': _normalizeScore(m['averageScore']),
         'episodes': m['episodes'],

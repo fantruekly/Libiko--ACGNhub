@@ -46,11 +46,10 @@ class AccountApi {
 
   Future<AuthSession> _session(
       String path, String username, String password) async {
-    final json =
-        await _request(() => _dio.post('$baseUrl$path', data: {
-              'username': username,
-              'password': password,
-            }));
+    final json = await _request(() => _dio.post('$baseUrl$path', data: {
+          'username': username,
+          'password': password,
+        }));
     return AuthSession.fromJson(json);
   }
 
@@ -89,12 +88,14 @@ class AccountApi {
   }
 
   Future<void> putHistory(String token, Map<String, dynamic> work,
-      String episodeTitle, int episodeIndex, int watchedAt, int updatedAt) async {
+      String episodeTitle, int episodeIndex, int watchedAt, int updatedAt,
+      {Map<String, dynamic>? playback}) async {
     await _request(() => _dio.put('$baseUrl/api/history',
         data: {
           'work': work,
           'episodeTitle': episodeTitle,
           'episodeIndex': episodeIndex,
+          if (playback != null) 'playback': playback,
           'watchedAt': watchedAt,
           'updatedAt': updatedAt,
         },

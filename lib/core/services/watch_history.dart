@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,12 +12,11 @@ class WatchHistoryManager {
   static const _kClearAt = 'watch_history_clear_at';
 
   List<WatchRecord> _readAll() {
-    final jsonList = AppDatabase().getStringList(_key);
+    final jsonList = AppDatabase().collections.all(_key);
     final records = <WatchRecord>[];
     for (final raw in jsonList) {
       try {
-        records.add(
-            WatchRecord.fromJson(json.decode(raw) as Map<String, dynamic>));
+        records.add(WatchRecord.fromJson(raw));
       } catch (_) {
         // Skip a malformed entry rather than failing the whole list.
       }
@@ -49,7 +46,17 @@ class WatchHistoryManager {
     return next;
   }
 
-  Future<void> record(Work work, VideoEpisode episode) => _enqueue(() async {
+  Future<void> record(
+    Work work,
+    VideoEpisode episode, {
+    int positionMs = 0,
+    int durationMs = 0,
+    String? sourceId,
+    String? lineId,
+    String? episodeKey,
+    bool completed = false,
+  }) =>
+      _enqueue(() async {
         final now = DateTime.now();
         final record = WatchRecord(
           work: work,
@@ -58,20 +65,27 @@ class WatchHistoryManager {
           watchedAt: now,
           updatedAt: now,
           dirty: true,
+          positionMs: positionMs < 0 ? 0 : positionMs,
+          durationMs: durationMs < 0 ? 0 : durationMs,
+          sourceId: sourceId ?? episode.sourceId,
+          lineId: lineId ?? episode.lineId,
+          episodeKey: episodeKey ?? episode.episodeKey,
+          completed: completed,
         );
-        await _save(upsert(_readAll(), record));
+        AppDatabase().collections.upsert(_key, record.toJson());
       });
 
   Future<void> clear() => _enqueue(() async {
         final now = DateTime.now();
         final tombstones = _readAll()
             .where((r) => !r.deleted)
-            .map((r) => r.copyWith(
-                deleted: true, dirty: true, updatedAt: now))
+            .map((r) => r.copyWith(deleted: true, dirty: true, updatedAt: now))
             .toList();
+        final byId = {for (final r in _readAll()) r.work.id: r};
         for (final tombstone in tombstones) {
-          await _save(upsert(_readAll(), tombstone));
+          byId[tombstone.work.id] = tombstone;
         }
+        await _save(byId.values.toList());
         await AppDatabase().setBool(_kPendingClear, true);
         await AppDatabase().setInt(_kClearAt, now.millisecondsSinceEpoch);
       });
@@ -106,8 +120,9 @@ class WatchHistoryManager {
   }
 
   Future<void> _save(List<WatchRecord> records) async {
-    final jsonList = records.map((r) => json.encode(r.toJson())).toList();
-    await AppDatabase().setStringList(_key, jsonList);
+    AppDatabase()
+        .collections
+        .replace(_key, records.map((r) => r.toJson()).toList());
   }
 
   @visibleForTesting
@@ -132,8 +147,23 @@ class WatchHistoryNotifier extends Notifier<List<WatchRecord>> {
   @override
   List<WatchRecord> build() => _manager.all();
 
-  Future<void> record(Work work, VideoEpisode episode) async {
-    await _manager.record(work, episode);
+  Future<void> record(
+    Work work,
+    VideoEpisode episode, {
+    int positionMs = 0,
+    int durationMs = 0,
+    String? sourceId,
+    String? lineId,
+    String? episodeKey,
+    bool completed = false,
+  }) async {
+    await _manager.record(work, episode,
+        positionMs: positionMs,
+        durationMs: durationMs,
+        sourceId: sourceId,
+        lineId: lineId,
+        episodeKey: episodeKey,
+        completed: completed);
     state = _manager.all();
   }
 

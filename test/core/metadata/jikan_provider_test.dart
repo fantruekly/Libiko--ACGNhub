@@ -10,6 +10,12 @@ void main() {
           'title': 'Sousou no Frieren',
           'title_english': 'Frieren: Beyond Journey\'s End',
           'title_japanese': '葬送のフリーレン',
+          'title_synonyms': ['Frieren', '', 123],
+          'titles': [
+            {'type': 'Synonym', 'title': 'Frieren'},
+            {'type': 'English', 'title': 'Frieren: Beyond Journey\'s End'},
+            {'type': 'Invalid', 'title': null},
+          ],
           'images': {
             'jpg': {
               'image_url': 'https://cdn/x.jpg',
@@ -38,6 +44,8 @@ void main() {
     final w = works.first;
     expect(w.id, 'jikan_52991');
     expect(w.title, 'Sousou no Frieren');
+    expect(w.extra['titleNative'], '葬送のフリーレン');
+    expect(w.extra['aliases'], ['Frieren', 'Frieren: Beyond Journey\'s End']);
     expect(w.coverUrl, 'https://cdn/x-l.jpg');
     expect(w.summary, 'A mage journeys.');
     expect(w.tags, ['Adventure', 'Drama']);

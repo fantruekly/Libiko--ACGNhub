@@ -64,6 +64,10 @@ String buildEpisodesScript(SourceRule rule) => '''
       if (h) {
         out.push({
           title: (roads.length > 1 ? '线路' + (r + 1) + ' ' : '') + t,
+          episodeTitle: t,
+          lineId: 'road:' + r,
+          lineName: '线路' + (r + 1),
+          episodeNumber: i + 1,
           href: h
         });
       }
@@ -101,65 +105,73 @@ class WebviewScraper {
     Duration timeout = const Duration(seconds: 12),
     CancellationToken? cancel,
   }) async {
+    if (cancel?.isCancelled ?? false) return const <dynamic>[];
+    final operationCancel = CancellationToken();
+    final cancelled = Completer<List<dynamic>>();
+    void onCancel() {
+      operationCancel.cancel();
+      if (!cancelled.isCompleted) cancelled.complete(const <dynamic>[]);
+    }
+
+    cancel?.addListener(onCancel);
+    try {
+      return await Future.any<List<dynamic>>([
+        _fetch(
+            url: url,
+            script: script,
+            userAgent: userAgent,
+            timeout: timeout,
+            cancel: operationCancel),
+        cancelled.future,
+      ]).timeout(timeout, onTimeout: () {
+        operationCancel.cancel();
+        throw TimeoutException('Source page request timed out', timeout);
+      });
+    } finally {
+      operationCancel.cancel();
+      cancel?.removeListener(onCancel);
+    }
+  }
+
+  Future<List<dynamic>> _fetch(
+      {required String url,
+      required String script,
+      required Duration timeout,
+      required CancellationToken cancel,
+      String? userAgent}) async {
     PooledBrowser? pooled;
     try {
-      if (cancel?.isCancelled ?? false) return const <dynamic>[];
       pooled = await _pool.acquire(
-        userAgent: userAgent ?? kBrowserUserAgent,
-        priority: BrowserPriority.background,
-      );
-      if (cancel?.isCancelled ?? false) return const <dynamic>[];
-      final browser = pooled;
-
-      var loaded = false;
-      Object? loadError;
-      DateTime? loadedAt;
-      unawaited(() async {
-        try {
-          await browser.load(url, timeout: timeout);
-        } catch (e) {
-          loadError = e;
-          debugPrint('[WebviewScraper] load failed for $url: $e');
-        } finally {
-          loaded = true;
-          loadedAt = DateTime.now();
-        }
-      }());
-
-      final deadline = DateTime.now().add(timeout);
-      while (DateTime.now().isBefore(deadline)) {
-        if (cancel?.isCancelled ?? false) return const <dynamic>[];
-        dynamic result;
-        try {
-          result = await browser
-              .eval(script)
-              .timeout(const Duration(seconds: 3), onTimeout: () => null);
-        } catch (_) {
-          result = null;
-        }
+          userAgent: userAgent ?? kBrowserUserAgent,
+          priority: BrowserPriority.background,
+          cancel: cancel);
+      if (cancel.isCancelled) return const <dynamic>[];
+      // Await the current navigation before extracting: a pooled browser can
+      // still be flushing the previous document through its blank-page barrier.
+      // Its old rows must never become a successful result for the new source.
+      await pooled.load(url, timeout: timeout);
+      if (cancel.isCancelled) return const <dynamic>[];
+      final loadedAt = DateTime.now();
+      while (!cancel.isCancelled) {
+        final result =
+            await pooled.eval(script).timeout(const Duration(seconds: 3));
+        if (cancel.isCancelled) return const <dynamic>[];
         final list = decodeResult(result);
         if (list.isNotEmpty) return list;
-        // Give up shortly after the page has loaded (rather than burning the
-        // whole timeout) so a stale/empty source does not block other sources.
-        if (loaded) {
-          if (loadError != null) return const <dynamic>[];
-          final at = loadedAt;
-          if (at != null &&
-              DateTime.now().difference(at) >=
-                  const Duration(seconds: 2)) {
-            return const <dynamic>[];
-          }
+        if (DateTime.now().difference(loadedAt) >= const Duration(seconds: 2)) {
+          return const <dynamic>[];
         }
         await Future<void>.delayed(const Duration(milliseconds: 250));
       }
       return const <dynamic>[];
-    } catch (e) {
-      debugPrint('[WebviewScraper] failed for $url: $e');
-      return null;
+    } catch (_) {
+      if (cancel.isCancelled) return const <dynamic>[];
+      // A failed navigation, engine error or timeout is not an empty search.
+      // Propagate it so callers cannot cache it or label the source successful.
+      rethrow;
     } finally {
-      try {
-        await pooled?.release();
-      } catch (_) {}
+      final borrowed = pooled;
+      if (borrowed != null) unawaited(borrowed.release());
     }
   }
 }

@@ -95,11 +95,8 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
   Widget _body() {
     final async =
         ref.watch(comicDetailProvider((widget.sourceKey, widget.comicId)));
-    final source = ref
-        .watch(comicSourcesProvider)
-        .valueOrNull
-        ?.where((s) => s.key == widget.sourceKey)
-        .firstOrNull;
+    final source =
+        ref.watch(comicSourceByKeyProvider(widget.sourceKey)).valueOrNull;
     final needsLogin = source != null && source.requireLogin;
     final logged = !needsLogin ||
         (ref.watch(comicLoginProvider(widget.sourceKey)).valueOrNull ?? false);
@@ -136,8 +133,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           builder: (_) => ComicAccountDialog(source: source),
         );
         ref.invalidate(comicLoginProvider(widget.sourceKey));
-        ref.invalidate(
-            comicDetailProvider((widget.sourceKey, widget.comicId)));
+        ref.invalidate(comicDetailProvider((widget.sourceKey, widget.comicId)));
       },
     );
   }
@@ -179,17 +175,15 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                   child: SizedBox(
                     width: 110,
                     height: 154,
-                    child:
-                        details.cover != null && details.cover!.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: details.cover!,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 300,
-                                cacheManager: AppCacheManager(),
-                                errorWidget: (_, __, ___) =>
-                                    _coverPlaceholder(cs),
-                              )
-                            : _coverPlaceholder(cs),
+                    child: details.cover != null && details.cover!.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: details.cover!,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 300,
+                            cacheManager: AppCacheManager(),
+                            errorWidget: (_, __, ___) => _coverPlaceholder(cs),
+                          )
+                        : _coverPlaceholder(cs),
                   ),
                 ),
               ),
@@ -231,8 +225,8 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
 
   Widget _favoriteButton(ComicDetails details) {
     final favorites = ref.watch(comicFavoritesProvider);
-    final isFavorite = favorites.any((f) =>
-        f.sourceKey == widget.sourceKey && f.comicId == widget.comicId);
+    final isFavorite = favorites.any(
+        (f) => f.sourceKey == widget.sourceKey && f.comicId == widget.comicId);
     final cs = Theme.of(context).colorScheme;
     return FilledButton.icon(
       style: isFavorite
@@ -271,9 +265,8 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
-          onTap: needsToggle
-              ? () => setState(() => _expanded = !_expanded)
-              : null,
+          onTap:
+              needsToggle ? () => setState(() => _expanded = !_expanded) : null,
           child: Text(
             description,
             maxLines: _expanded ? null : 3,
@@ -356,10 +349,8 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
 
   bool _canLoadEp() {
     return ref
-            .watch(comicSourcesProvider)
+            .watch(comicSourceByKeyProvider(widget.sourceKey))
             .valueOrNull
-            ?.where((s) => s.key == widget.sourceKey)
-            .firstOrNull
             ?.canLoadEp ??
         false;
   }

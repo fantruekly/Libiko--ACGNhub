@@ -25,6 +25,7 @@ class _FakeApi implements AccountApi {
   final putFollows = <String>[];
   final deleteFollows = <String>[];
   final putHistoryIds = <String>[];
+  final putPlayback = <Map<String, dynamic>?>[];
   final clearHistoryAts = <int>[];
   int clearHistoryCalls = 0;
   int syncCalls = 0;
@@ -36,13 +37,16 @@ class _FakeApi implements AccountApi {
   Future<SyncPage> sync(String token, int sinceSeq) async {
     syncCalls++;
     if (unauthorizedOnce && syncCalls == 1) {
-      throw const AccountException(statusCode: 401, code: 'unauthorized', message: 'expired');
+      throw const AccountException(
+          statusCode: 401, code: 'unauthorized', message: 'expired');
     }
-    return syncPage ?? SyncPage(follows: const [], history: const [], nextSeq: sinceSeq);
+    return syncPage ??
+        SyncPage(follows: const [], history: const [], nextSeq: sinceSeq);
   }
 
   @override
-  Future<void> putFollow(String token, Map<String, dynamic> work, int updatedAt) async =>
+  Future<void> putFollow(
+          String token, Map<String, dynamic> work, int updatedAt) async =>
       putFollows.add(work['id'] as String);
 
   @override
@@ -51,8 +55,11 @@ class _FakeApi implements AccountApi {
 
   @override
   Future<void> putHistory(String token, Map<String, dynamic> work,
-          String episodeTitle, int episodeIndex, int watchedAt, int updatedAt) async =>
-      putHistoryIds.add(work['id'] as String);
+      String episodeTitle, int episodeIndex, int watchedAt, int updatedAt,
+      {Map<String, dynamic>? playback}) async {
+    putHistoryIds.add(work['id'] as String);
+    putPlayback.add(playback);
+  }
 
   @override
   Future<void> clearHistory(String token, int updatedAt) async {
@@ -79,7 +86,61 @@ class _FakeApi implements AccountApi {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('pushes dirty follows and history then pulls and advances the cursor', () async {
+  test(
+      'sync carries playback and an old server does not erase the same episode',
+      () async {
+    await AppDatabase.init();
+    await AppDatabase().setString('account_token', 'tok');
+    final history = WatchHistoryManager();
+    const episode = VideoEpisode(
+        id: 'e',
+        title: '第1集',
+        index: 0,
+        playUrl: 'u',
+        sourceId: 's',
+        lineId: 'road:0',
+        episodeKey: 'episode:1');
+    await history.record(_work('h'), episode,
+        positionMs: 12000, durationMs: 90000);
+    final current = history.all().single;
+    final api = _FakeApi(
+        syncPage: SyncPage(follows: const [], history: [
+      HistoryItem(
+          work: _work('h').toJson(),
+          episodeTitle: '第1集',
+          episodeIndex: 0,
+          watchedAt: current.watchedAt.millisecondsSinceEpoch,
+          updatedAt: current.updatedAt.millisecondsSinceEpoch,
+          deleted: false),
+    ], nextSeq: 1));
+    await SyncService(apiFactory: (_) => api, history: history).sync();
+    expect(api.putPlayback.single!['positionMs'], 12000);
+    expect(history.all().single.positionMs, 12000);
+    expect(history.all().single.lineId, 'road:0');
+
+    api.syncPage = SyncPage(follows: const [], history: [
+      HistoryItem(
+          work: _work('h').toJson(),
+          episodeTitle: '第2集',
+          episodeIndex: 1,
+          watchedAt: current.watchedAt.millisecondsSinceEpoch + 1,
+          updatedAt: current.updatedAt.millisecondsSinceEpoch + 1,
+          deleted: false,
+          playback: {
+            'positionMs': 3000,
+            'durationMs': 80000,
+            'sourceId': 's2',
+            'lineId': 'road:1',
+            'episodeKey': 'episode:2'
+          }),
+    ], nextSeq: 2);
+    await SyncService(apiFactory: (_) => api, history: history).sync();
+    expect(history.all().single.positionMs, 3000);
+    expect(history.all().single.sourceId, 's2');
+  });
+
+  test('pushes dirty follows and history then pulls and advances the cursor',
+      () async {
     await AppDatabase.init();
     final api = _FakeApi(
       syncPage: SyncPage(
@@ -94,11 +155,12 @@ void main() {
     final follows = FollowManager();
     final history = WatchHistoryManager();
     await follows.follow(_work('local'));
-    await history.record(
-        _work('h'), const VideoEpisode(id: 'e', title: '第1集', index: 0, playUrl: 'u'));
+    await history.record(_work('h'),
+        const VideoEpisode(id: 'e', title: '第1集', index: 0, playUrl: 'u'));
     await AppDatabase().setString('account_token', 'tok');
 
-    await SyncService(apiFactory: (_) => api, follows: follows, history: history)
+    await SyncService(
+            apiFactory: (_) => api, follows: follows, history: history)
         .sync();
 
     expect(api.putFollows, ['local']);
@@ -109,7 +171,8 @@ void main() {
     expect(AppDatabase().getString('sync_cursor'), '9');
   });
 
-  test('a local write during a push stays dirty and is pushed next time', () async {
+  test('a local write during a push stays dirty and is pushed next time',
+      () async {
     await AppDatabase.init();
     late FollowManager follows;
     var mutations = 0;
@@ -136,16 +199,18 @@ void main() {
     expect(api.putFollows, ['local', 'local']);
   });
 
-  test('a history pendingClear pushes a clear instead of per-record puts', () async {
+  test('a history pendingClear pushes a clear instead of per-record puts',
+      () async {
     await AppDatabase.init();
     final api = _FakeApi();
     final history = WatchHistoryManager();
-    await history.record(
-        _work('h'), const VideoEpisode(id: 'e', title: '第1集', index: 0, playUrl: 'u'));
+    await history.record(_work('h'),
+        const VideoEpisode(id: 'e', title: '第1集', index: 0, playUrl: 'u'));
     await history.clear();
     await AppDatabase().setString('account_token', 'tok');
 
-    await SyncService(apiFactory: (_) => api, follows: FollowManager(), history: history)
+    await SyncService(
+            apiFactory: (_) => api, follows: FollowManager(), history: history)
         .sync();
 
     expect(api.clearHistoryCalls, 1);
@@ -166,9 +231,7 @@ void main() {
     await AppDatabase().setString('account_token', 'tok');
 
     await SyncService(
-            apiFactory: (_) => api,
-            follows: FollowManager(),
-            history: history)
+            apiFactory: (_) => api, follows: FollowManager(), history: history)
         .sync();
 
     expect(api.clearHistoryCalls, 1);
@@ -186,20 +249,27 @@ void main() {
     await follows.follow(_work('local'));
     await AppDatabase().setString('account_token', 'tok');
 
-    await SyncService(apiFactory: (_) => api, follows: follows, history: WatchHistoryManager())
+    await SyncService(
+            apiFactory: (_) => api,
+            follows: follows,
+            history: WatchHistoryManager())
         .sync();
 
     expect(follows.dirty(), isNotEmpty);
   });
 
-  test('a non-account error during sync is swallowed and leaves dirty flags', () async {
+  test('a non-account error during sync is swallowed and leaves dirty flags',
+      () async {
     await AppDatabase.init();
     final api = _MalformedApi();
     final follows = FollowManager();
     await follows.follow(_work('local'));
     await AppDatabase().setString('account_token', 'tok');
 
-    await SyncService(apiFactory: (_) => api, follows: follows, history: WatchHistoryManager())
+    await SyncService(
+            apiFactory: (_) => api,
+            follows: follows,
+            history: WatchHistoryManager())
         .sync();
 
     expect(follows.dirty(), isNotEmpty);
@@ -229,7 +299,9 @@ void main() {
     expect(follows.dirty(), isEmpty);
   });
 
-  test('a non-account error on the 401 retry is swallowed and leaves dirty flags', () async {
+  test(
+      'a non-account error on the 401 retry is swallowed and leaves dirty flags',
+      () async {
     await AppDatabase.init();
     final api = _RefreshRetryMalformedApi();
     final follows = FollowManager();
@@ -274,7 +346,10 @@ void main() {
   test('no token is a no-op', () async {
     await AppDatabase.init();
     final api = _FakeApi();
-    await SyncService(apiFactory: (_) => api, follows: FollowManager(), history: WatchHistoryManager())
+    await SyncService(
+            apiFactory: (_) => api,
+            follows: FollowManager(),
+            history: WatchHistoryManager())
         .sync();
     expect(api.syncCalls, 0);
   });
