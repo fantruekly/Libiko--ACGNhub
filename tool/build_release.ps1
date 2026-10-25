@@ -22,7 +22,12 @@ $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 $zip = Join-Path $dist "Libiko-$version-windows-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path (Join-Path $release '*') -DestinationPath $zip
+# Running the app can leave a WebView profile beside the executable. Only the
+# Flutter data directory and top-level runtime files belong in a release bundle.
+$bundleItems = @(Get-ChildItem -LiteralPath $release -Force | Where-Object {
+    -not $_.PSIsContainer -or $_.Name -eq 'data'
+})
+Compress-Archive -LiteralPath $bundleItems.FullName -DestinationPath $zip
 
 $size = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 Write-Output "Built $zip ($size MB)"
