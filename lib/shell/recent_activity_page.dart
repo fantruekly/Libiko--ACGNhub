@@ -89,6 +89,10 @@ class _RecentActivityPageState extends ConsumerState<RecentActivityPage> {
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
                         label: Text(label),
+                        labelStyle: const TextStyle(
+                            fontFamily: 'NotoSansSC',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400),
                         selected: _filter == type,
                         onSelected: (_) => setState(() => _filter = type))),
             ])),
