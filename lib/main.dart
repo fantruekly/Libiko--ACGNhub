@@ -3,17 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/account/account_service.dart';
 import 'core/account/sync_service.dart';
 import 'core/platform.dart';
-import 'core/services/update_service.dart';
+import 'core/services/update_controller.dart';
 import 'core/storage/database.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode.dart';
 import 'core/ui/app_messenger.dart';
-import 'core/ui/open_url.dart';
+import 'core/ui/update_dialog.dart';
 import 'shell/main_shell.dart';
 
 Future<void> main() async {
@@ -91,6 +90,7 @@ class LibikoApp extends ConsumerStatefulWidget {
 }
 
 class _LibikoAppState extends ConsumerState<LibikoApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
   @override
   void initState() {
     super.initState();
@@ -99,14 +99,26 @@ class _LibikoAppState extends ConsumerState<LibikoApp> {
 
   Future<void> _checkForUpdate() async {
     try {
-      final info = await PackageInfo.fromPlatform();
-      final update = await UpdateService().check(info.version);
-      if (update == null || !mounted) return;
+      final controller = ref.read(updateControllerProvider);
+      final result = await controller.check();
+      if (!mounted ||
+          result != UpdateCheckResult.available ||
+          !controller.automatic) {
+        return;
+      }
+      final update = controller.update!;
       appMessengerKey.currentState?.showSnackBar(SnackBar(
+        duration: const Duration(seconds: 12),
+        showCloseIcon: true,
         content: Text('发现新版本 v${update.version}'),
         action: SnackBarAction(
           label: '查看',
-          onPressed: () => unawaited(openExternalUrl(update.url)),
+          onPressed: () {
+            final context = _navigatorKey.currentState?.overlay?.context;
+            if (context != null) {
+              unawaited(showUpdateDialog(context, update, controller));
+            }
+          },
         ),
       ));
     } catch (_) {
@@ -118,6 +130,7 @@ class _LibikoAppState extends ConsumerState<LibikoApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Libiko',
+      navigatorKey: _navigatorKey,
       scaffoldMessengerKey: appMessengerKey,
       debugShowCheckedModeBanner: false,
       themeMode: ref.watch(appThemeModeProvider),

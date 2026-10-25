@@ -24,8 +24,10 @@ import '../core/sources/source_preferences.dart';
 import '../core/storage/database.dart';
 import '../core/storage/personal_backup.dart';
 import 'dart:convert';
+import '../core/services/update_controller.dart';
 import '../core/services/update_service.dart';
 import '../core/theme/theme_mode.dart';
+import '../core/ui/update_dialog.dart';
 import '../core/ui/open_url.dart';
 import 'source_hub_page.dart';
 
@@ -39,7 +41,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   String _version = '';
   int _cacheBytes = -1;
-  bool _checking = false;
   bool _backupBusy = false;
 
   PersonalBackupService get _backup => PersonalBackupService(
@@ -210,49 +211,53 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _checkForUpdate() async {
-    if (_checking) return;
-    setState(() => _checking = true);
-    try {
-      final info = await PackageInfo.fromPlatform();
-      final update = await UpdateService().check(info.version);
-      if (!mounted) return;
-      if (update == null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('已是最新版本')));
-      } else {
-        await _showUpdateDialog(update);
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('检查更新失败')));
-      }
-    } finally {
-      if (mounted) setState(() => _checking = false);
+    final controller = ref.read(updateControllerProvider);
+    if (controller.checking) return;
+    final result = await controller.check(manual: true);
+    if (!mounted) return;
+    if (result == UpdateCheckResult.available) {
+      await showUpdateDialog(context, controller.update!, controller);
+    } else if (result == UpdateCheckResult.upToDate) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('已是最新正式版本')));
+    } else if (result == UpdateCheckResult.failed) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(controller.error!),
+        action: SnackBarAction(label: '重试', onPressed: _checkForUpdate),
+      ));
     }
   }
 
-  Future<void> _showUpdateDialog(UpdateInfo update) async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('发现新版本 v${update.version}'),
-        content: update.notes.isEmpty
-            ? null
-            : SingleChildScrollView(child: Text(update.notes)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('稍后')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              unawaited(openExternalUrl(update.url));
-            },
-            child: const Text('去下载'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _setAutomaticUpdate(bool value) async {
+    try {
+      await ref.read(updateControllerProvider).setAutomatic(value);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('更新设置保存失败，请重试')));
+      }
+    }
+  }
+
+  Future<void> _openReleasePage() async {
+    final opened = await openExternalUrl(UpdateService.releasesUrl);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('无法打开浏览器，请稍后重试')));
+    }
+  }
+
+  String _updateStatus(UpdateController controller) {
+    if (controller.checking) return '正在获取最新正式版本…';
+    if (controller.error != null) return controller.error!;
+    if (controller.update != null) {
+      final version = controller.update!.version;
+      return '发现 v$version${controller.skippedVersion == version ? '（已跳过自动提醒）' : ''}';
+    }
+    final checked = controller.lastChecked?.toLocal();
+    if (checked == null) return '查看最新版本与更新说明';
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '上次检查 ${checked.year}-${two(checked.month)}-${two(checked.day)} ${two(checked.hour)}:${two(checked.minute)}';
   }
 
   String get _cacheLabel => _cacheBytes < 0
@@ -262,6 +267,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final mode = ref.watch(appThemeModeProvider);
+    final updates = ref.watch(updateControllerProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -314,13 +320,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ListTile(
             leading: const Icon(Icons.system_update_alt_rounded),
             title: const Text('检查更新'),
-            trailing: _checking
+            subtitle: Text(_updateStatus(updates)),
+            trailing: updates.checking
                 ? const SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2))
-                : null,
-            onTap: _checking ? null : _checkForUpdate,
+                : updates.error != null
+                    ? IconButton(
+                        tooltip: '打开发布页',
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        onPressed: _openReleasePage)
+                    : null,
+            onTap: updates.checking ? null : _checkForUpdate,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.update_rounded),
+            title: const Text('自动检查更新'),
+            subtitle: const Text('启动时检查，12 小时内不重复；关闭后仍可手动检查'),
+            value: updates.automatic,
+            onChanged: _setAutomaticUpdate,
           ),
           ListTile(
             leading: const Icon(Icons.description_outlined),
