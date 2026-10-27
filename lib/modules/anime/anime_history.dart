@@ -21,18 +21,18 @@ class AnimeHistoryView extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Row(
             children: [
-              Text(
+              Expanded(
+                  child: Text(
                 '历史记录',
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface,
                     height: 1.4),
-              ),
-              const Spacer(),
+              )),
               TextButton(
                 onPressed:
                     records.isEmpty ? null : () => _confirmClear(context, ref),
@@ -48,7 +48,9 @@ class AnimeHistoryView extends ConsumerWidget {
               : AdaptiveGridView(
                   itemCount: records.length,
                   mobileColumns: 3,
-                  mobileTitleExtent: 62,
+                  responsiveColumns: true,
+                  mobileTitleExtent: 70,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                   itemBuilder: (_, i) {
                     final record = records[i];
                     return WorkCard(

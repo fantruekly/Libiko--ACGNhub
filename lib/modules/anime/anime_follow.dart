@@ -16,12 +16,15 @@ class AnimeFollowView extends ConsumerWidget {
     final records = ref.watch(followProvider);
 
     if (records.isEmpty) {
-      return const EmptyState(icon: Icons.favorite_border_rounded, message: '还没有追番');
+      return const EmptyState(
+          icon: Icons.favorite_border_rounded, message: '还没有追番');
     }
     return AdaptiveGridView(
       itemCount: records.length,
       mobileColumns: 3,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      responsiveColumns: true,
+      mobileTitleExtent: 48,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       itemBuilder: (_, i) {
         final work = records[i].work;
         return WorkCard(

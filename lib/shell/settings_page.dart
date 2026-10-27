@@ -29,6 +29,7 @@ import '../core/services/update_service.dart';
 import '../core/theme/theme_mode.dart';
 import '../core/ui/update_dialog.dart';
 import '../core/ui/open_url.dart';
+import '../core/widgets/content_panel.dart';
 import 'source_hub_page.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -264,100 +265,126 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ? '清除图片缓存'
       : '清除图片缓存（约 ${(_cacheBytes / 1024 / 1024).toStringAsFixed(1)} MB）';
 
+  List<Widget> _section(String title, List<Widget> children) => [
+        _SectionHeader(title: title),
+        ContentPanel(child: Column(children: children)),
+      ];
+
   @override
   Widget build(BuildContext context) {
     final mode = ref.watch(appThemeModeProvider);
     final updates = ref.watch(updateControllerProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
-      body: ListView(
-        children: [
-          const _SectionHeader(title: '外观'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<ThemeMode>(
-              segments: const [
-                ButtonSegment(value: ThemeMode.system, label: Text('跟随系统')),
-                ButtonSegment(value: ThemeMode.light, label: Text('浅色')),
-                ButtonSegment(value: ThemeMode.dark, label: Text('深色')),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+            width: 920,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+              children: [
+                ..._section('外观', [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final (value, label) in const [
+                              (ThemeMode.system, '跟随系统'),
+                              (ThemeMode.light, '浅色'),
+                              (ThemeMode.dark, '深色'),
+                            ])
+                              ChoiceChip(
+                                  label: Text(label),
+                                  selected: mode == value,
+                                  labelStyle: const TextStyle(
+                                      fontFamily: 'NotoSansSC',
+                                      fontWeight: FontWeight.w400),
+                                  onSelected: (_) => ref
+                                      .read(appThemeModeProvider.notifier)
+                                      .set(value)),
+                          ],
+                        )),
+                  ),
+                ]),
+                ..._section('缓存', [
+                  ListTile(
+                    leading: const Icon(Icons.delete_outline),
+                    title: Text(_cacheLabel),
+                    onTap: _clearCache,
+                  ),
+                ]),
+                ..._section('资料备份', [
+                  ListTile(
+                    key: const ValueKey('export-backup'),
+                    leading: const Icon(Icons.file_upload_outlined),
+                    title: const Text('导出备份'),
+                    subtitle: const Text('收藏、历史、阅读位置、源开关与顺序；不包含账号凭据和源脚本'),
+                    onTap: _backupBusy ? null : _exportBackup,
+                  ),
+                  ListTile(
+                    key: const ValueKey('import-backup'),
+                    leading: const Icon(Icons.file_download_outlined),
+                    title: const Text('恢复备份'),
+                    subtitle: const Text('合并导入，保留较新的本地进度'),
+                    onTap: _backupBusy ? null : _importBackup,
+                  ),
+                  if (_backupBusy) const LinearProgressIndicator(),
+                ]),
+                ..._section('关于与更新', [
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('版本'),
+                    subtitle: Text(_version.isEmpty ? '—' : _version),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.system_update_alt_rounded),
+                    title: const Text('检查更新'),
+                    subtitle: Text(_updateStatus(updates)),
+                    trailing: updates.checking
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : updates.error != null
+                            ? IconButton(
+                                tooltip: '打开发布页',
+                                icon: const Icon(Icons.open_in_new_rounded),
+                                onPressed: _openReleasePage)
+                            : null,
+                    onTap: updates.checking ? null : _checkForUpdate,
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.update_rounded),
+                    title: const Text('自动检查更新'),
+                    subtitle: const Text('启动时检查，12 小时内不重复；关闭后仍可手动检查'),
+                    value: updates.automatic,
+                    onChanged: _setAutomaticUpdate,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.description_outlined),
+                    title: const Text('开源许可'),
+                    onTap: () => showLicensePage(
+                        context: context, applicationName: 'Libiko'),
+                  ),
+                ]),
+                ..._section('源', [
+                  ListTile(
+                    leading: const Icon(Icons.add_link_rounded),
+                    title: const Text('添加源'),
+                    subtitle: const Text('为动漫 / 漫画 / 轻小说 / 游戏添加资源来源'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const SourceHubPage())),
+                  ),
+                ]),
               ],
-              selected: {mode},
-              onSelectionChanged: (selection) =>
-                  ref.read(appThemeModeProvider.notifier).set(selection.first),
-            ),
-          ),
-          const Divider(),
-          const _SectionHeader(title: '缓存'),
-          ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: Text(_cacheLabel),
-            onTap: _clearCache,
-          ),
-          const Divider(),
-          const _SectionHeader(title: '资料备份'),
-          ListTile(
-            key: const ValueKey('export-backup'),
-            leading: const Icon(Icons.file_upload_outlined),
-            title: const Text('导出备份'),
-            subtitle: const Text('收藏、历史、阅读位置、源开关与顺序；不包含账号凭据和源脚本'),
-            onTap: _backupBusy ? null : _exportBackup,
-          ),
-          ListTile(
-            key: const ValueKey('import-backup'),
-            leading: const Icon(Icons.file_download_outlined),
-            title: const Text('恢复备份'),
-            subtitle: const Text('合并导入，保留较新的本地进度'),
-            onTap: _backupBusy ? null : _importBackup,
-          ),
-          if (_backupBusy) const LinearProgressIndicator(),
-          const Divider(),
-          const _SectionHeader(title: '关于与更新'),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('版本'),
-            subtitle: Text(_version.isEmpty ? '—' : _version),
-          ),
-          ListTile(
-            leading: const Icon(Icons.system_update_alt_rounded),
-            title: const Text('检查更新'),
-            subtitle: Text(_updateStatus(updates)),
-            trailing: updates.checking
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : updates.error != null
-                    ? IconButton(
-                        tooltip: '打开发布页',
-                        icon: const Icon(Icons.open_in_new_rounded),
-                        onPressed: _openReleasePage)
-                    : null,
-            onTap: updates.checking ? null : _checkForUpdate,
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.update_rounded),
-            title: const Text('自动检查更新'),
-            subtitle: const Text('启动时检查，12 小时内不重复；关闭后仍可手动检查'),
-            value: updates.automatic,
-            onChanged: _setAutomaticUpdate,
-          ),
-          ListTile(
-            leading: const Icon(Icons.description_outlined),
-            title: const Text('开源许可'),
-            onTap: () =>
-                showLicensePage(context: context, applicationName: 'Libiko'),
-          ),
-          const Divider(),
-          const _SectionHeader(title: '源'),
-          ListTile(
-            leading: const Icon(Icons.add_link_rounded),
-            title: const Text('添加源'),
-            subtitle: const Text('为动漫 / 漫画 / 轻小说 / 游戏添加资源来源'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SourceHubPage())),
-          ),
-        ],
+            )),
       ),
     );
   }
@@ -370,10 +397,10 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
       child: Text(title,
           style: TextStyle(
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary)),
     );

@@ -62,6 +62,38 @@ void main() {
     expect(find.text('还没有记录，开始观看或阅读后会显示在这里'), findsOneWidget);
   });
 
+  testWidgets('history cards wrap at narrow widths and filters still work',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          recentActivityProvider.overrideWithValue([
+            RecentActivity(
+                type: WorkType.anime,
+                id: 'test',
+                title: '很长的动漫标题用于验证历史卡片换行',
+                subtitle: '第十二集 · 12 分钟',
+                updatedAt: DateTime(2026, 10, 27))
+          ]),
+        ],
+        child: MaterialApp(
+            builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(1.8)),
+                child: child!),
+            home: const RecentActivityPage())));
+    await tester.pumpAndSettle();
+    expect(find.text('第十二集 · 12 分钟'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('漫画'));
+    await tester.pumpAndSettle();
+    expect(find.text('还没有记录，开始观看或阅读后会显示在这里'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('opening a recent novel resumes its saved chapter',
       (tester) async {
     await NovelHistoryManager().record(NovelHistoryEntry(
