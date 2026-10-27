@@ -35,8 +35,8 @@ void main() {
     await tester.pumpAndSettle();
 
     double capsuleAlpha(String label) {
-      final container = tester.widget<Container>(
-          find.byKey(ValueKey('bar-capsule-$label')));
+      final container =
+          tester.widget<Container>(find.byKey(ValueKey('bar-capsule-$label')));
       return (container.decoration as BoxDecoration?)?.color?.a ?? 0;
     }
 
@@ -64,19 +64,43 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    final cs =
-        Theme.of(tester.element(find.byType(AppBottomBar))).colorScheme;
+    final cs = Theme.of(tester.element(find.byType(AppBottomBar))).colorScheme;
     await tester.tap(find.text('漫画'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 160));
 
-    final container = tester.widget<Container>(
-        find.byKey(const ValueKey('bar-capsule-漫画')));
+    final container =
+        tester.widget<Container>(find.byKey(const ValueKey('bar-capsule-漫画')));
     final color = (container.decoration as BoxDecoration).color!;
     expect(color.r, closeTo(cs.secondaryContainer.r, 0.01));
     expect(color.g, closeTo(cs.secondaryContainer.g, 0.01));
     expect(color.b, closeTo(cs.secondaryContainer.b, 0.01));
     expect(color.a, greaterThan(0));
     expect(color.a, lessThan(1));
+  });
+
+  testWidgets('320px bar supports enlarged text and reduced motion',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var selected = 0;
+    await tester.pumpWidget(MaterialApp(
+        builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+                disableAnimations: true,
+                textScaler: const TextScaler.linear(1.5)),
+            child: child!),
+        home: Scaffold(
+            bottomNavigationBar: StatefulBuilder(
+                builder: (context, setState) => AppBottomBar(
+                    selectedIndex: selected,
+                    onChanged: (i) => setState(() => selected = i))))));
+    await tester.tap(find.text('轻小说'));
+    await tester.pump();
+    expect(selected, 2);
+    expect(tester.takeException(), isNull);
+    final container =
+        tester.widget<Container>(find.byKey(const ValueKey('bar-capsule-轻小说')));
+    expect((container.decoration as BoxDecoration).color!.a, 1);
   });
 }

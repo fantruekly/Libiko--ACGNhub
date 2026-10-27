@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/widgets/glass_surface.dart';
 
-/// The phone navigation bar. Four module buttons over a translucent surface,
-/// with a Material-3 style animated selection capsule behind the active icon.
+/// Four compact module buttons on a bounded translucent navigation surface.
 class AppBottomBar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onChanged;
@@ -23,20 +22,24 @@ class AppBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final scaledLabel = MediaQuery.textScalerOf(context).scale(12);
     return GlassSurface(
       borderRadius: BorderRadius.zero,
-      blur: 18,
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
+      blur: 14,
+      color: cs.surface.withValues(alpha: 0.8),
+      border: Border(
+          top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5))),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 64,
+          height: 68 + (scaledLabel - 12).clamp(0.0, 24.0),
           child: Row(
             children: [
               for (var i = 0; i < _items.length; i++)
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: _BarItem(
                       icon: _items[i].$1,
                       label: _items[i].$2,
@@ -53,7 +56,7 @@ class AppBottomBar extends StatelessWidget {
   }
 }
 
-class _BarItem extends StatefulWidget {
+class _BarItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
@@ -67,85 +70,62 @@ class _BarItem extends StatefulWidget {
   });
 
   @override
-  State<_BarItem> createState() => _BarItemState();
-}
-
-class _BarItemState extends State<_BarItem>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final CurvedAnimation _curve;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 320),
-      value: widget.selected ? 1 : 0,
-    );
-    _curve = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
-  }
-
-  @override
-  void didUpdateWidget(covariant _BarItem oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selected != widget.selected) {
-      if (widget.selected) {
-        _controller.forward(from: 0);
-      } else {
-        _controller.reverse(from: 1);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _curve.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: widget.onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedBuilder(
-        animation: _curve,
-        builder: (context, _) {
-          final t = _curve.value;
-          final iconColor =
-              Color.lerp(cs.onSurfaceVariant, cs.onSecondaryContainer, t)!;
-          final labelColor = Color.lerp(cs.onSurfaceVariant, cs.primary, t)!;
-          return Container(
-            key: ValueKey('bar-capsule-${widget.label}'),
+    final reduceMotion = MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
+    return Semantics(
+      label: label,
+      button: true,
+      selected: selected,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: selected ? 1 : 0, end: selected ? 1 : 0),
+          duration:
+              reduceMotion ? Duration.zero : const Duration(milliseconds: 240),
+          curve: Curves.easeInOutCubic,
+          builder: (context, t, _) => Container(
+            key: ValueKey('bar-capsule-$label'),
             margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
               color: cs.secondaryContainer.withValues(alpha: t),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(widget.icon, size: 24, color: iconColor),
-                const SizedBox(height: 2),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.2,
-                    fontWeight:
-                        widget.selected ? FontWeight.w600 : FontWeight.w500,
-                    color: labelColor,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(14),
+                focusColor: cs.primary.withValues(alpha: 0.12),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon,
+                          size: 22,
+                          color:
+                              Color.lerp(cs.onSurfaceVariant, cs.primary, t)),
+                      const SizedBox(height: 3),
+                      Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12,
+                              height: 1.2,
+                              fontWeight: FontWeight.w500,
+                              color: Color.lerp(
+                                  cs.onSurfaceVariant, cs.primary, t))),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

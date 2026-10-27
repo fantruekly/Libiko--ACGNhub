@@ -67,31 +67,76 @@ class _MainShellState extends State<MainShell> {
         context, MaterialPageRoute(builder: (_) => const SettingsPage()));
   }
 
+  void _openRecent() {
+    Navigator.push(context,
+        MaterialPageRoute<void>(builder: (_) => const RecentActivityPage()));
+  }
+
+  void _openSearch() {
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => switch (_currentIndex) {
+                  0 => const AnimeSearchPage(),
+                  1 => const ComicSearchPage(),
+                  2 => const NovelSearchPage(),
+                  _ => const GameSearchPage(),
+                }));
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) =>
+            _buildShell(context, constraints.maxWidth),
+      );
+
+  Widget _buildShell(BuildContext context, double width) {
+    final cs = Theme.of(context).colorScheme;
+    final desktopNavigation = isDesktop && width >= 700;
     final collapsed = _sidebarState.collapsed;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
+    final ambient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(cs.primary.withValues(alpha: 0.14), cs.surface),
+        Color.alphaBlend(cs.primary.withValues(alpha: 0.04), cs.surface),
+        Color.alphaBlend(cs.tertiary.withValues(alpha: 0.08), cs.surface),
+      ],
+      stops: const [0, 0.55, 1],
+    );
     final content = Column(
       children: [
-        _titleBar(collapsed),
+        _titleBar(collapsed, desktopNavigation),
         Expanded(
           child: Row(
             children: [
-              if (isDesktop)
+              if (desktopNavigation)
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
+                  key: const ValueKey('sidebar-panel'),
+                  duration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 260),
                   curve: Curves.easeInOutCubic,
-                  width: collapsed ? 0 : 72,
+                  width: collapsed ? 0 : AppSidebar.width,
                   clipBehavior: Clip.hardEdge,
-                  decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow),
-                  child: OverflowBox(
-                    alignment: Alignment.centerLeft,
-                    minWidth: 72,
-                    maxWidth: 72,
-                    child: AppSidebar(
-                      selectedIndex: _currentIndex,
-                      onChanged: _select,
-                      onSettingsTap: _openSettings,
+                  decoration: const BoxDecoration(),
+                  child: ExcludeFocus(
+                    excluding: collapsed,
+                    child: ExcludeSemantics(
+                      excluding: collapsed,
+                      child: OverflowBox(
+                        alignment: Alignment.centerLeft,
+                        minWidth: AppSidebar.width,
+                        maxWidth: AppSidebar.width,
+                        child: AppSidebar(
+                          selectedIndex: _currentIndex,
+                          onChanged: _select,
+                          onRecentTap: _openRecent,
+                          onSettingsTap: _openSettings,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -102,12 +147,20 @@ class _MainShellState extends State<MainShell> {
                     for (final i in _visited)
                       IgnorePointer(
                         ignoring: i != _currentIndex,
-                        child: AnimatedOpacity(
-                          key: ValueKey('module-page-$i'),
-                          opacity: i == _currentIndex ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeInOut,
-                          child: _pages[i],
+                        child: ExcludeFocus(
+                          excluding: i != _currentIndex,
+                          child: ExcludeSemantics(
+                            excluding: i != _currentIndex,
+                            child: AnimatedOpacity(
+                              key: ValueKey('module-page-$i'),
+                              opacity: i == _currentIndex ? 1.0 : 0.0,
+                              duration: reduceMotion
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              child: _pages[i],
+                            ),
+                          ),
                         ),
                       ),
                   ],
@@ -120,89 +173,99 @@ class _MainShellState extends State<MainShell> {
     );
 
     return Scaffold(
-      body: content,
-      bottomNavigationBar: isDesktop
+      body: DecoratedBox(
+        decoration: BoxDecoration(gradient: ambient),
+        child: content,
+      ),
+      bottomNavigationBar: desktopNavigation
           ? null
-          : AppBottomBar(
-              selectedIndex: _currentIndex,
-              onChanged: _select,
+          : DecoratedBox(
+              decoration: BoxDecoration(gradient: ambient),
+              child: AppBottomBar(
+                  selectedIndex: _currentIndex, onChanged: _select),
             ),
     );
   }
 
-  Widget _titleBar(bool collapsed) {
+  Widget _titleBar(bool collapsed, bool desktopNavigation) {
     final cs = Theme.of(context).colorScheme;
-    final topInset = isDesktop ? 0.0 : MediaQuery.of(context).padding.top;
-    return DesktopDragArea(
-      child: GlassSurface(
-        borderRadius: BorderRadius.zero,
-        blur: 18,
-        child: Container(
-          height: 48 + topInset,
-          padding: EdgeInsets.only(top: topInset),
-          child: Row(
-            children: [
-              if (isDesktop)
-                SizedBox(
-                  width: 72,
-                  child: Center(
-                    child: _SidebarToggleButton(
-                      collapsed: collapsed,
-                      onTap: () => _sidebarState.toggle(),
-                    ),
-                  ),
-                )
-              else
-                const SizedBox(width: 16),
-              Text(
-                _titles[_currentIndex],
-                style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: cs.onSurface,
-                    height: 1.4),
-              ),
-              const Spacer(),
-              IconButton(
-                key: const ValueKey('recent-activity'),
-                tooltip: '最近观看与阅读',
-                icon: const Icon(Icons.history_rounded, size: 20),
+    final topInset = isDesktop ? 0.0 : MediaQuery.paddingOf(context).top;
+    return GlassSurface(
+      borderRadius: BorderRadius.zero,
+      blur: 14,
+      color: cs.surface.withValues(alpha: 0.76),
+      border: Border(
+          bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.45))),
+      child: Container(
+        height: 56 + topInset,
+        padding: EdgeInsets.only(top: topInset),
+        child: Row(
+          children: [
+            if (desktopNavigation) ...[
+              DesktopDragArea(
+                  child: SizedBox(
+                width: AppSidebar.width,
+                height: 56,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 22),
+                  child: Row(children: [
+                    Icon(Icons.auto_awesome_mosaic_rounded,
+                        size: 22, color: cs.primary),
+                    const SizedBox(width: 9),
+                    Text('Libiko',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface)),
+                  ]),
+                ),
+              )),
+              _SidebarToggleButton(
+                  collapsed: collapsed, onTap: () => _sidebarState.toggle()),
+              const SizedBox(width: 10),
+            ] else
+              const SizedBox(width: 20),
+            Expanded(
+              child: DesktopDragArea(
+                  child: SizedBox(
+                      height: 56,
+                      child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _titles[_currentIndex],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: cs.onSurface,
+                                height: 1.4),
+                          )))),
+            ),
+            IconButton(
+              key: const ValueKey('recent-activity'),
+              tooltip: '最近观看与阅读',
+              icon: const Icon(Icons.history_rounded, size: 20),
+              color: cs.onSurfaceVariant,
+              onPressed: _openRecent,
+            ),
+            IconButton(
+              tooltip: '搜索',
+              icon: const Icon(Icons.search_rounded, size: 20),
+              color: cs.onSurfaceVariant,
+              onPressed: _openSearch,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: IconButton(
+                tooltip: '设置',
+                icon: const Icon(Icons.settings_outlined, size: 20),
                 color: cs.onSurfaceVariant,
-                onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                        builder: (_) => const RecentActivityPage())),
+                onPressed: _openSettings,
               ),
-              if (_currentIndex >= 0 && _currentIndex <= 3)
-                IconButton(
-                  icon: const Icon(Icons.search_rounded, size: 20),
-                  color: cs.onSurfaceVariant,
-                  splashRadius: 20,
-                  onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => _currentIndex == 0
-                              ? const AnimeSearchPage()
-                              : _currentIndex == 1
-                                  ? const ComicSearchPage()
-                                  : _currentIndex == 2
-                                      ? const NovelSearchPage()
-                                      : const GameSearchPage())),
-                ),
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: IconButton(
-                  tooltip: '设置',
-                  icon: const Icon(Icons.settings_rounded, size: 20),
-                  color: cs.onSurfaceVariant,
-                  splashRadius: 20,
-                  onPressed: _openSettings,
-                ),
-              ),
-              if (isDesktop) const WindowControls(),
-            ],
-          ),
+            ),
+            if (desktopNavigation) const WindowControls(),
+          ],
         ),
       ),
     );
@@ -217,32 +280,13 @@ class _SidebarToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: SizedBox(
-          width: 36,
-          height: 36,
-          child: Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              transitionBuilder: (child, anim) => FadeTransition(
-                opacity: anim,
-                child: ScaleTransition(scale: anim, child: child),
-              ),
-              child: Icon(
-                collapsed ? Icons.chevron_right_rounded : Icons.menu_rounded,
-                key: ValueKey<bool>(collapsed),
-                size: 22,
-                color: cs.onSurface.withValues(alpha: 0.55),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return IconButton(
+      key: const ValueKey('sidebar-toggle'),
+      tooltip: collapsed ? '展开导航' : '收起导航',
+      onPressed: onTap,
+      icon: Icon(collapsed ? Icons.menu_open_rounded : Icons.menu_rounded,
+          size: 20),
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
     );
   }
 }
