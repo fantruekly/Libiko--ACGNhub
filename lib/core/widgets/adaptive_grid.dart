@@ -6,6 +6,20 @@ const double _kMainAxisSpacing = 20;
 const double _kCrossAxisSpacing = 16;
 const double _kDesktopAspectRatio = 0.60;
 
+SliverGridDelegateWithFixedCrossAxisCount _responsiveDelegate(
+    BuildContext context, double width, double coverRatio, double titleExtent) {
+  final columns = ((width + _kCrossAxisSpacing) / 184).floor().clamp(2, 8);
+  final cellWidth = ((width - _kCrossAxisSpacing * (columns - 1)) / columns)
+      .clamp(0.0, double.infinity);
+  final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
+  return SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: columns,
+    mainAxisSpacing: 24,
+    crossAxisSpacing: _kCrossAxisSpacing,
+    mainAxisExtent: cellWidth / coverRatio + titleExtent * scale,
+  );
+}
+
 /// A grid of cards inside a [CustomScrollView]. Mobile lays the cards out on a
 /// fixed-extent grid (uniform cover ratio plus a fixed title area) so columns
 /// stay aligned; desktop keeps the fixed 6-column grid this app has always used.
@@ -20,6 +34,9 @@ class SliverAdaptiveGrid extends StatelessWidget {
   final double mobileTitleExtent;
   final bool? desktop;
 
+  /// Opt in to width-based poster columns and space for scaled titles.
+  final bool responsiveColumns;
+
   const SliverAdaptiveGrid({
     super.key,
     required this.itemCount,
@@ -31,10 +48,26 @@ class SliverAdaptiveGrid extends StatelessWidget {
     this.mobileCoverRatio = 2 / 3,
     this.mobileTitleExtent = 44,
     this.desktop,
+    this.responsiveColumns = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (responsiveColumns) {
+      return SliverPadding(
+        padding: padding,
+        sliver: SliverLayoutBuilder(
+            builder: (context, constraints) => SliverGrid(
+                  gridDelegate: _responsiveDelegate(
+                      context,
+                      constraints.crossAxisExtent,
+                      mobileCoverRatio,
+                      mobileTitleExtent),
+                  delegate: SliverChildBuilderDelegate(itemBuilder,
+                      childCount: itemCount),
+                )),
+      );
+    }
     if (desktop ?? isDesktop) {
       return SliverPadding(
         padding: padding,
@@ -45,8 +78,8 @@ class SliverAdaptiveGrid extends StatelessWidget {
             crossAxisSpacing: _kCrossAxisSpacing,
             childAspectRatio: desktopAspectRatio,
           ),
-          delegate: SliverChildBuilderDelegate(itemBuilder,
-              childCount: itemCount),
+          delegate:
+              SliverChildBuilderDelegate(itemBuilder, childCount: itemCount),
         ),
       );
     }
@@ -64,8 +97,8 @@ class SliverAdaptiveGrid extends StatelessWidget {
               crossAxisSpacing: _kCrossAxisSpacing,
               mainAxisExtent: cellWidth / mobileCoverRatio + mobileTitleExtent,
             ),
-            delegate: SliverChildBuilderDelegate(itemBuilder,
-                childCount: itemCount),
+            delegate:
+                SliverChildBuilderDelegate(itemBuilder, childCount: itemCount),
           );
         },
       ),
@@ -84,6 +117,7 @@ class AdaptiveGridView extends StatelessWidget {
   final double mobileCoverRatio;
   final double mobileTitleExtent;
   final bool? desktop;
+  final bool responsiveColumns;
 
   const AdaptiveGridView({
     super.key,
@@ -96,10 +130,25 @@ class AdaptiveGridView extends StatelessWidget {
     this.mobileCoverRatio = 2 / 3,
     this.mobileTitleExtent = 44,
     this.desktop,
+    this.responsiveColumns = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (responsiveColumns) {
+      return LayoutBuilder(
+          builder: (context, constraints) => GridView.builder(
+                padding: padding,
+                gridDelegate: _responsiveDelegate(
+                    context,
+                    constraints.maxWidth -
+                        padding.resolve(Directionality.of(context)).horizontal,
+                    mobileCoverRatio,
+                    mobileTitleExtent),
+                itemCount: itemCount,
+                itemBuilder: itemBuilder,
+              ));
+    }
     if (desktop ?? isDesktop) {
       return GridView.builder(
         padding: padding,

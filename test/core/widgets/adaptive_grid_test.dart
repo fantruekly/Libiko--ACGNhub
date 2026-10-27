@@ -84,6 +84,41 @@ void main() {
     expect(delegate.crossAxisCount, 1);
     expect(delegate.mainAxisExtent, closeTo(1196, 1));
   });
+
+  testWidgets(
+      'responsive posters use actual width and reserve scaled title space',
+      (tester) async {
+    Future<void> render(double width, double scale) =>
+        tester.pumpWidget(MaterialApp(
+          builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!),
+          home: Align(
+              child: SizedBox(
+                  width: width,
+                  height: 500,
+                  child: AdaptiveGridView(
+                      itemCount: 4,
+                      mobileColumns: 3,
+                      responsiveColumns: true,
+                      mobileTitleExtent: 48,
+                      itemBuilder: _cell))),
+        ));
+    await render(320, 1);
+    var delegate = tester.widget<GridView>(find.byType(GridView)).gridDelegate
+        as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 2);
+    final baseExtent = delegate.mainAxisExtent!;
+    await render(320, 2);
+    delegate = tester.widget<GridView>(find.byType(GridView)).gridDelegate
+        as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.mainAxisExtent, baseExtent + 48);
+    await render(780, 1);
+    delegate = tester.widget<GridView>(find.byType(GridView)).gridDelegate
+        as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 4);
+  });
 }
 
 Widget _cell(BuildContext _, int i) =>
