@@ -8,6 +8,7 @@ import 'package:libiko/core/models/work.dart';
 import 'package:libiko/core/models/watch_record.dart';
 import 'package:libiko/core/services/watch_history.dart';
 import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/core/video/cancellation.dart';
 import 'package:libiko/core/video/video_source.dart';
 import 'package:libiko/core/video/video_sources.dart';
@@ -115,6 +116,46 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();
   });
+
+  for (final dark in [false, true]) {
+    testWidgets(
+        '320px ${dark ? "dark" : "light"} anime detail supports enlarged text',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 850);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const work = Work(
+          id: 'responsive',
+          sourceId: 'seed',
+          sourceName: 'Offline',
+          type: WorkType.anime,
+          title: '这是一个比较长的动漫标题用于验证窄屏',
+          summary: '一段作品介绍。',
+          extra: {
+            'score': 8.5,
+            'episodes': 24,
+            'seasonYear': 2026,
+            'status': 'Finished Airing',
+            'format': 'TV'
+          });
+      await tester.pumpWidget(ProviderScope(
+          overrides: [
+            metadataServiceProvider.overrideWithValue(_offlineService()),
+            videoSourcesProvider.overrideWith((ref) async => []),
+          ],
+          child: MaterialApp(
+              theme: dark ? buildAppDarkTheme() : buildAppTheme(),
+              builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: const TextScaler.linear(1.6)),
+                  child: child!),
+              home: const AnimeDetailPage(work: work))));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('追番'), findsOneWidget);
+    });
+  }
 
   testWidgets('episodes are grouped under their own line names',
       (tester) async {

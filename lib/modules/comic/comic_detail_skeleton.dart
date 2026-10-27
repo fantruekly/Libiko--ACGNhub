@@ -29,11 +29,24 @@ class _ComicDetailSkeletonState extends State<ComicDetailSkeleton>
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _ctrl.stop();
+    } else if (!_ctrl.isAnimating) {
+      _ctrl.repeat();
+    }
+  }
+
   Widget _bar(double width, double height, double o) => Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: const Color(0xFFE5E5EA).withValues(alpha: o),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest
+              .withValues(alpha: o),
           borderRadius: BorderRadius.circular(4),
         ),
       );
@@ -41,34 +54,42 @@ class _ComicDetailSkeletonState extends State<ComicDetailSkeleton>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final compact = MediaQuery.sizeOf(context).width < 560;
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {
         final o = 0.3 +
-            0.3 *
-                (_ctrl.value < 0.5
-                    ? _ctrl.value * 2
-                    : (1 - _ctrl.value) * 2);
+            0.3 * (_ctrl.value < 0.5 ? _ctrl.value * 2 : (1 - _ctrl.value) * 2);
         return ListView(
           key: const ValueKey('comic-detail-skeleton'),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: EdgeInsets.fromLTRB(
+              ((MediaQuery.sizeOf(context).width - 1120) / 2)
+                  .clamp(16.0, double.infinity)
+                  .toDouble(),
+              20,
+              ((MediaQuery.sizeOf(context).width - 1120) / 2)
+                  .clamp(16.0, double.infinity)
+                  .toDouble(),
+              24),
           children: [
             GlassSurface(
               blur: 0,
+              color: cs.surface,
               borderRadius: BorderRadius.circular(16),
               padding: const EdgeInsets.all(16),
-              border: Border.all(color: cs.outlineVariant),
+              border:
+                  Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(14),
                     child: Container(
-                        width: 110,
-                        height: 154,
-                        color: const Color(0xFFE5E5EA).withValues(alpha: o)),
+                        width: compact ? 76 : 110,
+                        height: compact ? 108 : 154,
+                        color: cs.surfaceContainerHighest.withValues(alpha: o)),
                   ),
-                  const SizedBox(width: 24),
+                  SizedBox(width: compact ? 14 : 24),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,9 +120,11 @@ class _ComicDetailSkeletonState extends State<ComicDetailSkeleton>
             const SizedBox(height: 16),
             GlassSurface(
               blur: 0,
+              color: cs.surface,
               borderRadius: BorderRadius.circular(16),
               padding: const EdgeInsets.all(16),
-              border: Border.all(color: cs.outlineVariant),
+              border:
+                  Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -111,8 +134,7 @@ class _ComicDetailSkeletonState extends State<ComicDetailSkeleton>
                     spacing: 10,
                     runSpacing: 10,
                     children: [
-                      for (var i = 0; i < 6; i++)
-                        _bar(150, 40, o),
+                      for (var i = 0; i < 6; i++) _bar(150, 40, o),
                     ],
                   ),
                 ],

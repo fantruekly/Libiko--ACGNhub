@@ -41,6 +41,14 @@ class _SourceResult {
   _SourceResult(this.source);
 }
 
+EdgeInsets _detailInsets(BuildContext context,
+    {double top = 20, double bottom = 24}) {
+  final side = ((MediaQuery.sizeOf(context).width - 1120) / 2)
+      .clamp(16.0, double.infinity)
+      .toDouble();
+  return EdgeInsets.fromLTRB(side, top, side, bottom);
+}
+
 class AnimeDetailPage extends ConsumerStatefulWidget {
   final Work work;
   final WatchRecord? resumeRecord;
@@ -203,7 +211,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   fontSize: 14, color: cs.onSurface.withValues(alpha: 0.4))));
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: _detailInsets(context),
       itemCount: chars.length,
       itemBuilder: (context, i) {
         final c = chars[i];
@@ -258,11 +266,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                                     height: 24,
                                     child: _image(a.image, cs))),
                             const SizedBox(width: 8),
-                            Text('CV: ${a.name}',
-                                style: TextStyle(
-                                    fontSize: 12.5,
-                                    color:
-                                        cs.onSurface.withValues(alpha: 0.6))),
+                            Expanded(
+                                child: Text('CV: ${a.name}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: 12.5,
+                                        color: cs.onSurfaceVariant))),
                           ],
                         ),
                       ),
@@ -286,12 +296,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   fontSize: 14, color: cs.onSurface.withValues(alpha: 0.4))));
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: _detailInsets(context),
       itemCount: rel.length,
       itemBuilder: (context, i) {
         final r = rel[i];
         return InkWell(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(14),
           onTap: () => Navigator.push(
             context,
             smoothRoute(
@@ -410,17 +420,15 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     String? format,
     String? status,
   ) {
+    final compact = MediaQuery.sizeOf(context).width < 560;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      padding: _detailInsets(context, top: 20, bottom: 12),
       child: GlassSurface(
         blur: 0,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
-        ],
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -428,10 +436,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               tag: 'work_${w.id}',
               child: RepaintBoundary(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                   child: SizedBox(
-                    width: 110,
-                    height: 154,
+                    width: compact ? 76 : 110,
+                    height: compact ? 108 : 154,
                     child: w.coverUrl != null && w.coverUrl!.isNotEmpty
                         ? CachedNetworkImage(
                             imageUrl: w.coverUrl!,
@@ -445,7 +453,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 24),
+            SizedBox(width: compact ? 14 : 24),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,7 +478,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     )
                   else ...[
                     if (score != null) ...[
-                      RatingStars(score: score),
+                      RatingStars(score: score, size: compact ? 16 : 18),
                       const SizedBox(height: 14),
                     ],
                     _followButton(w),
@@ -484,13 +492,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                               Icons.live_tv_rounded, '$episodes 话', cs.primary),
                         if (seasonYear != null)
                           _metaChip(Icons.calendar_today_rounded, '$seasonYear',
-                              const Color(0xFF5856D6)),
+                              cs.primary),
                         if (status != null)
                           _metaChip(Icons.info_outline_rounded,
-                              _statusLabel(status), Colors.teal),
+                              _statusLabel(status), cs.primary),
                         if (format != null)
-                          _metaChip(
-                              Icons.movie_outlined, format, Colors.deepPurple),
+                          _metaChip(Icons.movie_outlined, format, cs.primary),
                       ],
                     ),
                   ],
@@ -531,7 +538,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(6)),
+          borderRadius: BorderRadius.circular(14)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -553,7 +560,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           end: Alignment.bottomRight,
           colors: [
             cs.primary.withValues(alpha: 0.1),
-            cs.tertiary.withValues(alpha: 0.05)
+            cs.primary.withValues(alpha: 0.04)
           ],
         ),
       ),
@@ -566,7 +573,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Widget _tagsRow(List<String> tags, ColorScheme cs) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: _detailInsets(context, top: 12, bottom: 12),
         child: Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -596,16 +603,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Widget _summarySection(String? summary, ColorScheme cs) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        padding: _detailInsets(context, top: 4, bottom: 12),
         child: GlassSurface(
           blur: 0,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
-          border: Border.all(color: cs.outlineVariant),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
-          ],
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -947,36 +951,39 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
 
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        padding: _detailInsets(context, top: 4, bottom: 12),
         child: GlassSurface(
           blur: 0,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
-          border: Border.all(color: cs.outlineVariant),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
-          ],
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Text('播放资源',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface)),
-                  const SizedBox(width: 10),
-                  if (loading)
-                    Text('搜索中 $doneCount/${_sourceResults.length}',
-                        style:
-                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant))
-                  else
-                    Text('共 ${results.length} 条',
-                        style: TextStyle(
-                            fontSize: 12, color: cs.onSurfaceVariant)),
-                  const Spacer(),
+                  Expanded(
+                      child: Wrap(
+                    spacing: 10,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text('播放资源',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface)),
+                      if (loading)
+                        Text('搜索中 $doneCount/${_sourceResults.length}',
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onSurfaceVariant))
+                      else
+                        Text('共 ${results.length} 条',
+                            style: TextStyle(
+                                fontSize: 12, color: cs.onSurfaceVariant)),
+                    ],
+                  )),
                   if (loading)
                     const SizedBox(
                         width: 16,
@@ -1084,7 +1091,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 decoration: BoxDecoration(
                   color: cs.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cs.outlineVariant),
+                  border: Border.all(
+                      color: cs.outlineVariant.withValues(alpha: 0.55)),
                 ),
                 child: Row(
                   children: [
