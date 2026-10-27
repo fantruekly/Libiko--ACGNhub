@@ -9,6 +9,7 @@ import '../../core/novel/novel_history.dart';
 import '../../core/novel/novel_source.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/widgets/adaptive_grid.dart';
+import '../../core/widgets/content_panel.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/chip_nav.dart';
@@ -40,38 +41,56 @@ class NovelCard extends StatelessWidget {
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
     }
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: image),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 38,
-            child: Text(
-              novel.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                  color: cs.onSurface),
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        hoverColor: cs.primary.withValues(alpha: 0.05),
+        focusColor: cs.primary.withValues(alpha: 0.12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+                child: Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              foregroundDecoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: cs.outlineVariant.withValues(alpha: 0.45)),
+              ),
+              child: image,
+            )),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: MediaQuery.textScalerOf(context).scale(13) / 13 * 38,
+              child: Text(
+                novel.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    height: 1.45,
+                    color: cs.onSurface),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _placeholder(ColorScheme cs) {
     final hash = novel.title.hashCode.abs();
-    const bg = [
-      Color(0xFFF3E5F5),
-      Color(0xFFEDE7F6),
-      Color(0xFFE8EAF6),
-      Color(0xFFE0F2F1)
+    final bg = [
+      cs.surfaceContainerLow,
+      cs.secondaryContainer,
+      cs.surfaceContainer,
+      cs.primaryContainer
     ];
     return Container(
       color: bg[hash % bg.length],
@@ -79,7 +98,7 @@ class NovelCard extends StatelessWidget {
         child: Text(
           novel.title.isEmpty ? '书' : novel.title.characters.first,
           style: TextStyle(
-              color: cs.primary.withValues(alpha: 0.2),
+              color: cs.onSurfaceVariant.withValues(alpha: 0.5),
               fontSize: 28,
               fontWeight: FontWeight.w400),
         ),
@@ -348,6 +367,8 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       return const EmptyState(icon: Icons.menu_book_rounded, message: '暂无内容');
     }
     return AdaptiveGridView(
+      responsiveColumns: true,
+      mobileTitleExtent: 48,
       itemCount: items.length,
       mobileColumns: 3,
       desktopAspectRatio: 0.58,
@@ -380,6 +401,8 @@ class _FavoritesTab extends ConsumerWidget {
           icon: Icons.favorite_border_rounded, message: '还没有收藏');
     }
     return AdaptiveGridView(
+      responsiveColumns: true,
+      mobileTitleExtent: 48,
       itemCount: favorites.length,
       mobileColumns: 3,
       desktopAspectRatio: 0.58,
@@ -416,8 +439,12 @@ class _HistoryTab extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               Text('历史记录',
                   style: TextStyle(
@@ -425,7 +452,6 @@ class _HistoryTab extends ConsumerWidget {
                       fontWeight: FontWeight.w600,
                       color: cs.onSurface,
                       height: 1.4)),
-              const Spacer(),
               TextButton(
                 onPressed:
                     records.isEmpty ? null : () => _confirmClear(context, ref),
@@ -439,9 +465,17 @@ class _HistoryTab extends ConsumerWidget {
               ? const EmptyState(
                   icon: Icons.history_rounded, message: '还没有阅读记录')
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                   itemCount: records.length,
-                  itemBuilder: (_, i) => _historyRow(context, records[i]),
+                  itemBuilder: (_, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: ContentPanel(
+                      padding: const EdgeInsets.all(12),
+                      child: Material(
+                          type: MaterialType.transparency,
+                          child: _historyRow(context, records[i])),
+                    ),
+                  ),
                 ),
         ),
       ],
@@ -452,7 +486,7 @@ class _HistoryTab extends ConsumerWidget {
 Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
   final cs = Theme.of(context).colorScheme;
   return InkWell(
-    borderRadius: BorderRadius.circular(10),
+    borderRadius: BorderRadius.circular(14),
     onTap: () => Navigator.push(
       context,
       smoothRoute(NovelReaderPage(
@@ -468,7 +502,7 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             child: SizedBox(
               width: 56,
               height: 76,
@@ -512,7 +546,7 @@ Widget _historyRow(BuildContext context, NovelHistoryEntry entry) {
 
 Widget _cover(String? url, ColorScheme cs) {
   if (url == null || url.isEmpty) {
-    return Container(color: cs.outlineVariant);
+    return Container(color: cs.surfaceContainerLow);
   }
   return CachedNetworkImage(
     imageUrl: url,
@@ -520,8 +554,8 @@ Widget _cover(String? url, ColorScheme cs) {
     memCacheWidth: 200,
     httpHeaders: novelImageHeaders,
     cacheManager: AppCacheManager(),
-    placeholder: (_, __) => Container(color: cs.outlineVariant),
-    errorWidget: (_, __, ___) => Container(color: cs.outlineVariant),
+    placeholder: (_, __) => Container(color: cs.surfaceContainerLow),
+    errorWidget: (_, __, ___) => Container(color: cs.surfaceContainerLow),
   );
 }
 

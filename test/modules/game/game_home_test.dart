@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/game/game_source.dart';
 import 'package:libiko/core/game/models.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/modules/game/game_home.dart';
 import 'package:libiko/modules/game/game_providers.dart';
 
@@ -108,15 +109,14 @@ void main() {
     final surfaceWidth =
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
     final expectedCellWidth = (surfaceWidth - 32 - 16 * 3) / 4;
-    final expectedExtent = expectedCellWidth * 2 / 3 + 44;
+    final expectedExtent = expectedCellWidth * 2 / 3 + 46;
     expect(delegate.mainAxisExtent, closeTo(expectedExtent, 0.5));
 
     final card = find.byType(GameCard).first;
     expect(tester.getSize(card).width, closeTo(expectedCellWidth, 0.5));
 
-    final cover = tester.getSize(find
-        .descendant(of: card, matching: find.byType(ClipRRect))
-        .first);
+    final cover = tester.getSize(
+        find.descendant(of: card, matching: find.byType(ClipRRect)).first);
     expect(cover.width / cover.height, closeTo(1.5, 0.01));
   });
 
@@ -136,6 +136,34 @@ void main() {
 
     final hero = tester.widget<Hero>(find.byType(Hero));
     expect(hero.tag, 'game_galgamezywz_latest-1');
+  });
+
+  testWidgets(
+      '320px game catalog keeps enlarged titles and landscape covers usable',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          gameSourceManagerProvider
+              .overrideWithValue(GameSourceManager(sources: [_FakeSource()])),
+        ],
+        child: MaterialApp(
+            theme: buildAppDarkTheme(),
+            builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.linear(1.8)),
+                child: child!),
+            home: const Scaffold(body: GameHomePage()))));
+    await tester.pumpAndSettle();
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 1);
+    expect(find.text('游戏latest1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('switching to the second source shows its sections',

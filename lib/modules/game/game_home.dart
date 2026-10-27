@@ -37,38 +37,56 @@ class GameCard extends StatelessWidget {
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
     }
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: image),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 38,
-            child: Text(
-              game.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                  color: cs.onSurface),
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        hoverColor: cs.primary.withValues(alpha: 0.05),
+        focusColor: cs.primary.withValues(alpha: 0.12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+                child: Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              foregroundDecoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: cs.outlineVariant.withValues(alpha: 0.45)),
+              ),
+              child: image,
+            )),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: MediaQuery.textScalerOf(context).scale(13) / 13 * 38,
+              child: Text(
+                game.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    height: 1.45,
+                    color: cs.onSurface),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _placeholder(ColorScheme cs) {
     final hash = game.title.hashCode.abs();
-    const bg = [
-      Color(0xFFF3E5F5),
-      Color(0xFFEDE7F6),
-      Color(0xFFE8EAF6),
-      Color(0xFFE0F2F1),
+    final bg = [
+      cs.surfaceContainerLow,
+      cs.secondaryContainer,
+      cs.surfaceContainer,
+      cs.primaryContainer
     ];
     return Container(
       color: bg[hash % bg.length],
@@ -76,7 +94,7 @@ class GameCard extends StatelessWidget {
         child: Text(
           game.title.isEmpty ? '游' : game.title.characters.first,
           style: TextStyle(
-              color: cs.primary.withValues(alpha: 0.2),
+              color: cs.onSurfaceVariant.withValues(alpha: 0.5),
               fontSize: 28,
               fontWeight: FontWeight.w400),
         ),
@@ -197,16 +215,20 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
             index: sourceIndex * 10000 + _optionIndex * 100 + _page,
             child: async.when(
               loading: () => LayoutBuilder(builder: (context, constraints) {
-                final cellW = gameGridCellWidth(constraints.maxWidth);
+                final columns = gameGridColumnsFor(constraints.maxWidth);
+                final cellW =
+                    gameGridCellWidth(constraints.maxWidth, columns: columns);
                 final mobileCellW = constraints.maxWidth - 32;
                 final mobileAspect =
                     mobileCellW / (mobileCellW * 2 / 3 + gameGridTitleExtent);
                 return ShimmerLoader(
-                    crossAxisCount: gameGridColumns,
+                    crossAxisCount: columns,
                     mobileColumns: 1,
                     itemCount: 8,
                     aspectRatio: isDesktop
-                        ? cellW / gameGridCellExtent(constraints.maxWidth)
+                        ? cellW /
+                            gameGridCellExtent(constraints.maxWidth,
+                                columns: columns)
                         : mobileAspect,
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
               }),
@@ -252,13 +274,16 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
             ),
           );
       if (isDesktop) {
+        final columns = gameGridColumnsFor(constraints.maxWidth);
+        final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
         return GridView.builder(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: gameGridColumns,
+              crossAxisCount: columns,
               mainAxisSpacing: 20,
               crossAxisSpacing: gameGridSpacing,
-              mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+              mainAxisExtent: gameGridCellExtent(constraints.maxWidth,
+                  columns: columns, textScale: scale)),
           itemCount: items.length,
           itemBuilder: gameCell,
         );
@@ -266,6 +291,8 @@ class _GameHomePageState extends ConsumerState<GameHomePage> {
       return AdaptiveGridView(
         itemCount: items.length,
         mobileColumns: 1,
+        mobileTitleExtent:
+            38 * MediaQuery.textScalerOf(context).scale(13) / 13 + 8,
         mobileCoverRatio: 3 / 2,
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemBuilder: gameCell,

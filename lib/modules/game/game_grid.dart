@@ -1,9 +1,15 @@
 const int gameGridColumns = 4;
 const double gameGridSpacing = 16;
-const double gameGridTitleExtent = 44;
+const double gameGridTitleExtent = 46;
 
-double gameGridCellWidth(double maxWidth) =>
-    (maxWidth - 32 - gameGridSpacing * (gameGridColumns - 1)) / gameGridColumns;
+int gameGridColumnsFor(double maxWidth) =>
+    ((maxWidth - 32 + gameGridSpacing) / (180 + gameGridSpacing))
+        .floor()
+        .clamp(1, 6);
 
-double gameGridCellExtent(double maxWidth) =>
-    gameGridCellWidth(maxWidth) * 2 / 3 + gameGridTitleExtent;
+double gameGridCellWidth(double maxWidth, {int columns = gameGridColumns}) =>
+    (maxWidth - 32 - gameGridSpacing * (columns - 1)) / columns;
+
+double gameGridCellExtent(double maxWidth,
+        {int columns = gameGridColumns, double textScale = 1}) =>
+    gameGridCellWidth(maxWidth, columns: columns) * 2 / 3 + 38 * textScale + 8;
