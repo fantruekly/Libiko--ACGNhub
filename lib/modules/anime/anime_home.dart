@@ -27,14 +27,14 @@ class AnimeHomePage extends ConsumerWidget {
           final controller = DefaultTabController.of(context);
           return Column(
             children: [
-              const TabStrip(labels: ['本季新番', '热门推荐', '追番', '历史']),
+              const TabStrip(labels: ['热门推荐', '本季新番', '追番', '历史']),
               Expanded(
                 child: TabBarView(
                   children: [
-                    _heroTab(
-                        controller, 0, const _FeedView(feed: AnimeFeed.season)),
-                    _heroTab(controller, 1,
+                    _heroTab(controller, 0,
                         const _FeedView(feed: AnimeFeed.trending)),
+                    _heroTab(
+                        controller, 1, const _FeedView(feed: AnimeFeed.season)),
                     _heroTab(controller, 2, const AnimeFollowView()),
                     _heroTab(controller, 3, const AnimeHistoryView()),
                   ],
@@ -194,18 +194,8 @@ class _FeedViewState extends ConsumerState<_FeedView>
                 primary: false,
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
-                  if (items.isNotEmpty)
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(padding, 24, padding, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: AnimeFeatureBanner(
-                          work: items.first,
-                          feedLabel: _label,
-                          onOpen: () => _openWork(context, items.first),
-                        ),
-                      ),
-                    ),
-                  if (recent.isNotEmpty && widget.feed == AnimeFeed.season) ...[
+                  if (recent.isNotEmpty &&
+                      widget.feed == AnimeFeed.trending) ...[
                     _sectionTitle('继续观看', cs, padding),
                     SliverPadding(
                       padding: EdgeInsets.symmetric(horizontal: padding),

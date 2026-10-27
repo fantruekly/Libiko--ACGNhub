@@ -50,6 +50,7 @@ Work _work(String id, {String? title, String source = 'bangumi'}) => Work(
 
 Widget _page(
         {List<Work> works = const [],
+        List<Work>? seasonWorks,
         List<WatchRecord> history = const [],
         double scale = 1,
         ThemeData? theme,
@@ -58,8 +59,10 @@ Widget _page(
     ProviderScope(
         overrides: [
           watchHistoryProvider.overrideWith(() => _History(history)),
-          animeFeedProvider(AnimeFeed.season)
+          animeFeedProvider(AnimeFeed.trending)
               .overrideWith((ref) async => works),
+          animeFeedProvider(AnimeFeed.season)
+              .overrideWith((ref) async => seasonWorks ?? works),
           if (service != null)
             metadataServiceProvider.overrideWithValue(service),
         ],
@@ -72,63 +75,52 @@ Widget _page(
                 child: child!),
             home: const Scaffold(body: AnimeHomePage())));
 
-class _EmptyProvider implements MetadataProvider {
-  _EmptyProvider(this.id);
-  @override
-  final String id;
-  @override
-  Future<List<Work>> feed(AnimeFeed feed, {int page = 1}) async => const [];
-  @override
-  Future<List<Work>> search(String keyword, {int page = 1}) async => const [];
-  @override
-  Future<Work> detail(Work work) async => work;
-}
-
 void main() {
-  testWidgets('anime tabs are 本季新番/热门推荐/追番/历史', (tester) async {
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        watchHistoryProvider.overrideWith(_History.new),
-        metadataServiceProvider.overrideWithValue(MetadataService(
-          bangumi: _EmptyProvider('bangumi'),
-          anilist: _EmptyProvider('anilist'),
-          jikan: _EmptyProvider('jikan'),
-        )),
-      ],
-      child: const MaterialApp(home: Scaffold(body: AnimeHomePage())),
+  testWidgets('anime opens trending first and can switch to the season feed',
+      (tester) async {
+    await tester.pumpWidget(_page(
+      works: [_work('trending', title: '默认热门作品')],
+      seasonWorks: [_work('season', title: '本季作品')],
     ));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     final labels = tester
         .widgetList<Text>(find.descendant(
             of: find.byType(TabStrip), matching: find.byType(Text)))
         .map((t) => t.data)
         .toList();
-    expect(labels, ['本季新番', '热门推荐', '追番', '历史']);
+    expect(labels, ['热门推荐', '本季新番', '追番', '历史']);
+    final tabs = DefaultTabController.of(tester.element(find.byType(TabStrip)));
+    expect(tabs.index, 0);
+    expect(tester.widget<WorkCard>(find.byType(WorkCard).first).work.id,
+        'trending');
+    await tester.tap(find.descendant(
+        of: find.byType(TabStrip), matching: find.text('本季新番')));
+    await tester.pumpAndSettle();
+    expect(tabs.index, 1);
+    expect(find.text('本季作品'), findsOneWidget);
   });
 
   testWidgets(
-      'catalog artwork and copy are based on actual entries, short pages do not spin',
+      'catalog starts directly with work cards and short pages do not spin',
       (tester) async {
     final work = _work('real', title: '真实的新番标题');
     await tester.pumpWidget(_page(works: [work, work]));
     await tester.pumpAndSettle();
-    final banner =
-        tester.widget<AnimeFeatureBanner>(find.byType(AnimeFeatureBanner));
-    expect(banner.work, same(work));
-    expect(find.text('来自真实条目的作品简介'), findsOneWidget);
-    expect(find.text('查看详情'), findsOneWidget);
+    expect(find.text('作品速览'), findsNothing);
+    expect(find.text('来自真实条目的作品简介'), findsNothing);
+    expect(find.text('查看详情'), findsNothing);
     expect(find.byType(WorkCard), findsOneWidget);
+    final gridTop = tester.getTopLeft(find.byType(WorkCard)).dy;
+    expect(gridTop, lessThan(180));
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('加载更多'), findsNothing);
     expect(find.text('继续观看'), findsNothing);
   });
 
-  testWidgets('empty catalog does not fabricate a featured work',
-      (tester) async {
+  testWidgets('empty catalog keeps the empty state', (tester) async {
     await tester.pumpWidget(_page());
     await tester.pumpAndSettle();
-    expect(find.byType(AnimeFeatureBanner), findsNothing);
     expect(find.text('暂无内容'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });

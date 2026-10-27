@@ -68,8 +68,8 @@ class AppSidebar extends StatelessWidget {
       width: width,
       child: GlassSurface(
         borderRadius: BorderRadius.zero,
-        blur: 16,
-        color: cs.surface.withValues(alpha: dark ? 0.72 : 0.68),
+        blur: 24,
+        color: cs.surface.withValues(alpha: dark ? 0.6 : 0.5),
         border: Border(
             right: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5))),
         child: Padding(

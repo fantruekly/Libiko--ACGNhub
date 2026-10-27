@@ -175,7 +175,16 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       body: DecoratedBox(
         decoration: BoxDecoration(gradient: ambient),
-        child: content,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (desktopNavigation &&
+                !reduceMotion &&
+                !MediaQuery.highContrastOf(context))
+              _SidebarBackdrop(collapsed: collapsed),
+            content,
+          ],
+        ),
       ),
       bottomNavigationBar: desktopNavigation
           ? null
@@ -209,8 +218,15 @@ class _MainShellState extends State<MainShell> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 22),
                   child: Row(children: [
-                    Icon(Icons.auto_awesome_mosaic_rounded,
-                        size: 22, color: cs.primary),
+                    Image.asset(
+                      'assets/branding/app_icon.png',
+                      key: const ValueKey('app-brand-icon'),
+                      width: 26,
+                      height: 26,
+                      cacheWidth: 104,
+                      filterQuality: FilterQuality.medium,
+                      excludeFromSemantics: true,
+                    ),
                     const SizedBox(width: 9),
                     Text('Libiko',
                         style: TextStyle(
@@ -270,6 +286,47 @@ class _MainShellState extends State<MainShell> {
       ),
     );
   }
+}
+
+/// A static color backdrop gives the bounded glass actual detail to diffuse.
+/// It stays inside the navigation rail and never covers catalog artwork.
+class _SidebarBackdrop extends StatelessWidget {
+  const _SidebarBackdrop({required this.collapsed});
+  final bool collapsed;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+        left: 0,
+        top: 56,
+        bottom: 0,
+        child: IgnorePointer(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeInOutCubic,
+            width: collapsed ? 0 : AppSidebar.width,
+            clipBehavior: Clip.hardEdge,
+            decoration: const BoxDecoration(),
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              minWidth: AppSidebar.width,
+              maxWidth: AppSidebar.width,
+              child: Opacity(
+                opacity: Theme.of(context).brightness == Brightness.dark
+                    ? 0.5
+                    : 0.65,
+                child: Image.asset(
+                  'assets/branding/app_icon.png',
+                  width: AppSidebar.width,
+                  height: double.infinity,
+                  cacheWidth: 512,
+                  fit: BoxFit.cover,
+                  excludeFromSemantics: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _SidebarToggleButton extends StatelessWidget {

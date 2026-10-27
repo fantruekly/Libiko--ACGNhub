@@ -59,6 +59,7 @@ flutter:
         - asset: assets/fonts/NotoSansSC-700.ttf
           weight: 700
   assets:
+    - assets/branding/app_icon.png
     - assets/source_rules/
     - assets/comic_source/
     - assets/comic_source/builtin/
