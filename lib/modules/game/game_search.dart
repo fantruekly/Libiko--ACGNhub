@@ -6,10 +6,14 @@ import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/search_toolbar.dart';
 import 'game_detail_page.dart';
 import 'game_grid.dart';
 import 'game_home.dart';
 import 'game_providers.dart';
+
+int _searchColumns(double width) =>
+    ((width - 32) / (260 + gameGridSpacing)).floor().clamp(1, gameGridColumns);
 
 class GameSearchPage extends ConsumerStatefulWidget {
   final String? initialKeyword;
@@ -47,12 +51,11 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            _searchBar(cs),
+            _searchBar(),
             Expanded(child: _body()),
           ],
         ),
@@ -60,78 +63,12 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
     );
   }
 
-  Widget _searchBar(ColorScheme cs) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border:
-            Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => Navigator.pop(context),
-            splashRadius: 20,
-          ),
-          Expanded(
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      autofocus: widget.initialKeyword == null,
-                      style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        filled: false,
-                        isCollapsed: true,
-                        hintText: '搜索游戏...',
-                        hintStyle:
-                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
-                      ),
-                      onSubmitted: (_) => _search(),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                  if (_ctrl.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _ctrl.clear();
-                        setState(() {});
-                      },
-                      child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurfaceVariant),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-              onPressed: _search,
-              child: const Text('搜索', style: TextStyle(fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
+  Widget _searchBar() => SearchToolbar(
+        controller: _ctrl,
+        hintText: '搜索游戏...',
+        autofocus: widget.initialKeyword == null,
+        onSearch: _search,
+      );
   Widget _body() {
     final cs = Theme.of(context).colorScheme;
     if (_keyword.isEmpty) {
@@ -164,16 +101,18 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
     }
     if (results.isEmpty && pending > 0) {
       return LayoutBuilder(builder: (context, constraints) {
-        final cellW = gameGridCellWidth(constraints.maxWidth);
+        final columns = _searchColumns(constraints.maxWidth);
+        final cellW = gameGridCellWidth(constraints.maxWidth, columns: columns);
         final mobileCellW = constraints.maxWidth - 32;
         final mobileAspect =
             mobileCellW / (mobileCellW * 2 / 3 + gameGridTitleExtent);
         return ShimmerLoader(
-            crossAxisCount: gameGridColumns,
+            crossAxisCount: columns,
             mobileColumns: 1,
             itemCount: 8,
             aspectRatio: isDesktop
-                ? cellW / gameGridCellExtent(constraints.maxWidth)
+                ? cellW /
+                    gameGridCellExtent(constraints.maxWidth, columns: columns)
                 : mobileAspect,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24));
       });
@@ -196,6 +135,7 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
     }
     return Column(
       children: [
+        SearchResultSummary(count: results.length, pending: pending > 0),
         if (pending > 0)
           LinearProgressIndicator(
             minHeight: 2,
@@ -213,6 +153,8 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
         source.id: source.name
     };
     return LayoutBuilder(builder: (context, constraints) {
+      final columns = _searchColumns(constraints.maxWidth);
+      final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
       Widget gameCell(BuildContext context, int i) {
         final r = results[i];
         return Column(
@@ -251,10 +193,12 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
         return GridView.builder(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: gameGridColumns,
+              crossAxisCount: columns,
               mainAxisSpacing: 20,
               crossAxisSpacing: gameGridSpacing,
-              mainAxisExtent: gameGridCellExtent(constraints.maxWidth)),
+              mainAxisExtent: gameGridCellExtent(constraints.maxWidth,
+                      columns: columns, textScale: scale) +
+                  36 * scale),
           itemCount: results.length,
           itemBuilder: gameCell,
         );
@@ -263,6 +207,7 @@ class _GameSearchPageState extends ConsumerState<GameSearchPage> {
         itemCount: results.length,
         mobileColumns: 1,
         mobileCoverRatio: 3 / 2,
+        mobileTitleExtent: 82,
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemBuilder: gameCell,
       );

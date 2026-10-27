@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/core/comic/comic_source.dart';
 import 'package:libiko/core/comic/models.dart';
 import 'package:libiko/core/widgets/chip_bar.dart';
@@ -26,7 +27,7 @@ class _FailingManager extends ComicSourceManager {
   }
 }
 
-Widget _app() => ProviderScope(
+Widget _app({ThemeData? theme}) => ProviderScope(
       overrides: [
         comicSourceManagerProvider.overrideWithValue(_FakeManager({
           'a': [const Comic(id: 'a1', title: 'A漫画')],
@@ -39,7 +40,8 @@ Widget _app() => ProviderScope(
                   name: '源B', key: 'b', version: '1.0.0', canSearch: true),
             ]),
       ],
-      child: const MaterialApp(home: ComicSearchPage(initialKeyword: '测试')),
+      child: MaterialApp(
+          theme: theme, home: const ComicSearchPage(initialKeyword: '测试')),
     );
 
 Future<void> _settle(WidgetTester tester) async {
@@ -49,6 +51,24 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 void main() {
+  for (final dark in [false, true]) {
+    testWidgets(
+        '320px ${dark ? "dark" : "light"} grouped search supports enlarged text',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.8;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(
+          _app(theme: dark ? buildAppDarkTheme() : buildAppTheme()));
+      await tester.pumpAndSettle();
+      expect(find.text('搜索结果'), findsOneWidget);
+      expect(find.text('A漫画'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('aggregate search groups results by source', (tester) async {
     await tester.pumpWidget(_app());
     await _settle(tester);
@@ -64,8 +84,8 @@ void main() {
     await tester.pumpWidget(_app());
     await _settle(tester);
 
-    await tester.tap(find.descendant(
-        of: find.byType(ChipBar), matching: find.text('源B')));
+    await tester.tap(
+        find.descendant(of: find.byType(ChipBar), matching: find.text('源B')));
     await _settle(tester);
 
     expect(find.text('B漫画'), findsOneWidget);
@@ -74,7 +94,8 @@ void main() {
     expect(find.text('源B'), findsOneWidget);
   });
 
-  testWidgets('single-source failure names the selected source', (tester) async {
+  testWidgets('single-source failure names the selected source',
+      (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         comicSourceManagerProvider.overrideWithValue(_FailingManager()),
@@ -85,11 +106,11 @@ void main() {
                   name: '源B', key: 'b', version: '1.0.0', canSearch: true),
             ]),
       ],
-      child: const MaterialApp(home: ComicSearchPage(initialKeyword: '测试')),
+      child: MaterialApp(home: const ComicSearchPage(initialKeyword: '测试')),
     ));
     await _settle(tester);
-    await tester.tap(find.descendant(
-        of: find.byType(ChipBar), matching: find.text('源B')));
+    await tester.tap(
+        find.descendant(of: find.byType(ChipBar), matching: find.text('源B')));
     await _settle(tester);
     expect(find.text('源B 搜索失败'), findsOneWidget);
   });

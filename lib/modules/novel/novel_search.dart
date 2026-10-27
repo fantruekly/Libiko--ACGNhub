@@ -5,6 +5,7 @@ import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/search_toolbar.dart';
 import 'novel_detail_page.dart';
 import 'novel_home.dart';
 import 'novel_providers.dart';
@@ -45,12 +46,11 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            _searchBar(cs),
+            _searchBar(),
             Expanded(child: _body()),
           ],
         ),
@@ -58,78 +58,12 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
     );
   }
 
-  Widget _searchBar(ColorScheme cs) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border:
-            Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => Navigator.pop(context),
-            splashRadius: 20,
-          ),
-          Expanded(
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      autofocus: widget.initialKeyword == null,
-                      style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        filled: false,
-                        isCollapsed: true,
-                        hintText: '搜索轻小说...',
-                        hintStyle:
-                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
-                      ),
-                      onSubmitted: (_) => _search(),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                  if (_ctrl.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _ctrl.clear();
-                        setState(() {});
-                      },
-                      child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurfaceVariant),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-              onPressed: _search,
-              child: const Text('搜索', style: TextStyle(fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
+  Widget _searchBar() => SearchToolbar(
+        controller: _ctrl,
+        hintText: '搜索轻小说...',
+        autofocus: widget.initialKeyword == null,
+        onSearch: _search,
+      );
   Widget _body() {
     final cs = Theme.of(context).colorScheme;
     if (_keyword.isEmpty) {
@@ -188,6 +122,7 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
     }
     return Column(
       children: [
+        SearchResultSummary(count: results.length, pending: pending > 0),
         if (pending > 0)
           LinearProgressIndicator(
             minHeight: 2,
@@ -205,6 +140,8 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
         source.id: source.name
     };
     return AdaptiveGridView(
+      responsiveColumns: true,
+      mobileTitleExtent: 84,
       itemCount: results.length,
       mobileColumns: 3,
       desktopAspectRatio: 0.58,

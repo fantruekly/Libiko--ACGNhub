@@ -7,6 +7,7 @@ import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/search_toolbar.dart';
 import 'comic_detail_page.dart';
 import 'comic_home.dart';
 import 'comic_providers.dart';
@@ -48,7 +49,6 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final sourcesAsync = ref.watch(comicSourcesProvider);
     final searchable = (sourcesAsync.valueOrNull ?? const <ComicSource>[])
         .where((s) => s.canSearch)
@@ -58,7 +58,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _searchBar(cs),
+            _searchBar(),
             if (searchable.isNotEmpty) _sourceBar(searchable),
             Expanded(child: _body(sourcesAsync, searchable)),
           ],
@@ -67,78 +67,12 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     );
   }
 
-  Widget _searchBar(ColorScheme cs) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border:
-            Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => Navigator.pop(context),
-            splashRadius: 20,
-          ),
-          Expanded(
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      autofocus: widget.initialKeyword == null,
-                      style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        filled: false,
-                        isCollapsed: true,
-                        hintText: '搜索漫画...',
-                        hintStyle:
-                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
-                      ),
-                      onSubmitted: (_) => _search(),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                  if (_ctrl.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _ctrl.clear();
-                        setState(() {});
-                      },
-                      child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurfaceVariant),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-              onPressed: _search,
-              child: const Text('搜索', style: TextStyle(fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
+  Widget _searchBar() => SearchToolbar(
+        controller: _ctrl,
+        hintText: '搜索漫画...',
+        autofocus: widget.initialKeyword == null,
+        onSearch: _search,
+      );
   Widget _sourceBar(List<ComicSource> searchable) {
     final labels = ['全部', for (final s in searchable) s.name];
     var index = 0;
@@ -155,11 +89,10 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     );
   }
 
-  Widget _body(
-      AsyncValue<List<ComicSource>> sourcesAsync, List<ComicSource> searchable) {
+  Widget _body(AsyncValue<List<ComicSource>> sourcesAsync,
+      List<ComicSource> searchable) {
     if (_keyword.isEmpty) {
-      return const EmptyState(
-          icon: Icons.search_rounded, message: '输入关键词搜索漫画');
+      return const EmptyState(icon: Icons.search_rounded, message: '输入关键词搜索漫画');
     }
     if (sourcesAsync.isLoading && !sourcesAsync.hasValue) {
       return const ShimmerLoader(
@@ -224,6 +157,12 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
 
     return CustomScrollView(
       slivers: [
+        SliverToBoxAdapter(
+            child: SearchResultSummary(
+          count: states.values.fold<int>(
+              0, (count, state) => count + (state.valueOrNull?.length ?? 0)),
+          pending: loading,
+        )),
         for (final s in sources) ...[
           if (grouped) _sectionHeader(s, states[s.key]!),
           _sectionContent(s, states[s.key]!),
@@ -249,7 +188,10 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Row(
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
               source.name,
@@ -258,7 +200,6 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface),
             ),
-            const SizedBox(width: 8),
             Text(status,
                 style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
           ],
@@ -307,6 +248,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
       );
     }
     return SliverAdaptiveGrid(
+      responsiveColumns: true,
       itemCount: results.length,
       mobileColumns: 3,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),

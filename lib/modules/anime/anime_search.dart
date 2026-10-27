@@ -6,6 +6,7 @@ import '../../core/widgets/work_card.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/smooth_route.dart';
+import '../../core/widgets/search_toolbar.dart';
 import 'anime_providers.dart';
 import 'anime_detail_page.dart';
 
@@ -23,6 +24,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
   bool _loading = false;
   String? _error;
   bool _hasSearched = false;
+  int _searchGeneration = 0;
 
   @override
   void initState() {
@@ -36,6 +38,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
   Future<void> _search() async {
     final k = _ctrl.text.trim();
     if (k.isEmpty) return;
+    final generation = ++_searchGeneration;
     setState(() {
       _loading = true;
       _error = null;
@@ -43,13 +46,13 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
     });
     try {
       final results = await ref.read(metadataServiceProvider).search(k);
-      if (!mounted) return;
+      if (!mounted || generation != _searchGeneration) return;
       setState(() {
         _results = results;
         _loading = false;
       });
     } catch (e) {
-      if (mounted) {
+      if (mounted && generation == _searchGeneration) {
         setState(() {
           _error = e.toString();
           _loading = false;
@@ -72,7 +75,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _searchBar(cs),
+            _searchBar(),
             Expanded(child: _body(cs)),
           ],
         ),
@@ -80,78 +83,12 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
     );
   }
 
-  Widget _searchBar(ColorScheme cs) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border:
-            Border(bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => Navigator.pop(context),
-            splashRadius: 20,
-          ),
-          Expanded(
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search_rounded,
-                      size: 18, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      autofocus: widget.initialKeyword == null,
-                      style: TextStyle(fontSize: 15, color: cs.onSurface),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        filled: false,
-                        isCollapsed: true,
-                        hintText: '搜索动漫...',
-                        hintStyle:
-                            TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
-                      ),
-                      onSubmitted: (_) => _search(),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                  if (_ctrl.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _ctrl.clear();
-                        setState(() {});
-                      },
-                      child: Icon(Icons.close_rounded,
-                          size: 16, color: cs.onSurfaceVariant),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-              onPressed: _search,
-              child: const Text('搜索', style: TextStyle(fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
+  Widget _searchBar() => SearchToolbar(
+        controller: _ctrl,
+        hintText: '搜索动漫...',
+        autofocus: widget.initialKeyword == null,
+        onSearch: _search,
+      );
   Widget _body(ColorScheme cs) {
     if (_loading) return const ShimmerLoader();
     if (_error != null) {
@@ -170,16 +107,21 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
           message: '未找到「${_ctrl.text}」相关动漫，换个关键词试试');
     }
 
-    return AdaptiveGridView(
-      itemCount: _results.length,
-      mobileColumns: 3,
-      desktopColumns: 5,
-      padding: const EdgeInsets.all(16),
-      itemBuilder: (context, index) => WorkCard(
-        work: _results[index],
-        onTap: () => Navigator.push(context,
-            smoothRoute(AnimeDetailPage(work: _results[index]))),
-      ),
-    );
+    return Column(children: [
+      SearchResultSummary(count: _results.length),
+      Expanded(
+          child: AdaptiveGridView(
+        responsiveColumns: true,
+        itemCount: _results.length,
+        mobileColumns: 3,
+        desktopColumns: 5,
+        padding: const EdgeInsets.all(16),
+        itemBuilder: (context, index) => WorkCard(
+          work: _results[index],
+          onTap: () => Navigator.push(
+              context, smoothRoute(AnimeDetailPage(work: _results[index]))),
+        ),
+      )),
+    ]);
   }
 }
