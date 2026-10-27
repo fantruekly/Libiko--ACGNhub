@@ -102,7 +102,7 @@ class _MainShellState extends State<MainShell> {
       colors: [
         Color.alphaBlend(cs.primary.withValues(alpha: 0.14), cs.surface),
         Color.alphaBlend(cs.primary.withValues(alpha: 0.04), cs.surface),
-        Color.alphaBlend(cs.tertiary.withValues(alpha: 0.08), cs.surface),
+        Color.alphaBlend(cs.primary.withValues(alpha: 0.08), cs.surface),
       ],
       stops: const [0, 0.55, 1],
     );
@@ -310,17 +310,28 @@ class _SidebarBackdrop extends StatelessWidget {
               alignment: Alignment.centerLeft,
               minWidth: AppSidebar.width,
               maxWidth: AppSidebar.width,
-              child: Opacity(
-                opacity: Theme.of(context).brightness == Brightness.dark
-                    ? 0.5
-                    : 0.65,
-                child: Image.asset(
-                  'assets/branding/app_icon.png',
-                  width: AppSidebar.width,
-                  height: double.infinity,
-                  cacheWidth: 512,
-                  fit: BoxFit.cover,
-                  excludeFromSemantics: true,
+              child: SizedBox(
+                width: AppSidebar.width,
+                height: double.infinity,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: Theme.of(context).brightness == Brightness.dark
+                          ? const [
+                              Color(0xFF203F64),
+                              Color(0xFF22364F),
+                              Color(0xFF1C304B)
+                            ]
+                          : const [
+                              Color(0xFFBCDEFF),
+                              Color(0xFFE5F2FF),
+                              Color(0xFFCCE5FF)
+                            ],
+                      stops: const [0, 0.5, 1],
+                    ),
+                  ),
                 ),
               ),
             ),

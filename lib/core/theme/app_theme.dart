@@ -16,7 +16,7 @@ class AppSemanticColors {
 /// The app-wide near-white page background.
 const Color kAppBackground = Color(0xFFF5F7FA);
 
-const Color _seed = Color(0xFF527FAF);
+const Color _seed = Color(0xFF438DE0);
 const Color _darkBackground = Color(0xFF151A22);
 
 /// The single source of truth for the app's Material 3 themes.
@@ -26,13 +26,13 @@ ThemeData buildAppTheme() {
     brightness: Brightness.light,
   );
   final scheme = base.copyWith(
-    primary: const Color(0xFF326EAA),
+    primary: const Color(0xFF2477CE),
     onPrimary: Colors.white,
-    primaryContainer: const Color(0xFFDDEBFA),
-    onPrimaryContainer: const Color(0xFF214E7A),
-    secondary: const Color(0xFF58718E),
-    secondaryContainer: const Color(0xFFE4EDF7),
-    onSecondaryContainer: const Color(0xFF2B527C),
+    primaryContainer: const Color(0xFFDDEEFF),
+    onPrimaryContainer: const Color(0xFF185289),
+    secondary: const Color(0xFF5279A0),
+    secondaryContainer: const Color(0xFFE0EEFC),
+    onSecondaryContainer: const Color(0xFF235586),
     surface: const Color(0xFFFFFFFF),
     surfaceContainerLowest: Colors.white,
     surfaceContainerLow: const Color(0xFFF0F3F7),
@@ -52,13 +52,13 @@ ThemeData buildAppDarkTheme() {
     seedColor: _seed,
     brightness: Brightness.dark,
   ).copyWith(
-    primary: const Color(0xFF92BDEB),
+    primary: const Color(0xFFA0CFFF),
     onPrimary: const Color(0xFF173755),
-    primaryContainer: const Color(0xFF2A4564),
-    onPrimaryContainer: const Color(0xFFDCEBFD),
+    primaryContainer: const Color(0xFF284D76),
+    onPrimaryContainer: const Color(0xFFE0F0FF),
     secondary: const Color(0xFFADBED3),
-    secondaryContainer: const Color(0xFF2D4058),
-    onSecondaryContainer: const Color(0xFFD9E8FA),
+    secondaryContainer: const Color(0xFF294866),
+    onSecondaryContainer: const Color(0xFFDDEFFF),
     surface: const Color(0xFF1D242F),
     surfaceContainerLowest: const Color(0xFF131820),
     surfaceContainerLow: const Color(0xFF202834),
