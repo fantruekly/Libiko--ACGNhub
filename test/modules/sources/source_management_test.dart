@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/core/comic/comic_source.dart';
 import 'package:libiko/core/comic/models.dart';
 import 'package:libiko/core/sources/source_preferences.dart';
@@ -233,4 +234,47 @@ void main() {
     expect(find.textContaining('规则版本：1'), findsOneWidget);
     expect((await store.metadata('Test rule')).version, '1');
   });
+
+  for (final (label, page) in <(String, Widget)>[
+    ('anime', const AnimeSourcePage()),
+    ('comic', const ComicSourcePage()),
+    ('novel', const NovelSourcePage()),
+    ('game', const GameSourcePage()),
+  ]) {
+    testWidgets(
+        '$label management controls remain usable at 320px with enlarged text',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final manager = _Manager()..loaded = true;
+      manager.gate.complete();
+      final c = container(overrides: [
+        ruleStoreProvider.overrideWithValue(_Store()),
+        comicSourceManagerProvider.overrideWithValue(manager),
+      ]);
+      await tester.pumpWidget(UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+              theme: buildAppDarkTheme(),
+              builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: const TextScaler.linear(1.8)),
+                  child: child!),
+              home: page)));
+      await tester.pumpAndSettle();
+      expect(find.text('已启用'), findsWidgets);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+      expect(find.text('已禁用'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+      await tester.pump();
+    });
+  }
 }

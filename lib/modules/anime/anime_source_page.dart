@@ -105,55 +105,55 @@ class _AnimeSourcePageState extends ConsumerState<AnimeSourcePage> {
             icon: const Icon(Icons.file_download_outlined),
             onPressed: _busy ? null : _importFromFile),
       ]),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text(_error!),
-                  TextButton(onPressed: _load, child: const Text('重试')),
-                ]))
-              : ListView(padding: const EdgeInsets.all(12), children: [
-                  const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: Text('禁用后不参与搜索。状态来自实际请求；导入替换前自动保留上一版本。')),
-                  for (final rule in sources)
-                    SourceManagementTile(
-                        kind: SourceKind.anime,
-                        sourceId: rule.id,
-                        name: rule.name,
-                        order: order,
-                        subtitle: [
-                          rule.baseUrl,
-                          _imported.contains(rule.name) ? '已导入' : '内置规则',
-                          if (_metadata[rule.name]?.version
-                              case final String version)
-                            '规则版本：$version',
-                          if (_metadata[rule.name]?.updatedAt
-                              case final DateTime updated)
-                            '本地更新：${sourceLocalTime(updated)}',
-                        ].join('\n'),
-                        actions: [
-                          if (_metadata[rule.name]?.hasPrevious == true)
-                            TextButton.icon(
-                                onPressed: _busy
-                                    ? null
-                                    : () => _mutate((store) async {
-                                          await store.rollback(rule.name);
-                                        }, '已回退到上一版本'),
-                                icon: const Icon(Icons.restore_rounded),
-                                label: const Text('回退上一版本')),
-                          if (_imported.contains(rule.name))
-                            TextButton.icon(
-                                onPressed: _busy
-                                    ? null
-                                    : () => _mutate(
-                                        (store) => store.remove(rule.name),
-                                        '已删除导入规则'),
-                                icon: const Icon(Icons.delete_outline),
-                                label: const Text('删除导入')),
-                        ]),
-                ]),
+      body: SourceManagementBody(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Text(_error!),
+                      TextButton(onPressed: _load, child: const Text('重试')),
+                    ]))
+                  : ListView(padding: const EdgeInsets.all(20), children: [
+                      const SourceManagementHint(
+                          '禁用后不参与搜索。状态来自实际请求；导入替换前自动保留上一版本。'),
+                      for (final rule in sources)
+                        SourceManagementTile(
+                            kind: SourceKind.anime,
+                            sourceId: rule.id,
+                            name: rule.name,
+                            order: order,
+                            subtitle: [
+                              rule.baseUrl,
+                              _imported.contains(rule.name) ? '已导入' : '内置规则',
+                              if (_metadata[rule.name]?.version
+                                  case final String version)
+                                '规则版本：$version',
+                              if (_metadata[rule.name]?.updatedAt
+                                  case final DateTime updated)
+                                '本地更新：${sourceLocalTime(updated)}',
+                            ].join('\n'),
+                            actions: [
+                              if (_metadata[rule.name]?.hasPrevious == true)
+                                TextButton.icon(
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _mutate((store) async {
+                                              await store.rollback(rule.name);
+                                            }, '已回退到上一版本'),
+                                    icon: const Icon(Icons.restore_rounded),
+                                    label: const Text('回退上一版本')),
+                              if (_imported.contains(rule.name))
+                                TextButton.icon(
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _mutate(
+                                            (store) => store.remove(rule.name),
+                                            '已删除导入规则'),
+                                    icon: const Icon(Icons.delete_outline),
+                                    label: const Text('删除导入')),
+                            ]),
+                    ])),
     );
   }
 }
