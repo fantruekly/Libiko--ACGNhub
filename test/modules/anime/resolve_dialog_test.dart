@@ -8,8 +8,13 @@ import 'package:libiko/core/video/stream_resolver.dart';
 import 'package:libiko/modules/anime/resolve_dialog.dart';
 
 Widget _host(Future<ResolveResult> Function() resolve, CancellationToken cancel,
-    void Function(ResolveDialogResult) onResult) {
+    void Function(ResolveDialogResult) onResult,
+    {double textScale = 1}) {
   return MaterialApp(
+    builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!),
     home: Scaffold(
       body: Builder(
         builder: (context) => ElevatedButton(
@@ -25,11 +30,33 @@ Widget _host(Future<ResolveResult> Function() resolve, CancellationToken cancel,
 }
 
 void main() {
+  for (final size in [const Size(320, 480), const Size(480, 220)]) {
+    testWidgets(
+        '${size.width}x${size.height} resolve dialog keeps enlarged cancel reachable',
+        (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final completer = Completer<ResolveResult>();
+      final cancel = CancellationToken();
+      await tester.pumpWidget(
+          _host(() => completer.future, cancel, (_) {}, textScale: 1.8));
+      await tester.tap(find.text('go'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const ValueKey('resolve-cancel')));
+      await tester.pumpAndSettle();
+      expect(cancel.isCancelled, isTrue);
+    });
+  }
   testWidgets('cancelling the dialog cancels the resolve', (tester) async {
     final completer = Completer<ResolveResult>();
     final cancel = CancellationToken();
     ResolveDialogResult? result;
-    await tester.pumpWidget(_host(() => completer.future, cancel, (r) => result = r));
+    await tester
+        .pumpWidget(_host(() => completer.future, cancel, (r) => result = r));
     await tester.tap(find.text('go'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -47,7 +74,8 @@ void main() {
     final completer = Completer<ResolveResult>();
     final cancel = CancellationToken();
     ResolveDialogResult? result;
-    await tester.pumpWidget(_host(() => completer.future, cancel, (r) => result = r));
+    await tester
+        .pumpWidget(_host(() => completer.future, cancel, (r) => result = r));
     await tester.tap(find.text('go'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -68,7 +96,8 @@ void main() {
     final completer = Completer<ResolveResult>();
     final cancel = CancellationToken();
     ResolveDialogResult? result;
-    await tester.pumpWidget(_host(() => completer.future, cancel, (r) => result = r));
+    await tester
+        .pumpWidget(_host(() => completer.future, cancel, (r) => result = r));
     await tester.tap(find.text('go'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));

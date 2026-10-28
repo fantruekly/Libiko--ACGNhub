@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -739,35 +738,48 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
               ),
             if (_error != null)
               Positioned(
-                top: 64,
-                left: 0,
-                right: 0,
+                top: 70,
+                left: 16,
+                right: 16,
+                bottom: 16,
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.sourceName.isEmpty
-                            ? '播放失败：$_displayError'
-                            : '来源 ${widget.sourceName} · 播放失败：$_displayError',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          if (_resolving) return;
-                          _pendingError = null;
-                          setState(() => _error = null);
-                          _resolver.invalidate(
-                              widget.episodes[_currentIndex].playUrl);
-                          _playIndex(_currentIndex, resume: _position);
-                        },
-                        child: const Text('重试'),
-                      ),
-                      TextButton(
-                          onPressed: _showDiagnostics,
-                          child: const Text('诊断信息')),
-                    ],
-                  ),
+                  child: SingleChildScrollView(
+                      child: Container(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xF2131F30),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.14)),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.sourceName.isEmpty
+                                    ? '播放失败：$_displayError'
+                                    : '来源 ${widget.sourceName} · 播放失败：$_displayError',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    color: Colors.white70, height: 1.6),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  if (_resolving) return;
+                                  _pendingError = null;
+                                  setState(() => _error = null);
+                                  _resolver.invalidate(
+                                      widget.episodes[_currentIndex].playUrl);
+                                  _playIndex(_currentIndex, resume: _position);
+                                },
+                                child: const Text('重试'),
+                              ),
+                              TextButton(
+                                  onPressed: _showDiagnostics,
+                                  child: const Text('诊断信息')),
+                            ],
+                          ))),
                 ),
               ),
             if (_panelOpen) _episodePanel(),
@@ -877,8 +889,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(10),
+              color: const Color(0xE6131F30),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             ),
             child: Text(
               _seekFeedback!,
@@ -904,8 +917,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(10),
+              color: const Color(0xE6131F30),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -938,8 +952,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(8),
+            color: const Color(0xE6131F30),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
           ),
           child: Text(
             '${_rate.toStringAsFixed(1)}x',
@@ -958,12 +973,15 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       right: 0,
       child: ClipRRect(
         borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            topLeft: Radius.circular(20), bottomLeft: Radius.circular(20)),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+              border: Border(
+                  left:
+                      BorderSide(color: Colors.white.withValues(alpha: 0.14)))),
           child: Container(
-            width: 220,
-            color: const Color(0xCC000000),
+            width: (MediaQuery.sizeOf(context).width * 0.8).clamp(220.0, 380.0),
+            color: const Color(0xF2131F30),
             child: SafeArea(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1000,7 +1018,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                               onTap: () {
                                 setState(() => _panelOpen = false);
                                 final current = widget.episodes[_currentIndex];
@@ -1015,25 +1033,25 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 10),
+                                    horizontal: 14, vertical: 14),
                                 decoration: BoxDecoration(
                                   color: selected
-                                      ? const Color(0x33007AFF)
+                                      ? const Color(0x383D91E8)
                                       : Colors.white.withValues(alpha: 0.06),
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: selected
-                                        ? const Color(0x99007AFF)
+                                        ? const Color(0xB873B5FF)
                                         : Colors.white.withValues(alpha: 0.12),
                                   ),
                                 ),
                                 child: Text(
                                   ep.title,
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: selected
-                                        ? const Color(0xFF4DA3FF)
+                                        ? const Color(0xFF9ACDFF)
                                         : Colors.white,
                                     fontSize: 13,
                                     fontWeight: selected

@@ -67,17 +67,32 @@ class _ResolveDialogState extends State<_ResolveDialog> {
       },
       child: AlertDialog(
         key: const ValueKey('resolve-dialog'),
-        content: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.5)),
-            SizedBox(width: 16),
-            Text('正在解析播放地址…'),
-          ],
+        scrollable: true,
+        insetPadding: const EdgeInsets.all(20),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant
+                  .withValues(alpha: 0.55)),
         ),
+        title: const Text('准备播放'),
+        content: const SizedBox(
+            width: 420,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5)),
+                SizedBox(width: 16),
+                Expanded(child: Text('正在解析播放地址…')),
+              ],
+            )),
         actions: [
           TextButton(
             key: const ValueKey('resolve-cancel'),
