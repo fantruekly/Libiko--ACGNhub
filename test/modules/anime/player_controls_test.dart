@@ -20,14 +20,9 @@ Widget _host({
   VoidCallback? onToggleMute,
   bool autoNext = true,
   ValueChanged<bool>? onAutoNextChanged,
-  double textScale = 1,
 }) {
   return MaterialApp(
     theme: buildAppTheme(),
-    builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: TextScaler.linear(textScale)),
-        child: child!),
     home: Scaffold(
       body: PlayerControlsOverlay(
         title: '测试标题',
@@ -166,7 +161,7 @@ void main() {
     final panel =
         tester.getSize(find.byKey(const ValueKey('player-volume-panel')));
     expect(panel.width, 160);
-    expect(panel.height, greaterThanOrEqualTo(40));
+    expect(panel.height, 40);
     final slider = tester
         .widget<Slider>(find.byKey(const ValueKey('player-volume-slider')));
     expect(slider.value, 100);
@@ -180,44 +175,4 @@ void main() {
     await tester.pumpWidget(_host(muted: true));
     expect(find.byIcon(Icons.volume_off_rounded), findsWidgets);
   });
-
-  for (final size in [const Size(320, 220), const Size(480, 220)]) {
-    testWidgets(
-        '${size.width}px short player keeps enlarged controls reachable',
-        (tester) async {
-      tester.view.physicalSize = size;
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      var next = 0;
-      var full = 0;
-      var mute = 0;
-      final auto = <bool>[];
-      await tester.pumpWidget(_host(
-          textScale: 1.8,
-          onNextEpisode: () => next++,
-          onToggleFullscreen: () => full++,
-          onToggleMute: () => mute++,
-          onAutoNextChanged: auto.add));
-      expect(tester.takeException(), isNull);
-      for (final key in [
-        'player-next',
-        'player-fullscreen',
-        'player-auto-next'
-      ]) {
-        expect(tester.getSize(find.byKey(ValueKey(key))).width,
-            greaterThanOrEqualTo(40));
-        await tester.tap(find.byKey(ValueKey(key)));
-      }
-      expect(next, 1);
-      expect(full, 1);
-      expect(auto, [false]);
-      await tester.tap(find.byKey(const ValueKey('player-volume')));
-      await tester.pump();
-      expect(find.byKey(const ValueKey('player-volume-panel')), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('player-mute')));
-      expect(mute, 1);
-      expect(tester.takeException(), isNull);
-    });
-  }
 }

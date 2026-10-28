@@ -74,47 +74,27 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xA6101B2A), Color(0x00000000), Color(0xA6101B2A)],
+          colors: [Color(0x99000000), Color(0x00000000), Color(0xCC000000)],
           stops: [0.0, 0.5, 1.0],
         ),
       ),
-      child: IconButtonTheme(
-        data: IconButtonThemeData(
-            style: IconButton.styleFrom(
-          minimumSize: const Size(44, 44),
-          maximumSize: const Size(44, 44),
-          padding: EdgeInsets.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          hoverColor: Colors.white.withValues(alpha: 0.1),
-          focusColor: Colors.white.withValues(alpha: 0.16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        )),
-        child: SafeArea(
-          child: LayoutBuilder(
-              builder: (context, constraints) => Stack(
-                    children: [
-                      Positioned(top: 0, left: 0, right: 0, child: _topBar()),
-                      if (constraints.maxHeight >= 280)
-                        Center(child: _centerButton()),
-                      Positioned(
-                          left: 0, right: 0, bottom: 0, child: _bottomBar(cs)),
-                    ],
-                  )),
+      child: SafeArea(
+        child: Column(
+          children: [
+            _topBar(),
+            const Spacer(),
+            _centerButton(),
+            const Spacer(),
+            _bottomBar(cs),
+          ],
         ),
       ),
     );
   }
 
   Widget _topBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      decoration: BoxDecoration(
-        color: const Color(0x99131F30),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
         children: [
           IconButton(
@@ -148,47 +128,36 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
     if (widget.buffering) {
       return const SizedBox(width: 56, height: 56);
     }
-    return Material(
-        color: const Color(0xB3131F30),
-        shape: CircleBorder(
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.18))),
-        child: IconButton(
-          key: const ValueKey('player-center-play'),
-          style: IconButton.styleFrom(
-              minimumSize: const Size(68, 68),
-              maximumSize: const Size(68, 68),
-              shape: const CircleBorder()),
-          iconSize: 42,
-          tooltip: widget.playing ? '暂停' : '播放',
-          icon: Icon(
-            widget.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-          ),
-          onPressed: widget.onTogglePlay,
-        ));
+    return IconButton(
+      key: const ValueKey('player-center-play'),
+      iconSize: 56,
+      icon: Icon(
+        widget.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+        color: Colors.white,
+      ),
+      onPressed: widget.onTogglePlay,
+    );
   }
 
   Widget _bottomBar(ColorScheme cs) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_volumePanelOpen)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8, right: 4),
+              padding: const EdgeInsets.only(bottom: 4, right: 40),
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Container(
                   key: const ValueKey('player-volume-panel'),
                   width: 160,
-                  height: 44,
+                  height: 40,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xF0131F30),
-                    borderRadius: BorderRadius.circular(14),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.14)),
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     children: [
@@ -197,7 +166,7 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
                         iconSize: 18,
                         padding: EdgeInsets.zero,
                         constraints:
-                            const BoxConstraints(minWidth: 40, minHeight: 40),
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
                         icon: Icon(
                           widget.muted || widget.volume == 0
                               ? Icons.volume_off_rounded
@@ -233,133 +202,109 @@ class _PlayerControlsOverlayState extends State<PlayerControlsOverlay> {
                 ),
               ),
             ),
-          Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xDB131F30),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+          Row(
+            children: [
+              Text(
+                formatDuration(_displayPosition),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
               ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Row(
-                  children: [
-                    Text(
-                      formatDuration(_displayPosition),
-                      style:
-                          const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          activeTrackColor: cs.primary,
-                          thumbColor: cs.primary,
-                          overlayColor: cs.primary.withValues(alpha: 0.2),
-                          inactiveTrackColor: Colors.white24,
-                          trackHeight: 3,
-                          thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 6),
-                          overlayShape:
-                              const RoundSliderOverlayShape(overlayRadius: 14),
-                        ),
-                        child: Slider(
-                          value: _valueMs,
-                          min: 0,
-                          max: _maxMs,
-                          onChanged: (value) => setState(() =>
-                              _drag = Duration(milliseconds: value.round())),
-                          onChangeEnd: (value) {
-                            final target =
-                                Duration(milliseconds: value.round());
-                            widget.onSeek(target);
-                            setState(() => _drag = null);
-                          },
-                        ),
-                      ),
-                    ),
-                    Text(
-                      formatDuration(widget.duration),
-                      style:
-                          const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: cs.primary,
+                    thumbColor: cs.primary,
+                    overlayColor: cs.primary.withValues(alpha: 0.2),
+                    inactiveTrackColor: Colors.white24,
+                    trackHeight: 3,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape:
+                        const RoundSliderOverlayShape(overlayRadius: 14),
+                  ),
+                  child: Slider(
+                    value: _valueMs,
+                    min: 0,
+                    max: _maxMs,
+                    onChanged: (value) => setState(
+                        () => _drag = Duration(milliseconds: value.round())),
+                    onChangeEnd: (value) {
+                      final target = Duration(milliseconds: value.round());
+                      widget.onSeek(target);
+                      setState(() => _drag = null);
+                    },
+                  ),
                 ),
-                LayoutBuilder(builder: (context, constraints) {
-                  final buttons = <Widget>[
-                    IconButton(
-                      key: const ValueKey('player-play'),
-                      icon: Icon(
-                        widget.playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                      ),
-                      tooltip: widget.playing ? '暂停' : '播放',
-                      onPressed: widget.onTogglePlay,
-                    ),
-                    IconButton(
-                      key: const ValueKey('player-next'),
-                      icon: Icon(
-                        Icons.skip_next_rounded,
-                        color: widget.hasNext ? Colors.white : Colors.white38,
-                      ),
-                      tooltip: '下一集',
-                      onPressed: widget.hasNext ? widget.onNextEpisode : null,
-                    ),
-                    if (widget.onAutoNextChanged != null)
-                      IconButton(
-                        key: const ValueKey('player-auto-next'),
-                        icon: Icon(Icons.playlist_play_rounded,
-                            color:
-                                widget.autoNext ? cs.primary : Colors.white38),
-                        tooltip: widget.autoNext ? '自动连播：开' : '自动连播：关',
-                        onPressed: () =>
-                            widget.onAutoNextChanged!(!widget.autoNext),
-                      ),
-                    IconButton(
-                      key: const ValueKey('player-volume'),
-                      icon: Icon(
-                        widget.muted || widget.volume == 0
-                            ? Icons.volume_off_rounded
-                            : widget.volume < 50
-                                ? Icons.volume_down_rounded
-                                : Icons.volume_up_rounded,
-                        color: Colors.white,
-                      ),
-                      tooltip: '音量',
-                      onPressed: () =>
-                          setState(() => _volumePanelOpen = !_volumePanelOpen),
-                    ),
-                    IconButton(
-                      key: const ValueKey('player-episodes'),
-                      icon: const Icon(Icons.list_rounded, color: Colors.white),
-                      tooltip: '选集',
-                      onPressed: widget.onToggleEpisodes,
-                    ),
-                    IconButton(
-                      key: const ValueKey('player-fullscreen'),
-                      icon: Icon(
-                        widget.fullscreen
-                            ? Icons.fullscreen_exit_rounded
-                            : Icons.fullscreen_rounded,
-                        color: Colors.white,
-                      ),
-                      tooltip: '全屏',
-                      onPressed: widget.onToggleFullscreen,
-                    ),
-                  ];
-                  if (constraints.maxWidth < buttons.length * 44) {
-                    return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                            mainAxisSize: MainAxisSize.min, children: buttons));
-                  }
-                  return Row(children: [
-                    ...buttons.take(2),
-                    const Spacer(),
-                    ...buttons.skip(2)
-                  ]);
-                }),
-              ])),
+              ),
+              Text(
+                formatDuration(widget.duration),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              IconButton(
+                key: const ValueKey('player-play'),
+                icon: Icon(
+                  widget.playing
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                ),
+                tooltip: widget.playing ? '暂停' : '播放',
+                onPressed: widget.onTogglePlay,
+              ),
+              IconButton(
+                key: const ValueKey('player-next'),
+                icon: Icon(
+                  Icons.skip_next_rounded,
+                  color: widget.hasNext ? Colors.white : Colors.white38,
+                ),
+                tooltip: '下一集',
+                onPressed: widget.hasNext ? widget.onNextEpisode : null,
+              ),
+              const Spacer(),
+              if (widget.onAutoNextChanged != null)
+                IconButton(
+                  key: const ValueKey('player-auto-next'),
+                  icon: Icon(Icons.playlist_play_rounded,
+                      color: widget.autoNext ? cs.primary : Colors.white38),
+                  tooltip: widget.autoNext ? '自动连播：开' : '自动连播：关',
+                  onPressed: () => widget.onAutoNextChanged!(!widget.autoNext),
+                ),
+              IconButton(
+                key: const ValueKey('player-volume'),
+                icon: Icon(
+                  widget.muted || widget.volume == 0
+                      ? Icons.volume_off_rounded
+                      : widget.volume < 50
+                          ? Icons.volume_down_rounded
+                          : Icons.volume_up_rounded,
+                  color: Colors.white,
+                ),
+                tooltip: '音量',
+                onPressed: () =>
+                    setState(() => _volumePanelOpen = !_volumePanelOpen),
+              ),
+              IconButton(
+                key: const ValueKey('player-episodes'),
+                icon: const Icon(Icons.list_rounded, color: Colors.white),
+                tooltip: '选集',
+                onPressed: widget.onToggleEpisodes,
+              ),
+              IconButton(
+                key: const ValueKey('player-fullscreen'),
+                icon: Icon(
+                  widget.fullscreen
+                      ? Icons.fullscreen_exit_rounded
+                      : Icons.fullscreen_rounded,
+                  color: Colors.white,
+                ),
+                tooltip: '全屏',
+                onPressed: widget.onToggleFullscreen,
+              ),
+            ],
+          ),
         ],
       ),
     );

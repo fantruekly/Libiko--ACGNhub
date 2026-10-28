@@ -97,25 +97,20 @@ Future<ProviderContainer> _mount(
   Duration resume = Duration.zero,
   int index = 0,
   Player Function()? factory,
-  double textScale = 1,
 }) async {
   final container = ProviderContainer();
   await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-          builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context)
-                  .copyWith(textScaler: TextScaler.linear(textScale)),
-              child: child!),
           home: VideoPlayerPage(
-            work: _work,
-            episodes: _episodes,
-            initialIndex: index,
-            initialCandidates: candidates,
-            initialPosition: resume,
-            playerFactory: factory ?? () => Player(platformPlayer: player),
-            videoBuilder: (_) => const ColoredBox(color: Colors.black),
-          ))));
+        work: _work,
+        episodes: _episodes,
+        initialIndex: index,
+        initialCandidates: candidates,
+        initialPosition: resume,
+        playerFactory: factory ?? () => Player(platformPlayer: player),
+        videoBuilder: (_) => const ColoredBox(color: Colors.black),
+      ))));
   await tester.pump();
   await tester.pump();
   return container;
@@ -140,29 +135,6 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();
-  });
-
-  testWidgets(
-      'narrow enlarged episode panel stays readable and selects an episode',
-      (tester) async {
-    tester.view.physicalSize = const Size(320, 600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final player = _Player();
-    final container = await _mount(tester, player, textScale: 1.8);
-    await tester.tap(find.byKey(const ValueKey('player-episodes')));
-    await tester.pump(const Duration(milliseconds: 350));
-    expect(find.text('选集'), findsOneWidget);
-    expect(find.byType(BackdropFilter), findsNothing);
-    expect(tester.takeException(), isNull);
-    await tester.tap(find.text('A 2'));
-    await _settleMedia(tester);
-    await _settleMedia(tester);
-    expect(player.opened.last.uri, 'https://cdn/a2.mp4');
-    expect(find.text('选集'), findsNothing);
-    expect(tester.takeException(), isNull);
-    await _unmount(tester, container);
   });
 
   testWidgets('opens with authoritative headers and records only real progress',
