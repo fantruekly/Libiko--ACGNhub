@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:libiko/core/novel/models.dart';
 import 'package:libiko/core/novel/novel_history.dart';
+import 'package:libiko/core/novel/novel_reader_settings.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/core/storage/database.dart';
 import 'package:libiko/modules/novel/novel_providers.dart';
 import 'package:libiko/modules/novel/novel_reader_page.dart';
@@ -18,10 +20,9 @@ void main() {
       (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [
-        novelChapterProvider(('linovelib', '5340', '334356'))
-            .overrideWith((ref) async => const NovelChapter(
-                title: '第60話',
-                blocks: [NovelText('第一段。'), NovelText('第二段。')])),
+        novelChapterProvider(('linovelib', '5340', '334356')).overrideWith(
+            (ref) async => const NovelChapter(
+                title: '第60話', blocks: [NovelText('第一段。'), NovelText('第二段。')])),
         // Avoid a real network call from the reader's chapter list lookup.
         novelDetailProvider(('linovelib', '5340')).overrideWith((ref) async =>
             const NovelDetail(
@@ -45,10 +46,12 @@ void main() {
   testWidgets('tapping 下一章 loads the next chapter', (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [
-        novelChapterProvider(('linovelib', '1', 'c1')).overrideWith((ref) async =>
-            const NovelChapter(title: '第一章', blocks: [NovelText('甲段')])),
-        novelChapterProvider(('linovelib', '1', 'c2')).overrideWith((ref) async =>
-            const NovelChapter(title: '第二章', blocks: [NovelText('乙段')])),
+        novelChapterProvider(('linovelib', '1', 'c1')).overrideWith(
+            (ref) async =>
+                const NovelChapter(title: '第一章', blocks: [NovelText('甲段')])),
+        novelChapterProvider(('linovelib', '1', 'c2')).overrideWith(
+            (ref) async =>
+                const NovelChapter(title: '第二章', blocks: [NovelText('乙段')])),
         novelDetailProvider(('linovelib', '1')).overrideWith((ref) async =>
             const NovelDetail(novel: Novel(id: '1', title: '书'), volumes: [
               NovelVolume(title: '正文', chapters: [
@@ -59,10 +62,7 @@ void main() {
       ],
       child: const MaterialApp(
         home: NovelReaderPage(
-            sourceKey: 'linovelib',
-            novelId: '1',
-            chapterId: 'c1',
-            title: '书'),
+            sourceKey: 'linovelib', novelId: '1', chapterId: 'c1', title: '书'),
       ),
     ));
     await tester.pump();
@@ -107,8 +107,8 @@ void main() {
   testWidgets('records history even when the chapter is already cached',
       (tester) async {
     final container = ProviderContainer(overrides: [
-      novelChapterProvider(('linovelib', '1', 'c1')).overrideWith((ref) async =>
-          const NovelChapter(title: '第一章', blocks: [])),
+      novelChapterProvider(('linovelib', '1', 'c1')).overrideWith(
+          (ref) async => const NovelChapter(title: '第一章', blocks: [])),
       novelDetailProvider(('linovelib', '1')).overrideWith((ref) async =>
           const NovelDetail(novel: Novel(id: '1', title: '书'), volumes: [])),
     ]);
@@ -130,8 +130,9 @@ void main() {
   testWidgets('hiding the chrome also hides the progress bar', (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [
-        novelChapterProvider(('linovelib', '1', 'c1')).overrideWith((ref) async =>
-            const NovelChapter(title: '第一章', blocks: [NovelText('甲段')])),
+        novelChapterProvider(('linovelib', '1', 'c1')).overrideWith(
+            (ref) async =>
+                const NovelChapter(title: '第一章', blocks: [NovelText('甲段')])),
         novelDetailProvider(('linovelib', '1')).overrideWith((ref) async =>
             const NovelDetail(novel: Novel(id: '1', title: '书'), volumes: [])),
       ],
@@ -154,4 +155,93 @@ void main() {
     await tester.pump();
     expect(fade().opacity, 0);
   });
+
+  testWidgets(
+      '320px enlarged reading settings scroll and follow the selected reading theme',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(_readerApp(scale: 1.8));
+    await tester.pumpAndSettle();
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(NovelReaderPage)));
+    final oldSize = container.read(novelReaderSettingsProvider).fontSize;
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('阅读设置'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('增大字号'));
+    await tester.pumpAndSettle();
+    expect(container.read(novelReaderSettingsProvider).fontSize, oldSize + 1);
+    await tester.ensureVisible(find.text('米色'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('米色'));
+    await tester.pumpAndSettle();
+    expect(container.read(novelReaderSettingsProvider).theme,
+        NovelReaderTheme.sepia);
+    expect(tester.widget<Scaffold>(find.byType(Scaffold).first).backgroundColor,
+        const Color(0xFFF5EFE0));
+    expect(Theme.of(tester.element(find.text('阅读设置'))).colorScheme.surface,
+        const Color(0xFFEFE6D2));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
+
+  testWidgets(
+      'large text catalog keeps current selection and opens another chapter',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(_readerApp(scale: 1.8));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('目录'));
+    await tester.pumpAndSettle();
+    expect(find.text('章节目录'), findsOneWidget);
+    expect(
+        tester
+            .widget<ListTile>(find.widgetWithText(ListTile, '第一章 一个比较长的目录标题'))
+            .selected,
+        isTrue);
+    await tester.tap(find.text('第二章 可以继续阅读'));
+    await tester.pumpAndSettle();
+    expect(find.text('章节目录'), findsNothing);
+    expect(find.text('乙段'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
 }
+
+Widget _readerApp({double scale = 1}) => ProviderScope(
+      overrides: [
+        novelChapterProvider(('linovelib', '1', 'c1')).overrideWith(
+            (ref) async =>
+                const NovelChapter(title: '第一章', blocks: [NovelText('甲段')])),
+        novelChapterProvider(('linovelib', '1', 'c2')).overrideWith(
+            (ref) async =>
+                const NovelChapter(title: '第二章', blocks: [NovelText('乙段')])),
+        novelDetailProvider(('linovelib', '1')).overrideWith((ref) async =>
+            const NovelDetail(novel: Novel(id: '1', title: '书'), volumes: [
+              NovelVolume(title: '正文', chapters: [
+                NovelChapterRef(id: 'c1', title: '第一章 一个比较长的目录标题'),
+                NovelChapterRef(id: 'c2', title: '第二章 可以继续阅读')
+              ]),
+            ])),
+      ],
+      child: MaterialApp(
+          theme: buildAppTheme(),
+          builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!),
+          home: const NovelReaderPage(
+              sourceKey: 'linovelib',
+              novelId: '1',
+              chapterId: 'c1',
+              title: '一段较长的小说书名')),
+    );
