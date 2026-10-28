@@ -122,6 +122,7 @@ class UpdateController extends ChangeNotifier {
   Future<void> _perform() async {
     checking = true;
     error = null;
+    update = null;
     _notify();
     _lastAttempt = _clock();
     try {

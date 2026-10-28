@@ -1,7 +1,8 @@
 name: libiko
 description: Libiko - Anime, Comic, Game, Novel aggregation app
 publish_to: 'none'
-version: 0.1.0+1
+# Keep the app version aligned with its GitHub release tag.
+version: 0.1.2+3
 
 environment:
   sdk: '>=3.6.0 <4.0.0'

@@ -99,6 +99,7 @@ void main() {
     expect(await controller.check(manual: true), UpdateCheckResult.failed);
     expect(controller.lastChecked, success);
     expect(controller.error, isNotNull);
+    expect(controller.update, isNull);
     now = now.add(const Duration(minutes: 29));
     expect(await controller.check(), UpdateCheckResult.skipped);
     now = now.add(const Duration(minutes: 1));

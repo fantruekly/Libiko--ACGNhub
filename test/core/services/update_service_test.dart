@@ -35,6 +35,16 @@ void main() {
     expect(await UpdateService(dio: dio).check('0.1.0'), isNull);
   });
 
+  test('installed release and newer local builds do not prompt again',
+      () async {
+    final dio = Dio()..httpClientAdapter = _JsonAdapter({'tag_name': 'v0.1.2'});
+    final service = UpdateService(dio: dio);
+    for (final installed in ['0.1.2', '0.1.2+3', '0.1.3']) {
+      expect(await service.check(installed), isNull, reason: installed);
+    }
+    expect((await service.check('0.1.1'))?.version, '0.1.2');
+  });
+
   test('semver handles prerelease ordering, build metadata and short tags', () {
     const versions = [
       '1.0.0-alpha',
