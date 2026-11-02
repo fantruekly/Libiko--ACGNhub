@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +32,12 @@ class _FailingProvider implements MetadataProvider {
       throw Exception('offline');
   @override
   Future<Work> detail(Work work) async => throw Exception('offline');
+}
+
+class _DelayedProvider extends _FailingProvider {
+  final gate = Completer<Work>();
+  @override
+  Future<Work> detail(Work work) => gate.future;
 }
 
 MetadataService _offlineService() => MetadataService(
@@ -101,6 +109,20 @@ class _MatchingSource extends _VideoSource {
       {CancellationToken? cancel}) {
     episodeRequests++;
     return super.episodes(detailUrl, cancel: cancel);
+  }
+}
+
+class _BlockedSource extends _VideoSource {
+  _BlockedSource(this.key);
+  final String key;
+  final gate = Completer<List<VideoItem>>();
+  CancellationToken? request;
+  @override
+  String get id => key;
+  @override
+  Future<List<VideoItem>> search(String keyword, {CancellationToken? cancel}) {
+    request = cancel;
+    return gate.future;
   }
 }
 
@@ -432,6 +454,75 @@ void main() {
     await tester.pumpAndSettle();
     expect(source.episodeRequests, 0);
     expect(find.text('原播放源的作品匹配待确认，请手动核对后继续观看'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('history source resumes before unrelated slow searches finish',
+      (tester) async {
+    final blocked = [_BlockedSource('slow-one'), _BlockedSource('slow-two')];
+    final history = _MatchingSource((_) => const [
+          VideoItem(id: 'matched', title: 'Test Anime', detailUrl: 'matched')
+        ]);
+    final record = WatchRecord(
+        work: _playbackWork,
+        episodeTitle: '缺失剧集',
+        episodeIndex: 99,
+        watchedAt: DateTime(2026),
+        sourceId: history.id,
+        lineId: 'a',
+        episodeKey: 'episode:99');
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          metadataServiceProvider.overrideWithValue(_offlineService()),
+          videoSourcesProvider
+              .overrideWith((ref) async => [...blocked, history]),
+        ],
+        child: MaterialApp(
+            home: AnimeDetailPage(
+                work: _playbackWork, resumeRecord: record, autoResume: true))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(history.episodeRequests, 1);
+    expect(blocked.every((source) => !source.gate.isCompleted), isTrue);
+    expect(find.text('无法确定上次观看的剧集，请手动选集'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(
+        blocked
+            .where((source) => source.request != null)
+            .every((source) => source.request!.isCancelled),
+        isTrue);
+    for (final source in blocked) {
+      source.gate.complete([]);
+    }
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'source discovery starts while metadata details are still pending',
+      (tester) async {
+    final metadata = _DelayedProvider();
+    final source = _MatchingSource((_) => const []);
+    final service = MetadataService(
+        anilist: metadata,
+        jikan: _FailingProvider(),
+        seedLoader: () async => const [],
+        intervals: const {});
+    await tester.pumpWidget(ProviderScope(overrides: [
+      metadataServiceProvider.overrideWithValue(service),
+      videoSourcesProvider.overrideWith((ref) async => [source]),
+    ], child: const MaterialApp(home: AnimeDetailPage(work: _playbackWork))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(metadata.gate.isCompleted, isFalse);
+    expect(source.queries, ['Test Anime']);
+    metadata.gate.complete(_playbackWork);
+    await tester.pumpAndSettle();
+    expect(source.queries, ['Test Anime']);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

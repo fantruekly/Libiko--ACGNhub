@@ -11,6 +11,7 @@ import '../../core/models/watch_record.dart';
 import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/services/follow_manager.dart';
+import '../../core/sources/source_preferences.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/glass_surface.dart';
@@ -22,14 +23,16 @@ import '../../core/video/cancellation.dart';
 import '../../core/video/playback_error.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
+import '../../core/video/source_search.dart';
 import '../../core/video/title_match.dart';
 import '../../core/video/video_source.dart';
 import '../../core/video/video_sources.dart';
+import '../../core/video/webview_scraper.dart';
 import 'anime_providers.dart';
 import 'resolve_dialog.dart';
 import 'video_player_page.dart';
 
-enum _SourceStatus { loading, done, failed }
+enum _SourceStatus { loading, done, failed, timedOut, busy }
 
 class _SourceResult {
   final VideoSource source;
@@ -38,6 +41,7 @@ class _SourceResult {
   VideoItem? best;
   List<VideoItem> alternatives = const [];
   int seq = 0;
+  bool slow = false;
   _SourceResult(this.source);
 }
 
@@ -83,12 +87,13 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   bool _loadingExtras = false;
   Timer? _searchTimer;
   bool _disposed = false;
-  final _searchCancel = CancellationToken();
+  CancellationToken _searchCancel = CancellationToken();
 
   @override
   void initState() {
     super.initState();
     _work = widget.work;
+    _scheduleSearch();
     _load();
   }
 
@@ -114,7 +119,6 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       if (mounted) setState(() => _loading = false);
     }
     _loadExtras();
-    _scheduleSearch();
   }
 
   void _scheduleSearch() {
@@ -653,14 +657,16 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Future<void> _searchAllSources() async {
+    final gen = ++_searchGen;
+    _searchCancel.cancel();
+    final cancel = _searchCancel = CancellationToken();
     final List<VideoSource> sources;
     try {
       sources = await ref.read(videoSourcesProvider.future);
     } catch (_) {
       return;
     }
-    if (!mounted) return;
-    final gen = ++_searchGen;
+    if (!mounted || gen != _searchGen || cancel.isCancelled) return;
     setState(() {
       _sourceResults = [for (final s in sources) _SourceResult(s)];
       _expandedItem = null;
@@ -671,18 +677,38 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       _confirmingSources.clear();
     });
 
-    final queue = [..._sourceResults];
-    var next = 0;
-    Future<void> worker() async {
-      while (next < queue.length) {
-        if (_disposed) return;
-        final r = queue[next];
-        next++;
-        await _searchOne(r, gen);
+    final resumeId = widget.resumeRecord?.sourceId;
+    final ordered = [
+      ..._sourceResults.where((r) => r.source.id == resumeId),
+      ..._sourceResults.where((r) => r.source.id != resumeId),
+    ];
+    Future<void> runQueue(List<_SourceResult> queue, int concurrency) async {
+      var next = 0;
+      Future<void> worker() async {
+        while (next < queue.length) {
+          if (_disposed || gen != _searchGen || cancel.isCancelled) return;
+          final r = queue[next];
+          next++;
+          await _searchOne(r, gen, cancel);
+          if (mounted &&
+              gen == _searchGen &&
+              !cancel.isCancelled &&
+              widget.autoResume &&
+              r.source.id == resumeId &&
+              !_autoResumeAttempted) {
+            _autoResumeAttempted = true;
+            await _resumeHistory();
+          }
+        }
       }
+
+      await Future.wait([for (var i = 0; i < concurrency; i++) worker()]);
     }
 
-    await Future.wait([for (var i = 0; i < 3; i++) worker()]);
+    await Future.wait([
+      runQueue(ordered.where((r) => usesApiSearch(r.source)).toList(), 3),
+      runQueue(ordered.where((r) => !usesApiSearch(r.source)).toList(), 2),
+    ]);
     if (mounted &&
         gen == _searchGen &&
         widget.autoResume &&
@@ -693,67 +719,64 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     }
   }
 
-  Future<void> _searchOne(_SourceResult r, int gen) async {
+  Future<void> _searchOne(
+      _SourceResult r, int gen, CancellationToken cancel) async {
     if (_disposed) return;
-    try {
-      final queries = titleSearchQueries(_work.title, _work.extra);
-      final items = <VideoItem>[];
-      final seen = <String>{};
-      final clock = Stopwatch()..start();
-      var succeeded = false;
-      for (final query in queries) {
-        if (_disposed || gen != _searchGen) return;
-        final remaining = const Duration(seconds: 12) - clock.elapsed;
-        if (remaining <= Duration.zero) break;
-        try {
-          final found = await r.source
-              .search(query, cancel: _searchCancel)
-              .timeout(remaining);
-          succeeded = true;
-          for (final item in found) {
-            if (seen.add(item.detailUrl)) items.add(item);
-          }
-        } catch (_) {
-          // Another metadata alias may still be searchable on this source.
-        }
-        if (bestMatchIndex(_work.title, [for (final it in items) it.title],
-                aliases: queries.skip(1),
-                format: _work.extra['format'] as String?) >=
-            0) {
-          break;
-        }
+    final slowTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted &&
+          gen == _searchGen &&
+          !cancel.isCancelled &&
+          r.status == _SourceStatus.loading) {
+        setState(() => r.slow = true);
       }
-      if (!succeeded) throw StateError('搜索源未返回结果');
-      if (!mounted || gen != _searchGen) return;
-      setState(() {
-        r.items = items;
-        if (items.isEmpty) {
-          r.best = null;
-          r.alternatives = const [];
-        } else {
+    });
+    try {
+      final work = _work;
+      final queries = titleSearchQueries(work.title, work.extra);
+      void applyItems(List<VideoItem> items) {
+        if (!mounted || gen != _searchGen || cancel.isCancelled) return;
+        setState(() {
+          r.items = items;
           final idx = bestMatchIndex(
-              _work.title, [for (final it in items) it.title],
+              work.title, [for (final it in items) it.title],
               aliases: queries.skip(1),
-              format: _work.extra['format'] as String?);
+              format: work.extra['format'] as String?);
           r.best = idx < 0 ? null : items[idx];
           r.alternatives = [
             for (var i = 0; i < items.length; i++)
               if (i != idx) items[i],
           ];
-        }
+          if (items.isNotEmpty && r.seq == 0) r.seq = ++_searchSeq;
+        });
+      }
+
+      final items = await const SourceSearch().run(r.source, queries,
+          cancel: cancel,
+          onResults: applyItems,
+          matches: (items) =>
+              bestMatchIndex(work.title, [for (final it in items) it.title],
+                  aliases: queries.skip(1),
+                  format: work.extra['format'] as String?) >=
+              0);
+      if (!mounted || gen != _searchGen || cancel.isCancelled) return;
+      applyItems(items);
+      setState(() {
         r.status = _SourceStatus.done;
-        r.seq = ++_searchSeq;
       });
-    } catch (_) {
-      if (!mounted || gen != _searchGen) return;
-      setState(() => r.status = _SourceStatus.failed);
+    } catch (error) {
+      if (!mounted || gen != _searchGen || cancel.isCancelled) return;
+      setState(() => r.status = error is SourceQueueTimeoutException
+          ? _SourceStatus.busy
+          : classifySourceFailure(error) == SourceFailureKind.timeout
+              ? _SourceStatus.timedOut
+              : _SourceStatus.failed);
+    } finally {
+      slowTimer.cancel();
     }
   }
 
   List<(VideoItem, VideoSource, List<VideoItem>, bool)> get _flatResults {
-    final done = _sourceResults
-        .where((r) => r.status == _SourceStatus.done && r.items.isNotEmpty)
-        .toList()
+    final done = _sourceResults.where((r) => r.items.isNotEmpty).toList()
       ..sort((a, b) => a.seq.compareTo(b.seq));
     return [
       for (final r in done)
@@ -944,10 +967,11 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final doneCount =
         _sourceResults.where((r) => r.status != _SourceStatus.loading).length;
     final failed = _sourceResults
-        .where((r) =>
-            r.status == _SourceStatus.failed ||
-            (r.status == _SourceStatus.done && r.items.isEmpty))
+        .where((r) => r.status != _SourceStatus.loading && r.items.isEmpty)
         .toList();
+    final resumeReady = _sourceResults.any((r) =>
+        r.source.id == widget.resumeRecord?.sourceId &&
+        r.status != _SourceStatus.loading);
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -1011,8 +1035,9 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     key: const ValueKey('resume-playback'),
-                    onPressed:
-                        loading || _episodesLoading ? null : _resumeHistory,
+                    onPressed: (!resumeReady && loading) || _episodesLoading
+                        ? null
+                        : _resumeHistory,
                     icon: const Icon(Icons.play_arrow_rounded),
                     label: Text('继续观看 · ${widget.resumeRecord!.episodeTitle}'),
                   ),
@@ -1048,10 +1073,37 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               if (failed.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
-                  '${failed.length} 个源无结果或失败（${failed.map((r) => r.source.name).join('、')}）',
+                  failed
+                      .map((r) => '${r.source.name}：${switch (r.status) {
+                            _SourceStatus.busy => '等待繁忙，请稍后重试',
+                            _SourceStatus.timedOut => '请求超时，可重试',
+                            _SourceStatus.done => '无匹配结果',
+                            _ => '请求失败',
+                          }}')
+                      .join('；'),
                   style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final result in failed)
+                      TextButton(
+                          onPressed: () {
+                            setState(() {
+                              result.status = _SourceStatus.loading;
+                              result.slow = false;
+                            });
+                            unawaited(
+                                _searchOne(result, _searchGen, _searchCancel));
+                          },
+                          child: Text('重试 ${result.source.name}')),
+                  ],
+                ),
               ],
+              if (_sourceResults
+                  .any((r) => r.status == _SourceStatus.loading && r.slow))
+                Text('部分源响应较慢，仍在继续搜索，可先选择已找到的资源',
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
             ],
           ),
         ),
