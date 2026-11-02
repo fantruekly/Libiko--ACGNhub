@@ -49,11 +49,13 @@ class _FakeBrowser implements HeadlessBrowser {
       {this.candidates = const [],
       this.loadError,
       this.hang = false,
+      this.candidateDelay = Duration.zero,
       this.startGate,
       this.startError});
   final List<MediaCandidate> candidates;
   final Object? loadError;
   final bool hang;
+  final Duration candidateDelay;
   final Completer<void>? startGate;
   final Object? startError;
   String? script;
@@ -87,6 +89,7 @@ class _FakeBrowser implements HeadlessBrowser {
       return;
     }
     for (final candidate in candidates) {
+      await Future<void>.delayed(candidateDelay);
       if (!_media.isClosed) {
         _media.add(MediaCandidate(candidate.url,
             headers: candidate.headers, loadId: _loadId));
@@ -182,6 +185,55 @@ class _CallbackAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('keeps discovering after the first candidate is an HTML decoy',
+      () async {
+    final browser = _FakeBrowser(
+        candidateDelay: const Duration(milliseconds: 80),
+        candidates: const [
+          MediaCandidate('https://cdn/decoy.m3u8'),
+          MediaCandidate('https://cdn/actual.m3u8'),
+        ]);
+    final resolver = StreamResolver(
+        maccms: _FakeMacCmsResolver(null),
+        browserFactory: () => browser,
+        cache: ResolvedStreamCache(),
+        collectWindow: const Duration(milliseconds: 5),
+        overallBudget: const Duration(seconds: 1),
+        grace: const Duration(milliseconds: 20),
+        dio: Dio()
+          ..httpClientAdapter = _CallbackAdapter((options, _) async {
+            final decoy = options.uri.path.contains('decoy');
+            return ResponseBody.fromString(
+                decoy ? '<html>not a video</html>' : '#EXTM3U', 200,
+                headers: {
+                  Headers.contentTypeHeader: [
+                    decoy ? 'text/html' : 'application/vnd.apple.mpegurl'
+                  ]
+                });
+          }));
+    final result = await resolver.resolve('https://source/play');
+    expect(result.verified, isTrue);
+    expect(result.candidate?.url, 'https://cdn/actual.m3u8');
+  });
+
+  test('a late candidate survives the deadline without being cached', () async {
+    final cache = ResolvedStreamCache();
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      browserFactory: () => _FakeBrowser(
+          candidateDelay: const Duration(milliseconds: 30),
+          candidates: const [MediaCandidate('https://cdn/late.m3u8')]),
+      cache: cache,
+      overallBudget: const Duration(milliseconds: 100),
+      collectWindow: const Duration(milliseconds: 200),
+    );
+    final result = await resolver.resolve('https://source/late');
+    expect(result.ok, isTrue);
+    expect(result.verified, isFalse);
+    expect(result.candidate?.url, 'https://cdn/late.m3u8');
+    expect(cache.get('https://source/late'), isNull);
+  });
+
   test('returns a direct candidate without touching the browser', () async {
     final browser = _FakeBrowser(
         candidates: const [MediaCandidate('https://cdn/x/index.m3u8')]);
