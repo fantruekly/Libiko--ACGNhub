@@ -2,7 +2,7 @@
   "api": "4",
   "type": "anime",
   "name": "七色番",
-  "version": "1.4",
+  "version": "1.5",
   "muliSources": true,
   "useWebview": true,
   "useNativePlayer": true,
@@ -12,6 +12,6 @@
   "searchList": "//div[@class='videos']/div",
   "searchName": ".//div[@class='video-by']/text()",
   "searchResult": ".//a[@class='video-wrapper']",
-  "chapterRoads": "//div[contains(@class,'vod-play-list-container')]",
+  "chapterRoads": "(//div[contains(@class,'vod-play-list-container')])[position()>1]",
   "chapterResult": ".//a[contains(@href, '/vodplay/')]"
 }
