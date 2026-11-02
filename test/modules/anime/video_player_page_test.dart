@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:libiko/core/services/watch_history.dart';
 import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/core/sources/source_preferences.dart';
 import 'package:libiko/core/models/work.dart';
 import 'package:libiko/core/video/headless_browser.dart';
 import 'package:libiko/core/video/video_source.dart';
@@ -145,11 +146,24 @@ void main() {
     ]);
     expect(player.opened.single.httpHeaders, anyOf(isNull, isEmpty));
     expect(container.read(watchHistoryProvider), isEmpty);
+    expect(
+        container
+            .read(sourceHealthProvider)
+            .health(SourceKind.anime, 'test')
+            .playbackSuccesses,
+        0);
     player.emitDuration(const Duration(minutes: 24));
     player.emitPosition(const Duration(seconds: 2));
     await tester.pump();
     await tester.pump();
     expect(container.read(watchHistoryProvider).single.positionMs, 2000);
+    player.emitPosition(const Duration(seconds: 3));
+    await tester.pump();
+    final health =
+        container.read(sourceHealthProvider).health(SourceKind.anime, 'test');
+    expect(health.playbackSuccesses, 1);
+    expect(health.lastStartupMs, isNonNegative);
+    expect(health.lastSuccess, isNull);
     await _unmount(tester, container);
   });
 
@@ -167,6 +181,12 @@ void main() {
     player.emitDuration(const Duration(minutes: 24));
     await tester.pump();
     expect(player.seeks.single, const Duration(minutes: 3));
+    expect(
+        container
+            .read(sourceHealthProvider)
+            .health(SourceKind.anime, 'test')
+            .playbackSuccesses,
+        0);
     player.emitPosition(const Duration(minutes: 3, seconds: 1));
     player.emitPlaying(true);
     await tester.pump();
@@ -178,6 +198,14 @@ void main() {
     player.emitDuration(const Duration(minutes: 24));
     await tester.pump();
     expect(player.seeks.last, const Duration(minutes: 3, seconds: 1));
+    player.emitPosition(const Duration(minutes: 3, seconds: 2));
+    await tester.pump();
+    expect(
+        container
+            .read(sourceHealthProvider)
+            .health(SourceKind.anime, 'test')
+            .playbackSuccesses,
+        1);
     await _unmount(tester, container);
   });
 
@@ -253,6 +281,18 @@ void main() {
     ]);
     expect(find.textContaining('播放失败'), findsOneWidget);
     expect(find.text('诊断信息'), findsOneWidget);
+    final health =
+        container.read(sourceHealthProvider).health(SourceKind.anime, 'test');
+    expect(health.playbackSuccesses, 0);
+    expect(health.playbackFailures, 1);
+    player.emitError('404');
+    await tester.pump();
+    expect(
+        container
+            .read(sourceHealthProvider)
+            .health(SourceKind.anime, 'test')
+            .playbackFailures,
+        1);
     await _unmount(tester, container);
   });
 
@@ -286,6 +326,32 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
     expect(player.opened.length, 1);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    expect(
+        container
+            .read(sourceHealthProvider)
+            .health(SourceKind.anime, 'test')
+            .playbackFailures,
+        0);
+    await _unmount(tester, container);
+  });
+
+  testWidgets(
+      'interrupted startup records success without a misleading wait time',
+      (tester) async {
+    final player = _Player();
+    final container = await _mount(tester, player);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump(const Duration(seconds: 30));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.tap(find.byKey(const ValueKey('player-play')));
+    await tester.pump(const Duration(milliseconds: 350));
+    player.emitPosition(const Duration(seconds: 1));
+    await tester.pump();
+    final health =
+        container.read(sourceHealthProvider).health(SourceKind.anime, 'test');
+    expect(health.playbackSuccesses, 1);
+    expect(health.playbackFailures, 0);
+    expect(health.lastStartupMs, isNull);
     await _unmount(tester, container);
   });
 }

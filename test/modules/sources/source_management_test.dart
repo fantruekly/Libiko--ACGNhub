@@ -83,6 +83,37 @@ class _Store extends RuleStore {
 }
 
 void main() {
+  testWidgets(
+      'anime request health and actual startup evidence remain distinct at large text',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final health =
+        SourceHealthRepository(read: (_) => null, write: (_, __) async {});
+    health.recordPlayback('test',
+        success: true, startup: const Duration(milliseconds: 1200));
+    health.recordPlayback('test', success: false);
+    final c = ProviderContainer(
+        overrides: [sourceHealthProvider.overrideWith((ref) => health)]);
+    addTearDown(c.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: MaterialApp(
+            home: MediaQuery(
+                data: const MediaQueryData(textScaler: TextScaler.linear(1.8)),
+                child: const Scaffold(
+                    body: SingleChildScrollView(
+                        child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: SourceHealthSummary(
+                                kind: SourceKind.anime,
+                                sourceId: 'test'))))))));
+    expect(find.text('尚无请求记录'), findsOneWidget);
+    expect(find.text('实际起播：成功 1 次 · 未起播失败 1 次'), findsOneWidget);
+    expect(find.text('最近起播等待：1.2 秒'), findsOneWidget);
+    expect(find.text('最近请求成功'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();

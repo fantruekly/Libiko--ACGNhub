@@ -10,6 +10,7 @@ import '../../core/account/sync_service.dart';
 import '../../core/models/work.dart';
 import '../../core/platform.dart';
 import '../../core/services/watch_history.dart';
+import '../../core/sources/source_preferences.dart';
 import '../../core/storage/database.dart';
 import '../../core/video/browser_pool.dart';
 import '../../core/video/cancellation.dart';
@@ -101,6 +102,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   CancellationToken _resolveCancel = CancellationToken();
   String? _bufferingHint;
   bool _prefetchedForGen = false;
+  bool _playbackOutcomeRecorded = false;
+  bool _startupTimingInterrupted = false;
+  final _startupClock = Stopwatch();
 
   @override
   void initState() {
@@ -172,6 +176,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         setState(() => _bufferingHint = null);
       }
       if (first) {
+        if (!_playbackOutcomeRecorded) {
+          _recordPlaybackOutcome(success: true);
+        }
         _started = true;
         _saveHistory();
         if (!_prefetchedForGen) {
@@ -291,6 +298,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
             : Duration.zero);
     _resumeApplied = false;
     if (!recovery) {
+      _playbackOutcomeRecorded = false;
+      _startupTimingInterrupted = _background;
+      _startupClock
+        ..reset()
+        ..start();
       if (!_background) _userPaused = false;
       _reparsed = false;
       _attemptedLines.clear();
@@ -435,7 +447,22 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }
   }
 
+  void _recordPlaybackOutcome({required bool success}) {
+    if (!mounted || widget.episodes.isEmpty) return;
+    if (!success && (_userPaused || _background)) return;
+    _playbackOutcomeRecorded = true;
+    _startupClock.stop();
+    final id = widget.episodes[_currentIndex].sourceId;
+    if (id == null || id.isEmpty) return;
+    ref.read(sourceHealthProvider).recordPlayback(id,
+        success: success,
+        startup: success && !_startupTimingInterrupted
+            ? _startupClock.elapsed
+            : null);
+  }
+
   void _fail(String error) {
+    if (!_playbackOutcomeRecorded) _recordPlaybackOutcome(success: false);
     _trace('playback: failed');
     _session.finish(PlaybackPhase.failed);
     _historyTimer?.cancel();
@@ -533,6 +560,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 
   void _togglePlay() {
     _userPaused = _playing || (!_started && !_userPaused);
+    if (_userPaused && !_playbackOutcomeRecorded) {
+      _startupTimingInterrupted = true;
+    }
     _session.pause(_userPaused);
     if (_userPaused) _saveHistory();
     _player.playOrPause();
@@ -644,6 +674,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _background = true;
+      if (!_playbackOutcomeRecorded) _startupTimingInterrupted = true;
       _userPaused = true;
       _endBoost();
       _saveHistory();

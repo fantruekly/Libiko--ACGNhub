@@ -35,6 +35,128 @@ class _Video implements VideoSource {
 }
 
 void main() {
+  test('playback outcomes persist separately from source request health',
+      () async {
+    final data = <String, String>{};
+    var now = DateTime.utc(2026, 11, 2);
+    final repo = SourceHealthRepository(
+        read: (key) => data[key],
+        write: (key, value) async => data[key] = value,
+        clock: () => now);
+    await repo.track(SourceKind.anime, 'a', () async => 'result');
+    final requestAt = repo.health(SourceKind.anime, 'a').lastSuccess;
+    final requestMs = repo.health(SourceKind.anime, 'a').lastRequestMs;
+    now = now.add(const Duration(minutes: 1));
+    repo.recordPlayback('a',
+        success: true, startup: const Duration(milliseconds: 1450));
+    final playedAt = now;
+    now = now.add(const Duration(minutes: 1));
+    repo.recordPlayback('a',
+        success: false, startup: const Duration(seconds: 30));
+    await repo.flush();
+    final fresh = SourceHealthRepository(
+        read: (key) => data[key], write: (_, __) async {});
+    final health = fresh.health(SourceKind.anime, 'a');
+    expect(health.lastSuccess, requestAt);
+    expect(health.lastFailure, isNull);
+    expect(health.lastRequestMs, requestMs);
+    expect(health.playbackSuccesses, 1);
+    expect(health.playbackFailures, 1);
+    expect(health.lastPlaybackSuccess, playedAt);
+    expect(health.lastPlaybackFailure, now);
+    expect(health.lastStartupMs, 1450);
+    expect(fresh.health(SourceKind.comic, 'a').playbackSuccesses, 0);
+    expect(fresh.health(SourceKind.anime, 'other').playbackFailures, 0);
+    repo.dispose();
+    fresh.dispose();
+  });
+
+  test('later source requests preserve playback history', () async {
+    final repo =
+        SourceHealthRepository(read: (_) => null, write: (_, __) async {});
+    repo.recordPlayback('a',
+        success: true, startup: const Duration(milliseconds: 700));
+    await expectLater(
+        repo.track(SourceKind.anime, 'a',
+            () async => throw TimeoutException('private-url')),
+        throwsA(isA<TimeoutException>()));
+    await repo.track(SourceKind.anime, 'a', () async => []);
+    final health = repo.health(SourceKind.anime, 'a');
+    expect(health.lastRequestMs, isNonNegative);
+    expect(health.playbackSuccesses, 1);
+    expect(health.playbackFailures, 0);
+    expect(health.lastStartupMs, 700);
+    expect(health.lastPlaybackSuccess, isNotNull);
+    repo.dispose();
+  });
+
+  test('old or malformed statistics do not discard valid request history', () {
+    final timestamp = DateTime.utc(2026, 11, 2).toIso8601String();
+    final old = SourceHealth.fromJson({'success': timestamp});
+    expect(old.lastSuccess, DateTime.utc(2026, 11, 2));
+    expect(old.playbackSuccesses, 0);
+    expect(old.lastStartupMs, isNull);
+    final bad = SourceHealth.fromJson({
+      'success': timestamp,
+      'playbackSuccesses': -1,
+      'playbackFailures': '3',
+      'lastRequestMs': 1.5,
+      'lastStartupMs': -10,
+      'lastPlaybackSuccess': [],
+      'lastPlaybackFailure': 'invalid',
+    });
+    expect(bad.lastSuccess, old.lastSuccess);
+    expect(bad.playbackSuccesses, 0);
+    expect(bad.playbackFailures, 0);
+    expect(bad.lastRequestMs, isNull);
+    expect(bad.lastStartupMs, isNull);
+    expect(bad.lastPlaybackSuccess, isNull);
+    expect(bad.lastPlaybackFailure, isNull);
+  });
+
+  test('cancelled and queue-busy requests leave timing and playback unchanged',
+      () async {
+    final repo =
+        SourceHealthRepository(read: (_) => null, write: (_, __) async {});
+    await repo.track(SourceKind.anime, 'a', () async => []);
+    repo.recordPlayback('a', success: false);
+    final before = repo.health(SourceKind.anime, 'a');
+    await repo.track(SourceKind.anime, 'a', () async => [],
+        cancelled: () => true);
+    await expectLater(
+        repo.track(SourceKind.anime, 'a',
+            () async => throw const SourceQueueTimeoutException(),
+            ignoreFailure: (error) => error is SourceQueueTimeoutException),
+        throwsA(isA<SourceQueueTimeoutException>()));
+    expect(identical(repo.health(SourceKind.anime, 'a'), before), isTrue);
+    repo.dispose();
+  });
+
+  test('playback alone does not imply a successful search request', () {
+    final repo =
+        SourceHealthRepository(read: (_) => null, write: (_, __) async {});
+    repo.recordPlayback('a',
+        success: true, startup: const Duration(milliseconds: -1));
+    final health = repo.health(SourceKind.anime, 'a');
+    expect(health.lastSuccess, isNull);
+    expect(health.lastRequestMs, isNull);
+    expect(health.lastStartupMs, isNull);
+    expect(health.playbackSuccesses, 1);
+    repo.recordPlayback(' ', success: true);
+    expect(repo.health(SourceKind.anime, ' ').playbackSuccesses, 0);
+    repo.dispose();
+  });
+
+  test('a new untimed startup clears the previous startup timing', () {
+    final repo =
+        SourceHealthRepository(read: (_) => null, write: (_, __) async {});
+    repo.recordPlayback('a',
+        success: true, startup: const Duration(seconds: 2));
+    repo.recordPlayback('a', success: true);
+    expect(repo.health(SourceKind.anime, 'a').lastStartupMs, isNull);
+    repo.dispose();
+  });
+
   test(
       'ordering is stable for new sources and disabled sources remain manageable',
       () {

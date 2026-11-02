@@ -222,24 +222,57 @@ SourceFailureKind classifySourceFailure(Object error) {
 }
 
 class SourceHealth {
-  const SourceHealth({this.lastSuccess, this.lastFailure, this.failure});
+  const SourceHealth({
+    this.lastSuccess,
+    this.lastFailure,
+    this.failure,
+    this.lastRequestMs,
+    this.playbackSuccesses = 0,
+    this.playbackFailures = 0,
+    this.lastPlaybackSuccess,
+    this.lastPlaybackFailure,
+    this.lastStartupMs,
+  });
   final DateTime? lastSuccess;
   final DateTime? lastFailure;
   final SourceFailureKind? failure;
+  final int? lastRequestMs;
+  final int playbackSuccesses;
+  final int playbackFailures;
+  final DateTime? lastPlaybackSuccess;
+  final DateTime? lastPlaybackFailure;
+  final int? lastStartupMs;
   bool get mostRecentSucceeded =>
       lastSuccess != null &&
       (lastFailure == null || !lastSuccess!.isBefore(lastFailure!));
   Map<String, dynamic> toJson() => {
         'success': lastSuccess?.toIso8601String(),
         'failureAt': lastFailure?.toIso8601String(),
-        'failure': failure?.name
+        'failure': failure?.name,
+        'lastRequestMs': lastRequestMs,
+        'playbackSuccesses': playbackSuccesses,
+        'playbackFailures': playbackFailures,
+        'lastPlaybackSuccess': lastPlaybackSuccess?.toIso8601String(),
+        'lastPlaybackFailure': lastPlaybackFailure?.toIso8601String(),
+        'lastStartupMs': lastStartupMs,
       };
   factory SourceHealth.fromJson(Map<String, dynamic> json) => SourceHealth(
       lastSuccess: DateTime.tryParse(json['success']?.toString() ?? ''),
       lastFailure: DateTime.tryParse(json['failureAt']?.toString() ?? ''),
       failure: SourceFailureKind.values
           .where((k) => k.name == json['failure'])
-          .firstOrNull);
+          .firstOrNull,
+      lastRequestMs: _nonNegativeInt(json['lastRequestMs']),
+      playbackSuccesses: _nonNegativeInt(json['playbackSuccesses']) ?? 0,
+      playbackFailures: _nonNegativeInt(json['playbackFailures']) ?? 0,
+      lastPlaybackSuccess:
+          DateTime.tryParse(json['lastPlaybackSuccess']?.toString() ?? ''),
+      lastPlaybackFailure:
+          DateTime.tryParse(json['lastPlaybackFailure']?.toString() ?? ''),
+      lastStartupMs: _nonNegativeInt(json['lastStartupMs']));
+
+  static int? _nonNegativeInt(dynamic value) =>
+      value is int && value >= 0 ? value : null;
 }
 
 /// Observes actual source calls; no probes and no failure exception text stored.
@@ -271,13 +304,49 @@ class SourceHealthRepository extends ChangeNotifier {
           return const SourceHealth();
         }
       });
-  void _record(SourceKind kind, String id, {Object? error}) {
+  void _record(SourceKind kind, String id,
+      {Object? error, required Duration elapsed}) {
     if (_disposed) return;
     final old = health(kind, id);
     final value = SourceHealth(
         lastSuccess: error == null ? _clock() : old.lastSuccess,
         lastFailure: error != null ? _clock() : old.lastFailure,
-        failure: error != null ? classifySourceFailure(error) : old.failure);
+        failure: error != null ? classifySourceFailure(error) : old.failure,
+        lastRequestMs: elapsed.inMilliseconds,
+        playbackSuccesses: old.playbackSuccesses,
+        playbackFailures: old.playbackFailures,
+        lastPlaybackSuccess: old.lastPlaybackSuccess,
+        lastPlaybackFailure: old.lastPlaybackFailure,
+        lastStartupMs: old.lastStartupMs);
+    _store(kind, id, value);
+  }
+
+  /// Called only after real position progress or a terminal playback failure.
+  /// Search/episode responses and cancelled attempts do not enter these counts.
+  void recordPlayback(String sourceId,
+      {required bool success, Duration? startup}) {
+    if (_disposed || sourceId.trim().isEmpty) return;
+    final old = health(SourceKind.anime, sourceId);
+    final elapsedMs = startup?.inMilliseconds;
+    _store(
+        SourceKind.anime,
+        sourceId,
+        SourceHealth(
+          lastSuccess: old.lastSuccess,
+          lastFailure: old.lastFailure,
+          failure: old.failure,
+          lastRequestMs: old.lastRequestMs,
+          playbackSuccesses: old.playbackSuccesses + (success ? 1 : 0),
+          playbackFailures: old.playbackFailures + (success ? 0 : 1),
+          lastPlaybackSuccess: success ? _clock() : old.lastPlaybackSuccess,
+          lastPlaybackFailure: success ? old.lastPlaybackFailure : _clock(),
+          lastStartupMs: success
+              ? (elapsedMs != null && elapsedMs >= 0 ? elapsedMs : null)
+              : old.lastStartupMs,
+        ));
+  }
+
+  void _store(SourceKind kind, String id, SourceHealth value) {
     final key = _key(kind, id);
     _health[key] = value;
     notifyListeners();
@@ -289,15 +358,16 @@ class SourceHealthRepository extends ChangeNotifier {
   Future<T> track<T>(SourceKind kind, String id, Future<T> Function() request,
       {bool Function()? cancelled,
       bool Function(Object)? ignoreFailure}) async {
+    final watch = Stopwatch()..start();
     try {
       final result = await request();
-      if (cancelled?.call() != true) _record(kind, id);
+      if (cancelled?.call() != true) _record(kind, id, elapsed: watch.elapsed);
       return result;
     } catch (error) {
       if (cancelled?.call() != true &&
           ignoreFailure?.call(error) != true &&
           !(error is DioException && error.type == DioExceptionType.cancel)) {
-        _record(kind, id, error: error);
+        _record(kind, id, error: error, elapsed: watch.elapsed);
       }
       rethrow;
     }

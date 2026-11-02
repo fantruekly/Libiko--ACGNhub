@@ -88,6 +88,26 @@ class SourceHealthSummary extends ConsumerWidget {
               .textTheme
               .bodySmall
               ?.copyWith(color: cs.onSurfaceVariant)),
+      if (health.lastRequestMs != null)
+        Text('最近请求耗时：${(health.lastRequestMs! / 1000).toStringAsFixed(1)} 秒',
+            style: Theme.of(context).textTheme.bodySmall),
+      if (kind == SourceKind.anime) ...[
+        const SizedBox(height: 6),
+        Text(
+            health.playbackSuccesses + health.playbackFailures == 0
+                ? '尚无实际起播记录'
+                : '实际起播：成功 ${health.playbackSuccesses} 次 · 未起播失败 ${health.playbackFailures} 次',
+            style: Theme.of(context).textTheme.bodySmall),
+        if (health.lastPlaybackSuccess != null)
+          Text('最近起播成功：${sourceLocalTime(health.lastPlaybackSuccess!)}',
+              style: Theme.of(context).textTheme.bodySmall),
+        if (health.lastStartupMs != null)
+          Text('最近起播等待：${(health.lastStartupMs! / 1000).toStringAsFixed(1)} 秒',
+              style: Theme.of(context).textTheme.bodySmall),
+        if (health.lastPlaybackFailure != null)
+          Text('最近未起播失败：${sourceLocalTime(health.lastPlaybackFailure!)}',
+              style: Theme.of(context).textTheme.bodySmall),
+      ],
     ]);
   }
 }
