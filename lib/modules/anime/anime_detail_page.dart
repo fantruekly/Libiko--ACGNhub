@@ -24,6 +24,7 @@ import '../../core/video/playback_error.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/source_search.dart';
+import '../../core/video/source_priority.dart';
 import '../../core/video/title_match.dart';
 import '../../core/video/video_source.dart';
 import '../../core/video/video_sources.dart';
@@ -662,7 +663,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final cancel = _searchCancel = CancellationToken();
     final List<VideoSource> sources;
     try {
-      sources = await ref.read(videoSourcesProvider.future);
+      sources = prioritizeAnimeSources(
+          await ref.read(videoSourcesProvider.future),
+          idOf: (source) => source.id,
+          preferences: ref.read(sourcePreferencesProvider),
+          health: (id) =>
+              ref.read(sourceHealthProvider).health(SourceKind.anime, id));
     } catch (_) {
       return;
     }

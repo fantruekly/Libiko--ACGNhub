@@ -116,7 +116,7 @@ class _AnimeSourcePageState extends ConsumerState<AnimeSourcePage> {
                     ]))
                   : ListView(padding: const EdgeInsets.all(20), children: [
                       const SourceManagementHint(
-                          '禁用后不参与搜索。状态来自实际请求；导入替换前自动保留上一版本。'),
+                          '禁用后不参与搜索。默认优先近期实际起播成功的源，手动排序优先。请求成功不代表能播放；导入替换前自动保留上一版本。'),
                       for (final rule in sources)
                         SourceManagementTile(
                             kind: SourceKind.anime,
