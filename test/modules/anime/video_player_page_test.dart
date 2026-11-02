@@ -138,6 +138,19 @@ void main() {
     await AppDatabase.init();
   });
 
+  testWidgets(
+      'resolving shows one loading indicator without an overlapping center button',
+      (tester) async {
+    final player = _Player()..stopGate = Completer<void>();
+    final container = await _mount(tester, player);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(const ValueKey('player-center-play')), findsNothing);
+    player.stopGate!.complete();
+    await _settleMedia(tester);
+    await _settleMedia(tester);
+    await _unmount(tester, container);
+  });
+
   testWidgets('opens with authoritative headers and records only real progress',
       (tester) async {
     final player = _Player();

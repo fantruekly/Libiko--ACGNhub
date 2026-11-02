@@ -851,7 +851,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                     position: _position,
                     duration: _duration,
                     playing: _playing,
-                    buffering: _buffering,
+                    buffering: _buffering || _resolving,
                     fullscreen: _fullscreen,
                     onBack: _handleBack,
                     onTogglePlay: _togglePlay,
