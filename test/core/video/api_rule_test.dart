@@ -1,9 +1,27 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/video/api_rule.dart';
 import 'package:libiko/core/video/source_rule.dart';
+import 'package:libiko/core/video/cancellation.dart';
+
+class _HangingAdapter implements HttpClientAdapter {
+  bool cancelled = false;
+  final started = Completer<void>();
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) {
+    started.complete();
+    cancelFuture?.then((_) => cancelled = true);
+    return Completer<ResponseBody>().future;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 class _JsonAdapter implements HttpClientAdapter {
   RequestOptions? last;
@@ -47,6 +65,35 @@ ApiRuleClient _client(SourceRule rule, _JsonAdapter adapter) {
 }
 
 void main() {
+  test('cancelling an API search cancels its transport promptly', () async {
+    final rule = _apiRule(searchApiConfig: {
+      'request': {'url': '/search?q=@keyword'},
+    }, chapterApiConfig: {});
+    final adapter = _HangingAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    final cancel = CancellationToken();
+    final pending = ApiRuleClient(rule, dio: dio).search('x', cancel: cancel);
+    await adapter.started.future;
+    cancel.cancel();
+    expect(await pending.timeout(const Duration(seconds: 1)), isEmpty);
+    await Future<void>.delayed(Duration.zero);
+    expect(adapter.cancelled, isTrue);
+  });
+
+  test('API deadline cancels even a transport that never responds', () async {
+    final rule = _apiRule(searchApiConfig: {
+      'request': {'url': '/search?q=@keyword'},
+    }, chapterApiConfig: {});
+    final adapter = _HangingAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    await expectLater(
+        ApiRuleClient(rule, dio: dio, timeout: const Duration(milliseconds: 30))
+            .search('x'),
+        throwsA(isA<TimeoutException>()));
+    await Future<void>.delayed(Duration.zero);
+    expect(adapter.cancelled, isTrue);
+  });
+
   test('restricted jsonpath reads arrays and fields', () {
     final data = {
       'data': {

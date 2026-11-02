@@ -7,11 +7,13 @@ class SourceCache {
   SourceCache({
     this.capacity = 256,
     this.ttl = const Duration(minutes: 10),
+    this.emptyTtl = const Duration(seconds: 30),
     DateTime Function()? clock,
   }) : _now = clock ?? DateTime.now;
 
   final int capacity;
   final Duration ttl;
+  final Duration emptyTtl;
   final DateTime Function() _now;
   final _entries = <String, _Entry>{};
 
@@ -37,7 +39,9 @@ class SourceCache {
   Object? _get(String key) {
     final entry = _entries.remove(key);
     if (entry == null) return null;
-    if (_now().difference(entry.at) >= ttl) return null;
+    final lifetime =
+        entry.value is List && (entry.value as List).isEmpty ? emptyTtl : ttl;
+    if (_now().difference(entry.at) >= lifetime) return null;
     _entries[key] = entry; // refresh LRU position
     return entry.value;
   }

@@ -21,6 +21,7 @@ class _FakeBrowser implements HeadlessBrowser {
   final Completer<void>? loadGate;
   int loadCalls = 0;
   int evalCalls = 0;
+  bool disposed = false;
   int _loadId = 0;
   final _media = StreamController<MediaCandidate>.broadcast();
 
@@ -51,7 +52,19 @@ class _FakeBrowser implements HeadlessBrowser {
 
   @override
   Future<void> dispose() async {
+    disposed = true;
     if (!_media.isClosed) await _media.close();
+  }
+}
+
+class _EarlyBrowser extends _FakeBrowser implements CurrentDocumentBrowser {
+  _EarlyBrowser({required super.loadGate, super.evalResult});
+  bool documentReady = false;
+
+  @override
+  Future<dynamic> evalCurrentDocument(String script,
+      {required int loadId}) async {
+    return documentReady && loadId == this.loadId ? evalResult : null;
   }
 }
 
@@ -60,6 +73,28 @@ WebviewScraper _scraper(_FakeBrowser browser) => WebviewScraper(
     );
 
 void main() {
+  test('load-stop alone cannot bypass the current document marker', () async {
+    final gate = Completer<void>()..complete();
+    final browser = _EarlyBrowser(loadGate: gate, evalResult: [
+      {'name': 'current', 'href': '/1'}
+    ]);
+    final pool = HeadlessBrowserPool(factory: () => browser, maxBrowsers: 1);
+    var completed = false;
+    final pending = WebviewScraper(pool: pool)
+        .fetchJson(url: 'https://test/', script: 's')
+        .then((rows) {
+      completed = true;
+      return rows;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(completed, isFalse);
+    expect(browser.evalCalls, 0);
+    browser.documentReady = true;
+    expect(await pending, isNotEmpty);
+    await Future<void>.delayed(Duration.zero);
+    await pool.shutdown();
+  });
+
   test('returns rows as soon as the page yields them', () async {
     final scraper = _scraper(_FakeBrowser(evalResult: [
       {'name': 'x', 'href': '/1'}
@@ -98,8 +133,7 @@ void main() {
     expect(sw.elapsedMilliseconds, lessThan(3000));
   });
 
-  test('overall timeout includes pool queueing and removes abandoned waiters',
-      () async {
+  test('queue timeout removes abandoned waiters without navigating', () async {
     final browser = _FakeBrowser(evalResult: []);
     final pool = HeadlessBrowserPool(factory: () => browser, maxBrowsers: 1);
     final holder = await pool.acquire();
@@ -108,8 +142,8 @@ void main() {
         scraper.fetchJson(
             url: 'https://test/',
             script: 's',
-            timeout: const Duration(milliseconds: 30)),
-        throwsA(isA<TimeoutException>()));
+            queueTimeout: const Duration(milliseconds: 30)),
+        throwsA(isA<SourceQueueTimeoutException>()));
     await holder.release();
     await Future<void>.delayed(Duration.zero);
     expect(pool.activeCount, 0);
@@ -135,6 +169,43 @@ void main() {
     await pool.shutdown();
   });
 
+  test('waiting for a browser does not consume the page extraction budget',
+      () async {
+    final browser = _FakeBrowser(evalResult: [
+      {'name': 'current', 'href': '/1'}
+    ]);
+    final pool = HeadlessBrowserPool(factory: () => browser, maxBrowsers: 1);
+    final holder = await pool.acquire();
+    final pending = WebviewScraper(pool: pool).fetchJson(
+        url: 'https://test/',
+        script: 's',
+        timeout: const Duration(milliseconds: 100),
+        queueTimeout: const Duration(seconds: 1));
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    await holder.release();
+    expect(await pending, isNotEmpty);
+    await pool.shutdown();
+  });
+
+  test('extracts committed document before slow subresources finish loading',
+      () async {
+    final gate = Completer<void>();
+    final browser = _EarlyBrowser(loadGate: gate, evalResult: [
+      {'name': 'current', 'href': '/1'}
+    ]);
+    final pool = HeadlessBrowserPool(factory: () => browser, maxBrowsers: 1);
+    final pending = WebviewScraper(pool: pool).fetchJson(
+        url: 'https://test/', script: 's', timeout: const Duration(seconds: 1));
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    browser.documentReady = true;
+    expect(await pending, isNotEmpty);
+    expect(gate.isCompleted, isFalse);
+    expect(browser.disposed, isTrue);
+    expect(pool.activeCount, 0);
+    gate.complete();
+    await pool.shutdown();
+  });
+
   test('does not extract previous document rows while navigation is pending',
       () async {
     final gate = Completer<void>();
@@ -152,8 +223,7 @@ void main() {
     await pool.shutdown();
   });
 
-  test(
-      'overall deadline returns while a native load is still pending and later recycles it',
+  test('deadline discards a hung browser without waiting for its native load',
       () async {
     final gate = Completer<void>();
     final browser = _FakeBrowser(loadGate: gate, evalResult: []);
@@ -167,6 +237,8 @@ void main() {
         throwsA(isA<TimeoutException>()));
     expect(watch.elapsedMilliseconds, lessThan(1000));
     expect(browser.evalCalls, 0);
+    expect(browser.disposed, isTrue);
+    expect(pool.activeCount, 0);
     gate.complete();
     await Future<void>.delayed(Duration.zero);
     expect(pool.activeCount, 0);

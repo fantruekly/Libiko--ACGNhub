@@ -287,13 +287,15 @@ class SourceHealthRepository extends ChangeNotifier {
   }
 
   Future<T> track<T>(SourceKind kind, String id, Future<T> Function() request,
-      {bool Function()? cancelled}) async {
+      {bool Function()? cancelled,
+      bool Function(Object)? ignoreFailure}) async {
     try {
       final result = await request();
       if (cancelled?.call() != true) _record(kind, id);
       return result;
     } catch (error) {
       if (cancelled?.call() != true &&
+          ignoreFailure?.call(error) != true &&
           !(error is DioException && error.type == DioExceptionType.cancel)) {
         _record(kind, id, error: error);
       }

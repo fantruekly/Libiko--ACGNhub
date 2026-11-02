@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:libiko/core/video/webview_scraper.dart';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -166,6 +167,23 @@ void main() {
         throwsA(isA<DioException>()));
     expect(repo.health(SourceKind.game, 'a').lastSuccess, isNull);
     expect(repo.health(SourceKind.game, 'a').lastFailure, isNull);
+    repo.dispose();
+  });
+
+  test('browser queue congestion does not mark a video source unhealthy',
+      () async {
+    final repo =
+        SourceHealthRepository(read: (_) => null, write: (_, __) async {});
+    final raw = _Video()..error = const SourceQueueTimeoutException();
+    final source = ManagedVideoSource(raw, repo);
+    await expectLater(source.episodes('/detail'),
+        throwsA(isA<SourceQueueTimeoutException>()));
+    expect(repo.health(SourceKind.anime, source.id).lastFailure, isNull);
+    expect(repo.health(SourceKind.anime, source.id).lastSuccess, isNull);
+    raw.error = const FormatException('bad rule');
+    await expectLater(source.episodes('/detail'), throwsFormatException);
+    expect(repo.health(SourceKind.anime, source.id).failure,
+        SourceFailureKind.parsing);
     repo.dispose();
   });
 

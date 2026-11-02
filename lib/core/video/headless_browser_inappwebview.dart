@@ -90,7 +90,8 @@ const String _mediaSnifferJs = r'''
 /// candidate media requests (including extension-less HLS URLs identified by
 /// MIME type), and [shouldInterceptRequest] checks every subresource URL
 /// against [looksLikeMediaUrl]. Returning null leaves the request untouched.
-class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
+class InAppWebViewHeadlessBrowser
+    implements HeadlessBrowser, CurrentDocumentBrowser {
   final _media = StreamController<MediaCandidate>.broadcast();
   HeadlessInAppWebView? _headless;
   Completer<void>? _loaded;
@@ -179,6 +180,11 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
     // Handler names are captured in each document's script. A delayed callback
     // from a previous document can no longer acquire the current loadId.
     await controller.addUserScripts(userScripts: [
+      UserScript(
+        source: 'window.__libikoDocumentSession = $session;',
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        forMainFrameOnly: true,
+      ),
       for (final script in [
         _mediaSnifferJs,
         if (_extraScript != null) _extraScript!
@@ -206,7 +212,20 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
       _headless?.webViewController?.evaluateJavascript(source: script);
 
   @override
+  Future<dynamic> evalCurrentDocument(String script, {required int loadId}) {
+    if (loadId != _loadId) return Future.value();
+    return eval('''
+(function () {
+  if (window.__libikoDocumentSession !== $loadId) return null;
+  return ($script);
+})()
+''');
+  }
+
+  @override
   Future<void> dispose() async {
+    final pending = _loaded;
+    if (pending != null && !pending.isCompleted) pending.complete();
     _loaded = null;
     _acceptCandidates = false;
     _loadId++;

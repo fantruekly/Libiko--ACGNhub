@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -220,8 +221,11 @@ String resolveEpisodeUrl(String template, Map<String, String> vars) {
 class ApiRuleClient {
   final SourceRule rule;
   final Dio _dio;
+  final Duration timeout;
 
-  ApiRuleClient(this.rule, {Dio? dio}) : _dio = dio ?? Dio();
+  ApiRuleClient(this.rule,
+      {Dio? dio, this.timeout = const Duration(seconds: 20)})
+      : _dio = dio ?? Dio(BaseOptions(connectTimeout: timeout));
 
   Future<List<VideoItem>> search(String keyword,
       {CancellationToken? cancel}) async {
@@ -233,7 +237,7 @@ class ApiRuleClient {
       'keyword': keyword,
       'baseUrl': rule.baseUrl,
     };
-    final document = await _send(config.request, variables);
+    final document = await _send(config.request, variables, cancel);
     if (cancel?.isCancelled ?? false) return const [];
     final items = <VideoItem>[];
     for (final node in jsonPathAll(document, config.listPath)) {
@@ -255,7 +259,7 @@ class ApiRuleClient {
       'source': detailUrl,
       'baseUrl': rule.baseUrl,
     };
-    final document = await _send(config.request, variables);
+    final document = await _send(config.request, variables, cancel);
     if (cancel?.isCancelled ?? false) return const [];
     return config.format == ApiChapterFormat.delimited
         ? _parseDelimited(document, config, variables)
@@ -410,6 +414,7 @@ class ApiRuleClient {
   Future<dynamic> _send(
     ApiRequestConfig config,
     Map<String, String> variables,
+    CancellationToken? cancel,
   ) async {
     final url = _resolveUrl(
       resolveEpisodeUrl(config.url, variables),
@@ -423,13 +428,35 @@ class ApiRuleClient {
       (key, value) => MapEntry(resolveEpisodeUrl(key, variables),
           resolveEpisodeUrl(value, variables)),
     );
-    final response = await _dio.request<dynamic>(
-      url,
-      data: _body(config, variables),
-      queryParameters: query,
-      options: Options(method: config.method, headers: headers),
-    );
-    return _decode(response.data);
+    final requestCancel = CancelToken();
+    void stop() => requestCancel.cancel('Source request cancelled');
+    cancel?.addListener(stop);
+    try {
+      final response = await _dio
+          .request<dynamic>(
+        url,
+        data: _body(config, variables),
+        queryParameters: query,
+        cancelToken: requestCancel,
+        options: Options(
+            method: config.method,
+            headers: headers,
+            sendTimeout: timeout,
+            receiveTimeout: timeout),
+      )
+          .timeout(timeout, onTimeout: () {
+        stop();
+        throw TimeoutException('Source API request timed out', timeout);
+      });
+      return _decode(response.data);
+    } on DioException catch (error) {
+      if (cancel?.isCancelled == true && CancelToken.isCancel(error)) {
+        return null;
+      }
+      rethrow;
+    } finally {
+      cancel?.removeListener(stop);
+    }
   }
 
   dynamic _body(ApiRequestConfig config, Map<String, String> variables) {
