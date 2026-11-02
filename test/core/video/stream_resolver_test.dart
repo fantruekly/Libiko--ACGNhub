@@ -185,6 +185,90 @@ class _CallbackAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('an unverified address cannot suppress a later different playable URL',
+      () async {
+    final resolver = StreamResolver(
+      maccms: _FakeMacCmsResolver(null),
+      cache: ResolvedStreamCache(),
+      browserFactory: () => _FakeBrowser(
+          candidateDelay: const Duration(milliseconds: 100),
+          candidates: const [
+            MediaCandidate('https://cdn/denied.m3u8'),
+            MediaCandidate('https://cdn/good.m3u8')
+          ]),
+      collectWindow: const Duration(milliseconds: 5),
+      overallBudget: const Duration(seconds: 2),
+      dio: Dio()
+        ..httpClientAdapter = _CallbackAdapter((options, _) async {
+          final good = options.uri.path.contains('good');
+          return ResponseBody.fromString(
+              good ? '#EXTM3U' : 'denied', good ? 200 : 403);
+        }),
+    );
+    final result = await resolver.resolve('https://source/later');
+    expect(result.verified, isTrue);
+    expect(result.candidate?.url, 'https://cdn/good.m3u8');
+  });
+
+  test('probe refusal still permits a bounded uncached playback attempt',
+      () async {
+    final cache = ResolvedStreamCache();
+    final browser = _FakeBrowser(hang: true);
+    final resolver = StreamResolver(
+      cache: cache,
+      maccms:
+          _FakeMacCmsResolver(const MediaCandidate('https://cdn/blocked.m3u8')),
+      browserFactory: () => browser,
+      collectWindow: const Duration(milliseconds: 5),
+      unverifiedWait: const Duration(milliseconds: 30),
+      overallBudget: const Duration(seconds: 1),
+      dio: Dio()
+        ..httpClientAdapter = _CallbackAdapter(
+            (_, __) async => ResponseBody.fromString('denied', 403)),
+    );
+    final result = await resolver
+        .resolve('https://source/probe-refused')
+        .timeout(const Duration(milliseconds: 400));
+    expect(result.ok, isTrue);
+    expect(result.verified, isFalse);
+    expect(cache.get('https://source/probe-refused'), isNull);
+    await Future<void>.delayed(Duration.zero);
+    expect(browser.disposed, isTrue);
+  });
+  for (final probeDelay in [Duration.zero, const Duration(milliseconds: 180)]) {
+    test(
+        'waits for authoritative headers after an unverified candidate ($probeDelay)',
+        () async {
+      final browser = _FakeBrowser(
+          candidateDelay: const Duration(milliseconds: 100),
+          candidates: const [
+            MediaCandidate('https://cdn/guarded.m3u8'),
+            MediaCandidate('https://cdn/guarded.m3u8', headers: {
+              'Referer': 'https://source/player/frame',
+            }),
+          ]);
+      final resolver = StreamResolver(
+        cache: ResolvedStreamCache(),
+        maccms: _FakeMacCmsResolver(null),
+        browserFactory: () => browser,
+        collectWindow: const Duration(milliseconds: 5),
+        grace: const Duration(milliseconds: 50),
+        overallBudget: const Duration(seconds: 2),
+        dio: Dio()
+          ..httpClientAdapter = _CallbackAdapter((options, _) async {
+            final correct =
+                options.headers['Referer'] == 'https://source/player/frame';
+            if (!correct) await Future<void>.delayed(probeDelay);
+            return ResponseBody.fromString(
+                correct ? '#EXTM3U' : 'denied', correct ? 200 : 403);
+          }),
+      );
+      final result = await resolver.resolve('https://source/play');
+      expect(result.verified, isTrue);
+      expect(
+          result.candidate?.headers['Referer'], 'https://source/player/frame');
+    });
+  }
   test('keeps discovering after the first candidate is an HTML decoy',
       () async {
     final browser = _FakeBrowser(

@@ -31,6 +31,7 @@ class StreamResolver {
     Duration overallBudget = const Duration(seconds: 30),
     Duration collectWindow = const Duration(milliseconds: 120),
     Duration verifyBudget = const Duration(milliseconds: 1500),
+    Duration unverifiedWait = const Duration(seconds: 4),
   })  : _maccms = maccms ?? MacCmsResolver(),
         _dio = dio ?? AppHttp.client,
         _browserFactory = browserFactory,
@@ -40,7 +41,8 @@ class StreamResolver {
         _overallTimeout = overallTimeout,
         _overallBudget = overallBudget,
         _collectWindow = collectWindow,
-        _verifyBudget = verifyBudget;
+        _verifyBudget = verifyBudget,
+        _unverifiedWait = unverifiedWait;
 
   final MacCmsResolver _maccms;
   final Dio _dio;
@@ -52,6 +54,7 @@ class StreamResolver {
   final Duration _overallBudget;
   final Duration _collectWindow;
   final Duration _verifyBudget;
+  final Duration _unverifiedWait;
 
   static const int _maxAttempts = 3;
   static const int _maxCandidates = 5;
@@ -185,6 +188,10 @@ class StreamResolver {
     });
     final seen = <String, MediaCandidate>{};
     final browserHeaders = <String, Map<String, String>>{};
+    final tested = <String, MediaCandidate>{};
+    final fallback = <String, MediaCandidate>{};
+    Timer? fallbackTimer;
+    var fallbackReady = false;
     var changed = Completer<void>();
     final finished = Completer<void>();
     var branches = 2;
@@ -202,17 +209,19 @@ class StreamResolver {
           ...candidate.headers,
         };
       }
+      final headers = {
+        ...baseHeaders,
+        if (previous != null) ...previous.headers,
+        ...candidate.headers,
+        // Actual browser requests outrank the HTTP parser's guessed
+        // Referer, including when that parser finishes later.
+        ...?browserHeaders[candidate.url],
+      };
+      // Duplicate notifications must not cause repeated probes. Changed
+      // browser headers do require a fresh probe of the same URL.
+      if (previous != null && mapEquals(previous.headers, headers)) return;
       seen[candidate.url] = MediaCandidate(candidate.url,
-          headers: {
-            ...baseHeaders,
-            if (previous != null) ...previous.headers,
-            ...candidate.headers,
-            // Actual browser requests outrank the HTTP parser's guessed
-            // Referer, including when that parser finishes later.
-            ...?browserHeaders[candidate.url],
-          },
-          loadId: candidate.loadId,
-          headersResolved: true);
+          headers: headers, loadId: candidate.loadId, headersResolved: true);
       if (!changed.isCompleted) changed.complete();
     }
 
@@ -303,7 +312,15 @@ class StreamResolver {
           return ResolveResult.failed(
               timedOut ? ResolveFailure.timeout : ResolveFailure.unknown);
         }
-        if (seen.isEmpty) {
+        final pending = seen.values
+            .where((candidate) => !identical(tested[candidate.url], candidate))
+            .take(_maxCandidates)
+            .toList();
+        if (pending.isEmpty) {
+          if (fallback.isNotEmpty && (finished.isCompleted || fallbackReady)) {
+            return ResolveResult.success(fallback.values.toList(),
+                verified: false);
+          }
           if (finished.isCompleted) {
             return ResolveResult.failed(loadFailure ?? ResolveFailure.notFound);
           }
@@ -316,22 +333,38 @@ class StreamResolver {
         // first must not suppress the actual video requested later.
         await _waitOrCancel(_collectWindow, operation);
         if (operation.isCancelled) continue;
-        final snapshot = seen.values.take(_maxCandidates).toList();
+        final snapshot = seen.values
+            .where((candidate) => !identical(tested[candidate.url], candidate))
+            .take(_maxCandidates)
+            .toList();
         final (ordered, verified) = await _verifyAll(snapshot, operation);
         if (cancel?.isCancelled ?? false) {
           return const ResolveResult.failed(ResolveFailure.unknown);
         }
-        if (ordered.isNotEmpty) {
+        if (verified && ordered.isNotEmpty) {
           return ResolveResult.success(ordered, verified: verified);
         }
-        for (final rejected in snapshot) {
-          if (identical(seen[rejected.url], rejected)) {
-            seen.remove(rejected.url);
+        for (final candidate in snapshot) {
+          tested[candidate.url] = candidate;
+          fallback.remove(candidate.url);
+          if (!ordered.any((result) => result.url == candidate.url) &&
+              identical(seen[candidate.url], candidate)) {
+            seen.remove(candidate.url);
           }
+        }
+        for (final candidate in ordered) {
+          fallback[candidate.url] = candidate;
+        }
+        if (fallback.isNotEmpty && fallbackTimer == null) {
+          fallbackTimer = Timer(_unverifiedWait, () {
+            fallbackReady = true;
+            if (!changed.isCompleted) changed.complete();
+          });
         }
       }
     } finally {
       timer.cancel();
+      fallbackTimer?.cancel();
       cancel?.removeListener(stop);
       stop();
     }
