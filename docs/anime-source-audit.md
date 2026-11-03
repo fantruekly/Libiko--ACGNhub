@@ -92,3 +92,17 @@ cmake --build build/native-webview-test --config Release
 - [Animeko](https://github.com/open-ani/animeko)：可参考多来源组织与候选发现；项目采用 Kotlin，并包含 BitTorrent 能力，不能将其所有数据源直接当作现有 HTTP 播放源导入。
 
 新增门槛：当前域名和正常访问流程可用、至少两部作品不同集数实播、首帧／持续播放／拖动证据、Windows 与 Android 验证、实际媒体上游去重。此次没有将未验证候选加入默认源。
+
+## 2026-11-03 新增源筛选
+
+本轮检查 AGE（agedm.io）、DM84（dmbus.cc）、akianime、TvTFun、ezdmw 和 mgnacg。规则结构参考 [KazumiRules](https://github.com/Predidit/KazumiRules)，保留其 MIT 许可；来源仓库不作为播放可用性的证明。
+
+- AGE、DM84：搜索和列集可用，抽样线路未解析出媒体。
+- akianime：有线路发现媒体，但原生持续播放未通过。
+- TvTFun：增加 API 搜索 `sourceTemplate` 支持，把 slug 转为播放页；修正其剧集 XPath 的无效 `@class*=` 写法后可列集，但两样本仍未解析出媒体。
+- ezdmw：两个搜索样本均超时。
+- mgnacg：搜索接口返回数字 ID，补全 `https://www.mgnacg.com/media/@source.html` 模板；修复前数字 ID 被当作导航地址，不能将该错误视作源站不可用。
+
+上述未通过候选已从内置目录移除。原始脱敏报告在 `dist/playback-audit/new-sources/`、`tvtfun-fixed/`、`new-extra/`，修复后的 mgnacg 单独复测报告在 `mgnacg-fixed/`。`sourceTemplate` 不改变作品原始 ID，未配置模板的现有 API 源保持原行为。
+
+mgnacg 修复详情页模板后，两部作品各两条抽样线路仍为解析失败，没有实播通过样本。保留规则于 `tool/source_candidates/` 供后续定向适配，默认源仍为原有五个。本轮没有新增已验证可用的源。API 与规则加载测试 24 项通过，静态分析无问题。
