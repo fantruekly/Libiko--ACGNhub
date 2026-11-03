@@ -65,6 +65,20 @@ ApiRuleClient _client(SourceRule rule, _JsonAdapter adapter) {
 }
 
 void main() {
+  test('search source template builds a chapter page without changing item ID',
+      () async {
+    final adapter = _JsonAdapter('{"items":[{"name":"作品","slug":"400602"}]}');
+    final rule = _apiRule(searchApiConfig: {
+      'request': {'url': 'https://api.test/search'},
+      'listPath': r'$.items[*]',
+      'namePath': r'$.name',
+      'sourcePath': r'$.slug',
+      'sourceTemplate': '/watch/@source/1',
+    }, chapterApiConfig: {});
+    final items = await _client(rule, adapter).search('作品');
+    expect(items.single.id, '400602');
+    expect(items.single.detailUrl, 'https://api.test/watch/400602/1');
+  });
   test('shared episode IDs preserve the distinct route code for each source',
       () async {
     final adapter = _JsonAdapter('''{"sources":[

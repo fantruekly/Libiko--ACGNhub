@@ -71,12 +71,14 @@ class ApiSearchConfig {
   final String listPath;
   final String namePath;
   final String sourcePath;
+  final String sourceTemplate;
 
   const ApiSearchConfig({
     this.request = const ApiRequestConfig(),
     this.listPath = r'$.data[*]',
     this.namePath = r'$.name',
     this.sourcePath = r'$.url',
+    this.sourceTemplate = '',
   });
 
   factory ApiSearchConfig.fromJson(Map<String, dynamic> json) {
@@ -85,6 +87,7 @@ class ApiSearchConfig {
       listPath: json['listPath'] as String? ?? r'$.data[*]',
       namePath: json['namePath'] as String? ?? r'$.name',
       sourcePath: json['sourcePath'] as String? ?? r'$.url',
+      sourceTemplate: json['sourceTemplate'] as String? ?? '',
     );
   }
 }
@@ -247,7 +250,15 @@ class ApiRuleClient {
       final title = _firstString(jsonPathAll(node, config.namePath));
       final source = _firstString(jsonPathAll(node, config.sourcePath));
       if (title.isEmpty || source.isEmpty) continue;
-      items.add(VideoItem(id: source, title: title, detailUrl: source));
+      final detailUrl = config.sourceTemplate.isEmpty
+          ? source
+          : _resolveUrl(
+              resolveEpisodeUrl(config.sourceTemplate, {
+                ...variables,
+                'source': source,
+              }),
+              rule.baseUrl);
+      items.add(VideoItem(id: source, title: title, detailUrl: detailUrl));
     }
     return items;
   }
