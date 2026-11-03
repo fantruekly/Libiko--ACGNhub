@@ -106,3 +106,19 @@ cmake --build build/native-webview-test --config Release
 上述未通过候选已从内置目录移除。原始脱敏报告在 `dist/playback-audit/new-sources/`、`tvtfun-fixed/`、`new-extra/`，修复后的 mgnacg 单独复测报告在 `mgnacg-fixed/`。`sourceTemplate` 不改变作品原始 ID，未配置模板的现有 API 源保持原行为。
 
 mgnacg 修复详情页模板后，两部作品各两条抽样线路仍为解析失败，没有实播通过样本。保留规则于 `tool/source_candidates/` 供后续定向适配，默认源仍为原有五个。本轮没有新增已验证可用的源。API 与规则加载测试 24 项通过，静态分析无问题。
+
+## mgnacg 站点专用适配
+
+正常播放流程与通用 MacCMS 不同：`static/js/player.js` 特意跳过 encrypt=2 的通用 Base64 解码，按 `playerconfig.js` 的 `from` 选择公开解析器，`static/player/parse.js` 把原始数据传到 iframe。仅解码 MacCMS 字段无法得到媒体地址。
+
+已加入 `MgnacgAdapter`，限定 HTTPS 的 `www.mgnacg.com/bangumi/` 页面：
+
+1. 读取正常播放页的 `from` 与原始 URL 字段，按站点配置选择 cloudplay、yp2、yp3 或 ccxl；未知线路保留通用浏览器发现路径，不猜测接口。
+2. 请求正常公开解析页，从 viewport / charset 两个动态 meta ID 按站点公开 `setting.js` 协议派生 AES-CBC 密钥与 IV，再解码 `config.url`。不运行远程 JavaScript，不处理登录或验证码。
+3. 只接受 HTTP(S) 的实际媒体类型 URL；空值、网页、脚本、破损密文均拒绝。正常 cloudplay 页声明 referrer=never，因此候选不强加源站 Referer；具体媒体仍经过现有验证和原生实播。
+
+调查中公开解析器两次成功返回 HTTP 页面，但解码结果均为空（带源站 Referer 重试也为空）。这是正常响应未提供媒体的证据，不能宣称解码能力本身修复了远端资源。未取得真实流时，Referer 策略也尚未得到实际播放验证。
+
+解码测试使用 Node crypto 独立生成的已知向量，另有 HTTP 集成测试验证正常跳转参数、原始字段保留、头部策略及严格站点范围。适配器、MacCMS、解析器与规则加载合计 60 项测试通过，静态分析通过。Windows 实播报告位于 `dist/playback-audit/mgnacg-adapter/`。
+
+专用适配后的 Windows 复测：《鬼灭之刃 柱训练篇》《葬送的芙莉莲》各两线路均在解析阶段超时，未得到实际媒体候选，没有首帧证据。HTTP 调查证明能够解码正常公开解析响应，但现网抽样仍未提供可播流；不能将单元测试通过称为新增源可用。临时候选已移出 assets，保留实验规则，默认源列表仍为原有五个。
