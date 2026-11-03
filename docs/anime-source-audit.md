@@ -1,5 +1,19 @@
 # 动漫源检查记录
 
+## 2026-11-03 小批扩源：baimao
+
+本轮新增规则参考 [KazumiRules baimao.json](https://github.com/Predidit/KazumiRules/blob/main/baimao.json)，正常站点入口为 `https://www.baimaodm.com/`（当前页面显示“黑猫动漫”）。MIT 许可沿用 `assets/source_rules/LICENSE.KazumiRules.txt`。本地版本 `1.0-libiko1` 增加 `preferredLineIds: ["road:2"]`，优先第三线路，保留其他线路，缺少首选时保持站点顺序。
+
+首轮 Windows 实播：《葬送的芙莉莲》线路1/2起播失败，线路3取得 `yzzy.play-cdn19.com` 媒体，1280×720、持续进度及拖动恢复均通过。该媒体域名与现有 MXdm / 稀饭已测样本不同，但域名不同不能证明底层服务完全独立。《鬼灭之刃 浅草篇》详情页明确提示暂无播放资源，不能把该作品无资源归咎于规则选择器。
+
+候选初筛：nekodm、AnFuns 上游规则已标弃用；Miru 的次元城与 vdm8 旧入口返回403，dm530w 旧入口仅返回 `OK` 无搜索内容，均未加入默认列表，也未改变登录、地区或验证码限制。
+
+脱敏报告：`dist/playback-audit/batch2-baimao/`、`batch2-baimao-preferred/`。当前只验证 Windows、本机网络及抽样剧集，尚无 Android 真机或整集稳定性证据。
+
+首选线路复测使用 `-MaxLines 1 -StartEpisode 1 -TestSeek -TestNext`：《葬送的芙莉莲》第1集首帧约7.7秒、720P、10秒持续进度、拖动后持续恢复通过；工具在同一个 Player 中主动切换自然第2集，第2集亦720P、持续播放及拖动恢复通过，取得787870字节解码帧证据。这不是 App 自动播完换集或整集稳定性验证。规则加载/映射15项通过，静态分析无问题。默认内置源由6个增加至7个。
+
+第二作品《孤独摇滚！》同样在默认第三线路完成第1→2集：两集均1080×606（不能称1080P）、10秒持续进度、拖动后持续恢复通过；第2集取得486996字节解码帧证据，媒体为 `yzzy.play-cdn7.com`。两作品共四集验证仍只代表这些抽样集，不保证所有资源或线路持续可用。
+
 ## 搜索与剧集等待优化（2026-11-03）
 
 - 已有搜索本就逐源展示结果、API/网页分队列、缓存命中复用，本轮不重复增加并发或缩短慢源加载期限。
