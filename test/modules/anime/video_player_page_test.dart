@@ -9,6 +9,10 @@ import 'package:libiko/core/storage/database.dart';
 import 'package:libiko/core/sources/source_preferences.dart';
 import 'package:libiko/core/models/work.dart';
 import 'package:libiko/core/video/headless_browser.dart';
+import 'package:libiko/core/video/cross_source_recovery.dart';
+import 'package:libiko/core/video/browser_pool.dart';
+import 'package:libiko/core/video/cancellation.dart';
+import 'package:libiko/core/video/stream_resolver.dart';
 import 'package:libiko/core/video/video_source.dart';
 import 'package:libiko/modules/anime/video_player_page.dart';
 
@@ -58,6 +62,30 @@ class _Player extends PlatformPlayer {
   Future<void> playOrPause() async {}
 }
 
+class _Resolver extends StreamResolver {
+  final calls = <(String, BrowserPriority, CancellationToken?)>[];
+  Completer<ResolveResult>? prefetchGate;
+  @override
+  Future<ResolveResult> resolve(
+    String playPageUrl, {
+    Duration timeout = const Duration(seconds: 20),
+    String? userAgent,
+    String? referer,
+    bool legacy = false,
+    CancellationToken? cancel,
+    BrowserPriority priority = BrowserPriority.foreground,
+  }) {
+    calls.add((playPageUrl, priority, cancel));
+    if (priority == BrowserPriority.background && prefetchGate != null) {
+      return prefetchGate!.future;
+    }
+    return Future.value(ResolveResult.success([MediaCandidate(playPageUrl)]));
+  }
+
+  @override
+  bool isCached(String playPageUrl) => false;
+}
+
 const _work = Work(
     id: 'player_test',
     sourceId: 'meta',
@@ -98,6 +126,8 @@ Future<ProviderContainer> _mount(
   Duration resume = Duration.zero,
   int index = 0,
   Player Function()? factory,
+  PlaybackRecoveryFinder? findAlternative,
+  StreamResolver? resolver,
 }) async {
   final container = ProviderContainer();
   await tester.pumpWidget(UncontrolledProviderScope(
@@ -109,6 +139,8 @@ Future<ProviderContainer> _mount(
         initialIndex: index,
         initialCandidates: candidates,
         initialPosition: resume,
+        findAlternative: findAlternative,
+        resolver: resolver,
         playerFactory: factory ?? () => Player(platformPlayer: player),
         videoBuilder: (_) => const ColoredBox(color: Colors.black),
       ))));
@@ -136,6 +168,166 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();
+  });
+
+  const replacement = [
+    VideoEpisode(
+        id: 'c1',
+        title: '1',
+        index: 0,
+        playUrl: 'https://cdn/c1.mp4',
+        sourceId: 'other',
+        lineId: 'C',
+        episodeKey: 'episode:1'),
+    VideoEpisode(
+        id: 'c2',
+        title: '2',
+        index: 1,
+        playUrl: 'https://cdn/c2.mp4',
+        sourceId: 'other',
+        lineId: 'C',
+        episodeKey: 'episode:2'),
+  ];
+  Future<void> exhaustLines(WidgetTester tester, _Player player) async {
+    for (var i = 0; i < 4; i++) {
+      player.emitError('404');
+      await tester.pump();
+      await _settleMedia(tester);
+      await _settleMedia(tester);
+    }
+  }
+
+  testWidgets(
+      'prefetch waits for five seconds of continuing playback and only runs once',
+      (tester) async {
+    final player = _Player();
+    final resolver = _Resolver();
+    final container = await _mount(tester, player,
+        resolver: resolver,
+        candidates: const [MediaCandidate('https://cdn/initial.mp4')]);
+    player.emitBuffering(false);
+    player.emitPosition(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 4));
+    player.emitPosition(const Duration(seconds: 5));
+    await tester.pump();
+    expect(resolver.calls, isEmpty);
+    await tester.pump(const Duration(seconds: 1));
+    expect(resolver.calls.single.$1, 'https://cdn/a2.mp4');
+    expect(resolver.calls.single.$2, BrowserPriority.background);
+    player.emitPosition(const Duration(seconds: 7));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    expect(resolver.calls, hasLength(1));
+    await _unmount(tester, container);
+  });
+  testWidgets('buffering and recovery cancel an active optional prefetch',
+      (tester) async {
+    final player = _Player();
+    final resolver = _Resolver()..prefetchGate = Completer<ResolveResult>();
+    final container =
+        await _mount(tester, player, resolver: resolver, candidates: const [
+      MediaCandidate('https://cdn/first.mp4'),
+      MediaCandidate('https://cdn/second.mp4')
+    ]);
+    player.emitBuffering(false);
+    player.emitPosition(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 4));
+    player.emitPosition(const Duration(seconds: 5));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final request = resolver.calls.single.$3!;
+    expect(request.isCancelled, isFalse);
+    player.emitError('404');
+    await tester.pump();
+    await _settleMedia(tester);
+    expect(request.isCancelled, isTrue);
+    expect(player.opened.last.uri, 'https://cdn/second.mp4');
+    resolver.prefetchGate!
+        .complete(const ResolveResult.failed(ResolveFailure.unknown));
+    await _unmount(tester, container);
+  });
+  testWidgets('paused or buffered startup cannot launch optional prefetch',
+      (tester) async {
+    final player = _Player();
+    final resolver = _Resolver();
+    final container = await _mount(tester, player,
+        resolver: resolver,
+        candidates: const [MediaCandidate('https://cdn/initial.mp4')]);
+    player.emitPosition(const Duration(seconds: 1));
+    await tester.pump();
+    player.emitBuffering(true);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    expect(resolver.calls, isEmpty);
+    player.emitBuffering(false);
+    player.emitPlaying(true);
+    player.emitPosition(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('player-play')));
+    await tester.pump(const Duration(milliseconds: 350));
+    player.emitPosition(const Duration(seconds: 3));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    expect(resolver.calls, isEmpty);
+    await _unmount(tester, container);
+  });
+
+  testWidgets(
+      'cross-source recovery preserves the episode, progress and subsequent source',
+      (tester) async {
+    final player = _Player();
+    final container =
+        await _mount(tester, player, findAlternative: (request) async {
+      expect(request.episode.episodeKey, 'episode:1');
+      expect(request.attemptedSources, {'test'});
+      return const PlaybackRecoveryResult(
+          attemptedSources: {'other'},
+          alternative: PlaybackAlternative(
+              episodes: replacement, index: 0, sourceName: 'Other'));
+    });
+    player.emitDuration(const Duration(minutes: 24));
+    player.emitPosition(const Duration(minutes: 3));
+    await tester.pump();
+    await exhaustLines(tester, player);
+    expect(player.opened.last.uri, 'https://cdn/c1.mp4');
+    player.emitDuration(const Duration(minutes: 24));
+    await tester.pump();
+    expect(player.seeks.last, const Duration(minutes: 3));
+    player.emitPosition(const Duration(minutes: 3, seconds: 1));
+    await tester.pump();
+    final record = container.read(watchHistoryProvider).single;
+    expect(record.sourceId, 'other');
+    expect(record.lineId, 'C');
+    expect(record.positionMs, 181000);
+    player.emitCompleted(true);
+    await tester.pump();
+    await _settleMedia(tester);
+    expect(player.opened.last.uri, 'https://cdn/c2.mp4');
+    await _unmount(tester, container);
+  });
+  testWidgets(
+      'a late cross-source result cannot replace a user-selected episode',
+      (tester) async {
+    final result = Completer<PlaybackRecoveryResult>();
+    final player = _Player();
+    final container =
+        await _mount(tester, player, findAlternative: (_) => result.future);
+    await exhaustLines(tester, player);
+    await tester.tap(find.byKey(const ValueKey('player-episodes')));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.tap(find.text('A 2'));
+    await tester.pump(const Duration(milliseconds: 350));
+    await _settleMedia(tester);
+    result.complete(const PlaybackRecoveryResult(
+        attemptedSources: {'other'},
+        alternative: PlaybackAlternative(
+            episodes: replacement, index: 0, sourceName: 'Other')));
+    await _settleMedia(tester);
+    expect(player.opened.last.uri, 'https://cdn/a2.mp4');
+    expect(player.opened.any((e) => e.uri == 'https://cdn/c1.mp4'), isFalse);
+    await _unmount(tester, container);
   });
 
   testWidgets(
@@ -294,6 +486,16 @@ void main() {
     ]);
     expect(find.textContaining('播放失败'), findsOneWidget);
     expect(find.text('诊断信息'), findsOneWidget);
+    await tester.tap(find.text('诊断信息'));
+    await tester.pumpAndSettle();
+    final diagnostics =
+        tester.widget<SelectableText>(find.byType(SelectableText)).data!;
+    expect(diagnostics, contains('解析完成'));
+    expect(diagnostics, contains('elapsedMs'));
+    expect(diagnostics, contains('candidates'));
+    expect(diagnostics, isNot(contains('https://')));
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
     final health =
         container.read(sourceHealthProvider).health(SourceKind.anime, 'test');
     expect(health.playbackSuccesses, 0);

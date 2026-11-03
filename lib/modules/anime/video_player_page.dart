@@ -15,8 +15,10 @@ import '../../core/storage/database.dart';
 import '../../core/video/browser_pool.dart';
 import '../../core/video/cancellation.dart';
 import '../../core/video/candidate_queue.dart';
+import '../../core/video/cross_source_recovery.dart';
 import '../../core/video/headless_browser.dart';
 import '../../core/video/playback_error.dart';
+import '../../core/video/playback_diagnostics.dart';
 import '../../core/video/playback_session.dart';
 import '../../core/video/stream_resolver.dart';
 import '../../core/video/video_source.dart';
@@ -28,12 +30,16 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
   final List<VideoEpisode> episodes;
   final int initialIndex;
   final List<MediaCandidate>? initialCandidates;
+  final bool initialVerified;
   final String sourceName;
   final Duration initialPosition;
+  final PlaybackRecoveryFinder? findAlternative;
   @visibleForTesting
   final Player Function()? playerFactory;
   @visibleForTesting
   final Widget Function(Player)? videoBuilder;
+  @visibleForTesting
+  final StreamResolver? resolver;
 
   const VideoPlayerPage({
     super.key,
@@ -41,10 +47,13 @@ class VideoPlayerPage extends ConsumerStatefulWidget {
     required this.episodes,
     required this.initialIndex,
     this.initialCandidates,
+    this.initialVerified = false,
     this.sourceName = '',
     this.initialPosition = Duration.zero,
+    this.findAlternative,
     this.playerFactory,
     this.videoBuilder,
+    this.resolver,
   });
 
   @override
@@ -63,7 +72,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   bool _resolving = false;
   bool _usedInitialUrl = false;
   int _gen = 0;
-  final StreamResolver _resolver = StreamResolver();
+  late final StreamResolver _resolver;
   CandidateQueue _candidates = CandidateQueue();
   CancellationToken _prefetchCancel = CancellationToken();
   bool _switchingCandidate = false;
@@ -77,11 +86,16 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   bool _recovering = false;
   bool _autoNext = true;
   final Set<String> _attemptedLines = {};
+  final Set<String> _attemptedSources = {};
+  late List<VideoEpisode> _episodes;
+  late String _sourceName;
   Duration _resumeTarget = Duration.zero;
   bool _resumeApplied = false;
   bool _userPaused = false;
   bool _background = false;
-  final List<String> _diagnostics = [];
+  final _diagnostics = PlaybackDiagnostics();
+  final _resolveClock = Stopwatch();
+  final _openClock = Stopwatch();
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -102,6 +116,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   CancellationToken _resolveCancel = CancellationToken();
   String? _bufferingHint;
   bool _prefetchedForGen = false;
+  Timer? _prefetchTimer;
+  String? _prefetchInFlight;
   bool _playbackOutcomeRecorded = false;
   bool _startupTimingInterrupted = false;
   final _startupClock = Stopwatch();
@@ -109,6 +125,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   @override
   void initState() {
     super.initState();
+    _episodes = List.of(widget.episodes);
+    _sourceName = widget.sourceName;
+    _resolver = widget.resolver ?? StreamResolver();
     WidgetsBinding.instance.addObserver(this);
     if (isDesktop) windowManager.addListener(this);
     _history = ref.read(watchHistoryProvider.notifier);
@@ -117,6 +136,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _session = PlaybackSession(
       onTimeout: () => unawaited(_recover('播放超时')),
       onSlow: () {
+        _trace(_session.started ? '播放停滞' : '加载较慢',
+            elapsedMs:
+                _session.started ? null : _openClock.elapsedMilliseconds);
         if (mounted) setState(() => _bufferingHint = '源站响应较慢，正在加载…');
       },
     );
@@ -125,8 +147,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
             100;
     _muted = AppDatabase().getString('anime_player_muted') == '1';
     _createPlayer();
-    if (widget.episodes.isEmpty) return;
-    _currentIndex = widget.initialIndex.clamp(0, widget.episodes.length - 1);
+    if (_episodes.isEmpty) return;
+    _currentIndex = widget.initialIndex.clamp(0, _episodes.length - 1);
     _playIndex(_currentIndex);
   }
 
@@ -152,7 +174,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _session.dispose();
     ++_gen;
     _resolveCancel.cancel();
-    _prefetchCancel.cancel();
+    _cancelPrefetch(reset: true);
     for (final sub in _subs) {
       sub.cancel();
     }
@@ -176,16 +198,16 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         setState(() => _bufferingHint = null);
       }
       if (first) {
+        _openClock.stop();
+        _trace('开始播放',
+            elapsedMs: _openClock.elapsedMilliseconds, outcome: '实际进度已推进');
         if (!_playbackOutcomeRecorded) {
           _recordPlaybackOutcome(success: true);
         }
         _started = true;
         _saveHistory();
-        if (!_prefetchedForGen) {
-          _prefetchedForGen = true;
-          _prefetchNext(_currentIndex);
-        }
       }
+      if (_started) _schedulePrefetch();
     }));
     _subs.add(_player.stream.duration.listen((duration) {
       if (!active()) return;
@@ -213,6 +235,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     _subs.add(_player.stream.buffering.listen((buffering) {
       if (!active()) return;
       setState(() => _buffering = buffering);
+      if (buffering) _cancelPrefetch();
       _session.buffering(buffering);
     }));
     _subs.add(_player.stream.rate.listen((rate) {
@@ -227,11 +250,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   void _saveHistory({bool completed = false}) {
-    if (!_started || widget.episodes.isEmpty) return;
+    if (!_started || _episodes.isEmpty) return;
     unawaited(_history
         .record(
           widget.work,
-          widget.episodes[_currentIndex],
+          _episodes[_currentIndex],
           positionMs: _position.inMilliseconds,
           durationMs: _duration.inMilliseconds,
           completed: completed || _session.phase == PlaybackPhase.completed,
@@ -242,13 +265,23 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     }));
   }
 
-  void _trace(String event) {
-    final episode =
-        widget.episodes.isEmpty ? null : widget.episodes[_currentIndex];
-    _diagnostics.add('${DateTime.now().toIso8601String()} $event '
-        'source=${episode?.sourceId ?? widget.sourceName} '
-        'line=${episode?.lineId ?? "default"} episode=${episode?.episodeKey ?? _currentIndex}');
-    if (_diagnostics.length > 40) _diagnostics.removeAt(0);
+  void _trace(String event,
+      {VideoEpisode? episode,
+      int? elapsedMs,
+      bool? verified,
+      int? candidates,
+      String? outcome}) {
+    episode ??= _episodes.isEmpty ? null : _episodes[_currentIndex];
+    _diagnostics.add(event,
+        source: episode?.sourceId ?? _sourceName,
+        line: episode?.lineId ?? 'default',
+        episode: episode?.episodeKey ?? 'index:$_currentIndex',
+        elapsedMs: elapsedMs,
+        verified: verified,
+        candidates: candidates,
+        outcome: outcome,
+        positionMs: _position.inMilliseconds,
+        durationMs: _duration.inMilliseconds);
   }
 
   void _showDiagnostics() {
@@ -257,11 +290,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         builder: (context) => AlertDialog(
               title: const Text('播放诊断'),
               content: SingleChildScrollView(
-                  child: SelectableText(_diagnostics.join('\n'))),
+                  child: SelectableText(_diagnostics.report())),
               actions: [
                 TextButton(
                     onPressed: () => Clipboard.setData(
-                        ClipboardData(text: _diagnostics.join('\n'))),
+                        ClipboardData(text: _diagnostics.report())),
                     child: const Text('复制')),
                 TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -281,13 +314,12 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
 
   Future<void> _playIndex(int i,
       {Duration? resume, bool recovery = false}) async {
-    if (i < 0 || i >= widget.episodes.length) return;
+    if (i < 0 || i >= _episodes.length) return;
     _saveHistory();
     final gen = ++_gen;
     _resolveCancel.cancel();
     _resolveCancel = CancellationToken();
-    _prefetchCancel.cancel();
-    _prefetchCancel = CancellationToken();
+    _cancelPrefetch(reset: true);
     _session.cancel();
     _historyTimer?.cancel();
     _started = false;
@@ -306,9 +338,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (!_background) _userPaused = false;
       _reparsed = false;
       _attemptedLines.clear();
+      _attemptedSources.clear();
       _recovering = false;
     }
-    final episode = widget.episodes[i];
+    final episode = _episodes[i];
+    if (episode.sourceId != null) _attemptedSources.add(episode.sourceId!);
     _attemptedLines.add(_lineKey(episode));
     _candidates = CandidateQueue();
     _prefetchedForGen = false;
@@ -325,6 +359,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       _currentIndex = i;
     });
     _trace(recovery ? 'resolve: recovery' : 'resolve: selected');
+    _resolveClock
+      ..reset()
+      ..start();
     _session.phase = PlaybackPhase.resolving;
     // Stop the previous episode before resolving so it cannot keep playing
     // underneath the new title, or feed positions into the new session.
@@ -341,7 +378,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       final initial = useInitial ? widget.initialCandidates : null;
       _usedInitialUrl = true;
       final result = initial != null
-          ? ResolveResult.success(initial)
+          ? ResolveResult.success(initial, verified: widget.initialVerified)
           : await _resolver.resolve(episode.playUrl,
               userAgent: episode.userAgent,
               referer: episode.referer,
@@ -349,10 +386,15 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
               cancel: _resolveCancel);
       if (!mounted || gen != _gen) return;
       setState(() => _resolving = false);
+      _resolveClock.stop();
+      _trace('解析完成',
+          elapsedMs: _resolveClock.elapsedMilliseconds,
+          verified: result.verified,
+          candidates: result.candidates.length,
+          outcome: result.ok ? '已找到候选' : result.failure?.name);
       if (!result.ok) {
         _trace('resolve: ${result.failure?.name ?? "unknown"}');
-        unawaited(
-            _recover(resolveFailureMessage(widget.sourceName, result.failure)));
+        unawaited(_recover(resolveFailureMessage(_sourceName, result.failure)));
         return;
       }
       _candidates = CandidateQueue(result.candidates);
@@ -393,9 +435,12 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   Future<void> _openCandidate(int gen) async {
     final candidate = _candidates.current;
     if (candidate == null || gen != _gen || !mounted) return;
-    final episode = widget.episodes[_currentIndex];
+    final episode = _episodes[_currentIndex];
     final headers = playbackHeaders(candidate, episode);
     final generation = _session.begin();
+    _openClock
+      ..reset()
+      ..start();
     if (_userPaused || _background) _session.pause(true);
     _trace('open: candidate');
     _switchingCandidate = true;
@@ -448,11 +493,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   void _recordPlaybackOutcome({required bool success}) {
-    if (!mounted || widget.episodes.isEmpty) return;
+    if (!mounted || _episodes.isEmpty) return;
     if (!success && (_userPaused || _background)) return;
     _playbackOutcomeRecorded = true;
     _startupClock.stop();
-    final id = widget.episodes[_currentIndex].sourceId;
+    final id = _episodes[_currentIndex].sourceId;
     if (id == null || id.isEmpty) return;
     ref.read(sourceHealthProvider).recordPlayback(id,
         success: success,
@@ -481,6 +526,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       return;
     }
     _recovering = true;
+    _cancelPrefetch();
     final gen = _gen;
     final resume = _position > Duration.zero ? _position : _resumeTarget;
     _saveHistory();
@@ -488,22 +534,25 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     try {
       _session.finish(PlaybackPhase.recovering);
       if (_candidates.advance() != null) {
+        _trace('恢复', outcome: '尝试下一候选地址');
         _resumeTarget = resume;
         _resumeApplied = false;
-        unawaited(_openCandidate(gen));
+        _launchRecovery(() => _openCandidate(gen));
       } else if (!_reparsed) {
+        _trace('恢复', outcome: '刷新当前集地址');
         _reparsed = true;
-        _resolver.invalidate(widget.episodes[_currentIndex].playUrl);
-        unawaited(_playIndex(_currentIndex, resume: resume, recovery: true));
+        _resolver.invalidate(_episodes[_currentIndex].playUrl);
+        _launchRecovery(
+            () => _playIndex(_currentIndex, resume: resume, recovery: true));
       } else {
         int? alternative;
-        for (final episode in widget.episodes) {
+        for (final episode in _episodes) {
           if (_attemptedLines.contains(_lineKey(episode)) ||
               episode.lineId == null) {
             continue;
           }
           final index = matchingEpisodeIndex(
-              widget.episodes, _currentIndex, episode.lineId!,
+              _episodes, _currentIndex, episode.lineId!,
               targetSourceId: episode.sourceId);
           if (index != null) {
             alternative = index;
@@ -511,33 +560,196 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           }
         }
         if (alternative == null) {
-          _fail(error);
+          final switched = await _switchSource(gen, resume);
+          if (!switched &&
+              mounted &&
+              gen == _gen &&
+              !_userPaused &&
+              !_background) {
+            _fail(error);
+          }
         } else {
           _reparsed = false;
-          unawaited(_playIndex(alternative, resume: resume, recovery: true));
+          _trace('恢复', outcome: '切换同源线路');
+          _launchRecovery(
+              () => _playIndex(alternative!, resume: resume, recovery: true));
         }
       }
     } finally {
-      _recovering = false;
-      _pendingError = null;
+      if (mounted && gen == _gen) {
+        _recovering = false;
+        _pendingError = null;
+      }
     }
   }
 
-  void _prefetchNext(int current) {
-    final next = nextEpisodeIndex(widget.episodes, current);
-    if (next != null) _prefetch(widget.episodes[next]);
+  void _launchRecovery(Future<void> Function() action) {
+    _recovering = false;
+    _pendingError = null;
+    unawaited(action());
   }
 
-  void _prefetchCurrent() => _prefetch(widget.episodes[_currentIndex]);
+  Future<bool> _switchSource(int gen, Duration resume) async {
+    final finder = widget.findAlternative;
+    if (finder == null || _attemptedSources.length >= 3) return false;
+    final episode = _episodes[_currentIndex];
+    if (episode.episodeKey == null ||
+        episode.episodeKey!.isEmpty ||
+        _episodes
+                .where((e) =>
+                    e.sourceId == episode.sourceId &&
+                    e.lineId == episode.lineId &&
+                    e.episodeKey == episode.episodeKey)
+                .length !=
+            1) {
+      return false;
+    }
+    final before = Set<String>.of(_attemptedSources);
+    final cancel = CancellationToken();
+    final parent = _resolveCancel;
+    parent.addListener(cancel.cancel);
+    setState(() => _resolving = true);
+    _trace('recovery: looking for another source');
+    try {
+      final result = await finder(PlaybackRecoveryRequest(
+              episode: episode,
+              attemptedSources: Set.unmodifiable(before),
+              cancel: cancel))
+          .timeout(const Duration(seconds: 25), onTimeout: () {
+        cancel.cancel();
+        return const PlaybackRecoveryResult();
+      });
+      if (!mounted ||
+          gen != _gen ||
+          cancel.isCancelled ||
+          _userPaused ||
+          _background) {
+        return false;
+      }
+      _attemptedSources.addAll(result.attemptedSources);
+      final alternative = result.alternative;
+      if (alternative == null ||
+          alternative.index < 0 ||
+          alternative.index >= alternative.episodes.length) {
+        return false;
+      }
+      final target = alternative.episodes[alternative.index];
+      if (target.sourceId == null ||
+          before.contains(target.sourceId) ||
+          target.episodeKey != episode.episodeKey ||
+          alternative.episodes
+                  .where((e) =>
+                      e.sourceId == target.sourceId &&
+                      e.lineId == target.lineId &&
+                      e.episodeKey == target.episodeKey)
+                  .length !=
+              1) {
+        return false;
+      }
+      if (!_playbackOutcomeRecorded) _recordPlaybackOutcome(success: false);
+      _started = false;
+      _episodes = List.of(alternative.episodes);
+      _currentIndex = alternative.index;
+      _sourceName = alternative.sourceName;
+      _playbackOutcomeRecorded = false;
+      _startupTimingInterrupted = false;
+      _startupClock
+        ..reset()
+        ..start();
+      _reparsed = false;
+      _trace('recovery: matched another source');
+      _launchRecovery(
+          () => _playIndex(alternative.index, resume: resume, recovery: true));
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      parent.removeListener(cancel.cancel);
+      cancel.cancel();
+      if (mounted && gen == _gen) setState(() => _resolving = false);
+    }
+  }
+
+  void _cancelPrefetch({bool reset = false}) {
+    if (_prefetchTimer != null || _prefetchInFlight != null) {
+      _trace('预解析', outcome: '取消后台任务');
+    }
+    _prefetchTimer?.cancel();
+    _prefetchTimer = null;
+    if (reset || _prefetchInFlight != null) _prefetchedForGen = false;
+    _prefetchCancel.cancel();
+    _prefetchCancel = CancellationToken();
+    _prefetchInFlight = null;
+  }
+
+  void _schedulePrefetch() {
+    if (_prefetchTimer != null ||
+        _prefetchedForGen ||
+        _resolving ||
+        _buffering ||
+        _userPaused ||
+        _background ||
+        !_started) {
+      return;
+    }
+    final next = nextEpisodeIndex(_episodes, _currentIndex);
+    if (next == null) return;
+    final gen = _gen;
+    final initialPosition = _position;
+    _prefetchTimer = Timer(const Duration(seconds: 5), () {
+      _prefetchTimer = null;
+      if (!mounted ||
+          gen != _gen ||
+          _resolving ||
+          _buffering ||
+          _userPaused ||
+          _background ||
+          _position <= initialPosition) {
+        return;
+      }
+      _prefetchedForGen = true;
+      _prefetch(_episodes[next]);
+    });
+  }
 
   void _prefetch(VideoEpisode episode) {
-    if (_resolver.isCached(episode.playUrl)) return;
-    unawaited(_resolver.resolve(episode.playUrl,
-        userAgent: episode.userAgent,
-        referer: episode.referer,
-        legacy: episode.useLegacyParser,
-        priority: BrowserPriority.background,
-        cancel: _prefetchCancel));
+    if (_resolver.isCached(episode.playUrl)) {
+      _trace('预解析', episode: episode, outcome: '命中缓存');
+      return;
+    }
+    if (_prefetchInFlight != null) return;
+    final cancel = _prefetchCancel;
+    final clock = Stopwatch()..start();
+    _prefetchInFlight = episode.playUrl;
+    _trace('预解析', episode: episode, outcome: '后台开始');
+    unawaited(() async {
+      try {
+        final result = await _resolver.resolve(episode.playUrl,
+            userAgent: episode.userAgent,
+            referer: episode.referer,
+            legacy: episode.useLegacyParser,
+            priority: BrowserPriority.background,
+            cancel: cancel);
+        if (mounted && !cancel.isCancelled) {
+          _trace('预解析',
+              episode: episode,
+              elapsedMs: clock.elapsedMilliseconds,
+              verified: result.verified,
+              candidates: result.candidates.length,
+              outcome: result.ok ? '已准备下一集' : '未找到可用地址');
+        }
+      } catch (_) {
+        if (mounted && !cancel.isCancelled) {
+          _trace('预解析',
+              episode: episode,
+              elapsedMs: clock.elapsedMilliseconds,
+              outcome: '后台任务失败');
+        }
+        // Optional prefetch must never interrupt current playback.
+      } finally {
+        if (identical(cancel, _prefetchCancel)) _prefetchInFlight = null;
+      }
+    }());
   }
 
   void _scheduleHide() {
@@ -563,6 +775,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     if (_userPaused && !_playbackOutcomeRecorded) {
       _startupTimingInterrupted = true;
     }
+    if (_userPaused) _cancelPrefetch();
     _session.pause(_userPaused);
     if (_userPaused) _saveHistory();
     _player.playOrPause();
@@ -570,7 +783,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   void _nextEpisode() {
-    final next = nextEpisodeIndex(widget.episodes, _currentIndex);
+    final next = nextEpisodeIndex(_episodes, _currentIndex);
     if (next != null) _playIndex(next);
   }
 
@@ -674,6 +887,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _background = true;
+      _cancelPrefetch();
       if (!_playbackOutcomeRecorded) _startupTimingInterrupted = true;
       _userPaused = true;
       _endBoost();
@@ -778,9 +992,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        widget.sourceName.isEmpty
+                        _sourceName.isEmpty
                             ? '播放失败：$_displayError'
-                            : '来源 ${widget.sourceName} · 播放失败：$_displayError',
+                            : '来源 $_sourceName · 播放失败：$_displayError',
                         style: const TextStyle(color: Colors.white70),
                       ),
                       TextButton(
@@ -788,8 +1002,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                           if (_resolving) return;
                           _pendingError = null;
                           setState(() => _error = null);
-                          _resolver.invalidate(
-                              widget.episodes[_currentIndex].playUrl);
+                          _resolver
+                              .invalidate(_episodes[_currentIndex].playUrl);
                           _playIndex(_currentIndex, resume: _position);
                         },
                         child: const Text('重试'),
@@ -847,7 +1061,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                   duration: const Duration(milliseconds: 200),
                   child: PlayerControlsOverlay(
                     title:
-                        '${widget.work.title} · ${widget.episodes.isEmpty ? '' : widget.episodes[_currentIndex].title}',
+                        '${widget.work.title} · ${_episodes.isEmpty ? '' : _episodes[_currentIndex].title}',
                     position: _position,
                     duration: _duration,
                     playing: _playing,
@@ -865,12 +1079,10 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                     onToggleEpisodes: () {
                       final opening = !_panelOpen;
                       setState(() => _panelOpen = opening);
-                      if (opening) _prefetchCurrent();
                       _showControls();
                     },
                     onNextEpisode: _nextEpisode,
-                    hasNext: nextEpisodeIndex(widget.episodes, _currentIndex) !=
-                        null,
+                    hasNext: nextEpisodeIndex(_episodes, _currentIndex) != null,
                     autoNext: _autoNext,
                     onAutoNextChanged: (value) {
                       setState(() => _autoNext = value);
@@ -1022,9 +1234,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                     child: ListView.builder(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 4),
-                      itemCount: widget.episodes.length,
+                      itemCount: _episodes.length,
                       itemBuilder: (context, i) {
-                        final ep = widget.episodes[i];
+                        final ep = _episodes[i];
                         final selected = i == _currentIndex;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
@@ -1034,7 +1246,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                               borderRadius: BorderRadius.circular(10),
                               onTap: () {
                                 setState(() => _panelOpen = false);
-                                final current = widget.episodes[_currentIndex];
+                                final current = _episodes[_currentIndex];
                                 final sameEpisode =
                                     ep.lineId != current.lineId &&
                                         ep.episodeKey != null &&

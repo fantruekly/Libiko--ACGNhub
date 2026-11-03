@@ -20,6 +20,7 @@ import '../../core/widgets/rating_stars.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import '../../core/video/cancellation.dart';
+import '../../core/video/cross_source_recovery.dart';
 import '../../core/video/playback_error.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
@@ -886,8 +887,21 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
           episodes: episodes,
           initialIndex: index,
           initialCandidates: result.candidates,
+          initialVerified: result.verified,
           sourceName: sourceName,
           initialPosition: initialPosition,
+          findAlternative: (request) {
+            if (!mounted) return Future.value(const PlaybackRecoveryResult());
+            // Other source searches may finish after the player route opens.
+            // Take the matched-source snapshot when recovery is requested.
+            return CrossSourceRecovery([
+              for (final result in _sourceResults)
+                if (result.best != null &&
+                    isUnambiguousRecoveryMatch(
+                        _work, result.best!, result.items))
+                  PlaybackSourceCandidate(result.source, result.best!),
+            ]).find(request);
+          },
         ),
       ),
     );
