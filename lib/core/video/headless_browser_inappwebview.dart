@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'headless_browser.dart';
+import 'windows_webview_runtime.dart';
 
 /// Injected before any page script runs: wraps `fetch`, `XMLHttpRequest` and
 /// the `HTMLMediaElement.src` setter and reports candidate media requests back
@@ -108,6 +109,7 @@ class InAppWebViewHeadlessBrowser
 
   @override
   Future<void> start({String? userAgent, String? extraScript}) async {
+    await WindowsWebViewRuntime.ensureReady();
     _extraScript = extraScript;
     final headless = HeadlessInAppWebView(
       initialSettings: InAppWebViewSettings(
@@ -153,10 +155,13 @@ class InAppWebViewHeadlessBrowser
       {Duration timeout = const Duration(seconds: 15)}) async {
     final session = ++_loadId;
     _acceptCandidates = false;
+    // The pool reads loadId synchronously when load() is called, before its
+    // first await, to bind candidate events to this navigation.
     final controller = _headless?.webViewController;
     if (controller == null) {
       throw const HeadlessLoadException('headless browser not started');
     }
+    await WindowsWebViewRuntime.ensureReady();
     await controller.stopLoading();
     if (_handlerName != null) {
       controller.removeJavaScriptHandler(handlerName: _handlerName!);

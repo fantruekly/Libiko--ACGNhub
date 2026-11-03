@@ -292,7 +292,7 @@ class StreamResolver {
         } catch (_) {}
         try {
           if (pooled != null) {
-            await pooled.release(discard: !loaded && discovery.isCancelled);
+            await pooled.release(discard: !loaded);
           } else {
             await direct?.dispose();
           }

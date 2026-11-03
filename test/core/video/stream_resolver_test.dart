@@ -185,6 +185,29 @@ class _CallbackAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('a failed pooled navigation is replaced before the next resolve attempt',
+      () async {
+    final broken = _FakeBrowser(
+        loadError: const HeadlessLoadException('native navigation failed'));
+    final healthy = _FakeBrowser(
+        candidates: const [MediaCandidate('https://cdn/good.m3u8')]);
+    var created = 0;
+    final pool = HeadlessBrowserPool(
+        factory: () => created++ == 0 ? broken : healthy, maxBrowsers: 1);
+    final resolver = StreamResolver(
+        browserPool: pool,
+        cache: ResolvedStreamCache(),
+        maccms: _FakeMacCmsResolver(null),
+        grace: Duration.zero,
+        collectWindow: const Duration(milliseconds: 5),
+        overallBudget: const Duration(seconds: 2),
+        dio: Dio()..httpClientAdapter = _HeaderAdapter(okWithoutReferer: true));
+    final result = await resolver.resolve('https://source/retry');
+    expect(result.verified, isTrue);
+    expect(created, 2);
+    expect(broken.disposed, isTrue);
+    await pool.shutdown();
+  });
   test('an unverified address cannot suppress a later different playable URL',
       () async {
     final resolver = StreamResolver(

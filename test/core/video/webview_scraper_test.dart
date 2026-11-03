@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:libiko/core/video/cancellation.dart';
 import 'package:libiko/core/video/rule_source.dart';
 import 'package:libiko/core/video/source_rule.dart';
@@ -73,6 +74,40 @@ WebviewScraper _scraper(_FakeBrowser browser) => WebviewScraper(
     );
 
 void main() {
+  test('a failed native handle is retired and retried once on a fresh browser',
+      () async {
+    final broken = _FakeBrowser(evalError: PlatformException(code: 'disposed'));
+    final healthy = _FakeBrowser(evalResult: [
+      {'name': 'result', 'href': '/1'}
+    ]);
+    var created = 0;
+    final pool = HeadlessBrowserPool(
+        factory: () => created++ == 0 ? broken : healthy, maxBrowsers: 1);
+    final rows = await WebviewScraper(pool: pool)
+        .fetchJson(url: 'https://test/', script: 's');
+    expect(rows, hasLength(1));
+    expect(broken.disposed, isTrue);
+    expect(created, 2);
+    await pool.shutdown();
+  });
+
+  test('script failure is propagated but its browser is never reused',
+      () async {
+    final broken = _FakeBrowser(evalError: const FormatException('bad script'));
+    final healthy = _FakeBrowser(evalResult: [
+      {'name': 'result', 'href': '/1'}
+    ]);
+    var created = 0;
+    final pool = HeadlessBrowserPool(
+        factory: () => created++ == 0 ? broken : healthy, maxBrowsers: 1);
+    final scraper = WebviewScraper(pool: pool);
+    await expectLater(scraper.fetchJson(url: 'https://test/', script: 'bad'),
+        throwsFormatException);
+    expect(await scraper.fetchJson(url: 'https://other/', script: 'valid'),
+        hasLength(1));
+    expect(created, 2);
+    await pool.shutdown();
+  });
   test('load-stop alone cannot bypass the current document marker', () async {
     final gate = Completer<void>()..complete();
     final browser = _EarlyBrowser(loadGate: gate, evalResult: [

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:libiko/core/video/webview_scraper.dart';
 import 'dart:convert';
 import 'package:dio/dio.dart';
@@ -35,6 +36,23 @@ class _Video implements VideoSource {
 }
 
 void main() {
+  test('a local Windows engine failure does not penalize a remote source',
+      () async {
+    final repo =
+        SourceHealthRepository(read: (_) => null, write: (_, __) async {});
+    final raw = _Video()..error = PlatformException(code: 'webview_runtime');
+    final source = ManagedVideoSource(raw, repo);
+    await expectLater(source.search('q'), throwsA(isA<PlatformException>()));
+    expect(repo.health(SourceKind.anime, source.id).lastFailure, isNull);
+    raw.error =
+        PlatformException(code: '0', message: 'Native view is unavailable');
+    await expectLater(source.search('q'), throwsA(isA<PlatformException>()));
+    expect(repo.health(SourceKind.anime, source.id).lastFailure, isNull);
+    await expectLater(
+        source.episodes('/detail'), throwsA(isA<PlatformException>()));
+    expect(repo.health(SourceKind.anime, source.id).lastFailure, isNull);
+    repo.dispose();
+  });
   test('playback outcomes persist separately from source request health',
       () async {
     final data = <String, String>{};

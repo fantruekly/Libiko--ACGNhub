@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'browser_pool.dart';
 import 'cancellation.dart';
@@ -122,17 +123,34 @@ class WebviewScraper {
     }
 
     cancel?.addListener(onCancel);
+    Future<List<dynamic>> attempt() async {
+      for (var index = 0; index < 2; index++) {
+        try {
+          return await _fetch(
+              url: url,
+              script: script,
+              userAgent: userAgent,
+              timeout: timeout,
+              queueTimeout: queueTimeout,
+              cancel: operationCancel);
+        } on PlatformException {
+          // A failed native handle must not poison all subsequent sources.
+          // Retry once on a fresh browser, within the same total deadline.
+          if (index == 1 || operationCancel.isCancelled) rethrow;
+        }
+      }
+      return const [];
+    }
+
     try {
       return await Future.any<List<dynamic>>([
-        _fetch(
-            url: url,
-            script: script,
-            userAgent: userAgent,
-            timeout: timeout,
-            queueTimeout: queueTimeout,
-            cancel: operationCancel),
+        attempt(),
         cancelled.future,
-      ]);
+      ]).timeout(timeout + queueTimeout, onTimeout: () {
+        operationCancel.cancel();
+        throw TimeoutException(
+            'Source request deadline exceeded', timeout + queueTimeout);
+      });
     } finally {
       operationCancel.cancel();
       cancel?.removeListener(onCancel);
@@ -148,6 +166,7 @@ class WebviewScraper {
       String? userAgent}) async {
     PooledBrowser? pooled;
     var loaded = false;
+    var completed = false;
     void abandon() {
       final borrowed = pooled;
       if (borrowed != null) unawaited(borrowed.release(discard: true));
@@ -206,15 +225,18 @@ class WebviewScraper {
         return const <dynamic>[];
       }
 
-      return await extract().timeout(timeout, onTimeout: () {
+      final result = await extract().timeout(timeout, onTimeout: () {
         cancel.cancel();
         throw TimeoutException('Source page request timed out', timeout);
       });
+      completed = true;
+      return result;
     } finally {
       cancel.removeListener(abandon);
       final borrowed = pooled;
       if (borrowed != null) {
-        unawaited(borrowed.release(discard: cancel.isCancelled || !loaded));
+        unawaited(borrowed.release(
+            discard: cancel.isCancelled || !loaded || !completed));
       }
     }
   }
