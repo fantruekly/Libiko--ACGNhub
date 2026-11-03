@@ -44,12 +44,22 @@ void main() {
           'keyword': '词',
           'title': '名|称\n第二行',
           'status': 'resolve_failed',
-          'failureStage': 'resolve'
+          'failureStage': 'resolve',
+          'lineResults': [
+            {
+              'line': '主线',
+              'status': 'resolve_failed',
+              'resolveFailure': 'timeout'
+            },
+            {'line': '备用', 'status': 'passed'},
+          ],
         }
       ],
     });
     expect(text, contains('名／称 第二行'));
     expect(text, contains('解析失败'));
     expect(text, contains('至少连续观察 10 秒'));
+    expect(text, contains('主线 | 解析失败 | timeout'));
+    expect(text, contains('备用 | 通过 | —'));
   });
 }

@@ -4,6 +4,7 @@ param(
   [string[]]$Keywords = @('鬼灭', '葬送的芙莉莲'),
   [string[]]$Sources = @(),
   [ValidateRange(10, 60)][int]$ObserveSeconds = 10,
+  [ValidateRange(1, 5)][int]$MaxLines = 3,
   [string]$ReportDirectory = 'dist/playback-audit',
   [switch]$TestSeek,
   [switch]$SkipRestore
@@ -24,6 +25,7 @@ $arguments = @('run', '-d', 'windows', '--no-pub', '--no-dds', '-t', 'tool/playb
   "--dart-define=PLAYBACK_AUDIT_KEYWORDS=$($Keywords -join ',')",
   "--dart-define=PLAYBACK_AUDIT_SOURCES=$($Sources -join ',')",
   "--dart-define=PLAYBACK_AUDIT_SECONDS=$ObserveSeconds",
+  "--dart-define=PLAYBACK_AUDIT_LINES=$MaxLines",
   "--dart-define=PLAYBACK_AUDIT_SEEK=$($TestSeek.IsPresent.ToString().ToLowerInvariant())")
 try {
   & $flutter @arguments 2>&1 | ForEach-Object {

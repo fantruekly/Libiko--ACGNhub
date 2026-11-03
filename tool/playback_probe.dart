@@ -33,6 +33,7 @@ const _sourceFilter = String.fromEnvironment('PLAYBACK_AUDIT_SOURCES');
 const _configuredSeconds =
     int.fromEnvironment('PLAYBACK_AUDIT_SECONDS', defaultValue: 10);
 const _testSeek = bool.fromEnvironment('PLAYBACK_AUDIT_SEEK');
+const _maxLines = int.fromEnvironment('PLAYBACK_AUDIT_LINES', defaultValue: 3);
 final _observeSeconds = _configuredSeconds.clamp(10, 60);
 final _video = ValueNotifier<VideoController?>(null);
 final _ruleMetadata = <String, Map<String, dynamic>>{};
@@ -168,41 +169,91 @@ Future<Map<String, dynamic>> _sample(SourceRule rule, String keyword) async {
       row['failureStage'] = stage;
       return row;
     }
-    final episode = episodes.first;
-    row['episode'] = episode.title;
-    row['line'] = episode.lineName;
-    stage = 'resolve';
-    _log('${rule.name} / $keyword: resolve');
-    clock.reset();
-    final result = await StreamResolver(cache: ResolvedStreamCache())
-        .resolve(episode.playUrl,
-            userAgent: episode.userAgent,
-            referer: episode.referer,
-            legacy: episode.useLegacyParser,
-            cancel: cancel)
-        .timeout(const Duration(seconds: 35));
-    row['resolveMs'] = clock.elapsedMilliseconds;
-    row['candidateCount'] = result.candidates.length;
-    row['resolverVerified'] = result.verified;
-    if (!result.ok) {
-      row['status'] = 'resolve_failed';
-      row['failureStage'] = stage;
-      row['resolveFailure'] = result.failure?.name;
-      return row;
-    }
-    stage = 'playback';
-    for (final candidate in result.candidates.take(2)) {
-      _log(
-          '${rule.name} / $keyword: native video attempt ${((row['attempts'] as List).length + 1)}');
-      final attempt = await _play(candidate, episode);
-      (row['attempts'] as List).add(attempt);
-      if (attempt['status'] == 'passed') {
-        row['status'] = 'passed';
-        return row;
+    final selected = <VideoEpisode>[];
+    final lines = <String?>{};
+    for (final episode in episodes) {
+      if (episode.episodeKey == episodes.first.episodeKey &&
+          lines.add(episode.lineId)) {
+        selected.add(episode);
       }
     }
-    row['status'] = 'playback_failed';
-    row['failureStage'] = stage;
+    row['episode'] = episodes.first.title;
+    final lineResults = <Map<String, dynamic>>[];
+    row['lineResults'] = lineResults;
+    final passedLines = <String>[];
+    for (final episode in selected.take(_maxLines.clamp(1, 5))) {
+      final line = <String, dynamic>{
+        'line': episode.lineName,
+        'lineId': episode.lineId,
+        'episode': episode.title
+      };
+      lineResults.add(line);
+      final lineCancel = CancellationToken();
+      cancel.addListener(lineCancel.cancel);
+      try {
+        stage = 'resolve';
+        _log('${rule.name} / $keyword / ${episode.lineName}: resolve');
+        clock.reset();
+        final result = await StreamResolver(cache: ResolvedStreamCache())
+            .resolve(episode.playUrl,
+                userAgent: episode.userAgent,
+                referer: episode.referer,
+                legacy: episode.useLegacyParser,
+                cancel: lineCancel)
+            .timeout(const Duration(seconds: 35), onTimeout: () {
+          lineCancel.cancel();
+          throw TimeoutException('Line resolve deadline');
+        });
+        line.addAll({
+          'resolveMs': clock.elapsedMilliseconds,
+          'candidateCount': result.candidates.length,
+          'resolverVerified': result.verified
+        });
+        if (!result.ok) {
+          line.addAll({
+            'status': 'resolve_failed',
+            'resolveFailure': result.failure?.name
+          });
+          continue;
+        }
+        stage = 'playback';
+        line['status'] = 'playback_failed';
+        for (final candidate in result.candidates.take(2)) {
+          _log('${rule.name} / $keyword / ${episode.lineName}: native video');
+          final attempt = await _play(candidate, episode);
+          attempt['line'] = episode.lineName;
+          attempt['lineId'] = episode.lineId;
+          (row['attempts'] as List).add(attempt);
+          if (attempt['status'] == 'passed') {
+            line['status'] = 'passed';
+            passedLines.add(episode.lineName ?? episode.lineId ?? '默认线路');
+            break;
+          }
+        }
+      } catch (error) {
+        line.addAll({
+          'status': 'request_failed',
+          'failureStage': stage,
+          'errorType': error.runtimeType.toString()
+        });
+      } finally {
+        cancel.removeListener(lineCancel.cancel);
+        lineCancel.cancel();
+      }
+    }
+    row['line'] = (passedLines.isNotEmpty
+            ? passedLines
+            : selected.map((e) => e.lineName ?? '默认线路'))
+        .join('、');
+    final attemptedPlayback = (row['attempts'] as List).isNotEmpty;
+    row['status'] = passedLines.isNotEmpty
+        ? 'passed'
+        : attemptedPlayback
+            ? 'playback_failed'
+            : 'resolve_failed';
+    if (passedLines.isEmpty) {
+      row['failureStage'] = attemptedPlayback ? 'playback' : 'resolve';
+    }
   } catch (error) {
     row['failureStage'] = stage;
     row['errorType'] = error.runtimeType.toString();

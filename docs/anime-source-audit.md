@@ -62,3 +62,33 @@ cmake --build build/native-webview-test --config Release
 ```
 
 工具目前验证 Windows、本机网络和所列样本；未验证 Android 真机，也未完成整集或长时间稳定性测试。
+
+## 2026-11-03 逐线路修复复测（后续结果）
+
+此前只测第一线路会漏掉可用备用线路。本轮工具默认最多检查三条线路，选择同一 episodeKey 的剧集，分别记录解析、原生播放和拖动结果；整体通过只表示其中至少一条通过。Markdown 与 JSON 均显示逐线结果。可用 `-MaxLines 1` 检查默认首选线路。
+
+实际修复：
+
+- xfdmnext 规则 1.2：同一剧集在不同源下共享 ID，播放页必须附加 `source` 线路代码。API 规则增加 `roadCodePath` / `@roadCode`，查询参数正确编码，防止界面换线却访问同一播放页。
+- xfdmneo 规则 1.2：增加可选 `preferredLineIds`，将已验证的 `road:1`（线路2）放在前面；保留原线路 ID、每线集序、备用线路，重新生成连续列表下标。未提供首选线路时保持原顺序，首选不存在时自然回退。
+- 七色番筛选和播放器 UI 未修改。
+
+| 源 | 逐线路证据 | 当前结论 |
+| --- | --- | --- |
+| xfdmneo | 《鬼灭之刃 柱训练篇》《葬送的芙莉莲》线路1起播失败，线路2首帧、持续播放和拖动均通过；调整默认顺序后再用 `-MaxLines 1` 两样本复测 | 默认优先线路2；不是修好了线路1的远端媒体 |
+| xfdmnext | 隔离复测《无限城篇 第一章》主线通过；《葬送的芙莉莲》主线出画面但持续进度不达标，备用线持续播放与拖动通过 | 线路参数修复后备用线可真正选中，主线仍有缓冲问题 |
+| moonci | 《鬼灭之刃》通过；《葬送的芙莉莲》线路1解析超时，线路2有1080P首帧但15秒观察中仅推进约3.6秒 | 后者仍未通过；部分播放页嵌套 next.xifanacg.com，不能视为完全独立上游 |
+| sorani | 前轮公开视频元数据为登录可见、空 playUrl | 本轮没有登录授权，未改写规则伪造匿名可用；仍未通过 |
+
+报告：`dist/playback-audit/source-repair/`、`next-repair-isolated/`、`neo-preferred/`。连续多源检测末尾的 xfdmnext 曾加载失败，而隔离复测能播放，因此仍保留环境／源站波动结论。当前证据不能保证全天候可用，也不能代替 Android 真机验证。
+
+### 独立来源扩展评估
+
+不需要把 Kazumi 当成唯一规则来源。现有 VideoSource 接口、XPath 与 API 适配层可以支持独立维护的站点适配器。优先小批量接入、验证后再默认启用，而非整仓导入可执行插件。
+
+- [Miru 源仓库](https://github.com/miru-project/repo)：已读 AGE 与 girigiri 的适配脚本，可作为接口／页面结构线索，不能直接当作本项目兼容规则或可靠性证明。
+- [AGE 适配脚本](https://github.com/miru-project/repo/blob/main/repo/agedm.org.js)：使用 `/v2/search`、`/v2/detail` 和解析页。本机对旧 API 搜索请求出现 TLS 失败，暂不加入默认列表。
+- [girigiri 适配脚本](https://github.com/miru-project/repo/blob/main/repo/anime.girigirilove.com.js)：HTML 搜索／剧集与 MacCMS 播放配置，理论上适合当前适配层；旧域名搜索请求未取得可用结果，返回重定向错误，需要先核实当前入口，再做实播。
+- [Animeko](https://github.com/open-ani/animeko)：可参考多来源组织与候选发现；项目采用 Kotlin，并包含 BitTorrent 能力，不能将其所有数据源直接当作现有 HTTP 播放源导入。
+
+新增门槛：当前域名和正常访问流程可用、至少两部作品不同集数实播、首帧／持续播放／拖动证据、Windows 与 Android 验证、实际媒体上游去重。此次没有将未验证候选加入默认源。

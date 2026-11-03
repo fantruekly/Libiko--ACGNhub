@@ -95,6 +95,12 @@ String playbackAuditMarkdown(Map<String, dynamic> report) {
     for (final row in rows)
       '| ${cell(row['source'])} | ${cell(row['keyword'])} | ${cell(row['title'])} | ${cell(row['episode'])}／${cell(row['line'])} | ${cell(labels[row['status']] ?? row['status'])} | ${cell(labels[row['failureStage']] ?? row['failureStage'])} |',
     '',
+    '| 源 | 作品 | 线路 | 逐线路结果 | 解析失败原因 |',
+    '| --- | --- | --- | --- | --- |',
+    for (final row in rows)
+      for (final line in (row['lineResults'] as List? ?? const []))
+        '| ${cell(row['source'])} | ${cell(row['title'])} | ${cell(line['line'])} | ${cell(labels[line['status']] ?? line['status'])} | ${cell(line['resolveFailure'] ?? line['errorType'])} |',
+    '',
     '完整阶段耗时、候选尝试、首帧与持续播放证据见同目录的 report.json。报告不保存播放地址、签名参数、请求头值或视频截图。',
   ];
   return '${lines.join('\n')}\n';
