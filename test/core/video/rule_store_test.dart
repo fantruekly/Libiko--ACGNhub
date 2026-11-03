@@ -187,12 +187,13 @@ void main() {
         .where((f) => f.path.endsWith('.json'))
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));
-    expect(files, hasLength(6));
+    expect(files, hasLength(7));
     expect(
       files.map((f) => p.basename(f.path)).toList(),
       [
         '7sefun.json',
         'MXdm.json',
+        'baimao.json',
         'moonci.json',
         'sorani.json',
         'xfdmneo.json',
