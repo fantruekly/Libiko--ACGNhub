@@ -21,8 +21,15 @@ class PlaybackObservation {
   Duration? lastPosition;
   Duration largestGap = Duration.zero;
   int advances = 0;
+  bool discontinuity = false;
 
   void record(Duration position, Duration elapsed) {
+    if (lastPosition != null &&
+        (position < lastPosition! ||
+            position - lastPosition! >
+                elapsed - lastAt! + const Duration(seconds: 2))) {
+      discontinuity = true;
+    }
     if (position <= Duration.zero ||
         (lastPosition != null && position <= lastPosition!)) {
       return;
@@ -39,6 +46,7 @@ class PlaybackObservation {
   }
 
   bool stableAt(Duration elapsed) =>
+      !discontinuity &&
       firstAt != null &&
       elapsed - firstAt! >= Duration(seconds: requiredSeconds) &&
       advances >= 5 &&
@@ -53,7 +61,21 @@ class PlaybackObservation {
         'observedMs': firstAt == null ? 0 : (elapsed - firstAt!).inMilliseconds,
         'largestProgressGapMs': largestGap.inMilliseconds,
         'stableProgress': stableAt(elapsed),
+        'discontinuity': discontinuity,
       };
+}
+
+/// Only a unique natural next episode is eligible, independent of site order.
+int? nextSequentialProbeIndex(List<String?> keys, int current) {
+  if (current < 0 || current >= keys.length) return null;
+  final match = RegExp(r'^episode:(\d+)$').firstMatch(keys[current] ?? '');
+  if (match == null) return null;
+  final next = 'episode:${int.parse(match[1]!) + 1}';
+  final matches = [
+    for (var i = 0; i < keys.length; i++)
+      if (keys[i] == next) i
+  ];
+  return matches.length == 1 ? matches.single : null;
 }
 
 String redactProbeText(String text) => text
@@ -100,6 +122,14 @@ String playbackAuditMarkdown(Map<String, dynamic> report) {
     for (final row in rows)
       for (final line in (row['lineResults'] as List? ?? const []))
         '| ${cell(row['source'])} | ${cell(row['title'])} | ${cell(line['line'])} | ${cell(labels[line['status']] ?? line['status'])} | ${cell(line['resolveFailure'] ?? line['errorType'])} |',
+    '',
+    '| 源 | 当前集 | 首帧 | 持续播放 | 拖动 | 同播放器下一话 | 下一话拖动 |',
+    '| --- | --- | --- | --- | --- | --- | --- |',
+    for (final row in rows)
+      for (final attempt in (row['attempts'] as List? ?? const []))
+        '| ${cell(row['source'])} | ${cell(attempt['episode'])} | ${cell(attempt['firstFrameRendered'])} | ${cell(attempt['stableProgress'])} | ${cell(attempt['seekStatus'])} | ${cell(attempt['nextStatus'])} | ${cell(attempt['nextAttempt']?['seekStatus'])} |',
+    '',
+    '下一话仅按同源同线唯一的自然集号 n+1 选择，不把倒序列表的邻项算作下一话。切集复用同一个 Player，使用新视频参数、持续进度及解码帧证据；不将已完成的 controller 首帧 future 算作新一集首帧。下一话和拖动状态独立于首集通过结果；not_requested / skipped / not_reached 均不代表通过。',
     '',
     '完整阶段耗时、候选尝试、首帧与持续播放证据见同目录的 report.json。报告不保存播放地址、签名参数、请求头值或视频截图。',
   ];

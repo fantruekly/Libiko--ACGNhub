@@ -33,17 +33,21 @@ const _sourceFilter = String.fromEnvironment('PLAYBACK_AUDIT_SOURCES');
 const _configuredSeconds =
     int.fromEnvironment('PLAYBACK_AUDIT_SECONDS', defaultValue: 10);
 const _testSeek = bool.fromEnvironment('PLAYBACK_AUDIT_SEEK');
+const _testNext = bool.fromEnvironment('PLAYBACK_AUDIT_NEXT');
+const _startEpisode = int.fromEnvironment('PLAYBACK_AUDIT_START_EPISODE');
 const _maxLines = int.fromEnvironment('PLAYBACK_AUDIT_LINES', defaultValue: 3);
 final _observeSeconds = _configuredSeconds.clamp(10, 60);
 final _video = ValueNotifier<VideoController?>(null);
 final _ruleMetadata = <String, Map<String, dynamic>>{};
 final _report = <String, dynamic>{
-  'schema': 1,
+  'schema': 2,
   'startedAt': DateTime.now().toUtc().toIso8601String(),
   'status': 'running',
   'platform': Platform.operatingSystem,
   'observeSeconds': _observeSeconds,
   'seekRequested': _testSeek,
+  'nextRequested': _testNext,
+  'startEpisode': _startEpisode,
   'samples': <Map<String, dynamic>>[],
 };
 
@@ -170,14 +174,21 @@ Future<Map<String, dynamic>> _sample(SourceRule rule, String keyword) async {
       return row;
     }
     final selected = <VideoEpisode>[];
+    final targetKey = _startEpisode > 0
+        ? 'episode:$_startEpisode'
+        : episodes.first.episodeKey;
     final lines = <String?>{};
     for (final episode in episodes) {
-      if (episode.episodeKey == episodes.first.episodeKey &&
-          lines.add(episode.lineId)) {
+      if (episode.episodeKey == targetKey && lines.add(episode.lineId)) {
         selected.add(episode);
       }
     }
-    row['episode'] = episodes.first.title;
+    row['episode'] = selected.isEmpty ? '未找到指定集数' : selected.first.title;
+    if (selected.isEmpty) {
+      row['status'] = 'no_episodes';
+      row['failureStage'] = 'episodes';
+      return row;
+    }
     final lineResults = <Map<String, dynamic>>[];
     row['lineResults'] = lineResults;
     final passedLines = <String>[];
@@ -220,7 +231,16 @@ Future<Map<String, dynamic>> _sample(SourceRule rule, String keyword) async {
         line['status'] = 'playback_failed';
         for (final candidate in result.candidates.take(2)) {
           _log('${rule.name} / $keyword / ${episode.lineName}: native video');
-          final attempt = await _play(candidate, episode);
+          final sameLine = episodes
+              .where((e) =>
+                  e.lineId == episode.lineId && e.sourceId == episode.sourceId)
+              .toList();
+          final nextIndex = nextSequentialProbeIndex(
+              sameLine.map((e) => e.episodeKey).toList(),
+              sameLine.indexOf(episode));
+          final attempt = await _play(candidate, episode,
+              nextEpisode:
+                  _testNext && nextIndex != null ? sameLine[nextIndex] : null);
           attempt['line'] = episode.lineName;
           attempt['lineId'] = episode.lineId;
           (row['attempts'] as List).add(attempt);
@@ -271,24 +291,41 @@ Future<Map<String, dynamic>> _sample(SourceRule rule, String keyword) async {
 }
 
 Future<Map<String, dynamic>> _play(
-    MediaCandidate candidate, VideoEpisode episode) async {
+    MediaCandidate candidate, VideoEpisode episode,
+    {VideoEpisode? nextEpisode,
+    Player? reusedPlayer,
+    VideoController? reusedController}) async {
+  final reused = reusedPlayer != null;
   final evidence = <String, dynamic>{
     'mediaHost': Uri.tryParse(candidate.url)?.host,
     'status': 'failed',
     'firstFrameRendered': false,
+    'seekStatus': _testSeek ? 'not_reached' : 'not_requested',
+    'nextStatus': _testNext && !reused ? 'not_reached' : 'not_requested',
+    'samePlayerTransition': reused,
+    'episode': episode.title,
+    'episodeKey': episode.episodeKey,
   };
-  final player = Player();
-  final controller = VideoController(player);
+  final player = reusedPlayer ?? Player();
+  final controller = reusedController ?? VideoController(player);
   final clock = Stopwatch()..start();
   var observation = PlaybackObservation(requiredSeconds: _observeSeconds);
   var errorCount = 0;
   final failed = Completer<void>();
+  final currentVideo = Completer<void>();
   final subscriptions = <StreamSubscription<dynamic>>[
     player.stream.position
         .listen((position) => observation.record(position, clock.elapsed)),
     player.stream.error.listen((_) {
       errorCount++;
       if (!failed.isCompleted) failed.complete();
+    }),
+    player.stream.videoParams.listen((params) {
+      if ((params.w ?? 0) > 0 &&
+          (params.h ?? 0) > 0 &&
+          !currentVideo.isCompleted) {
+        currentVideo.complete();
+      }
     }),
   ];
   _video.value = controller;
@@ -304,11 +341,13 @@ Future<Map<String, dynamic>> _play(
         .timeout(const Duration(seconds: 15));
     var frameReady = false;
     await Future.any<void>([
-      controller.waitUntilFirstFrameRendered.then((_) => frameReady = true),
+      (reused ? currentVideo.future : controller.waitUntilFirstFrameRendered)
+          .then((_) => frameReady = true),
       failed.future,
     ]).timeout(const Duration(seconds: 30));
-    evidence['firstFrameRendered'] = frameReady;
-    evidence['firstFrameMs'] = clock.elapsedMilliseconds;
+    evidence['firstFrameRendered'] = reused ? null : frameReady;
+    evidence[reused ? 'currentVideoParamsMs' : 'firstFrameMs'] =
+        clock.elapsedMilliseconds;
     if (!frameReady || errorCount > 0) {
       evidence['status'] = 'native_error';
       return evidence;
@@ -340,20 +379,30 @@ Future<Map<String, dynamic>> _play(
       } catch (_) {
         evidence['decodedFrameBytes'] = 0;
       }
+      if (reused && (evidence['decodedFrameBytes'] as int) <= 0) {
+        evidence['status'] = 'no_decoded_frame_evidence';
+        return evidence;
+      }
       if (_testSeek && player.state.duration > const Duration(seconds: 45)) {
         try {
           final target = player.state.position + const Duration(seconds: 15);
           await player.seek(target).timeout(const Duration(seconds: 5));
+          final seekObservation = PlaybackObservation(requiredSeconds: 3);
           final limit = clock.elapsed + const Duration(seconds: 10);
+          Duration? previous;
           while (clock.elapsed < limit &&
               errorCount == 0 &&
-              player.state.position <
-                  target + const Duration(milliseconds: 500)) {
+              !seekObservation.stableAt(clock.elapsed)) {
+            final position = player.state.position;
+            if (position >= target && position != previous) {
+              seekObservation.record(position, clock.elapsed);
+              previous = position;
+            }
             await Future<void>.delayed(const Duration(milliseconds: 250));
           }
-          evidence['seekPassed'] = errorCount == 0 &&
-              player.state.position >=
-                  target + const Duration(milliseconds: 500);
+          evidence['seekEvidence'] = seekObservation.toJson(clock.elapsed);
+          evidence['seekPassed'] =
+              errorCount == 0 && seekObservation.stableAt(clock.elapsed);
           evidence['seekStatus'] =
               evidence['seekPassed'] == true ? 'passed' : 'failed';
         } catch (error) {
@@ -361,6 +410,48 @@ Future<Map<String, dynamic>> _play(
           evidence['seekStatus'] =
               error is TimeoutException ? 'timed_out' : 'failed';
           evidence['seekErrorType'] = error.runtimeType.toString();
+        }
+      } else if (_testSeek) {
+        evidence['seekStatus'] = 'skipped_short_media';
+      }
+      if (_testNext && !reused) {
+        if (nextEpisode == null) {
+          evidence['nextStatus'] = 'skipped_no_unique_next_episode';
+        } else {
+          _log('Next episode: ${nextEpisode.title}');
+          final cancel = CancellationToken();
+          try {
+            final resolveClock = Stopwatch()..start();
+            final result = await StreamResolver(cache: ResolvedStreamCache())
+                .resolve(nextEpisode.playUrl,
+                    userAgent: nextEpisode.userAgent,
+                    referer: nextEpisode.referer,
+                    legacy: nextEpisode.useLegacyParser,
+                    cancel: cancel)
+                .timeout(const Duration(seconds: 35));
+            evidence['nextResolveMs'] = resolveClock.elapsedMilliseconds;
+            evidence['nextResolveVerified'] = result.verified;
+            if (!result.ok) {
+              evidence['nextStatus'] = 'resolve_failed';
+              evidence['nextResolveFailure'] = result.failure?.name;
+            } else {
+              // Unsubscribe the old episode before opening new media on the same player.
+              for (final sub in subscriptions) {
+                await sub.cancel();
+              }
+              await player.stop().timeout(const Duration(seconds: 5));
+              final next = await _play(result.candidates.first, nextEpisode,
+                  reusedPlayer: player, reusedController: controller);
+              evidence['nextAttempt'] = next;
+              evidence['nextStatus'] = next['status'];
+            }
+          } catch (error) {
+            evidence['nextStatus'] =
+                error is TimeoutException ? 'timed_out' : 'request_failed';
+            evidence['nextErrorType'] = error.runtimeType.toString();
+          } finally {
+            cancel.cancel();
+          }
         }
       }
     }
@@ -371,13 +462,15 @@ Future<Map<String, dynamic>> _play(
   } finally {
     evidence['errorEvents'] = errorCount;
     evidence['elapsedMs'] = clock.elapsedMilliseconds;
-    _video.value = null;
+    if (!reused) _video.value = null;
     for (final subscription in subscriptions) {
       await subscription.cancel();
     }
-    await player
-        .dispose()
-        .timeout(const Duration(seconds: 5), onTimeout: () {});
+    if (!reused) {
+      await player
+          .dispose()
+          .timeout(const Duration(seconds: 5), onTimeout: () {});
+    }
   }
   return evidence;
 }

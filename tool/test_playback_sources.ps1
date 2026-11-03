@@ -7,6 +7,8 @@ param(
   [ValidateRange(1, 5)][int]$MaxLines = 3,
   [string]$ReportDirectory = 'dist/playback-audit',
   [switch]$TestSeek,
+  [switch]$TestNext,
+  [ValidateRange(0, 99999)][int]$StartEpisode = 0,
   [switch]$SkipRestore
 )
 $ErrorActionPreference = 'Stop'
@@ -26,6 +28,8 @@ $arguments = @('run', '-d', 'windows', '--no-pub', '--no-dds', '-t', 'tool/playb
   "--dart-define=PLAYBACK_AUDIT_SOURCES=$($Sources -join ',')",
   "--dart-define=PLAYBACK_AUDIT_SECONDS=$ObserveSeconds",
   "--dart-define=PLAYBACK_AUDIT_LINES=$MaxLines",
+  "--dart-define=PLAYBACK_AUDIT_NEXT=$($TestNext.IsPresent.ToString().ToLowerInvariant())",
+  "--dart-define=PLAYBACK_AUDIT_START_EPISODE=$StartEpisode",
   "--dart-define=PLAYBACK_AUDIT_SEEK=$($TestSeek.IsPresent.ToString().ToLowerInvariant())")
 try {
   & $flutter @arguments 2>&1 | ForEach-Object {

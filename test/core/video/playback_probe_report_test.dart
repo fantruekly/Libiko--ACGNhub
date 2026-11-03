@@ -2,6 +2,29 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../tool/playback_probe_report.dart';
 
 void main() {
+  test('natural next episode ignores reversed order, gaps and ambiguity', () {
+    expect(nextSequentialProbeIndex(['episode:3', 'episode:2', 'episode:1'], 2),
+        1);
+    expect(nextSequentialProbeIndex(['episode:1', 'episode:3'], 0), isNull);
+    expect(nextSequentialProbeIndex(['episode:1', 'episode:2', 'episode:2'], 0),
+        isNull);
+    expect(nextSequentialProbeIndex(['title:ova', 'episode:2'], 0), isNull);
+  });
+  test('midstream seek jumps and backwards resets invalidate continuous proof',
+      () {
+    for (final jump in [const Duration(minutes: 4), Duration.zero]) {
+      final evidence = PlaybackObservation();
+      for (var second = 1; second <= 8; second++) {
+        evidence.record(Duration(seconds: second), Duration(seconds: second));
+      }
+      evidence.record(jump, const Duration(seconds: 9));
+      for (var second = 10; second <= 25; second++) {
+        evidence.record(
+            jump + Duration(seconds: second), Duration(seconds: second));
+      }
+      expect(evidence.stableAt(const Duration(seconds: 25)), isFalse);
+    }
+  });
   test('sampling prefers the exact work over a different season', () {
     expect(selectProbeTitle('葬送的芙莉莲', ['葬送的芙莉莲 第二季', '葬送的芙莉莲']), 1);
   });
