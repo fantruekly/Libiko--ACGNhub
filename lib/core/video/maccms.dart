@@ -4,14 +4,17 @@ import 'package:dio/dio.dart';
 
 import '../services/app_http.dart';
 import 'headless_browser.dart';
+import 'mgnacg_adapter.dart';
 
 /// A MacCMS play-page player config: the (possibly encrypted) stream URL and
 /// its `encrypt` scheme.
 class MacCmsPlayer {
   final String url;
   final int encrypt;
+  final String source;
 
-  const MacCmsPlayer({required this.url, required this.encrypt});
+  const MacCmsPlayer(
+      {required this.url, required this.encrypt, this.source = ''});
 }
 
 /// Reads `player_aaaa` / `player_data` from [html]. Returns null when neither
@@ -25,7 +28,8 @@ MacCmsPlayer? parseMacCmsPlayer(String html) {
     final rawEncrypt = object['encrypt'];
     final encrypt =
         rawEncrypt is int ? rawEncrypt : int.tryParse('$rawEncrypt') ?? 0;
-    return MacCmsPlayer(url: url, encrypt: encrypt);
+    return MacCmsPlayer(
+        url: url, encrypt: encrypt, source: object['from']?.toString() ?? '');
   }
   return null;
 }
@@ -125,6 +129,25 @@ class MacCmsResolver {
       );
       final player = parseMacCmsPlayer(response.data ?? '');
       if (player == null) return null;
+      if (MgnacgAdapter.supports(playPageUrl)) {
+        final parser = MgnacgAdapter.parserUrl(player.source, player.url);
+        if (parser == null) return null;
+        final parsed = await _dio.get<String>(parser,
+            cancelToken: cancelToken,
+            options: Options(
+                responseType: ResponseType.plain,
+                headers: headers,
+                connectTimeout: timeout,
+                receiveTimeout: timeout,
+                sendTimeout: timeout));
+        final media = MgnacgAdapter.mediaFromParser(parsed.data ?? '');
+        // The normal parser explicitly declares referrer=never.
+        return media == null
+            ? null
+            : MediaCandidate(media,
+                headers: {'User-Agent': headers['User-Agent']!},
+                headersResolved: true);
+      }
       final url = decryptMacCmsUrl(player.url, player.encrypt);
       if (url == null || url.isEmpty || !looksLikeMediaUrl(url)) return null;
       return MediaCandidate(url, headers: headers);
