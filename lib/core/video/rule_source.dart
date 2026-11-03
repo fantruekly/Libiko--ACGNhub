@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'api_rule.dart';
+import 'browser_pool.dart';
 import 'cancellation.dart';
 import 'source_cache.dart';
 import 'source_rule.dart';
@@ -70,6 +71,7 @@ class RuleVideoSource implements VideoSource {
       final result = await _scraper.fetchJson(
         url: detailUrl,
         script: buildEpisodesScript(rule),
+        priority: BrowserPriority.foreground,
         userAgent: rule.userAgent,
         cancel: cancel,
       );

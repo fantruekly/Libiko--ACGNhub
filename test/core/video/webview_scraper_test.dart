@@ -74,6 +74,42 @@ WebviewScraper _scraper(_FakeBrowser browser) => WebviewScraper(
     );
 
 void main() {
+  test('foreground episode extraction uses the reserved browser during search',
+      () async {
+    final browsers = <_FakeBrowser>[];
+    final pool = HeadlessBrowserPool(
+        maxBrowsers: 2,
+        factory: () {
+          final browser = _FakeBrowser(evalResult: [
+            {'title': '第1集', 'href': '/1'}
+          ]);
+          browsers.add(browser);
+          return browser;
+        });
+    final search = await pool.acquire(priority: BrowserPriority.background);
+    final scraper = WebviewScraper(pool: pool);
+    final source = RuleVideoSource(
+        SourceRule.fromJson({
+          'name': 'priority-test',
+          'baseURL': 'https://test/',
+          'searchURL': 'https://test/search',
+          'searchList': '//div',
+          'searchName': '//a',
+          'searchResult': '//a',
+          'chapterRoads': '//ul',
+          'chapterResult': '//a',
+        }),
+        scraper: scraper,
+        cache: SourceCache());
+    final result = await source
+        .episodes('https://test/episodes')
+        .timeout(const Duration(seconds: 1));
+    expect(result, hasLength(1));
+    expect(browsers, hasLength(2));
+    await search.release();
+    await pool.shutdown();
+  });
+
   test('a failed native handle is retired and retried once on a fresh browser',
       () async {
     final broken = _FakeBrowser(evalError: PlatformException(code: 'disposed'));

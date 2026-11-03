@@ -113,6 +113,7 @@ class WebviewScraper {
     Duration timeout = const Duration(seconds: 20),
     Duration queueTimeout = const Duration(seconds: 8),
     CancellationToken? cancel,
+    BrowserPriority priority = BrowserPriority.background,
   }) async {
     if (cancel?.isCancelled ?? false) return const <dynamic>[];
     final operationCancel = CancellationToken();
@@ -132,6 +133,7 @@ class WebviewScraper {
               userAgent: userAgent,
               timeout: timeout,
               queueTimeout: queueTimeout,
+              priority: priority,
               cancel: operationCancel);
         } on PlatformException {
           // A failed native handle must not poison all subsequent sources.
@@ -163,6 +165,7 @@ class WebviewScraper {
       required Duration timeout,
       required Duration queueTimeout,
       required CancellationToken cancel,
+      required BrowserPriority priority,
       String? userAgent}) async {
     PooledBrowser? pooled;
     var loaded = false;
@@ -177,7 +180,7 @@ class WebviewScraper {
       pooled = await _pool
           .acquire(
               userAgent: userAgent ?? kBrowserUserAgent,
-              priority: BrowserPriority.background,
+              priority: priority,
               cancel: cancel)
           .timeout(queueTimeout, onTimeout: () {
         cancel.cancel();

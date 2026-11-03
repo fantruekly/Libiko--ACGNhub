@@ -92,6 +92,23 @@ class _VideoSource implements VideoSource {
       ];
 }
 
+class _ControlledEpisodesSource extends _VideoSource {
+  _ControlledEpisodesSource(this.label);
+  final String label;
+  final requests = <(CancellationToken?, Completer<List<VideoEpisode>>)>[];
+  @override
+  String get id => label;
+  @override
+  String get name => label;
+  @override
+  Future<List<VideoEpisode>> episodes(String detailUrl,
+      {CancellationToken? cancel}) {
+    final gate = Completer<List<VideoEpisode>>();
+    requests.add((cancel, gate));
+    return gate.future;
+  }
+}
+
 class _MatchingSource extends _VideoSource {
   _MatchingSource(this.find);
   final List<VideoItem> Function(String) find;
@@ -178,6 +195,64 @@ void main() {
       expect(find.text('追番'), findsOneWidget);
     });
   }
+
+  testWidgets('changing or collapsing a source cancels abandoned episode loads',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final a = _ControlledEpisodesSource('A源');
+    final b = _ControlledEpisodesSource('B源');
+    await tester.pumpWidget(ProviderScope(overrides: [
+      metadataServiceProvider.overrideWithValue(_offlineService()),
+      videoSourcesProvider.overrideWith((ref) async => [a, b]),
+    ], child: const MaterialApp(home: AnimeDetailPage(work: _playbackWork))));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('A源'));
+    await tester.pump();
+    expect(a.requests, hasLength(1));
+    await tester.tap(find.text('B源'));
+    await tester.pump();
+    expect(a.requests.first.$1!.isCancelled, isTrue);
+    await tester.tap(find.text('A源'));
+    await tester.pump();
+    expect(b.requests.first.$1!.isCancelled, isTrue);
+    expect(a.requests, hasLength(2));
+    a.requests.first.$2.complete(const [
+      VideoEpisode(
+        id: 'stale',
+        title: '旧剧集',
+        index: 0,
+        playUrl: 'old',
+        lineName: '旧响应',
+      )
+    ]);
+    await tester.pump();
+    expect(find.text('旧响应'), findsNothing);
+    await tester.tap(find.text('A源'));
+    await tester.pump();
+    expect(a.requests.last.$1!.isCancelled, isTrue);
+    await tester.tap(find.text('B源'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('重新搜索'));
+    await tester.pump();
+    expect(b.requests.last.$1!.isCancelled, isTrue);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('B源'));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(b.requests.last.$1!.isCancelled, isTrue);
+    for (final source in [a, b]) {
+      for (final request in source.requests) {
+        if (!request.$2.isCompleted) request.$2.complete(const []);
+      }
+    }
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('episodes are grouped under their own line names',
       (tester) async {

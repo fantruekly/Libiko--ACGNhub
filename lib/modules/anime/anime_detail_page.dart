@@ -92,6 +92,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   Timer? _searchTimer;
   bool _disposed = false;
   CancellationToken _searchCancel = CancellationToken();
+  CancellationToken? _episodeCancel;
 
   @override
   void initState() {
@@ -105,6 +106,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   void dispose() {
     _disposed = true;
     _searchCancel.cancel();
+    _episodeCancel?.cancel();
     _searchTimer?.cancel();
     super.dispose();
   }
@@ -661,6 +663,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Future<void> _searchAllSources() async {
+    _episodeCancel?.cancel();
     final gen = ++_searchGen;
     _searchCancel.cancel();
     final cancel = _searchCancel = CancellationToken();
@@ -810,7 +813,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Future<void> _expandItem(VideoItem item, VideoSource source) async {
-    if (identical(_expandedItem, item)) {
+    if (identical(_expandedItem, item) && _expandedSource?.id == source.id) {
+      _episodeCancel?.cancel();
       setState(() {
         _expandedItem = null;
         _expandedSource = null;
@@ -829,6 +833,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Future<void> _loadEpisodes(VideoItem item, VideoSource source) async {
+    _episodeCancel?.cancel();
+    final cancel = _episodeCancel = CancellationToken();
+    final searchCancel = _searchCancel;
+    searchCancel.addListener(cancel.cancel);
     setState(() {
       _expandedSource = source;
       _episodes = null;
@@ -836,18 +844,29 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       _episodesLoading = true;
     });
     try {
-      final eps = await source.episodes(item.detailUrl, cancel: _searchCancel);
-      if (!mounted || !identical(_expandedItem, item)) return;
+      final eps = await source.episodes(item.detailUrl, cancel: cancel);
+      if (!mounted ||
+          cancel.isCancelled ||
+          !identical(_episodeCancel, cancel)) {
+        return;
+      }
       setState(() {
         _episodes = eps;
         _episodesLoading = false;
       });
     } catch (_) {
-      if (!mounted || !identical(_expandedItem, item)) return;
+      if (!mounted ||
+          cancel.isCancelled ||
+          !identical(_episodeCancel, cancel)) {
+        return;
+      }
       setState(() {
         _episodesLoading = false;
         _episodesError = '获取剧集失败，请重试';
       });
+    } finally {
+      searchCancel.removeListener(cancel.cancel);
+      if (identical(_episodeCancel, cancel)) _episodeCancel = null;
     }
   }
 
