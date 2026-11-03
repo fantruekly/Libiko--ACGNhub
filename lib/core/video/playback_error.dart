@@ -16,8 +16,15 @@ String resolveFailureMessage(String sourceName, ResolveFailure? failure) {
 /// A short label for a media_kit playback error, recognising the common causes.
 String playbackErrorLabel(String raw) {
   final s = raw.toLowerCase();
-  if (s.contains('403') || s.contains('forbidden')) return '被源站拒绝（防盗链）';
+  if (s.contains('region') && s.contains('denied')) return '源站限制了当前地区访问';
+  if (s.contains('403') || s.contains('forbidden')) return '被源站拒绝访问';
   if (s.contains('404') || s.contains('not found')) return '播放地址已失效';
   if (s.contains('timeout') || s.contains('timed out')) return '播放超时';
   return '无法打开播放地址';
 }
+
+/// Explicit HTTP errors only; arbitrary numbers in a URL are not status codes.
+bool isDefinitivePlaybackFailure(String raw) => RegExp(
+        r'(?:http(?:\s+error)?|status(?:\s+code)?|server\s+returned)\s*[:=]?\s*(?:403|404|410)\b|\b(?:403\s+forbidden|404\s+not\s+found|410\s+gone)\b',
+        caseSensitive: false)
+    .hasMatch(raw);

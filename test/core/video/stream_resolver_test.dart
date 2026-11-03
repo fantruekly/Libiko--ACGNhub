@@ -185,6 +185,25 @@ class _CallbackAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  for (final status in [403, 404, 410]) {
+    test('explicit HTTP $status is not returned as a playable fallback',
+        () async {
+      final resolver = StreamResolver(
+        cache: ResolvedStreamCache(),
+        maccms: _FakeMacCmsResolver(
+            const MediaCandidate('https://cdn/failed.m3u8')),
+        browserFactory: () => _FakeBrowser(),
+        grace: Duration.zero,
+        collectWindow: const Duration(milliseconds: 1),
+        dio: Dio()
+          ..httpClientAdapter = _CallbackAdapter(
+              (_, __) async => ResponseBody.fromString('refused', status)),
+      );
+      final result = await resolver.resolve('https://site/play');
+      expect(result.ok, isFalse);
+      expect(result.failure, ResolveFailure.notFound);
+    });
+  }
   test('a failed pooled navigation is replaced before the next resolve attempt',
       () async {
     final broken = _FakeBrowser(
@@ -233,7 +252,8 @@ void main() {
     expect(result.candidate?.url, 'https://cdn/good.m3u8');
   });
 
-  test('probe refusal still permits a bounded uncached playback attempt',
+  test(
+      'transient server error still permits a bounded uncached playback attempt',
       () async {
     final cache = ResolvedStreamCache();
     final browser = _FakeBrowser(hang: true);
@@ -246,8 +266,8 @@ void main() {
       unverifiedWait: const Duration(milliseconds: 30),
       overallBudget: const Duration(seconds: 1),
       dio: Dio()
-        ..httpClientAdapter = _CallbackAdapter(
-            (_, __) async => ResponseBody.fromString('denied', 403)),
+        ..httpClientAdapter = _CallbackAdapter((_, __) async =>
+            ResponseBody.fromString('temporarily unavailable', 503)),
     );
     final result = await resolver
         .resolve('https://source/probe-refused')

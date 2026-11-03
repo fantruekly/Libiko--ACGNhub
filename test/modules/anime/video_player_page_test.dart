@@ -165,6 +165,21 @@ Future<void> _settleMedia(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+      'explicit HTTP failure switches exact line without reparsing failed line',
+      (tester) async {
+    final player = _Player();
+    final resolver = _Resolver();
+    final container = await _mount(tester, player,
+        resolver: resolver,
+        candidates: const [MediaCandidate('https://cdn/fail.mp4')]);
+    player.emitError('HTTP error 404 Not Found');
+    await tester.pump();
+    await _settleMedia(tester);
+    await _settleMedia(tester);
+    expect(resolver.calls.map((e) => e.$1), ['https://cdn/b1.mp4']);
+    await _unmount(tester, container);
+  });
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();

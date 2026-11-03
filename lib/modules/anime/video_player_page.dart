@@ -17,6 +17,7 @@ import '../../core/video/cancellation.dart';
 import '../../core/video/candidate_queue.dart';
 import '../../core/video/cross_source_recovery.dart';
 import '../../core/video/headless_browser.dart';
+import '../../core/video/line_preference.dart';
 import '../../core/video/playback_error.dart';
 import '../../core/video/playback_diagnostics.dart';
 import '../../core/video/playback_session.dart';
@@ -96,6 +97,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   final _diagnostics = PlaybackDiagnostics();
   final _resolveClock = Stopwatch();
   final _openClock = Stopwatch();
+  final _linePreferences = LinePreferenceStore();
+  LinePlaybackEvidence _lineEvidence = LinePlaybackEvidence();
+  bool _lineRecorded = false;
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -194,11 +198,20 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       setState(() => _position = position);
       if (!_resumeApplied && _resumeTarget > Duration.zero) return;
       final first = _session.progress(position);
+      if (!_lineRecorded &&
+          !_userPaused &&
+          !_background &&
+          !_buffering &&
+          _playing &&
+          _lineEvidence.progress(position, _openClock.elapsed)) {
+        _lineRecorded = true;
+        final ep = _episodes[_currentIndex];
+        unawaited(_linePreferences.record(widget.work, ep.sourceId, ep.lineId));
+      }
       if (_session.phase == PlaybackPhase.playing && _bufferingHint != null) {
         setState(() => _bufferingHint = null);
       }
       if (first) {
-        _openClock.stop();
         _trace('开始播放',
             elapsedMs: _openClock.elapsedMilliseconds, outcome: '实际进度已推进');
         if (!_playbackOutcomeRecorded) {
@@ -209,6 +222,11 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       }
       if (_started) _schedulePrefetch();
     }));
+    _subs.add(_player.stream.videoParams.listen((params) {
+      if (active()) {
+        _lineEvidence.video = (params.w ?? 0) > 0 && (params.h ?? 0) > 0;
+      }
+    }));
     _subs.add(_player.stream.duration.listen((duration) {
       if (!active()) return;
       setState(() => _duration = duration);
@@ -217,6 +235,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         final target = _resumeTarget < duration ? _resumeTarget : Duration.zero;
         _resumeTarget = Duration.zero;
         if (target > Duration.zero) {
+          _lineEvidence.interrupt();
           _session.seek(target);
           unawaited(_player.seek(target));
         }
@@ -228,6 +247,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (playing) {
         _scheduleHide();
       } else {
+        _lineEvidence.interrupt();
         _hideTimer?.cancel();
         setState(() => _controlsVisible = true);
       }
@@ -236,6 +256,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
       if (!active()) return;
       setState(() => _buffering = buffering);
       if (buffering) _cancelPrefetch();
+      if (buffering) _lineEvidence.interrupt();
       _session.buffering(buffering);
     }));
     _subs.add(_player.stream.rate.listen((rate) {
@@ -394,7 +415,8 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
           outcome: result.ok ? '已找到候选' : result.failure?.name);
       if (!result.ok) {
         _trace('resolve: ${result.failure?.name ?? "unknown"}');
-        unawaited(_recover(resolveFailureMessage(_sourceName, result.failure)));
+        unawaited(_recover(resolveFailureMessage(_sourceName, result.failure),
+            definitive: result.failure == ResolveFailure.notFound));
         return;
       }
       _candidates = CandidateQueue(result.candidates);
@@ -438,6 +460,19 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     final episode = _episodes[_currentIndex];
     final headers = playbackHeaders(candidate, episode);
     final generation = _session.begin();
+    _lineEvidence = LinePlaybackEvidence();
+    _lineRecorded = false;
+    final evidence = _lineEvidence;
+    final controller = _controller;
+    if (controller != null) {
+      unawaited(controller.waitUntilFirstFrameRendered.then((_) {
+        if (mounted &&
+            _session.accepts(generation) &&
+            identical(evidence, _lineEvidence)) {
+          evidence.frame = true;
+        }
+      }));
+    }
     _openClock
       ..reset()
       ..start();
@@ -521,7 +556,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
     });
   }
 
-  Future<void> _recover(String error) async {
+  Future<void> _recover(String error, {bool definitive = false}) async {
     if (!mounted || _recovering || _resolving || _userPaused || _background) {
       return;
     }
@@ -538,7 +573,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
         _resumeTarget = resume;
         _resumeApplied = false;
         _launchRecovery(() => _openCandidate(gen));
-      } else if (!_reparsed) {
+      } else if (!_reparsed &&
+          !definitive &&
+          !isDefinitivePlaybackFailure(error)) {
         _trace('恢复', outcome: '刷新当前集地址');
         _reparsed = true;
         _resolver.invalidate(_episodes[_currentIndex].playUrl);
@@ -788,7 +825,9 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   }
 
   void _seekRelative(int seconds) {
+    _lineEvidence.interrupt();
     final target = seekTarget(_position, seconds, _duration);
+    _lineEvidence.interrupt();
     _session.seek(target);
     _player.seek(target);
     setState(() {
@@ -836,6 +875,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   void _onDragSeekEnd(DragEndDetails details) {
     final target = _dragSeekTarget;
     if (target != null) {
+      _lineEvidence.interrupt();
       _session.seek(target);
       _player.seek(target);
       setState(() => _position = target);
@@ -887,6 +927,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _background = true;
+      _lineEvidence.interrupt();
       _cancelPrefetch();
       if (!_playbackOutcomeRecorded) _startupTimingInterrupted = true;
       _userPaused = true;
@@ -1070,6 +1111,7 @@ class _VideoPlayerPageState extends ConsumerState<VideoPlayerPage>
                     onBack: _handleBack,
                     onTogglePlay: _togglePlay,
                     onSeek: (target) {
+                      _lineEvidence.interrupt();
                       _session.seek(target);
                       _player.seek(target);
                       setState(() => _position = target);

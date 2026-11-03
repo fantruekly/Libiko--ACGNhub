@@ -21,6 +21,8 @@ import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import '../../core/video/cancellation.dart';
 import '../../core/video/cross_source_recovery.dart';
+import '../../core/video/line_preference.dart';
+import '../../core/video/resolve_line_fallback.dart';
 import '../../core/video/playback_error.dart';
 import '../../core/video/rule_store.dart';
 import '../../core/video/stream_resolver.dart';
@@ -853,17 +855,26 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       {Duration initialPosition = Duration.zero}) async {
     final episodes = List<VideoEpisode>.of(_episodes ?? const []);
     final sourceName = _expandedSource?.name ?? '';
-    final index = episodes.indexOf(ep);
+    var index = episodes.indexOf(ep);
     if (index < 0) return;
     final messenger = ScaffoldMessenger.of(context);
     final cancel = CancellationToken();
     final outcome = await showResolveDialog(
       context,
-      resolve: StreamResolver().resolve(ep.playUrl,
-          userAgent: ep.userAgent,
-          referer: ep.referer,
-          legacy: ep.useLegacyParser,
-          cancel: cancel),
+      resolve: () async {
+        final resolver = StreamResolver();
+        final resolved = await resolveLineFallback(
+            episodes,
+            index,
+            (episode) => resolver.resolve(episode.playUrl,
+                userAgent: episode.userAgent,
+                referer: episode.referer,
+                legacy: episode.useLegacyParser,
+                cancel: cancel),
+            () => cancel.isCancelled);
+        index = resolved.$1;
+        return resolved.$2;
+      }(),
       cancel: cancel,
     );
     if (!mounted || outcome.cancelled) return;
@@ -1314,10 +1325,16 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     for (final ep in eps) {
       lines.putIfAbsent(ep.lineId ?? '', () => []).add(ep);
     }
+    final preferred =
+        LinePreferenceStore().preferred(_work, _expandedSource?.id);
+    final orderedLines = [
+      if (lines.containsKey(preferred)) lines[preferred]!,
+      ...lines.entries.where((e) => e.key != preferred).map((e) => e.value),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final line in lines.values)
+        for (final line in orderedLines)
           Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 4),
             child: Column(

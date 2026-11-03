@@ -498,6 +498,11 @@ class StreamResolver {
             sendTimeout: const Duration(seconds: 5),
           ));
       final code = response.statusCode ?? 0;
+      // Retry header variants before dropping explicit refused/expired URLs.
+      // Network failures and 5xx remain unverified playback fallbacks.
+      if (code == 403 || code == 404 || code == 410) {
+        return _ProbeOutcome.invalidMedia;
+      }
       if (code < 200 || code >= 300) return _ProbeOutcome.unreachable;
       final type = (response.headers.value(Headers.contentTypeHeader) ?? '')
           .toLowerCase();
