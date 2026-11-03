@@ -65,6 +65,33 @@ ApiRuleClient _client(SourceRule rule, _JsonAdapter adapter) {
 }
 
 void main() {
+  test('shared episode IDs preserve the distinct route code for each source',
+      () async {
+    final adapter = _JsonAdapter('''{"sources":[
+      {"name":"A","code":"line-a","episodes":[{"title":"第1集","id":329}]},
+      {"name":"B","code":"line b&备用","episodes":[{"title":"第1集","id":329}]}
+    ]}''');
+    final rule = _apiRule(searchApiConfig: {
+      'request': {'url': 'https://api.test/search'}
+    }, chapterApiConfig: {
+      'request': {'url': 'https://api.test/detail/@source'},
+      'roadsPath': r'$.sources[*]',
+      'roadNamePath': r'$.name',
+      'roadCodePath': r'$.code',
+      'episodesPath': r'$.episodes[*]',
+      'episodeNamePath': r'$.title',
+      'episodeUrlPath': r'$.id',
+      'episodePage': {
+        'url': 'https://site.test/anime/@source/play/@episodeUrl',
+        'query': {'source': '@roadCode'}
+      }
+    });
+    final episodes = await _client(rule, adapter).episodes('26');
+    expect(episodes.map((e) => Uri.parse(e.playUrl).queryParameters['source']),
+        ['line-a', 'line b&备用']);
+    expect(episodes.map((e) => e.episodeKey), ['episode:1', 'episode:1']);
+    expect(episodes.map((e) => e.lineId).toSet(), hasLength(2));
+  });
   test('cancelling an API search cancels its transport promptly', () async {
     final rule = _apiRule(searchApiConfig: {
       'request': {'url': '/search?q=@keyword'},

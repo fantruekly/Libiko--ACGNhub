@@ -97,6 +97,7 @@ class ApiChapterConfig {
 
   final String roadsPath;
   final String roadNamePath;
+  final String roadCodePath;
   final String episodesPath;
   final String episodeNamePath;
   final String episodeUrlPath;
@@ -116,6 +117,7 @@ class ApiChapterConfig {
     this.format = ApiChapterFormat.nested,
     this.roadsPath = r'$.data.roads[*]',
     this.roadNamePath = r'$.name',
+    this.roadCodePath = '',
     this.episodesPath = r'$.episodes[*]',
     this.episodeNamePath = r'$.name',
     this.episodeUrlPath = r'$.url',
@@ -134,6 +136,7 @@ class ApiChapterConfig {
       format: ApiChapterFormat.normalize(json['format']),
       roadsPath: json['roadsPath'] as String? ?? r'$.data.roads[*]',
       roadNamePath: json['roadNamePath'] as String? ?? r'$.name',
+      roadCodePath: json['roadCodePath'] as String? ?? '',
       episodesPath: json['episodesPath'] as String? ?? r'$.episodes[*]',
       episodeNamePath: json['episodeNamePath'] as String? ?? r'$.name',
       episodeUrlPath: json['episodeUrlPath'] as String? ?? r'$.url',
@@ -290,7 +293,11 @@ class ApiRuleClient {
             : _firstString(jsonPathAll(node, config.episodeUrlPath));
         final url = _episodeUrl(
           config,
-          rootVariables,
+          {
+            ...rootVariables,
+            if (config.roadCodePath.isNotEmpty)
+              'roadCode': _firstString(jsonPathAll(road, config.roadCodePath)),
+          },
           rawUrl: rawUrl,
           roadIndex: roadIndex,
           episodeIndex: roadEpisodeIndex,
@@ -403,8 +410,9 @@ class ApiRuleClient {
     var url = resolveEpisodeUrl(config.episodePageUrl, variables);
     if (config.episodePageQuery.isNotEmpty) {
       final query = config.episodePageQuery.entries
-          .map((e) => '${resolveEpisodeUrl(e.key, variables)}='
-              '${resolveEpisodeUrl(e.value, variables)}')
+          .map((e) =>
+              '${Uri.encodeQueryComponent(resolveEpisodeUrl(e.key, variables))}='
+              '${Uri.encodeQueryComponent(resolveEpisodeUrl(e.value, variables))}')
           .join('&');
       url = '$url${url.contains('?') ? '&' : '?'}$query';
     }
