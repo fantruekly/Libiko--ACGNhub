@@ -890,7 +890,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
       ));
       return;
     }
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => VideoPlayerPage(
@@ -916,6 +916,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         ),
       ),
     );
+    if (mounted) setState(() {});
   }
 
   Future<void> _resumeHistory() async {
