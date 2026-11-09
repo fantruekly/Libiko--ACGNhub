@@ -19,7 +19,7 @@ void main() {
     expect(tapped, 3);
   });
 
-  testWidgets('the selected item shows a capsule around icon and label',
+  testWidgets('one capsule moves continuously between selected items',
       (tester) async {
     var index = 0;
     await tester.pumpWidget(MaterialApp(
@@ -34,49 +34,23 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    double capsuleAlpha(String label) {
-      final container =
-          tester.widget<Container>(find.byKey(ValueKey('bar-capsule-$label')));
-      return (container.decoration as BoxDecoration?)?.color?.a ?? 0;
-    }
-
-    expect(capsuleAlpha('动漫'), 1.0);
-    expect(capsuleAlpha('漫画'), 0.0);
-
-    await tester.tap(find.text('漫画'));
-    await tester.pumpAndSettle();
-    expect(capsuleAlpha('漫画'), 1.0);
-    expect(capsuleAlpha('动漫'), 0.0);
-  });
-
-  testWidgets('the capsule fades in without a dark pass-through',
-      (tester) async {
-    var index = 0;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        bottomNavigationBar: StatefulBuilder(
-          builder: (context, setState) => AppBottomBar(
-            selectedIndex: index,
-            onChanged: (i) => setState(() => index = i),
-          ),
-        ),
-      ),
-    ));
-    await tester.pumpAndSettle();
-
-    final cs = Theme.of(tester.element(find.byType(AppBottomBar))).colorScheme;
+    final capsule = find.byKey(const ValueKey('bar-selection'));
+    expect(capsule, findsOneWidget);
+    final start = tester.getCenter(find.text('动漫')).dx;
+    final destination = tester.getCenter(find.text('游戏')).dx;
+    expect(tester.getCenter(capsule).dx, closeTo(start, 0.01));
+    await tester.tap(find.text('游戏'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    final inFlight = tester.getCenter(capsule).dx;
+    expect(inFlight, greaterThan(start));
+    expect(inFlight, lessThan(destination));
     await tester.tap(find.text('漫画'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 160));
-
-    final container =
-        tester.widget<Container>(find.byKey(const ValueKey('bar-capsule-漫画')));
-    final color = (container.decoration as BoxDecoration).color!;
-    expect(color.r, closeTo(cs.secondaryContainer.r, 0.01));
-    expect(color.g, closeTo(cs.secondaryContainer.g, 0.01));
-    expect(color.b, closeTo(cs.secondaryContainer.b, 0.01));
-    expect(color.a, greaterThan(0));
-    expect(color.a, lessThan(1));
+    expect(tester.getCenter(capsule).dx, closeTo(inFlight, 0.01));
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(capsule).dx,
+        closeTo(tester.getCenter(find.text('漫画')).dx, 0.01));
   });
 
   testWidgets('320px bar supports enlarged text and reduced motion',
@@ -99,8 +73,7 @@ void main() {
     await tester.pump();
     expect(selected, 2);
     expect(tester.takeException(), isNull);
-    final container =
-        tester.widget<Container>(find.byKey(const ValueKey('bar-capsule-轻小说')));
-    expect((container.decoration as BoxDecoration).color!.a, 1);
+    expect(tester.getCenter(find.byKey(const ValueKey('bar-selection'))).dx,
+        closeTo(tester.getCenter(find.text('轻小说')).dx, 0.01));
   });
 }

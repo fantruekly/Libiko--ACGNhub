@@ -151,15 +151,37 @@ class _MainShellState extends State<MainShell> {
                           excluding: i != _currentIndex,
                           child: ExcludeSemantics(
                             excluding: i != _currentIndex,
-                            child: AnimatedOpacity(
-                              key: ValueKey('module-page-$i'),
-                              opacity: i == _currentIndex ? 1.0 : 0.0,
-                              duration: reduceMotion
-                                  ? Duration.zero
-                                  : const Duration(milliseconds: 250),
-                              curve: Curves.easeInOut,
-                              child: _pages[i],
-                            ),
+                            child: isDesktop
+                                ? AnimatedOpacity(
+                                    key: ValueKey('module-page-$i'),
+                                    opacity: i == _currentIndex ? 1.0 : 0.0,
+                                    duration: reduceMotion
+                                        ? Duration.zero
+                                        : const Duration(milliseconds: 250),
+                                    curve: Curves.easeInOut,
+                                    child: _pages[i],
+                                  )
+                                : Offstage(
+                                    offstage: i != _currentIndex,
+                                    child: TweenAnimationBuilder<double>(
+                                      key: ValueKey('module-page-$i'),
+                                      tween: Tween(
+                                          begin: 0,
+                                          end: i == _currentIndex ? 1 : 0),
+                                      duration: reduceMotion
+                                          ? Duration.zero
+                                          : const Duration(milliseconds: 260),
+                                      curve: Curves.easeOutCubic,
+                                      child: _pages[i],
+                                      builder: (context, progress, child) =>
+                                          Transform.translate(
+                                        offset: Offset(0, (1 - progress) * 10),
+                                        child: Opacity(
+                                            opacity: 0.84 + progress * 0.16,
+                                            child: child),
+                                      ),
+                                    ),
+                                  ),
                           ),
                         ),
                       ),

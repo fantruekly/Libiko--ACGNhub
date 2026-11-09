@@ -24,6 +24,8 @@ class AppBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final scaledLabel = MediaQuery.textScalerOf(context).scale(12);
+    final reduceMotion = MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
     return GlassSurface(
       borderRadius: BorderRadius.zero,
       blur: 14,
@@ -34,20 +36,61 @@ class AppBottomBar extends StatelessWidget {
         top: false,
         child: SizedBox(
           height: 68 + (scaledLabel - 12).clamp(0.0, 24.0),
-          child: Row(
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              for (var i = 0; i < _items.length; i++)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: _BarItem(
-                      icon: _items[i].$1,
-                      label: _items[i].$2,
-                      selected: selectedIndex == i,
-                      onTap: () => onChanged(i),
+              IgnorePointer(
+                child: AnimatedAlign(
+                  alignment: AlignmentDirectional(
+                      -1 + 2 * selectedIndex / (_items.length - 1), 0),
+                  duration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 360),
+                  curve: Curves.easeInOutCubicEmphasized,
+                  child: FractionallySizedBox(
+                    widthFactor: 1 / _items.length,
+                    heightFactor: 1,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+                      child: DecoratedBox(
+                        key: const ValueKey('bar-selection'),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              cs.secondaryContainer,
+                              Color.alphaBlend(
+                                  cs.primary.withValues(alpha: 0.08),
+                                  cs.secondaryContainer),
+                            ],
+                          ),
+                          border: Border.all(
+                              color: cs.primary.withValues(alpha: 0.14)),
+                        ),
+                      ),
                     ),
                   ),
                 ),
+              ),
+              Row(
+                children: [
+                  for (var i = 0; i < _items.length; i++)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 6),
+                        child: _BarItem(
+                          icon: _items[i].$1,
+                          label: _items[i].$2,
+                          selected: selectedIndex == i,
+                          onTap: () => onChanged(i),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -85,42 +128,39 @@ class _BarItem extends StatelessWidget {
           duration:
               reduceMotion ? Duration.zero : const Duration(milliseconds: 240),
           curve: Curves.easeInOutCubic,
-          builder: (context, t, _) => Container(
-            key: ValueKey('bar-capsule-$label'),
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(
-              color: cs.secondaryContainer.withValues(alpha: t),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(14),
-                focusColor: cs.primary.withValues(alpha: 0.12),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(icon,
-                          size: 22,
-                          color:
-                              Color.lerp(cs.onSurfaceVariant, cs.primary, t)),
-                      const SizedBox(height: 3),
-                      Text(label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12,
-                              height: 1.2,
-                              fontWeight: FontWeight.w500,
-                              color: Color.lerp(
-                                  cs.onSurfaceVariant, cs.primary, t))),
-                    ],
-                  ),
+          builder: (context, t, _) => Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(16),
+              focusColor: cs.primary.withValues(alpha: 0.12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Transform.translate(
+                      offset: Offset(0, reduceMotion ? 0 : -1.5 * t),
+                      child: Transform.scale(
+                        scale: reduceMotion ? 1 : 1 + 0.1 * t,
+                        child: Icon(icon,
+                            size: 22,
+                            color:
+                                Color.lerp(cs.onSurfaceVariant, cs.primary, t)),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            height: 1.2,
+                            fontWeight: FontWeight.w500,
+                            color: Color.lerp(
+                                cs.onSurfaceVariant, cs.primary, t))),
+                  ],
                 ),
               ),
             ),
