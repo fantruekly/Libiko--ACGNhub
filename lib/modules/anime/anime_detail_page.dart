@@ -11,6 +11,7 @@ import '../../core/models/watch_record.dart';
 import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/services/follow_manager.dart';
+import '../../core/services/watch_history.dart';
 import '../../core/sources/source_preferences.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
@@ -159,6 +160,9 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     final seasonYear = w.extra['seasonYear'] as int?;
     final format = w.extra['format'] as String?;
     final status = w.extra['status'] as String?;
+    final compact = MediaQuery.sizeOf(context).width < 560;
+    final info =
+        _infoSection(w, cs, score, episodes, seasonYear, format, status);
 
     return Scaffold(
       body: Column(
@@ -169,8 +173,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
               length: 3,
               child: Column(
                 children: [
-                  _infoSection(
-                      w, cs, score, episodes, seasonYear, format, status),
+                  if (!compact) info,
                   TabBar(
                     labelColor: cs.primary,
                     unselectedLabelColor: cs.onSurfaceVariant,
@@ -185,7 +188,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                   Expanded(
                     child: TabBarView(
                       children: [
-                        _overviewTab(w, cs),
+                        _overviewTab(w, cs, compact ? info : null),
                         _charactersTab(cs),
                         _relatedTab(cs),
                       ],
@@ -200,12 +203,19 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _overviewTab(Work w, ColorScheme cs) {
+  Widget _overviewTab(Work w, ColorScheme cs, Widget? compactInfo) {
     return CustomScrollView(
       slivers: [
-        if (w.tags.isNotEmpty) _tagsRow(w.tags, cs),
-        _summarySection(w.summary, cs),
-        _playSection(w, cs),
+        if (compactInfo != null) ...[
+          SliverToBoxAdapter(child: compactInfo),
+          _playSection(w, cs),
+          _summarySection(w.summary, cs, compact: true),
+          if (w.tags.isNotEmpty) _tagsRow(w.tags, cs),
+        ] else ...[
+          if (w.tags.isNotEmpty) _tagsRow(w.tags, cs),
+          _summarySection(w.summary, cs),
+          _playSection(w, cs),
+        ],
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
@@ -610,7 +620,10 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     );
   }
 
-  Widget _summarySection(String? summary, ColorScheme cs) {
+  Widget _summarySection(String? summary, ColorScheme cs,
+      {bool compact = false}) {
+    final summaryStyle =
+        TextStyle(fontSize: 13.5, height: 1.65, color: cs.onSurfaceVariant);
     return SliverToBoxAdapter(
       child: Padding(
         padding: _detailInsets(context, top: 4, bottom: 12),
@@ -642,6 +655,35 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     style: TextStyle(
                         fontSize: 13.5,
                         color: cs.onSurface.withValues(alpha: 0.35)))
+              else if (compact)
+                LayoutBuilder(builder: (context, constraints) {
+                  const previewLines = 3;
+                  final painter = TextPainter(
+                    text: TextSpan(text: summary, style: summaryStyle),
+                    textDirection: Directionality.of(context),
+                    textScaler: MediaQuery.textScalerOf(context),
+                    maxLines: previewLines,
+                  )..layout(maxWidth: constraints.maxWidth);
+                  final canExpand = painter.didExceedMaxLines;
+                  painter.dispose();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        summary,
+                        maxLines: _expanded ? null : previewLines,
+                        overflow: _expanded ? null : TextOverflow.ellipsis,
+                        style: summaryStyle,
+                      ),
+                      if (canExpand)
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _expanded = !_expanded),
+                          child: Text(_expanded ? '收起简介' : '展开简介'),
+                        ),
+                    ],
+                  );
+                })
               else
                 GestureDetector(
                   onTap: () => setState(() => _expanded = !_expanded),
@@ -649,10 +691,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                     summary,
                     maxLines: _expanded ? null : 4,
                     overflow: _expanded ? null : TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 13.5,
-                        height: 1.65,
-                        color: cs.onSurface.withValues(alpha: 0.7)),
+                    style: summaryStyle,
                   ),
                 ),
             ],
@@ -938,8 +977,8 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _resumeHistory() async {
-    final record = widget.resumeRecord;
+  Future<void> _resumeHistory([WatchRecord? requested]) async {
+    final record = requested ?? widget.resumeRecord;
     if (record == null) return;
     _SourceResult? found;
     for (final result in _sourceResults) {
@@ -1012,6 +1051,21 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
   }
 
   Widget _playSection(Work w, ColorScheme cs) {
+    var resume = widget.resumeRecord;
+    if (resume == null && MediaQuery.sizeOf(context).width < 560) {
+      for (final record in ref.watch(watchHistoryProvider)) {
+        if (!record.deleted &&
+            !record.completed &&
+            record.sourceId != null &&
+            record.work.type == w.type &&
+            record.work.sourceId == w.sourceId &&
+            record.work.id == w.id) {
+          resume = record;
+          break;
+        }
+      }
+    }
+    final resumeRecord = resume;
     final results = _flatResults;
     final loading =
         _sourceResults.any((r) => r.status == _SourceStatus.loading);
@@ -1021,7 +1075,7 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
         .where((r) => r.status != _SourceStatus.loading && r.items.isEmpty)
         .toList();
     final resumeReady = _sourceResults.any((r) =>
-        r.source.id == widget.resumeRecord?.sourceId &&
+        r.source.id == resumeRecord?.sourceId &&
         r.status != _SourceStatus.loading);
 
     return SliverToBoxAdapter(
@@ -1081,16 +1135,16 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
                 ],
               ),
               const SizedBox(height: 8),
-              if (widget.resumeRecord != null)
+              if (resumeRecord != null)
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     key: const ValueKey('resume-playback'),
                     onPressed: (!resumeReady && loading) || _episodesLoading
                         ? null
-                        : _resumeHistory,
+                        : () => _resumeHistory(resumeRecord),
                     icon: const Icon(Icons.play_arrow_rounded),
-                    label: Text('继续观看 · ${widget.resumeRecord!.episodeTitle}'),
+                    label: Text('继续观看 · ${resumeRecord.episodeTitle}'),
                   ),
                 ),
               if (_sourceResults.isEmpty)

@@ -364,6 +364,52 @@ void main() {
     expect(find.byType(RatingStars), findsOneWidget);
   });
 
+  testWidgets('compact overview puts playback before the collapsed summary',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 850);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final summary = List.filled(20, '这是一段用来检查折叠行为的作品简介。').join();
+    final work = Work(
+      id: 'compact_1',
+      sourceId: 'seed',
+      sourceName: 'Offline',
+      type: WorkType.anime,
+      title: '手机详情页',
+      summary: summary,
+    );
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        metadataServiceProvider.overrideWithValue(_offlineService()),
+        videoSourcesProvider.overrideWith((ref) async => []),
+      ],
+      child: MaterialApp(
+        theme: ThemeData.dark(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(1.5),
+          ),
+          child: child!,
+        ),
+        home: AnimeDetailPage(work: work),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final synopsis = find.text(summary);
+    expect(tester.getTopLeft(find.text('播放资源')).dy,
+        lessThan(tester.getTopLeft(synopsis).dy));
+    expect(tester.widget<Text>(synopsis).maxLines, 3);
+    final expand = find.text('展开简介');
+    await tester.ensureVisible(expand);
+    await tester.tap(expand);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Text>(synopsis).maxLines, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shows empty text and no stars when missing', (tester) async {
     const work = Work(
       id: 'seed_1',
