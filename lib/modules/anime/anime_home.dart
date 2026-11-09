@@ -7,6 +7,8 @@ import 'anime_history.dart';
 import 'anime_home_feature.dart';
 import '../../core/metadata/metadata_provider.dart';
 import '../../core/widgets/work_card.dart';
+import '../../core/platform.dart';
+import '../../core/widgets/adaptive_grid.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/tab_strip.dart';
@@ -160,7 +162,7 @@ class _FeedViewState extends ConsumerState<_FeedView>
     final history = ref.watch(watchHistoryProvider);
 
     return async.when(
-      loading: () => const ShimmerLoader(),
+      loading: () => const ShimmerLoader(mobileTitleExtent: 48),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
@@ -181,7 +183,11 @@ class _FeedViewState extends ConsumerState<_FeedView>
             .toList()
           ..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
         return LayoutBuilder(builder: (context, constraints) {
-          final padding = constraints.maxWidth >= 900 ? 32.0 : 20.0;
+          final padding = !isDesktop
+              ? 16.0
+              : constraints.maxWidth >= 900
+                  ? 32.0
+                  : 20.0;
           final available = constraints.maxWidth - padding * 2;
           final columns = (available / 176).floor().clamp(2, 8);
           final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
@@ -217,13 +223,17 @@ class _FeedViewState extends ConsumerState<_FeedView>
                       : SliverPadding(
                           padding: EdgeInsets.fromLTRB(padding, 0, padding, 24),
                           sliver: SliverGrid(
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: columns,
-                              crossAxisSpacing: 18,
-                              mainAxisSpacing: 24,
-                              mainAxisExtent: cardWidth * 1.5 + 48 * scale,
-                            ),
+                            gridDelegate: !isDesktop
+                                ? responsivePosterGridDelegate(
+                                    context, available, 2 / 3, 48,
+                                    mobileColumns: 3)
+                                : SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: columns,
+                                    crossAxisSpacing: 18,
+                                    mainAxisSpacing: 24,
+                                    mainAxisExtent:
+                                        cardWidth * 1.5 + 48 * scale,
+                                  ),
                             delegate: SliverChildBuilderDelegate(
                                 (_, i) => WorkCard(
                                       work: items[i],

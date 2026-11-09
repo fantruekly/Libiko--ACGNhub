@@ -286,6 +286,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
                   loading: () => const ShimmerLoader(
                       crossAxisCount: 6,
                       mobileColumns: 3,
+                      mobileTitleExtent: 48,
                       itemCount: 12,
                       aspectRatio: 0.58,
                       padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),
@@ -328,6 +329,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
               child: async.when(
                 loading: () => const ShimmerLoader(
                     crossAxisCount: 6,
+                    mobileTitleExtent: 48,
                     itemCount: 12,
                     aspectRatio: 0.58,
                     padding: EdgeInsets.fromLTRB(16, 8, 16, 24)),

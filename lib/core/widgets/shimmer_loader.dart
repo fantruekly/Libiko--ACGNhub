@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../platform.dart';
+import 'adaptive_grid.dart';
 
 class ShimmerLoader extends StatefulWidget {
   final int itemCount;
@@ -8,6 +9,7 @@ class ShimmerLoader extends StatefulWidget {
   final int mobileColumns;
   final double aspectRatio;
   final EdgeInsets padding;
+  final double? mobileTitleExtent;
 
   const ShimmerLoader({
     super.key,
@@ -16,6 +18,7 @@ class ShimmerLoader extends StatefulWidget {
     this.mobileColumns = 3,
     this.aspectRatio = 0.60,
     this.padding = const EdgeInsets.all(16),
+    this.mobileTitleExtent,
   });
 
   @override
@@ -47,6 +50,46 @@ class _ShimmerLoaderState extends State<ShimmerLoader>
       builder: (context, _) {
         final o = 0.3 +
             0.3 * (_ctrl.value < 0.5 ? _ctrl.value * 2 : (1 - _ctrl.value) * 2);
+        Widget buildPlaceholder(BuildContext context, int index) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                        color: const Color(0xFFE5E5EA).withValues(alpha: o)),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  height: 12,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(3),
+                    color: const Color(0xFFE5E5EA).withValues(alpha: o),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  height: 10,
+                  width: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(3),
+                    color: const Color(0xFFE5E5EA).withValues(alpha: o * 0.6),
+                  ),
+                ),
+              ],
+            );
+        if (!isDesktop && widget.mobileTitleExtent != null) {
+          return AdaptiveGridView(
+            itemCount: widget.itemCount,
+            mobileColumns: widget.mobileColumns,
+            mobileTitleExtent: widget.mobileTitleExtent!,
+            responsiveColumns: true,
+            padding: widget.padding,
+            itemBuilder: buildPlaceholder,
+          );
+        }
         return GridView.builder(
           padding: widget.padding,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -57,36 +100,7 @@ class _ShimmerLoaderState extends State<ShimmerLoader>
             childAspectRatio: widget.aspectRatio,
           ),
           itemCount: widget.itemCount,
-          itemBuilder: (context, index) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                      color: const Color(0xFFE5E5EA).withValues(alpha: o)),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                height: 12,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(3),
-                  color: const Color(0xFFE5E5EA).withValues(alpha: o),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                height: 10,
-                width: 60,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(3),
-                  color: const Color(0xFFE5E5EA).withValues(alpha: o * 0.6),
-                ),
-              ),
-            ],
-          ),
+          itemBuilder: buildPlaceholder,
         );
       },
     );

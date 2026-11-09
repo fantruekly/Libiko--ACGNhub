@@ -6,16 +6,19 @@ const double _kMainAxisSpacing = 20;
 const double _kCrossAxisSpacing = 16;
 const double _kDesktopAspectRatio = 0.60;
 
-SliverGridDelegateWithFixedCrossAxisCount _responsiveDelegate(
-    BuildContext context, double width, double coverRatio, double titleExtent) {
-  final columns = ((width + _kCrossAxisSpacing) / 184).floor().clamp(2, 8);
-  final cellWidth = ((width - _kCrossAxisSpacing * (columns - 1)) / columns)
-      .clamp(0.0, double.infinity);
+SliverGridDelegateWithFixedCrossAxisCount responsivePosterGridDelegate(
+    BuildContext context, double width, double coverRatio, double titleExtent,
+    {int? mobileColumns}) {
+  final spacing = mobileColumns == null ? _kCrossAxisSpacing : 12.0;
+  final columns =
+      mobileColumns ?? ((width + spacing) / 184).floor().clamp(2, 8);
+  final cellWidth =
+      ((width - spacing * (columns - 1)) / columns).clamp(0.0, double.infinity);
   final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
   return SliverGridDelegateWithFixedCrossAxisCount(
     crossAxisCount: columns,
-    mainAxisSpacing: 24,
-    crossAxisSpacing: _kCrossAxisSpacing,
+    mainAxisSpacing: mobileColumns == null ? 24 : 12,
+    crossAxisSpacing: spacing,
     mainAxisExtent: cellWidth / coverRatio + titleExtent * scale,
   );
 }
@@ -58,11 +61,13 @@ class SliverAdaptiveGrid extends StatelessWidget {
         padding: padding,
         sliver: SliverLayoutBuilder(
             builder: (context, constraints) => SliverGrid(
-                  gridDelegate: _responsiveDelegate(
+                  gridDelegate: responsivePosterGridDelegate(
                       context,
                       constraints.crossAxisExtent,
                       mobileCoverRatio,
-                      mobileTitleExtent),
+                      mobileTitleExtent,
+                      mobileColumns:
+                          (desktop ?? isDesktop) ? null : mobileColumns),
                   delegate: SliverChildBuilderDelegate(itemBuilder,
                       childCount: itemCount),
                 )),
@@ -139,12 +144,14 @@ class AdaptiveGridView extends StatelessWidget {
       return LayoutBuilder(
           builder: (context, constraints) => GridView.builder(
                 padding: padding,
-                gridDelegate: _responsiveDelegate(
+                gridDelegate: responsivePosterGridDelegate(
                     context,
                     constraints.maxWidth -
                         padding.resolve(Directionality.of(context)).horizontal,
                     mobileCoverRatio,
-                    mobileTitleExtent),
+                    mobileTitleExtent,
+                    mobileColumns:
+                        (desktop ?? isDesktop) ? null : mobileColumns),
                 itemCount: itemCount,
                 itemBuilder: itemBuilder,
               ));

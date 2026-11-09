@@ -265,6 +265,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
               loading: () => const ShimmerLoader(
                 crossAxisCount: 6,
                 mobileColumns: 3,
+                mobileTitleExtent: 48,
                 itemCount: 12,
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
               ),

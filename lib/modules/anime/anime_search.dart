@@ -90,7 +90,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
         onSearch: _search,
       );
   Widget _body(ColorScheme cs) {
-    if (_loading) return const ShimmerLoader();
+    if (_loading) return const ShimmerLoader(mobileTitleExtent: 44);
     if (_error != null) {
       return EmptyState(
           icon: Icons.error_outline_rounded,

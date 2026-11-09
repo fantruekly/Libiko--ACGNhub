@@ -86,9 +86,9 @@ void main() {
   });
 
   testWidgets(
-      'responsive posters use actual width and reserve scaled title space',
+      'responsive posters keep three phone columns and scale title space',
       (tester) async {
-    Future<void> render(double width, double scale) =>
+    Future<void> render(double width, double scale, {bool desktop = false}) =>
         tester.pumpWidget(MaterialApp(
           builder: (context, child) => MediaQuery(
               data: MediaQuery.of(context)
@@ -101,6 +101,7 @@ void main() {
                   child: AdaptiveGridView(
                       itemCount: 4,
                       mobileColumns: 3,
+                      desktop: desktop,
                       responsiveColumns: true,
                       mobileTitleExtent: 48,
                       itemBuilder: _cell))),
@@ -108,13 +109,14 @@ void main() {
     await render(320, 1);
     var delegate = tester.widget<GridView>(find.byType(GridView)).gridDelegate
         as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 2);
+    expect(delegate.crossAxisCount, 3);
+    expect(delegate.crossAxisSpacing, 12);
     final baseExtent = delegate.mainAxisExtent!;
     await render(320, 2);
     delegate = tester.widget<GridView>(find.byType(GridView)).gridDelegate
         as SliverGridDelegateWithFixedCrossAxisCount;
     expect(delegate.mainAxisExtent, baseExtent + 48);
-    await render(780, 1);
+    await render(780, 1, desktop: true);
     delegate = tester.widget<GridView>(find.byType(GridView)).gridDelegate
         as SliverGridDelegateWithFixedCrossAxisCount;
     expect(delegate.crossAxisCount, 4);
