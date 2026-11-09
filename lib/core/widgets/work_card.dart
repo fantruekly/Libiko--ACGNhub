@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/work.dart';
+import 'poster_title.dart';
 import 'ratio_cover.dart';
 
 class WorkCard extends StatefulWidget {
@@ -22,7 +23,6 @@ class _WorkCardState extends State<WorkCard> {
     final cs = Theme.of(context).colorScheme;
     final work = widget.work;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
 
     Widget cover = RatioCover(
       url: work.coverUrl,
@@ -84,21 +84,7 @@ class _WorkCardState extends State<WorkCard> {
                   clipBehavior: Clip.antiAlias,
                   child: Hero(tag: 'work_${work.id}', child: cover),
                 )),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 38 * scale,
-                  child: Text(
-                    work.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      height: 1.45,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                ),
+                PosterTitle(work.title),
                 if (widget.subtitle != null) ...[
                   const SizedBox(height: 2),
                   Text(

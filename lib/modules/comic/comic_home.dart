@@ -13,6 +13,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/chip_nav.dart';
 import '../../core/widgets/pager_bar.dart';
+import '../../core/widgets/poster_title.dart';
 import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
@@ -606,21 +607,7 @@ class ComicCard extends StatelessWidget {
               ),
               child: image,
             )),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: MediaQuery.textScalerOf(context).scale(13) / 13 * 38,
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                  color: cs.onSurface,
-                ),
-              ),
-            ),
+            PosterTitle(title),
           ],
         ),
       ),

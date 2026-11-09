@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../platform.dart';
 import 'adaptive_grid.dart';
+import 'poster_title.dart';
 
 class ShimmerLoader extends StatefulWidget {
   final int itemCount;
@@ -10,6 +11,7 @@ class ShimmerLoader extends StatefulWidget {
   final double aspectRatio;
   final EdgeInsets padding;
   final double? mobileTitleExtent;
+  final Widget? mobileHeader;
 
   const ShimmerLoader({
     super.key,
@@ -19,6 +21,7 @@ class ShimmerLoader extends StatefulWidget {
     this.aspectRatio = 0.60,
     this.padding = const EdgeInsets.all(16),
     this.mobileTitleExtent,
+    this.mobileHeader,
   });
 
   @override
@@ -33,8 +36,19 @@ class _ShimmerLoaderState extends State<ShimmerLoader>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat();
+        vsync: this, duration: const Duration(milliseconds: 1200));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context)) {
+      _ctrl.stop();
+      _ctrl.value = 0.5;
+    } else if (!_ctrl.isAnimating) {
+      _ctrl.repeat();
+    }
   }
 
   @override
@@ -45,49 +59,72 @@ class _ShimmerLoaderState extends State<ShimmerLoader>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final mobilePosters = !isDesktop && widget.mobileTitleExtent != null;
+    final titleHeight = mobilePosters ? PosterTitle.heightOf(context) : 26.0;
+    final barScale = (titleHeight / 26).clamp(0.0, 1.0);
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {
         final o = 0.3 +
             0.3 * (_ctrl.value < 0.5 ? _ctrl.value * 2 : (1 - _ctrl.value) * 2);
+        final fill = cs.outlineVariant.withValues(alpha: o);
         Widget buildPlaceholder(BuildContext context, int index) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                        color: const Color(0xFFE5E5EA).withValues(alpha: o)),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius:
+                          BorderRadius.circular(mobilePosters ? 14 : 10),
+                      color: fill,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Container(
-                  height: 12,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(3),
-                    color: const Color(0xFFE5E5EA).withValues(alpha: o),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  height: 10,
-                  width: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(3),
-                    color: const Color(0xFFE5E5EA).withValues(alpha: o * 0.6),
+                SizedBox(height: mobilePosters ? PosterTitle.gap : 6),
+                SizedBox(
+                  height: titleHeight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        height: 12 * barScale,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(3),
+                          color: fill,
+                        ),
+                      ),
+                      SizedBox(height: 4 * barScale),
+                      FractionallySizedBox(
+                        widthFactor: 0.62,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Container(
+                          height: 10 * barScale,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(3),
+                            color: fill.withValues(alpha: o * 0.6),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             );
-        if (!isDesktop && widget.mobileTitleExtent != null) {
-          return AdaptiveGridView(
-            itemCount: widget.itemCount,
-            mobileColumns: widget.mobileColumns,
-            mobileTitleExtent: widget.mobileTitleExtent!,
-            responsiveColumns: true,
-            padding: widget.padding,
-            itemBuilder: buildPlaceholder,
+        if (mobilePosters) {
+          return CustomScrollView(
+            slivers: [
+              if (widget.mobileHeader != null)
+                SliverToBoxAdapter(child: widget.mobileHeader),
+              SliverAdaptiveGrid(
+                itemCount: widget.itemCount,
+                mobileColumns: widget.mobileColumns,
+                mobileTitleExtent: widget.mobileTitleExtent!,
+                responsiveColumns: true,
+                padding: widget.padding,
+                itemBuilder: buildPlaceholder,
+              ),
+            ],
           );
         }
         return GridView.builder(

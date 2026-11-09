@@ -159,10 +159,39 @@ class _FeedViewState extends ConsumerState<_FeedView>
     super.build(context);
     final async = ref.watch(animeFeedProvider(widget.feed));
     final cs = Theme.of(context).colorScheme;
-    final history = ref.watch(watchHistoryProvider);
+    final recent = ref
+        .watch(watchHistoryProvider)
+        .where((record) =>
+            !record.deleted &&
+            !record.completed &&
+            record.work.type == WorkType.anime)
+        .toList()
+      ..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
 
     return async.when(
-      loading: () => const ShimmerLoader(mobileTitleExtent: 48),
+      loading: () => LayoutBuilder(builder: (context, constraints) {
+        const padding = 16.0;
+        return ShimmerLoader(
+          mobileTitleExtent: 48,
+          padding: isDesktop
+              ? const EdgeInsets.all(16)
+              : const EdgeInsets.fromLTRB(padding, 0, padding, 24),
+          mobileHeader: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (recent.isNotEmpty && widget.feed == AnimeFeed.trending) ...[
+                _sectionHeading('继续观看', cs, padding),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: padding),
+                  child: _resumeCards(context, recent.take(2).toList(),
+                      constraints.maxWidth - 32),
+                ),
+              ],
+              _sectionHeading(_label, cs, padding),
+            ],
+          ),
+        );
+      }),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
@@ -175,13 +204,6 @@ class _FeedViewState extends ConsumerState<_FeedView>
         final items = [...works, ..._extra]
             .where((work) => identities.add(_identity(work)))
             .toList();
-        final recent = history
-            .where((record) =>
-                !record.deleted &&
-                !record.completed &&
-                record.work.type == WorkType.anime)
-            .toList()
-          ..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
         return LayoutBuilder(builder: (context, constraints) {
           final padding = !isDesktop
               ? 16.0
@@ -306,17 +328,19 @@ class _FeedViewState extends ConsumerState<_FeedView>
   }
 
   Widget _sectionTitle(String title, ColorScheme cs, double horizontal) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(horizontal, 26, horizontal, 16),
-        child: Text(
-          title,
-          style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface,
-              height: 1.4),
-        ),
+    return SliverToBoxAdapter(child: _sectionHeading(title, cs, horizontal));
+  }
+
+  Widget _sectionHeading(String title, ColorScheme cs, double horizontal) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(horizontal, 26, horizontal, 16),
+      child: Text(
+        title,
+        style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+            height: 1.4),
       ),
     );
   }
