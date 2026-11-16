@@ -113,7 +113,7 @@ class _AnimeSearchPageState extends ConsumerState<AnimeSearchPage> {
           child: AdaptiveGridView(
         responsiveColumns: true,
         itemCount: _results.length,
-        mobileColumns: 3,
+        mobileColumns: mobilePosterColumns,
         desktopColumns: 5,
         padding: const EdgeInsets.all(16),
         itemBuilder: (context, index) => WorkCard(

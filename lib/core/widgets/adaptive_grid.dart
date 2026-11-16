@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../platform.dart';
 
+const int mobilePosterColumns = 2;
+
 const double _kMainAxisSpacing = 20;
 const double _kCrossAxisSpacing = 16;
 const double _kDesktopAspectRatio = 0.60;

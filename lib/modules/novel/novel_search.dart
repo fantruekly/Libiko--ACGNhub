@@ -143,7 +143,7 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
       responsiveColumns: true,
       mobileTitleExtent: 84,
       itemCount: results.length,
-      mobileColumns: 3,
+      mobileColumns: mobilePosterColumns,
       desktopAspectRatio: 0.58,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (_, i) {

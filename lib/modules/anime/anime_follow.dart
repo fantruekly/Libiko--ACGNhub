@@ -21,7 +21,7 @@ class AnimeFollowView extends ConsumerWidget {
     }
     return AdaptiveGridView(
       itemCount: records.length,
-      mobileColumns: 3,
+      mobileColumns: mobilePosterColumns,
       responsiveColumns: true,
       mobileTitleExtent: 48,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),

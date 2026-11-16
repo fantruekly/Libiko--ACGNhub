@@ -250,7 +250,7 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     return SliverAdaptiveGrid(
       responsiveColumns: true,
       itemCount: results.length,
-      mobileColumns: 3,
+      mobileColumns: mobilePosterColumns,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       itemBuilder: (context, index) {
         final result = results[index];

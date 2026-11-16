@@ -523,7 +523,7 @@ Widget _comicGrid({
     responsiveColumns: true,
     mobileTitleExtent: 48,
     itemCount: count,
-    mobileColumns: 3,
+    mobileColumns: mobilePosterColumns,
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
     itemBuilder: (_, i) => itemBuilder(i),
   );

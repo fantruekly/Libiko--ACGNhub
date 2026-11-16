@@ -248,7 +248,7 @@ class _FeedViewState extends ConsumerState<_FeedView>
                             gridDelegate: !isDesktop
                                 ? responsivePosterGridDelegate(
                                     context, available, 2 / 3, 48,
-                                    mobileColumns: 3)
+                                    mobileColumns: mobilePosterColumns)
                                 : SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: columns,
                                     crossAxisSpacing: 18,

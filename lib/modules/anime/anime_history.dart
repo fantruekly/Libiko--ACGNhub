@@ -47,7 +47,7 @@ class AnimeHistoryView extends ConsumerWidget {
                   icon: Icons.history_rounded, message: '还没有观看记录')
               : AdaptiveGridView(
                   itemCount: records.length,
-                  mobileColumns: 3,
+                  mobileColumns: mobilePosterColumns,
                   responsiveColumns: true,
                   mobileTitleExtent: 70,
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),

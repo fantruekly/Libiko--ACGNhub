@@ -359,7 +359,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab>
       responsiveColumns: true,
       mobileTitleExtent: 48,
       itemCount: items.length,
-      mobileColumns: 3,
+      mobileColumns: mobilePosterColumns,
       desktopAspectRatio: 0.58,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (_, i) => NovelCard(
@@ -393,7 +393,7 @@ class _FavoritesTab extends ConsumerWidget {
       responsiveColumns: true,
       mobileTitleExtent: 48,
       itemCount: favorites.length,
-      mobileColumns: 3,
+      mobileColumns: mobilePosterColumns,
       desktopAspectRatio: 0.58,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemBuilder: (_, i) => NovelCard(
