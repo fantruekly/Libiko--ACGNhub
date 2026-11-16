@@ -4,10 +4,46 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/game/models.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/modules/game/game_detail_page.dart';
 import 'package:libiko/modules/game/game_providers.dart';
 
 void main() {
+  for (final dark in [false, true]) {
+    testWidgets(
+        '320px ${dark ? "dark" : "light"} game detail supports enlarged text',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 850);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(ProviderScope(
+          overrides: [
+            gameDetailProvider(('galgamezywz', 'responsive')).overrideWith(
+                (ref) async => const GameDetail(
+                    game: Game(
+                        id: 'responsive',
+                        title: '很长的游戏标题用于验证窄屏排版',
+                        tags: ['汉化', 'PC']),
+                    sourceUrl: 'https://example.com/game',
+                    paragraphs: ['一段游戏介绍。'],
+                    platform: 'Windows 与 Android')),
+          ],
+          child: MaterialApp(
+              theme: dark ? buildAppDarkTheme() : buildAppTheme(),
+              builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: const TextScaler.linear(1.6)),
+                  child: child!),
+              home: const GameDetailPage(
+                  sourceKey: 'galgamezywz',
+                  gameId: 'responsive',
+                  title: '测试游戏'))));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('在原站打开'), findsOneWidget);
+    });
+  }
   testWidgets('renders title, meta, tags, paragraphs and source button',
       (tester) async {
     final detail = GameDetail(

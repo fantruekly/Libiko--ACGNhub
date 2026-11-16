@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,7 @@ import 'package:libiko/core/models/work.dart';
 import 'package:libiko/core/models/watch_record.dart';
 import 'package:libiko/core/services/watch_history.dart';
 import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/core/video/cancellation.dart';
 import 'package:libiko/core/video/video_source.dart';
 import 'package:libiko/core/video/video_sources.dart';
@@ -29,6 +32,12 @@ class _FailingProvider implements MetadataProvider {
       throw Exception('offline');
   @override
   Future<Work> detail(Work work) async => throw Exception('offline');
+}
+
+class _DelayedProvider extends _FailingProvider {
+  final gate = Completer<Work>();
+  @override
+  Future<Work> detail(Work work) => gate.future;
 }
 
 MetadataService _offlineService() => MetadataService(
@@ -83,6 +92,23 @@ class _VideoSource implements VideoSource {
       ];
 }
 
+class _ControlledEpisodesSource extends _VideoSource {
+  _ControlledEpisodesSource(this.label);
+  final String label;
+  final requests = <(CancellationToken?, Completer<List<VideoEpisode>>)>[];
+  @override
+  String get id => label;
+  @override
+  String get name => label;
+  @override
+  Future<List<VideoEpisode>> episodes(String detailUrl,
+      {CancellationToken? cancel}) {
+    final gate = Completer<List<VideoEpisode>>();
+    requests.add((cancel, gate));
+    return gate.future;
+  }
+}
+
 class _MatchingSource extends _VideoSource {
   _MatchingSource(this.find);
   final List<VideoItem> Function(String) find;
@@ -103,6 +129,20 @@ class _MatchingSource extends _VideoSource {
   }
 }
 
+class _BlockedSource extends _VideoSource {
+  _BlockedSource(this.key);
+  final String key;
+  final gate = Completer<List<VideoItem>>();
+  CancellationToken? request;
+  @override
+  String get id => key;
+  @override
+  Future<List<VideoItem>> search(String keyword, {CancellationToken? cancel}) {
+    request = cancel;
+    return gate.future;
+  }
+}
+
 const _playbackWork = Work(
     id: 'test',
     sourceId: 'seed',
@@ -114,6 +154,104 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();
+  });
+
+  for (final dark in [false, true]) {
+    testWidgets(
+        '320px ${dark ? "dark" : "light"} anime detail supports enlarged text',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 850);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const work = Work(
+          id: 'responsive',
+          sourceId: 'seed',
+          sourceName: 'Offline',
+          type: WorkType.anime,
+          title: '这是一个比较长的动漫标题用于验证窄屏',
+          summary: '一段作品介绍。',
+          extra: {
+            'score': 8.5,
+            'episodes': 24,
+            'seasonYear': 2026,
+            'status': 'Finished Airing',
+            'format': 'TV'
+          });
+      await tester.pumpWidget(ProviderScope(
+          overrides: [
+            metadataServiceProvider.overrideWithValue(_offlineService()),
+            videoSourcesProvider.overrideWith((ref) async => []),
+          ],
+          child: MaterialApp(
+              theme: dark ? buildAppDarkTheme() : buildAppTheme(),
+              builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: const TextScaler.linear(1.6)),
+                  child: child!),
+              home: const AnimeDetailPage(work: work))));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('追番'), findsOneWidget);
+    });
+  }
+
+  testWidgets('changing or collapsing a source cancels abandoned episode loads',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final a = _ControlledEpisodesSource('A源');
+    final b = _ControlledEpisodesSource('B源');
+    await tester.pumpWidget(ProviderScope(overrides: [
+      metadataServiceProvider.overrideWithValue(_offlineService()),
+      videoSourcesProvider.overrideWith((ref) async => [a, b]),
+    ], child: const MaterialApp(home: AnimeDetailPage(work: _playbackWork))));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('A源'));
+    await tester.pump();
+    expect(a.requests, hasLength(1));
+    await tester.tap(find.text('B源'));
+    await tester.pump();
+    expect(a.requests.first.$1!.isCancelled, isTrue);
+    await tester.tap(find.text('A源'));
+    await tester.pump();
+    expect(b.requests.first.$1!.isCancelled, isTrue);
+    expect(a.requests, hasLength(2));
+    a.requests.first.$2.complete(const [
+      VideoEpisode(
+        id: 'stale',
+        title: '旧剧集',
+        index: 0,
+        playUrl: 'old',
+        lineName: '旧响应',
+      )
+    ]);
+    await tester.pump();
+    expect(find.text('旧响应'), findsNothing);
+    await tester.tap(find.text('A源'));
+    await tester.pump();
+    expect(a.requests.last.$1!.isCancelled, isTrue);
+    await tester.tap(find.text('B源'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('重新搜索'));
+    await tester.pump();
+    expect(b.requests.last.$1!.isCancelled, isTrue);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('B源'));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(b.requests.last.$1!.isCancelled, isTrue);
+    for (final source in [a, b]) {
+      for (final request in source.requests) {
+        if (!request.$2.isCompleted) request.$2.complete(const []);
+      }
+    }
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('episodes are grouped under their own line names',
@@ -224,6 +362,52 @@ void main() {
 
     expect(find.text('A short summary.'), findsOneWidget);
     expect(find.byType(RatingStars), findsOneWidget);
+  });
+
+  testWidgets('compact overview puts playback before the collapsed summary',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 850);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final summary = List.filled(20, '这是一段用来检查折叠行为的作品简介。').join();
+    final work = Work(
+      id: 'compact_1',
+      sourceId: 'seed',
+      sourceName: 'Offline',
+      type: WorkType.anime,
+      title: '手机详情页',
+      summary: summary,
+    );
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        metadataServiceProvider.overrideWithValue(_offlineService()),
+        videoSourcesProvider.overrideWith((ref) async => []),
+      ],
+      child: MaterialApp(
+        theme: ThemeData.dark(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(1.5),
+          ),
+          child: child!,
+        ),
+        home: AnimeDetailPage(work: work),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final synopsis = find.text(summary);
+    expect(tester.getTopLeft(find.text('播放资源')).dy,
+        lessThan(tester.getTopLeft(synopsis).dy));
+    expect(tester.widget<Text>(synopsis).maxLines, 3);
+    final expand = find.text('展开简介');
+    await tester.ensureVisible(expand);
+    await tester.tap(expand);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Text>(synopsis).maxLines, isNull);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('shows empty text and no stars when missing', (tester) async {
@@ -391,6 +575,75 @@ void main() {
     await tester.pumpAndSettle();
     expect(source.episodeRequests, 0);
     expect(find.text('原播放源的作品匹配待确认，请手动核对后继续观看'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('history source resumes before unrelated slow searches finish',
+      (tester) async {
+    final blocked = [_BlockedSource('slow-one'), _BlockedSource('slow-two')];
+    final history = _MatchingSource((_) => const [
+          VideoItem(id: 'matched', title: 'Test Anime', detailUrl: 'matched')
+        ]);
+    final record = WatchRecord(
+        work: _playbackWork,
+        episodeTitle: '缺失剧集',
+        episodeIndex: 99,
+        watchedAt: DateTime(2026),
+        sourceId: history.id,
+        lineId: 'a',
+        episodeKey: 'episode:99');
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          metadataServiceProvider.overrideWithValue(_offlineService()),
+          videoSourcesProvider
+              .overrideWith((ref) async => [...blocked, history]),
+        ],
+        child: MaterialApp(
+            home: AnimeDetailPage(
+                work: _playbackWork, resumeRecord: record, autoResume: true))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(history.episodeRequests, 1);
+    expect(blocked.every((source) => !source.gate.isCompleted), isTrue);
+    expect(find.text('无法确定上次观看的剧集，请手动选集'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(
+        blocked
+            .where((source) => source.request != null)
+            .every((source) => source.request!.isCancelled),
+        isTrue);
+    for (final source in blocked) {
+      source.gate.complete([]);
+    }
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'source discovery starts while metadata details are still pending',
+      (tester) async {
+    final metadata = _DelayedProvider();
+    final source = _MatchingSource((_) => const []);
+    final service = MetadataService(
+        anilist: metadata,
+        jikan: _FailingProvider(),
+        seedLoader: () async => const [],
+        intervals: const {});
+    await tester.pumpWidget(ProviderScope(overrides: [
+      metadataServiceProvider.overrideWithValue(service),
+      videoSourcesProvider.overrideWith((ref) async => [source]),
+    ], child: const MaterialApp(home: AnimeDetailPage(work: _playbackWork))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(metadata.gate.isCompleted, isFalse);
+    expect(source.queries, ['Test Anime']);
+    metadata.gate.complete(_playbackWork);
+    await tester.pumpAndSettle();
+    expect(source.queries, ['Test Anime']);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

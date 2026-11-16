@@ -97,6 +97,12 @@ abstract class HeadlessBrowser {
   Future<void> dispose();
 }
 
+/// Optional capability: evaluate only in the document belonging to [loadId],
+/// even while its subresources are still loading. A stale document yields null.
+abstract interface class CurrentDocumentBrowser {
+  Future<dynamic> evalCurrentDocument(String script, {required int loadId});
+}
+
 final RegExp _mediaRe = RegExp(r'\.(m3u8|mp4)$', caseSensitive: false);
 
 /// True when the URL's *path* ends with a media extension. The path is used

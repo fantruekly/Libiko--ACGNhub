@@ -64,9 +64,26 @@ class PooledBrowser {
     return _browser.eval(script);
   }
 
-  Future<void> release() async {
+  /// Early extraction is safe only after the concrete browser has confirmed
+  /// this navigation's document. During the blank-page barrier it yields null.
+  Future<dynamic> evalCurrentDocument(String script,
+      {bool allowLoadedFallback = false}) {
+    if (_released || _loadId < 0) return Future.value();
+    final browser = _browser;
+    if (browser is! CurrentDocumentBrowser) {
+      return allowLoadedFallback ? browser.eval(script) : Future.value();
+    }
+    return (browser as CurrentDocumentBrowser)
+        .evalCurrentDocument(script, loadId: _loadId);
+  }
+
+  Future<void> release({bool discard = false}) async {
     if (_released) return;
     _released = true;
+    if (discard) {
+      await _pool.release(this, discard: true);
+      return;
+    }
     // Do not lend this WebView while its previous navigation is still active.
     // In particular, a cancellation during the blank-page barrier must not
     // start a late navigation after the next caller has borrowed it.
@@ -211,11 +228,11 @@ class HeadlessBrowserPool {
     return null;
   }
 
-  Future<void> release(PooledBrowser pooled) async {
+  Future<void> release(PooledBrowser pooled, {bool discard = false}) async {
     if (_shutdown) return;
     final entry = pooled._entry;
     _active.remove(entry);
-    if (_expired(entry) || entry.uses >= maxUsesPerBrowser) {
+    if (discard || _expired(entry) || entry.uses >= maxUsesPerBrowser) {
       _creating++;
       try {
         await _dispose(entry);

@@ -13,7 +13,7 @@ import '../../core/novel/novel_reader_settings.dart';
 import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/marquee_text.dart';
+import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/reader_progress_bar.dart';
 import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
@@ -405,36 +405,47 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       top: 0,
       left: 0,
       right: 0,
-      child: Container(
-        height: 56 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
-        padding: EdgeInsets.only(
-            left: 8,
-            right: 8,
-            top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
-        decoration: BoxDecoration(
-          color: palette.bar,
-          border: Border(bottom: BorderSide(color: palette.border, width: 0.5)),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back_rounded),
-              color: palette.fg,
-              onPressed: () => Navigator.pop(context),
+      child: GlassSurface(
+        borderRadius: BorderRadius.zero,
+        blur: 12,
+        color: palette.bar.withValues(alpha: 0.94),
+        border: Border(bottom: BorderSide(color: palette.border, width: 0.7)),
+        child: SizedBox(
+          height: 56 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
+          child: Padding(
+            padding: EdgeInsets.only(
+                left: 8,
+                right: 8,
+                top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: '返回',
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  color: palette.fg,
+                  onPressed: () => Navigator.pop(context),
+                ),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: palette.fg),
+                  ),
+                ),
+                if (isDesktop)
+                  Theme(
+                      data: Theme.of(context).copyWith(
+                          colorScheme: Theme.of(context)
+                              .colorScheme
+                              .copyWith(onSurface: palette.fg)),
+                      child: const WindowControls()),
+              ],
             ),
-            Expanded(
-              child: Text(
-                widget.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: palette.fg),
-              ),
-            ),
-            if (isDesktop) const WindowControls(),
-          ],
+          ),
         ),
       ),
     );
@@ -451,24 +462,43 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       left: 0,
       right: 0,
       bottom: 0,
-      child: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          color: palette.bar,
-          border: Border(top: BorderSide(color: palette.border, width: 0.5)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _barButton(palette, Icons.chevron_left_rounded, '上一章',
-                hasPrev ? () => _goChapter(chapters[index - 1].id) : null),
-            _barButton(
-                palette, Icons.list_rounded, '目录', () => _openCatalog(detail)),
-            _barButton(palette, Icons.text_fields_rounded, '设置', _openSettings),
-            _barButton(palette, Icons.chevron_right_rounded, '下一章',
-                hasNext ? () => _goChapter(chapters[index + 1].id) : null),
-          ],
-        ),
+      child: GlassSurface(
+        borderRadius: BorderRadius.zero,
+        blur: 12,
+        color: palette.bar.withValues(alpha: 0.94),
+        border: Border(top: BorderSide(color: palette.border, width: 0.7)),
+        child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Expanded(
+                      child: _barButton(
+                          palette,
+                          Icons.chevron_left_rounded,
+                          '上一章',
+                          hasPrev
+                              ? () => _goChapter(chapters[index - 1].id)
+                              : null)),
+                  Expanded(
+                      child: _barButton(palette, Icons.list_rounded, '目录',
+                          () => _openCatalog(detail))),
+                  Expanded(
+                      child: _barButton(palette, Icons.text_fields_rounded,
+                          '设置', _openSettings)),
+                  Expanded(
+                      child: _barButton(
+                          palette,
+                          Icons.chevron_right_rounded,
+                          '下一章',
+                          hasNext
+                              ? () => _goChapter(chapters[index + 1].id)
+                              : null)),
+                ],
+              ),
+            )),
       ),
     );
   }
@@ -485,7 +515,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         ignoring: !_chromeVisible,
         child: AnimatedOpacity(
           opacity: _chromeVisible ? 1 : 0,
-          duration: const Duration(milliseconds: 200),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 200),
           child: ValueListenableBuilder<double>(
             valueListenable: _progress,
             builder: (context, progress, _) => ReaderProgressBar(
@@ -505,11 +537,25 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         onTap == null ? palette.fg.withValues(alpha: 0.3) : palette.fg;
     return TextButton(
       onPressed: onTap,
+      style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          minimumSize: const Size(0, 48),
+          foregroundColor: color),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: color),
-          Text(label, style: TextStyle(fontSize: 11, color: color)),
+          Icon(icon,
+              size: 20,
+              color: onTap == null
+                  ? color
+                  : (palette.bg.computeLuminance() < 0.3
+                      ? const Color(0xFFA0CFFF)
+                      : const Color(0xFF2477CE))),
+          const SizedBox(height: 2),
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, height: 1.2, color: color)),
         ],
       ),
     );
@@ -528,68 +574,149 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   }
 
   void _openCatalog(NovelDetail? detail) {
-    final cs = Theme.of(context).colorScheme;
-    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme,
-        Theme.of(context).brightness);
     showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: palette.bg,
-      builder: (_) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-                surface: palette.bg,
-                onSurface: palette.fg,
-              ),
-        ),
-        child: ListView(
-          children: [
-            if (detail == null || detail.volumes.isEmpty)
-              const ListTile(title: Text('暂无目录'))
-            else
-              for (final v in detail.volumes) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text(v.title,
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: palette.fg.withValues(alpha: 0.7))),
-                ),
-                for (final c in v.chapters)
-                  ListTile(
-                    dense: true,
-                    title: MarqueeText(text: c.title),
-                    trailing: c.id == _chapterId
-                        ? Icon(Icons.check_rounded, size: 18, color: cs.primary)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      if (c.id != _chapterId) _goChapter(c.id);
-                    },
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 640),
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReaderSheetFrame(
+        title: '章节目录',
+        expand: true,
+        child: Builder(builder: (context) {
+          final cs = Theme.of(context).colorScheme;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            children: [
+              if (detail == null || detail.volumes.isEmpty)
+                const ListTile(title: Text('暂无目录'))
+              else
+                for (final v in detail.volumes) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+                    child: Text(v.title,
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurfaceVariant)),
                   ),
-              ],
-          ],
-        ),
+                  for (final c in v.chapters)
+                    Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: ListTile(
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          selected: c.id == _chapterId,
+                          selectedTileColor:
+                              cs.primaryContainer.withValues(alpha: 0.55),
+                          selectedColor: cs.onPrimaryContainer,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 3),
+                          title: Text(c.title,
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
+                          trailing: c.id == _chapterId
+                              ? Icon(Icons.check_rounded,
+                                  size: 18, color: cs.primary)
+                              : null,
+                          onTap: () {
+                            Navigator.pop(context);
+                            if (c.id != _chapterId) _goChapter(c.id);
+                          },
+                        )),
+                ],
+            ],
+          );
+        }),
       ),
     );
   }
 
   void _openSettings() {
-    final palette = _Palette.of(ref.read(novelReaderSettingsProvider).theme,
-        Theme.of(context).brightness);
     showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: palette.bg,
-      builder: (_) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-                surface: palette.bg,
-                onSurface: palette.fg,
-              ),
-        ),
-        child: const _ReaderSettingsSheet(),
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 640),
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ReaderSheetFrame(
+        title: '阅读设置',
+        child: _ReaderSettingsSheet(),
+      ),
+    );
+  }
+}
+
+class _ReaderSheetFrame extends ConsumerWidget {
+  const _ReaderSheetFrame(
+      {required this.title, required this.child, this.expand = false});
+  final String title;
+  final Widget child;
+  final bool expand;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final base = Theme.of(context);
+    final settings = ref.watch(novelReaderSettingsProvider);
+    final palette = _Palette.of(settings.theme, base.brightness);
+    final dark = palette.bg.computeLuminance() < 0.3;
+    final cs = base.colorScheme.copyWith(
+      brightness: dark ? Brightness.dark : Brightness.light,
+      surface: palette.bar,
+      onSurface: palette.fg,
+      onSurfaceVariant: palette.fg.withValues(alpha: 0.72),
+      primary: dark ? const Color(0xFFA0CFFF) : const Color(0xFF2477CE),
+      onPrimary: dark ? const Color(0xFF173755) : Colors.white,
+      primaryContainer:
+          dark ? const Color(0xFF284D76) : const Color(0xFFDDEEFF),
+      onPrimaryContainer:
+          dark ? const Color(0xFFE0F0FF) : const Color(0xFF185289),
+      secondaryContainer:
+          dark ? const Color(0xFF284D76) : const Color(0xFFDDEEFF),
+      onSecondaryContainer:
+          dark ? const Color(0xFFE0F0FF) : const Color(0xFF185289),
+      outlineVariant: palette.border,
+    );
+    final height = MediaQuery.sizeOf(context).height * 0.82;
+    return Theme(
+      data: base.copyWith(
+          colorScheme: cs,
+          textTheme: base.textTheme
+              .apply(bodyColor: palette.fg, displayColor: palette.fg),
+          iconTheme: IconThemeData(color: palette.fg)),
+      child: Container(
+        constraints: BoxConstraints(maxHeight: height),
+        height: expand ? height : null,
+        decoration: BoxDecoration(
+            color: palette.bar,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: palette.border.withValues(alpha: 0.7))),
+        clipBehavior: Clip.antiAlias,
+        child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                    child: Container(
+                        width: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 12),
+                        decoration: BoxDecoration(
+                            color: palette.fg.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4)))),
+                Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                    child: Text(title,
+                        style: TextStyle(
+                            fontSize: 18,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                            color: palette.fg))),
+                Flexible(
+                    fit: expand ? FlexFit.tight : FlexFit.loose, child: child),
+              ],
+            )),
       ),
     );
   }
@@ -602,77 +729,108 @@ class _ReaderSettingsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(novelReaderSettingsProvider);
     final notifier = ref.read(novelReaderSettingsProvider.notifier);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('字号',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          Row(
+    return SingleChildScrollView(
+      child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                onPressed: settings.fontSize > 12
-                    ? () => notifier.setFontSize(settings.fontSize - 1)
-                    : null,
-                icon: const Icon(Icons.remove_rounded),
-              ),
-              Text('${settings.fontSize.round()}',
-                  style: const TextStyle(fontSize: 15)),
-              IconButton(
-                onPressed: settings.fontSize < 28
-                    ? () => notifier.setFontSize(settings.fontSize + 1)
-                    : null,
-                icon: const Icon(Icons.add_rounded),
-              ),
+              _numberSetting(context,
+                  title: '字号',
+                  value: '${settings.fontSize.round()}',
+                  onDecrease: settings.fontSize > 12
+                      ? () => notifier.setFontSize(settings.fontSize - 1)
+                      : null,
+                  onIncrease: settings.fontSize < 28
+                      ? () => notifier.setFontSize(settings.fontSize + 1)
+                      : null),
+              _numberSetting(context,
+                  title: '行距',
+                  value: settings.lineHeight.toStringAsFixed(1),
+                  onDecrease: settings.lineHeight > 1.2
+                      ? () => notifier.setLineHeight(settings.lineHeight - 0.1)
+                      : null,
+                  onIncrease: settings.lineHeight < 2.6
+                      ? () => notifier.setLineHeight(settings.lineHeight + 0.1)
+                      : null),
+              _group(context,
+                  title: '主题',
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      for (final t in NovelReaderTheme.values)
+                        ChoiceChip(
+                          label: Text(switch (t) {
+                            NovelReaderTheme.auto => '跟随App',
+                            NovelReaderTheme.light => '浅色',
+                            NovelReaderTheme.sepia => '米色',
+                            NovelReaderTheme.dark => '深色',
+                          }),
+                          selected: settings.theme == t,
+                          selectedColor:
+                              Theme.of(context).colorScheme.primaryContainer,
+                          labelStyle: TextStyle(
+                              fontFamily: 'NotoSansSC',
+                              fontWeight: FontWeight.w400,
+                              color: settings.theme == t
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .onPrimaryContainer
+                                  : Theme.of(context).colorScheme.onSurface),
+                          showCheckmark: false,
+                          onSelected: (_) => notifier.setTheme(t),
+                        ),
+                    ],
+                  )),
             ],
-          ),
-          const SizedBox(height: 8),
-          const Text('行距',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          Row(
-            children: [
-              IconButton(
-                onPressed: settings.lineHeight > 1.2
-                    ? () => notifier.setLineHeight(settings.lineHeight - 0.1)
-                    : null,
-                icon: const Icon(Icons.remove_rounded),
-              ),
-              Text(settings.lineHeight.toStringAsFixed(1),
-                  style: const TextStyle(fontSize: 15)),
-              IconButton(
-                onPressed: settings.lineHeight < 2.6
-                    ? () => notifier.setLineHeight(settings.lineHeight + 0.1)
-                    : null,
-                icon: const Icon(Icons.add_rounded),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text('主题',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              for (final t in NovelReaderTheme.values)
-                ChoiceChip(
-                  label: Text(switch (t) {
-                    NovelReaderTheme.auto => '跟随App',
-                    NovelReaderTheme.light => '浅色',
-                    NovelReaderTheme.sepia => '米色',
-                    NovelReaderTheme.dark => '深色',
-                  }),
-                  selected: settings.theme == t,
-                  showCheckmark: false,
-                  onSelected: (_) => notifier.setTheme(t),
-                ),
-            ],
-          ),
-        ],
-      ),
+          )),
     );
   }
+
+  Widget _group(BuildContext context,
+      {required String title, required Widget child}) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: cs.primary.withValues(alpha: 0.035),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.65))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        child,
+      ]),
+    );
+  }
+
+  Widget _numberSetting(BuildContext context,
+          {required String title,
+          required String value,
+          VoidCallback? onDecrease,
+          VoidCallback? onIncrease}) =>
+      _group(context,
+          title: title,
+          child: Row(children: [
+            IconButton(
+                tooltip: '减小$title',
+                onPressed: onDecrease,
+                icon: const Icon(Icons.remove_rounded)),
+            Expanded(
+                child: Text(value,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.primary))),
+            IconButton(
+                tooltip: '增大$title',
+                onPressed: onIncrease,
+                icon: const Icon(Icons.add_rounded)),
+          ]));
 }

@@ -43,4 +43,18 @@ void main() {
     cache.putSearch('s', 'none', const <VideoItem>[]);
     expect(cache.search('s', 'none'), isEmpty);
   });
+
+  test('temporary empty searches and episode lists expire before real results',
+      () {
+    var now = DateTime(2026);
+    final cache = SourceCache(clock: () => now);
+    cache.putSearch('s', 'empty', const []);
+    cache.putEpisodes('s', 'detail', const []);
+    cache.putSearch('s', 'hit',
+        const [VideoItem(id: '1', title: 'found', detailUrl: 'detail')]);
+    now = now.add(const Duration(seconds: 31));
+    expect(cache.search('s', 'empty'), isNull);
+    expect(cache.episodes('s', 'detail'), isNull);
+    expect(cache.search('s', 'hit'), hasLength(1));
+  });
 }

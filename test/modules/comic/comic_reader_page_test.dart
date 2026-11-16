@@ -10,6 +10,7 @@ import 'package:libiko/core/comic/comic_reader_settings.dart';
 import 'package:libiko/core/comic/comic_source.dart';
 import 'package:libiko/core/comic/models.dart';
 import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/modules/comic/comic_providers.dart';
 import 'package:libiko/modules/comic/comic_reader_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,6 +58,57 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await AppDatabase.init();
   });
+
+  for (final dark in [false, true]) {
+    testWidgets(
+        '320px ${dark ? "dark" : "light"} reader controls and chapter sheet support enlarged text',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const secondTitle = '第二章：很长的章节名称用于验证换行和选择';
+      await tester.pumpWidget(ProviderScope(
+          overrides: [
+            comicEpProvider(('s', 'c', 'ch'))
+                .overrideWith((ref) async => const ComicEp(images: [])),
+            comicEpProvider(('s', 'c', 'ch2'))
+                .overrideWith((ref) async => const ComicEp(images: [])),
+            comicDetailProvider(('s', 'c')).overrideWith((ref) async =>
+                const ComicDetails(
+                    id: 'c',
+                    title: '很长的漫画作品名称用于检查顶部控制栏',
+                    chapters: {'ch': '第一章：故事的开始', 'ch2': secondTitle})),
+            comicImageProvider.overrideWithValue(_FakeImageProvider()),
+          ],
+          child: MaterialApp(
+              theme: dark ? buildAppDarkTheme() : buildAppTheme(),
+              builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: const TextScaler.linear(1.8)),
+                  child: child!),
+              home: const ComicReaderPage(
+                  sourceKey: 's', comicId: 'c', chapterId: 'ch'))));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('目录'));
+      await tester.pumpAndSettle();
+      expect(find.text('章节目录'), findsOneWidget);
+      expect(find.text('共 2 章'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text(secondTitle));
+      await tester.pumpAndSettle();
+      expect(find.text('章节目录'), findsNothing);
+      expect(find.text(secondTitle), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byTooltip('连续模式'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('翻页模式'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    });
+  }
 
   testWidgets(
       'immediate exit flushes the last page before the history throttle',

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'browser_pool.dart';
 import 'cancellation.dart';
@@ -78,6 +79,13 @@ String buildEpisodesScript(SourceRule rule) => '''
 ''';
 
 /// Loads a URL in a pooled [HeadlessBrowser] and evaluates an extraction script.
+class SourceQueueTimeoutException implements Exception {
+  const SourceQueueTimeoutException();
+
+  @override
+  String toString() => 'Source browser queue is busy';
+}
+
 class WebviewScraper {
   WebviewScraper({HeadlessBrowserPool? pool})
       : _pool = pool ?? sharedBrowserPool;
@@ -102,30 +110,48 @@ class WebviewScraper {
     required String url,
     required String script,
     String? userAgent,
-    Duration timeout = const Duration(seconds: 12),
+    Duration timeout = const Duration(seconds: 20),
+    Duration queueTimeout = const Duration(seconds: 8),
     CancellationToken? cancel,
+    BrowserPriority priority = BrowserPriority.background,
   }) async {
     if (cancel?.isCancelled ?? false) return const <dynamic>[];
     final operationCancel = CancellationToken();
     final cancelled = Completer<List<dynamic>>();
     void onCancel() {
-      operationCancel.cancel();
       if (!cancelled.isCompleted) cancelled.complete(const <dynamic>[]);
+      operationCancel.cancel();
     }
 
     cancel?.addListener(onCancel);
+    Future<List<dynamic>> attempt() async {
+      for (var index = 0; index < 2; index++) {
+        try {
+          return await _fetch(
+              url: url,
+              script: script,
+              userAgent: userAgent,
+              timeout: timeout,
+              queueTimeout: queueTimeout,
+              priority: priority,
+              cancel: operationCancel);
+        } on PlatformException {
+          // A failed native handle must not poison all subsequent sources.
+          // Retry once on a fresh browser, within the same total deadline.
+          if (index == 1 || operationCancel.isCancelled) rethrow;
+        }
+      }
+      return const [];
+    }
+
     try {
       return await Future.any<List<dynamic>>([
-        _fetch(
-            url: url,
-            script: script,
-            userAgent: userAgent,
-            timeout: timeout,
-            cancel: operationCancel),
+        attempt(),
         cancelled.future,
-      ]).timeout(timeout, onTimeout: () {
+      ]).timeout(timeout + queueTimeout, onTimeout: () {
         operationCancel.cancel();
-        throw TimeoutException('Source page request timed out', timeout);
+        throw TimeoutException(
+            'Source request deadline exceeded', timeout + queueTimeout);
       });
     } finally {
       operationCancel.cancel();
@@ -137,41 +163,84 @@ class WebviewScraper {
       {required String url,
       required String script,
       required Duration timeout,
+      required Duration queueTimeout,
       required CancellationToken cancel,
+      required BrowserPriority priority,
       String? userAgent}) async {
     PooledBrowser? pooled;
-    try {
-      pooled = await _pool.acquire(
-          userAgent: userAgent ?? kBrowserUserAgent,
-          priority: BrowserPriority.background,
-          cancel: cancel);
-      if (cancel.isCancelled) return const <dynamic>[];
-      // Await the current navigation before extracting: a pooled browser can
-      // still be flushing the previous document through its blank-page barrier.
-      // Its old rows must never become a successful result for the new source.
-      await pooled.load(url, timeout: timeout);
-      if (cancel.isCancelled) return const <dynamic>[];
-      final loadedAt = DateTime.now();
-      while (!cancel.isCancelled) {
-        final result =
-            await pooled.eval(script).timeout(const Duration(seconds: 3));
-        if (cancel.isCancelled) return const <dynamic>[];
-        final list = decodeResult(result);
-        if (list.isNotEmpty) return list;
-        if (DateTime.now().difference(loadedAt) >= const Duration(seconds: 2)) {
-          return const <dynamic>[];
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-      }
-      return const <dynamic>[];
-    } catch (_) {
-      if (cancel.isCancelled) return const <dynamic>[];
-      // A failed navigation, engine error or timeout is not an empty search.
-      // Propagate it so callers cannot cache it or label the source successful.
-      rethrow;
-    } finally {
+    var loaded = false;
+    var completed = false;
+    void abandon() {
       final borrowed = pooled;
-      if (borrowed != null) unawaited(borrowed.release());
+      if (borrowed != null) unawaited(borrowed.release(discard: true));
+    }
+
+    cancel.addListener(abandon);
+    try {
+      pooled = await _pool
+          .acquire(
+              userAgent: userAgent ?? kBrowserUserAgent,
+              priority: priority,
+              cancel: cancel)
+          .timeout(queueTimeout, onTimeout: () {
+        cancel.cancel();
+        throw const SourceQueueTimeoutException();
+      });
+      if (cancel.isCancelled) return const <dynamic>[];
+      final browser = pooled;
+      Object? loadError;
+      StackTrace? loadStack;
+      final loadDone = Completer<void>();
+      // Observe errors immediately, including when early extraction wins.
+      unawaited(browser.load(url, timeout: timeout).then((_) {
+        loaded = true;
+        loadDone.complete();
+      }, onError: (Object error, StackTrace stack) {
+        loadError = error;
+        loadStack = stack;
+        loadDone.complete();
+      }));
+      final afterLoad = Stopwatch();
+      Future<List<dynamic>> extract() async {
+        while (!cancel.isCancelled) {
+          if (loadError != null) {
+            Error.throwWithStackTrace(loadError!, loadStack!);
+          }
+          final wasLoaded = loaded;
+          final result = await browser
+              .evalCurrentDocument(script, allowLoadedFallback: loaded)
+              .timeout(const Duration(seconds: 3));
+          if (cancel.isCancelled) return const <dynamic>[];
+          final list = decodeResult(result);
+          if (list.isNotEmpty) return list;
+          if (!wasLoaded && loaded) continue;
+          if (loaded) {
+            if (!afterLoad.isRunning) afterLoad.start();
+            if (afterLoad.elapsed >= const Duration(seconds: 2)) {
+              return const <dynamic>[];
+            }
+          }
+          await Future.any<void>([
+            Future<void>.delayed(const Duration(milliseconds: 250)),
+            if (!loaded && loadError == null) loadDone.future,
+          ]);
+        }
+        return const <dynamic>[];
+      }
+
+      final result = await extract().timeout(timeout, onTimeout: () {
+        cancel.cancel();
+        throw TimeoutException('Source page request timed out', timeout);
+      });
+      completed = true;
+      return result;
+    } finally {
+      cancel.removeListener(abandon);
+      final borrowed = pooled;
+      if (borrowed != null) {
+        unawaited(borrowed.release(
+            discard: cancel.isCancelled || !loaded || !completed));
+      }
     }
   }
 }

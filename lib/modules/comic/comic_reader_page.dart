@@ -11,6 +11,7 @@ import '../../core/comic/models.dart';
 import '../../core/comic/reader_nav.dart';
 import '../../core/platform.dart';
 import '../../core/widgets/desktop_drag_area.dart';
+import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/reader_progress_bar.dart';
 import '../../core/widgets/window_controls.dart';
 import 'comic_providers.dart';
@@ -397,8 +398,8 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage>
 
   Widget _progressBar(ColorScheme cs, bool showChrome) {
     final insets = MediaQuery.paddingOf(context);
-    final topBar = 48 + (isDesktop ? 0.0 : insets.top);
-    final bottomBar = 48 + (isDesktop ? 0.0 : insets.bottom);
+    final topBar = 56 + (isDesktop ? 0.0 : insets.top);
+    final bottomBar = _bottomBarHeight + (isDesktop ? 0.0 : insets.bottom);
     return Positioned(
       top: topBar + 8,
       bottom: bottomBar + 8,
@@ -407,7 +408,9 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage>
         ignoring: !showChrome,
         child: AnimatedOpacity(
           opacity: showChrome ? 1 : 0,
-          duration: const Duration(milliseconds: 200),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 200),
           child: ValueListenableBuilder<double>(
             valueListenable: _progress,
             builder: (context, progress, _) => ReaderProgressBar(
@@ -427,34 +430,41 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage>
       top: 0,
       left: 0,
       right: 0,
-      child: DesktopDragArea(
+      child: GlassSurface(
+        blur: 12,
+        borderRadius: BorderRadius.zero,
+        color: _chromeColor(cs),
+        border: Border(
+            bottom:
+                BorderSide(color: cs.outlineVariant.withValues(alpha: 0.55))),
         child: Container(
-          height: 48 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
+          height: 56 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
           padding: EdgeInsets.only(
               left: 4,
               top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
-          decoration: BoxDecoration(
-            color: cs.surface,
-            border: Border(
-                bottom: BorderSide(color: cs.outlineVariant, width: 0.5)),
-          ),
           child: Row(
             children: [
               IconButton(
+                tooltip: '返回',
                 icon: const Icon(Icons.arrow_back_rounded),
                 onPressed: () => Navigator.pop(context),
                 splashRadius: 20,
               ),
               Expanded(
-                child: Text(
-                  details?.title ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface),
-                ),
+                child: DesktopDragArea(
+                    child: SizedBox(
+                        height: 56,
+                        child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              details?.title ?? '漫画阅读',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: cs.onSurface),
+                            )))),
               ),
               if (isDesktop) const WindowControls(),
             ],
@@ -463,6 +473,16 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage>
       ),
     );
   }
+
+  double get _bottomBarHeight =>
+      56 + (MediaQuery.textScalerOf(context).scale(13) - 13).clamp(0.0, 24.0);
+
+  // Nearly opaque blue-tinted chrome keeps artwork colors out of the controls.
+  Color _chromeColor(ColorScheme cs) => Color.alphaBlend(
+          cs.primary.withValues(
+              alpha: cs.brightness == Brightness.dark ? 0.08 : 0.04),
+          cs.surface)
+      .withValues(alpha: 0.96);
 
   Widget _bottomBar(
       ComicEp? ep, ComicDetails? details, ComicReaderSettings settings) {
@@ -473,50 +493,64 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage>
       left: 0,
       right: 0,
       bottom: 0,
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
-        ),
-        child: Row(
-          children: [
-            TextButton.icon(
-              onPressed: () => _openChapterList(details),
-              icon: const Icon(Icons.list_rounded, size: 18),
-              label: const Text('目录'),
-            ),
-            const Spacer(),
-            Flexible(
-              child: Text(
-                chapterTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '${total == 0 ? 0 : _page + 1} / $total',
-              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: settings.mode == ComicReaderMode.continuousVertical
-                  ? '翻页模式'
-                  : '连续模式',
-              onPressed: _toggleMode,
-              icon: Icon(
-                settings.mode == ComicReaderMode.continuousVertical
-                    ? Icons.swap_horiz_rounded
-                    : Icons.swap_vert_rounded,
-                size: 20,
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: GlassSurface(
+          blur: 12,
+          borderRadius: BorderRadius.zero,
+          color: _chromeColor(cs),
+          border: Border(
+              top:
+                  BorderSide(color: cs.outlineVariant.withValues(alpha: 0.55))),
+          child: SafeArea(
+              top: false,
+              child: SizedBox(
+                  height: _bottomBarHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _openChapterList(details),
+                          icon: const Icon(Icons.list_rounded, size: 18),
+                          label: const Text('目录'),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            chapterTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 13, color: cs.onSurfaceVariant),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${total == 0 ? 0 : _page + 1} / $total',
+                          style: TextStyle(
+                              fontSize: 13, color: cs.onSurfaceVariant),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          style: IconButton.styleFrom(
+                            backgroundColor:
+                                cs.primaryContainer.withValues(alpha: 0.55),
+                            foregroundColor: cs.primary,
+                          ),
+                          tooltip: settings.mode ==
+                                  ComicReaderMode.continuousVertical
+                              ? '翻页模式'
+                              : '连续模式',
+                          onPressed: _toggleMode,
+                          icon: Icon(
+                            settings.mode == ComicReaderMode.continuousVertical
+                                ? Icons.swap_horiz_rounded
+                                : Icons.swap_vert_rounded,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )))),
     );
   }
 
@@ -526,21 +560,97 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage>
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: cs.surface,
-      builder: (ctx) => ListView.builder(
-        itemCount: chapters.length,
-        itemBuilder: (_, i) {
-          final entry = chapters[i];
-          return ListTile(
-            title: Text(entry.value),
-            selected: entry.key == _chapterId,
-            selectedColor: cs.primary,
-            onTap: () {
-              Navigator.pop(ctx);
-              _goToChapter(entry.key);
-            },
-          );
-        },
-      ),
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 640),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+          top: false,
+          child: SizedBox(
+              height: MediaQuery.sizeOf(ctx).height * 0.7,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                        child: Wrap(
+                            spacing: 12,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text('章节目录',
+                                  style: Theme.of(ctx).textTheme.titleLarge),
+                              Text('共 ${chapters.length} 章',
+                                  style: Theme.of(ctx)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: cs.onSurfaceVariant)),
+                            ])),
+                    Divider(
+                        height: 1,
+                        color: cs.outlineVariant.withValues(alpha: 0.55)),
+                    Expanded(
+                        child: chapters.isEmpty
+                            ? Center(
+                                child: Text('暂无章节',
+                                    style:
+                                        TextStyle(color: cs.onSurfaceVariant)))
+                            : ListView.separated(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                                itemCount: chapters.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 6),
+                                itemBuilder: (_, i) {
+                                  final entry = chapters[i];
+                                  final selected = entry.key == _chapterId;
+                                  return Material(
+                                      color: selected
+                                          ? cs.primaryContainer
+                                              .withValues(alpha: 0.55)
+                                          : cs.surfaceContainerLow
+                                              .withValues(alpha: 0.5),
+                                      borderRadius: BorderRadius.circular(12),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: ListTile(
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 14, vertical: 6),
+                                        leading: Icon(
+                                            selected
+                                                ? Icons
+                                                    .play_circle_outline_rounded
+                                                : Icons.menu_book_rounded,
+                                            color: selected
+                                                ? cs.primary
+                                                : cs.onSurfaceVariant,
+                                            size: 22),
+                                        title: Text(entry.value,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(ctx)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                    fontWeight: selected
+                                                        ? FontWeight.w600
+                                                        : FontWeight.w400)),
+                                        trailing: selected
+                                            ? Icon(Icons.check_rounded,
+                                                color: cs.primary, size: 20)
+                                            : null,
+                                        selected: selected,
+                                        selectedColor: cs.primary,
+                                        onTap: () {
+                                          Navigator.pop(ctx);
+                                          _goToChapter(entry.key);
+                                        },
+                                      ));
+                                },
+                              )),
+                  ]))),
     );
   }
 

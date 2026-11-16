@@ -9,9 +9,17 @@ import '../../core/platform.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/glass_surface.dart';
 import '../../core/widgets/smooth_route.dart';
 import '../../core/widgets/window_controls.dart';
 import 'game_providers.dart';
+
+EdgeInsets _detailInsets(BuildContext context) {
+  final side = ((MediaQuery.sizeOf(context).width - 1120) / 2)
+      .clamp(16.0, double.infinity)
+      .toDouble();
+  return EdgeInsets.fromLTRB(side, 20, side, 28);
+}
 
 class GameDetailPage extends ConsumerWidget {
   final String sourceKey;
@@ -38,7 +46,7 @@ class GameDetailPage extends ConsumerWidget {
           _header(context),
           Expanded(
             child: async.when(
-              loading: () => _loading(cs),
+              loading: () => _loading(context, cs),
               error: (_, __) => EmptyState(
                 icon: Icons.cloud_off_rounded,
                 message: '加载失败',
@@ -53,11 +61,12 @@ class GameDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _loading(ColorScheme cs) {
+  Widget _loading(BuildContext context, ColorScheme cs) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: _detailInsets(context),
       children: [
         _infoCard(
+          context,
           Game(id: gameId, title: title, coverUrl: cover),
           cover,
           GameDetail(game: Game(id: gameId, title: title), sourceUrl: ''),
@@ -94,7 +103,9 @@ class GameDetailPage extends ConsumerWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface),
               ),
             ),
             if (isDesktop) const WindowControls(),
@@ -117,25 +128,38 @@ class GameDetailPage extends ConsumerWidget {
         ? game.coverUrl
         : ((cover?.isNotEmpty ?? false) ? cover : null);
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: _detailInsets(context),
       children: [
-        _infoCard(game, coverUrl, detail, cs),
+        _infoCard(context, game, coverUrl, detail, cs),
         if (detail.paragraphs.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _sectionTitle('简介', cs),
-          const SizedBox(height: 8),
-          for (final p in detail.paragraphs)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(p,
-                  style: TextStyle(fontSize: 13, height: 1.6, color: cs.onSurface)),
-            ),
+          _section(cs,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionTitle('简介', cs),
+                    const SizedBox(height: 14),
+                    for (final p in detail.paragraphs)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(p,
+                            style: TextStyle(
+                                fontSize: 14,
+                                height: 1.7,
+                                color: cs.onSurface)),
+                      ),
+                  ])),
         ],
         if (detail.screenshots.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _sectionTitle('截图', cs),
-          const SizedBox(height: 8),
-          _gallery(context, detail.screenshots),
+          _section(cs,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionTitle('截图', cs),
+                    const SizedBox(height: 14),
+                    _gallery(context, detail.screenshots),
+                  ])),
         ],
         const SizedBox(height: 20),
         Text('数据来源 ${_sourceHost(detail.sourceUrl)}',
@@ -145,7 +169,17 @@ class GameDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _infoCard(Game game, String? coverUrl, GameDetail detail, ColorScheme cs) {
+  Widget _section(ColorScheme cs, {required Widget child}) => GlassSurface(
+        blur: 0,
+        color: cs.surface,
+        padding: const EdgeInsets.all(20),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
+        child: child,
+      );
+
+  Widget _infoCard(BuildContext context, Game game, String? coverUrl,
+      GameDetail detail, ColorScheme cs) {
+    final compact = MediaQuery.sizeOf(context).width < 560;
     final meta = <(String, String)>[
       if (game.publishedAt != null) ('发布时间', _formatDate(game.publishedAt!)),
       if (detail.updatedAt != null) ('最近更新', _formatDate(detail.updatedAt!)),
@@ -156,9 +190,11 @@ class GameDetailPage extends ConsumerWidget {
       if (game.views != null) ('浏览热度', _formatCount(game.views!)),
     ];
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-          color: cs.surface, borderRadius: BorderRadius.circular(12)),
+          color: cs.surface,
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
+          borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -168,19 +204,24 @@ class GameDetailPage extends ConsumerWidget {
               Hero(
                 tag: 'game_${sourceKey}_$gameId',
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child:
-                      SizedBox(width: 100, height: 132, child: _cover(coverUrl)),
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                      width: compact ? 64 : 110,
+                      height: compact ? 88 : 147,
+                      child: _cover(coverUrl, cs)),
                 ),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: compact ? 12 : 24),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(game.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 17,
+                            fontSize: 20,
+                            height: 1.35,
                             fontWeight: FontWeight.w600,
                             color: cs.onSurface)),
                     const SizedBox(height: 8),
@@ -223,7 +264,8 @@ class GameDetailPage extends ConsumerWidget {
                                 fontSize: 12, color: cs.onSurfaceVariant))),
                     Expanded(
                         child: Text(value,
-                            style: TextStyle(fontSize: 12, color: cs.onSurface))),
+                            style:
+                                TextStyle(fontSize: 12, color: cs.onSurface))),
                   ],
                 ),
               ),
@@ -247,7 +289,7 @@ class GameDetailPage extends ConsumerWidget {
             smoothRoute(_ImageViewerPage(urls: urls, initialIndex: i)),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: SizedBox(
               width: 200,
               height: 112.5,
@@ -284,9 +326,13 @@ class GameDetailPage extends ConsumerWidget {
                 fontWeight: FontWeight.w500)),
       );
 
-  Widget _cover(String? url) {
+  Widget _cover(String? url, ColorScheme cs) {
     if (url == null || url.isEmpty) {
-      return Container(color: const Color(0xFFE8EAF6));
+      return Container(
+          color: cs.primaryContainer,
+          alignment: Alignment.center,
+          child: Icon(Icons.sports_esports_outlined,
+              color: cs.onPrimaryContainer));
     }
     return CachedNetworkImage(
       imageUrl: url,
@@ -294,8 +340,12 @@ class GameDetailPage extends ConsumerWidget {
       memCacheWidth: 300,
       httpHeaders: gameImageHeadersFor(url),
       cacheManager: AppCacheManager(),
-      placeholder: (_, __) => Container(color: const Color(0xFFE8EAF6)),
-      errorWidget: (_, __, ___) => Container(color: const Color(0xFFE8EAF6)),
+      placeholder: (_, __) => Container(color: cs.primaryContainer),
+      errorWidget: (_, __, ___) => Container(
+          color: cs.primaryContainer,
+          alignment: Alignment.center,
+          child: Icon(Icons.sports_esports_outlined,
+              color: cs.onPrimaryContainer)),
     );
   }
 
@@ -377,8 +427,8 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
             right: 0,
             child: DesktopDragArea(
               child: Container(
-                height: 48 +
-                    (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
+                height:
+                    48 + (isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
                 padding: EdgeInsets.only(
                     left: 4,
                     top: isDesktop ? 0.0 : MediaQuery.of(context).padding.top),
@@ -386,7 +436,8 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
                   children: [
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      icon:
+                          const Icon(Icons.close_rounded, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
                     ),
                     if (isDesktop)

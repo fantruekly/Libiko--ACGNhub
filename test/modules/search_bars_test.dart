@@ -15,22 +15,34 @@ void main() {
   };
 
   for (final entry in pages.entries) {
-    testWidgets('${entry.key} search field has no focus border and is collapsed',
+    testWidgets(
+        '${entry.key} search enables only usable input and keeps focus after clearing',
         (tester) async {
       await tester.pumpWidget(ProviderScope(
         child: MaterialApp(home: entry.value),
       ));
       await tester.pump();
 
-      final field = tester.widget<TextField>(find.byType(TextField));
-      final decoration = field.decoration!;
-      expect(decoration.border, InputBorder.none);
-      expect(decoration.enabledBorder, InputBorder.none);
-      expect(decoration.focusedBorder, InputBorder.none);
-      expect(decoration.errorBorder, InputBorder.none);
-      expect(decoration.focusedErrorBorder, InputBorder.none);
-      expect(decoration.isCollapsed, isTrue);
-      expect(decoration.filled, isFalse);
+      FilledButton submit() =>
+          tester.widget<FilledButton>(find.widgetWithText(FilledButton, '搜索'));
+      expect(submit().onPressed, isNull);
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.pump();
+      expect(submit().onPressed, isNull);
+      await tester.enterText(find.byType(TextField), '示例关键词');
+      await tester.pump();
+      expect(submit().onPressed, isNotNull);
+      await tester.tap(find.byTooltip('清空输入'));
+      await tester.pump();
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty);
+      expect(
+          tester
+              .widget<EditableText>(find.byType(EditableText))
+              .focusNode
+              .hasFocus,
+          isTrue);
+      expect(submit().onPressed, isNull);
     });
   }
 }

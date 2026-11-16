@@ -9,6 +9,7 @@ import '../../core/comic/comic_source.dart';
 import '../../core/services/app_http.dart';
 import '../../core/sources/source_preferences.dart';
 import '../../core/sources/source_management_widgets.dart';
+import '../../core/widgets/content_panel.dart';
 import 'comic_account_dialog.dart';
 import 'comic_providers.dart';
 
@@ -66,18 +67,19 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
             ),
         ],
       ),
-      body: _reordering
-          ? _reorderBody()
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              children: [
-                ..._sourceSection(sourcesAsync),
-                const SizedBox(height: 24),
-                _addSection(),
-                const SizedBox(height: 24),
-                _remoteListSection(),
-              ],
-            ),
+      body: SourceManagementBody(
+          child: _reordering
+              ? _reorderBody()
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                  children: [
+                    ..._sourceSection(sourcesAsync),
+                    const SizedBox(height: 24),
+                    _addSection(),
+                    const SizedBox(height: 24),
+                    _remoteListSection(),
+                  ],
+                )),
     );
   }
 
@@ -105,7 +107,7 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
 
   Widget _reorderBody() {
     return ReorderableListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
       buildDefaultDragHandles: false,
       itemCount: _draft.length,
       onReorder: (oldIndex, newIndex) {
@@ -173,74 +175,83 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
     ];
     return Card(
       key: key,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
       color: cs.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        title: Text(source.name),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 2),
-            Text('${source.key} · v${source.version}'),
-            SourceHealthSummary(kind: SourceKind.comic, sourceId: source.key),
-            if (reorderIndex == null)
-              SourcePreferenceControls(
-                  kind: SourceKind.comic,
-                  sourceId: source.key,
-                  order: ref
-                      .read(sourcePreferencesProvider)
-                      .apply(
-                          SourceKind.comic,
-                          ref.read(allComicSourcesProvider).valueOrNull ??
-                              <ComicSource>[],
-                          (source) => source.key,
-                          includeDisabled: true)
-                      .map((s) => s.key)
-                      .toList()),
-            if (caps.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [for (final cap in caps) _capChip(cap)],
-              ),
-            ],
-            const SizedBox(height: 4),
-          ],
-        ),
-        trailing: reorderIndex != null
-            ? ReorderableDragStartListener(
-                index: reorderIndex,
-                child:
-                    Icon(Icons.drag_handle_rounded, color: cs.onSurfaceVariant),
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _loginBadge(source),
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'account') _openAccount(source);
-                      if (value == 'refresh') _refresh(source);
-                      if (value == 'delete') _confirmDelete(source);
-                    },
-                    itemBuilder: (_) => [
-                      if (source.hasLogin || source.hasCookieLogin)
-                        const PopupMenuItem(
-                            value: 'account', child: Text('账号')),
-                      PopupMenuItem(
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.55))),
+      child: Padding(
+          padding: const EdgeInsets.all(16),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                  child: Text(source.name,
+                      style: Theme.of(context).textTheme.titleMedium)),
+              if (reorderIndex != null)
+                ReorderableDragStartListener(
+                    index: reorderIndex,
+                    child: Icon(Icons.drag_handle_rounded,
+                        color: cs.onSurfaceVariant))
+              else
+                PopupMenuButton<String>(
+                  tooltip: '源操作',
+                  onSelected: (value) {
+                    if (value == 'account') _openAccount(source);
+                    if (value == 'refresh') _refresh(source);
+                    if (value == 'delete') _confirmDelete(source);
+                  },
+                  itemBuilder: (_) => [
+                    if (source.hasLogin || source.hasCookieLogin)
+                      const PopupMenuItem(value: 'account', child: Text('账号')),
+                    PopupMenuItem(
                         value: 'refresh',
                         enabled: source.fileName.isNotEmpty,
-                        child: const Text('刷新'),
-                      ),
-                      const PopupMenuItem(value: 'delete', child: Text('删除')),
-                    ],
+                        child: const Text('刷新')),
+                    const PopupMenuItem(value: 'delete', child: Text('删除')),
+                  ],
+                ),
+            ]),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 2),
+                Text('${source.key} · v${source.version}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: cs.onSurfaceVariant)),
+                const SizedBox(height: 10),
+                SourceHealthSummary(
+                    kind: SourceKind.comic, sourceId: source.key),
+                if (reorderIndex == null)
+                  SourcePreferenceControls(
+                      kind: SourceKind.comic,
+                      sourceId: source.key,
+                      order: ref
+                          .read(sourcePreferencesProvider)
+                          .apply(
+                              SourceKind.comic,
+                              ref.read(allComicSourcesProvider).valueOrNull ??
+                                  <ComicSource>[],
+                              (source) => source.key,
+                              includeDisabled: true)
+                          .map((s) => s.key)
+                          .toList()),
+                if (caps.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [for (final cap in caps) _capChip(cap)],
                   ),
                 ],
-              ),
-      ),
+                const SizedBox(height: 4),
+              ],
+            ),
+            if (reorderIndex == null) _loginBadge(source),
+          ])),
     );
   }
 
@@ -263,76 +274,80 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
   }
 
   Widget _addSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _SectionTitle('添加源'),
-        TextField(
-          controller: _urlCtrl,
-          decoration: const InputDecoration(
-            hintText: 'https://example.com/source.js',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-        ),
-        const SizedBox(height: 12),
-        FilledButton(
-          onPressed: _importing ? null : _importFromUrl,
-          child: _importing
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('从 URL 导入'),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: _importing ? null : _importFromFile,
-          child: const Text('从文件导入'),
-        ),
-        if (_importError != null) ...[
-          const SizedBox(height: 8),
-          Text(_importError!,
-              style: const TextStyle(fontSize: 13, color: Colors.red)),
-        ],
-      ],
-    );
+    return ContentPanel(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _SectionTitle('添加源'),
+            TextField(
+              controller: _urlCtrl,
+              decoration: const InputDecoration(
+                hintText: 'https://example.com/source.js',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _importing ? null : _importFromUrl,
+              child: _importing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('从 URL 导入'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: _importing ? null : _importFromFile,
+              child: const Text('从文件导入'),
+            ),
+            if (_importError != null) ...[
+              const SizedBox(height: 8),
+              Text(_importError!,
+                  style: const TextStyle(fontSize: 13, color: Colors.red)),
+            ],
+          ],
+        ));
   }
 
   Widget _remoteListSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _SectionTitle('远程规则列表'),
-        TextField(
-          controller: _listCtrl,
-          decoration: const InputDecoration(
-            hintText: 'https://example.com/sources.json',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-          onChanged: (value) =>
-              ref.read(comicSourceListUrlProvider.notifier).set(value),
-        ),
-        const SizedBox(height: 12),
-        FilledButton(
-          onPressed: _loadingList ? null : _fetchRemoteList,
-          child: _loadingList
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('获取列表'),
-        ),
-        if (_listError != null) ...[
-          const SizedBox(height: 8),
-          Text(_listError!,
-              style: const TextStyle(fontSize: 13, color: Colors.red)),
-        ],
-        const SizedBox(height: 12),
-        for (final entry in _remoteEntries) _remoteEntryTile(entry),
-      ],
-    );
+    return ContentPanel(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _SectionTitle('远程规则列表'),
+            TextField(
+              controller: _listCtrl,
+              decoration: const InputDecoration(
+                hintText: 'https://example.com/sources.json',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (value) =>
+                  ref.read(comicSourceListUrlProvider.notifier).set(value),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _loadingList ? null : _fetchRemoteList,
+              child: _loadingList
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('获取列表'),
+            ),
+            if (_listError != null) ...[
+              const SizedBox(height: 8),
+              Text(_listError!,
+                  style: const TextStyle(fontSize: 13, color: Colors.red)),
+            ],
+            const SizedBox(height: 12),
+            for (final entry in _remoteEntries) _remoteEntryTile(entry),
+          ],
+        ));
   }
 
   Widget _remoteEntryTile(Map<String, dynamic> entry) {
@@ -344,7 +359,9 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       color: cs.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.55))),
       child: ListTile(
         title: Text(name),
         subtitle: description == null ? null : Text(description),
@@ -489,22 +506,25 @@ class _ComicSourcePageState extends ConsumerState<ComicSourcePage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (username != null && username.isNotEmpty)
-              Padding(
+              Flexible(
+                  child: Padding(
                 padding: const EdgeInsets.only(right: 6),
                 child: Text(username,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-              ),
+              )),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFF34C759).withValues(alpha: 0.12),
+                color: cs.primaryContainer.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text('已登录',
+              child: Text('已登录',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF34C759))),
+                      color: cs.onPrimaryContainer)),
             ),
           ],
         );

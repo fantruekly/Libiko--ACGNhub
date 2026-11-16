@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -70,12 +71,14 @@ class ApiSearchConfig {
   final String listPath;
   final String namePath;
   final String sourcePath;
+  final String sourceTemplate;
 
   const ApiSearchConfig({
     this.request = const ApiRequestConfig(),
     this.listPath = r'$.data[*]',
     this.namePath = r'$.name',
     this.sourcePath = r'$.url',
+    this.sourceTemplate = '',
   });
 
   factory ApiSearchConfig.fromJson(Map<String, dynamic> json) {
@@ -84,6 +87,7 @@ class ApiSearchConfig {
       listPath: json['listPath'] as String? ?? r'$.data[*]',
       namePath: json['namePath'] as String? ?? r'$.name',
       sourcePath: json['sourcePath'] as String? ?? r'$.url',
+      sourceTemplate: json['sourceTemplate'] as String? ?? '',
     );
   }
 }
@@ -96,6 +100,7 @@ class ApiChapterConfig {
 
   final String roadsPath;
   final String roadNamePath;
+  final String roadCodePath;
   final String episodesPath;
   final String episodeNamePath;
   final String episodeUrlPath;
@@ -115,6 +120,7 @@ class ApiChapterConfig {
     this.format = ApiChapterFormat.nested,
     this.roadsPath = r'$.data.roads[*]',
     this.roadNamePath = r'$.name',
+    this.roadCodePath = '',
     this.episodesPath = r'$.episodes[*]',
     this.episodeNamePath = r'$.name',
     this.episodeUrlPath = r'$.url',
@@ -133,6 +139,7 @@ class ApiChapterConfig {
       format: ApiChapterFormat.normalize(json['format']),
       roadsPath: json['roadsPath'] as String? ?? r'$.data.roads[*]',
       roadNamePath: json['roadNamePath'] as String? ?? r'$.name',
+      roadCodePath: json['roadCodePath'] as String? ?? '',
       episodesPath: json['episodesPath'] as String? ?? r'$.episodes[*]',
       episodeNamePath: json['episodeNamePath'] as String? ?? r'$.name',
       episodeUrlPath: json['episodeUrlPath'] as String? ?? r'$.url',
@@ -220,8 +227,11 @@ String resolveEpisodeUrl(String template, Map<String, String> vars) {
 class ApiRuleClient {
   final SourceRule rule;
   final Dio _dio;
+  final Duration timeout;
 
-  ApiRuleClient(this.rule, {Dio? dio}) : _dio = dio ?? Dio();
+  ApiRuleClient(this.rule,
+      {Dio? dio, this.timeout = const Duration(seconds: 20)})
+      : _dio = dio ?? Dio(BaseOptions(connectTimeout: timeout));
 
   Future<List<VideoItem>> search(String keyword,
       {CancellationToken? cancel}) async {
@@ -233,14 +243,22 @@ class ApiRuleClient {
       'keyword': keyword,
       'baseUrl': rule.baseUrl,
     };
-    final document = await _send(config.request, variables);
+    final document = await _send(config.request, variables, cancel);
     if (cancel?.isCancelled ?? false) return const [];
     final items = <VideoItem>[];
     for (final node in jsonPathAll(document, config.listPath)) {
       final title = _firstString(jsonPathAll(node, config.namePath));
       final source = _firstString(jsonPathAll(node, config.sourcePath));
       if (title.isEmpty || source.isEmpty) continue;
-      items.add(VideoItem(id: source, title: title, detailUrl: source));
+      final detailUrl = config.sourceTemplate.isEmpty
+          ? source
+          : _resolveUrl(
+              resolveEpisodeUrl(config.sourceTemplate, {
+                ...variables,
+                'source': source,
+              }),
+              rule.baseUrl);
+      items.add(VideoItem(id: source, title: title, detailUrl: detailUrl));
     }
     return items;
   }
@@ -255,7 +273,7 @@ class ApiRuleClient {
       'source': detailUrl,
       'baseUrl': rule.baseUrl,
     };
-    final document = await _send(config.request, variables);
+    final document = await _send(config.request, variables, cancel);
     if (cancel?.isCancelled ?? false) return const [];
     return config.format == ApiChapterFormat.delimited
         ? _parseDelimited(document, config, variables)
@@ -286,7 +304,11 @@ class ApiRuleClient {
             : _firstString(jsonPathAll(node, config.episodeUrlPath));
         final url = _episodeUrl(
           config,
-          rootVariables,
+          {
+            ...rootVariables,
+            if (config.roadCodePath.isNotEmpty)
+              'roadCode': _firstString(jsonPathAll(road, config.roadCodePath)),
+          },
           rawUrl: rawUrl,
           roadIndex: roadIndex,
           episodeIndex: roadEpisodeIndex,
@@ -399,8 +421,9 @@ class ApiRuleClient {
     var url = resolveEpisodeUrl(config.episodePageUrl, variables);
     if (config.episodePageQuery.isNotEmpty) {
       final query = config.episodePageQuery.entries
-          .map((e) => '${resolveEpisodeUrl(e.key, variables)}='
-              '${resolveEpisodeUrl(e.value, variables)}')
+          .map((e) =>
+              '${Uri.encodeQueryComponent(resolveEpisodeUrl(e.key, variables))}='
+              '${Uri.encodeQueryComponent(resolveEpisodeUrl(e.value, variables))}')
           .join('&');
       url = '$url${url.contains('?') ? '&' : '?'}$query';
     }
@@ -410,6 +433,7 @@ class ApiRuleClient {
   Future<dynamic> _send(
     ApiRequestConfig config,
     Map<String, String> variables,
+    CancellationToken? cancel,
   ) async {
     final url = _resolveUrl(
       resolveEpisodeUrl(config.url, variables),
@@ -423,13 +447,35 @@ class ApiRuleClient {
       (key, value) => MapEntry(resolveEpisodeUrl(key, variables),
           resolveEpisodeUrl(value, variables)),
     );
-    final response = await _dio.request<dynamic>(
-      url,
-      data: _body(config, variables),
-      queryParameters: query,
-      options: Options(method: config.method, headers: headers),
-    );
-    return _decode(response.data);
+    final requestCancel = CancelToken();
+    void stop() => requestCancel.cancel('Source request cancelled');
+    cancel?.addListener(stop);
+    try {
+      final response = await _dio
+          .request<dynamic>(
+        url,
+        data: _body(config, variables),
+        queryParameters: query,
+        cancelToken: requestCancel,
+        options: Options(
+            method: config.method,
+            headers: headers,
+            sendTimeout: timeout,
+            receiveTimeout: timeout),
+      )
+          .timeout(timeout, onTimeout: () {
+        stop();
+        throw TimeoutException('Source API request timed out', timeout);
+      });
+      return _decode(response.data);
+    } on DioException catch (error) {
+      if (cancel?.isCancelled == true && CancelToken.isCancel(error)) {
+        return null;
+      }
+      rethrow;
+    } finally {
+      cancel?.removeListener(stop);
+    }
   }
 
   dynamic _body(ApiRequestConfig config, Map<String, String> variables) {

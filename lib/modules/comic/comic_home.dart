@@ -8,10 +8,12 @@ import '../../core/comic/comic_source.dart';
 import '../../core/comic/explore_result.dart';
 import '../../core/services/cache_manager.dart';
 import '../../core/widgets/adaptive_grid.dart';
+import '../../core/widgets/content_panel.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/chip_bar.dart';
 import '../../core/widgets/chip_nav.dart';
 import '../../core/widgets/pager_bar.dart';
+import '../../core/widgets/poster_title.dart';
 import '../../core/widgets/ratio_cover.dart';
 import '../../core/widgets/shimmer_loader.dart';
 import '../../core/widgets/slide_switcher.dart';
@@ -93,7 +95,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     final sourcesAsync = ref.watch(comicSourcesProvider);
 
     return sourcesAsync.when(
-      loading: () => const ShimmerLoader(crossAxisCount: 6, mobileColumns: 3),
+      loading: () => const ShimmerLoader(crossAxisCount: 6),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
@@ -128,7 +130,8 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
                     ?.parts ??
                 const <ComicPart>[])
             : const <ComicPart>[];
-        final part = parts.isEmpty ? 0 : _selectedPart.clamp(0, parts.length - 1);
+        final part =
+            parts.isEmpty ? 0 : _selectedPart.clamp(0, parts.length - 1);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -241,8 +244,8 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
   }
 
   Widget _explore(ComicSource source, int section, int part, int sourceIndex) {
-    final async = ref
-        .watch(comicExploreProvider((source.key, section, part, _page)));
+    final async =
+        ref.watch(comicExploreProvider((source.key, section, part, _page)));
     final pageData = async.valueOrNull;
 
     if (pageData != null &&
@@ -258,14 +261,11 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
         Expanded(
           child: SlideSwitcher(
             id: (source.key, section, part, _page),
-            index: sourceIndex * 1000000 +
-                section * 10000 +
-                part * 100 +
-                _page,
+            index: sourceIndex * 1000000 + section * 10000 + part * 100 + _page,
             child: async.when(
               loading: () => const ShimmerLoader(
                 crossAxisCount: 6,
-                mobileColumns: 3,
+                mobileTitleExtent: 48,
                 itemCount: 12,
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
               ),
@@ -338,9 +338,8 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
   }
 
   Widget _paginationBar(ComicExplorePage data, bool loading) {
-    final label = data.maxPage == null
-        ? '第 $_page 页'
-        : '第 $_page / ${data.maxPage} 页';
+    final label =
+        data.maxPage == null ? '第 $_page 页' : '第 $_page / ${data.maxPage} 页';
     return PagerBar(
       label: label,
       onPrevious: _page > 1 ? () => setState(() => _page--) : null,
@@ -391,8 +390,12 @@ class _HistoryTab extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               Text(
                 '历史记录',
@@ -402,11 +405,9 @@ class _HistoryTab extends ConsumerWidget {
                     color: cs.onSurface,
                     height: 1.4),
               ),
-              const Spacer(),
               TextButton(
-                onPressed: records.isEmpty
-                    ? null
-                    : () => _confirmClear(context, ref),
+                onPressed:
+                    records.isEmpty ? null : () => _confirmClear(context, ref),
                 child: const Text('清空历史'),
               ),
             ],
@@ -417,9 +418,17 @@ class _HistoryTab extends ConsumerWidget {
               ? const EmptyState(
                   icon: Icons.history_rounded, message: '还没有阅读记录')
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                   itemCount: records.length,
-                  itemBuilder: (_, i) => _historyRow(context, records[i]),
+                  itemBuilder: (_, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: ContentPanel(
+                      padding: const EdgeInsets.all(12),
+                      child: Material(
+                          type: MaterialType.transparency,
+                          child: _historyRow(context, records[i])),
+                    ),
+                  ),
                 ),
         ),
       ],
@@ -430,7 +439,7 @@ class _HistoryTab extends ConsumerWidget {
 Widget _historyRow(BuildContext context, ComicHistoryEntry entry) {
   final cs = Theme.of(context).colorScheme;
   return InkWell(
-    borderRadius: BorderRadius.circular(10),
+    borderRadius: BorderRadius.circular(14),
     onTap: () => Navigator.push(
       context,
       smoothRoute(ComicReaderPage(
@@ -445,7 +454,7 @@ Widget _historyRow(BuildContext context, ComicHistoryEntry entry) {
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             child: SizedBox(
               width: 56,
               height: 76,
@@ -498,8 +507,7 @@ Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('取消')),
         TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('清空')),
+            onPressed: () => Navigator.pop(ctx, true), child: const Text('清空')),
       ],
     ),
   );
@@ -512,8 +520,10 @@ Widget _comicGrid({
   required Widget Function(int) itemBuilder,
 }) {
   return AdaptiveGridView(
+    responsiveColumns: true,
+    mobileTitleExtent: 48,
     itemCount: count,
-    mobileColumns: 3,
+    mobileColumns: mobilePosterColumns,
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
     itemBuilder: (_, i) => itemBuilder(i),
   );
@@ -521,15 +531,15 @@ Widget _comicGrid({
 
 Widget _cover(String? url, ColorScheme cs) {
   if (url == null || url.isEmpty) {
-    return Container(color: cs.outlineVariant);
+    return Container(color: cs.surfaceContainerLow);
   }
   return CachedNetworkImage(
     imageUrl: url,
     fit: BoxFit.cover,
     memCacheWidth: 200,
     cacheManager: AppCacheManager(),
-    placeholder: (_, __) => Container(color: cs.outlineVariant),
-    errorWidget: (_, __, ___) => Container(color: cs.outlineVariant),
+    placeholder: (_, __) => Container(color: cs.surfaceContainerLow),
+    errorWidget: (_, __, ___) => Container(color: cs.surfaceContainerLow),
   );
 }
 
@@ -564,46 +574,52 @@ class ComicCard extends StatelessWidget {
     Widget image = RatioCover(
       url: cover,
       placeholderBuilder: (_) => _placeholder(cs),
-      fadeInDuration: const Duration(milliseconds: 200),
+      fadeInDuration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 200),
       enabled: false,
     );
     if (heroTag != null) {
       image = Hero(tag: heroTag!, child: image);
     }
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: image),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 38,
-            child: Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                height: 1.45,
-                color: cs.onSurface,
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        hoverColor: cs.primary.withValues(alpha: 0.05),
+        focusColor: cs.primary.withValues(alpha: 0.12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+                child: Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
               ),
-            ),
-          ),
-        ],
+              foregroundDecoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: cs.outlineVariant.withValues(alpha: 0.45)),
+              ),
+              child: image,
+            )),
+            PosterTitle(title),
+          ],
+        ),
       ),
     );
   }
 
   Widget _placeholder(ColorScheme cs) {
     final hash = title.hashCode.abs();
-    final bgColors = const [
-      Color(0xFFF3E5F5),
-      Color(0xFFEDE7F6),
-      Color(0xFFE8EAF6),
-      Color(0xFFE0F2F1),
+    final bgColors = [
+      cs.surfaceContainerLow,
+      cs.secondaryContainer,
+      cs.surfaceContainer,
+      cs.primaryContainer
     ];
     return Container(
       color: bgColors[hash % bgColors.length],
@@ -611,7 +627,7 @@ class ComicCard extends StatelessWidget {
         child: Text(
           title.isEmpty ? '?' : title.characters.first,
           style: TextStyle(
-              color: cs.primary.withValues(alpha: 0.2),
+              color: cs.onSurfaceVariant.withValues(alpha: 0.5),
               fontSize: 28,
               fontWeight: FontWeight.w400),
         ),

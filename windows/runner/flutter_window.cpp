@@ -1,8 +1,11 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <objbase.h>
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "webview_runtime.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,6 +28,29 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  webview_runtime_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          "libiko/windows_webview_runtime",
+          &flutter::StandardMethodCodec::GetInstance());
+  webview_runtime_channel_->SetMethodCallHandler(
+      [](const auto& call, auto result) {
+        if (call.method_name() != "ensureReady") {
+          result->NotImplemented();
+          return;
+        }
+        bool recovered = false;
+        const HRESULT status = EnsureWebViewApartment(&recovered);
+        if (FAILED(status)) {
+          result->Error("webview_runtime",
+                        "Windows WebView2 requires an initialized STA thread");
+          return;
+        }
+        result->Success(flutter::EncodableValue(flutter::EncodableMap{
+            {flutter::EncodableValue("ready"), flutter::EncodableValue(true)},
+            {flutter::EncodableValue("recovered"),
+             flutter::EncodableValue(recovered)}}));
+      });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -40,6 +66,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  webview_runtime_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

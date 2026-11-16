@@ -26,11 +26,12 @@ class StreamResolver {
     HeadlessBrowser Function()? browserFactory,
     HeadlessBrowserPool? browserPool,
     ResolvedStreamCache? cache,
-    Duration grace = const Duration(seconds: 6),
-    Duration overallTimeout = const Duration(seconds: 12),
-    Duration overallBudget = const Duration(seconds: 10),
+    Duration grace = const Duration(seconds: 8),
+    Duration overallTimeout = const Duration(seconds: 30),
+    Duration overallBudget = const Duration(seconds: 30),
     Duration collectWindow = const Duration(milliseconds: 120),
     Duration verifyBudget = const Duration(milliseconds: 1500),
+    Duration unverifiedWait = const Duration(seconds: 4),
   })  : _maccms = maccms ?? MacCmsResolver(),
         _dio = dio ?? AppHttp.client,
         _browserFactory = browserFactory,
@@ -40,7 +41,8 @@ class StreamResolver {
         _overallTimeout = overallTimeout,
         _overallBudget = overallBudget,
         _collectWindow = collectWindow,
-        _verifyBudget = verifyBudget;
+        _verifyBudget = verifyBudget,
+        _unverifiedWait = unverifiedWait;
 
   final MacCmsResolver _maccms;
   final Dio _dio;
@@ -52,6 +54,7 @@ class StreamResolver {
   final Duration _overallBudget;
   final Duration _collectWindow;
   final Duration _verifyBudget;
+  final Duration _unverifiedWait;
 
   static const int _maxAttempts = 3;
   static const int _maxCandidates = 5;
@@ -62,7 +65,7 @@ class StreamResolver {
 
   Future<ResolveResult> resolve(
     String playPageUrl, {
-    Duration timeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 20),
     String? userAgent,
     String? referer,
     bool legacy = false,
@@ -185,7 +188,11 @@ class StreamResolver {
     });
     final seen = <String, MediaCandidate>{};
     final browserHeaders = <String, Map<String, String>>{};
-    final first = Completer<void>();
+    final tested = <String, MediaCandidate>{};
+    final fallback = <String, MediaCandidate>{};
+    Timer? fallbackTimer;
+    var fallbackReady = false;
+    var changed = Completer<void>();
     final finished = Completer<void>();
     var branches = 2;
     ResolveFailure? loadFailure;
@@ -202,18 +209,20 @@ class StreamResolver {
           ...candidate.headers,
         };
       }
+      final headers = {
+        ...baseHeaders,
+        if (previous != null) ...previous.headers,
+        ...candidate.headers,
+        // Actual browser requests outrank the HTTP parser's guessed
+        // Referer, including when that parser finishes later.
+        ...?browserHeaders[candidate.url],
+      };
+      // Duplicate notifications must not cause repeated probes. Changed
+      // browser headers do require a fresh probe of the same URL.
+      if (previous != null && mapEquals(previous.headers, headers)) return;
       seen[candidate.url] = MediaCandidate(candidate.url,
-          headers: {
-            ...baseHeaders,
-            if (previous != null) ...previous.headers,
-            ...candidate.headers,
-            // Actual browser requests outrank the HTTP parser's guessed
-            // Referer, including when that parser finishes later.
-            ...?browserHeaders[candidate.url],
-          },
-          loadId: candidate.loadId,
-          headersResolved: true);
-      if (!first.isCompleted) first.complete();
+          headers: headers, loadId: candidate.loadId, headersResolved: true);
+      if (!changed.isCompleted) changed.complete();
     }
 
     // Neither branch waits for the other's startup or failure.
@@ -223,9 +232,9 @@ class StreamResolver {
             userAgent: userAgent,
             referer: referer,
             cancelToken: httpCancel,
-            timeout: attemptBudget < const Duration(seconds: 4)
+            timeout: attemptBudget < const Duration(seconds: 8)
                 ? attemptBudget
-                : const Duration(seconds: 4));
+                : const Duration(seconds: 8));
         if (candidate != null) observe(candidate);
       } catch (_) {
         // Browser discovery may still succeed.
@@ -237,6 +246,7 @@ class StreamResolver {
       PooledBrowser? pooled;
       HeadlessBrowser? direct;
       StreamSubscription<MediaCandidate>? sub;
+      var loaded = false;
       try {
         final factory = _browserFactory;
         final Future<void> Function() load;
@@ -267,6 +277,7 @@ class StreamResolver {
         await Future.any<void>([
           () async {
             await load();
+            loaded = true;
             await _waitOrCancel(_grace, discovery);
           }(),
           _untilCancelled(discovery),
@@ -281,7 +292,7 @@ class StreamResolver {
         } catch (_) {}
         try {
           if (pooled != null) {
-            await pooled.release();
+            await pooled.release(discard: !loaded);
           } else {
             await direct?.dispose();
           }
@@ -291,34 +302,69 @@ class StreamResolver {
     }());
 
     try {
-      await Future.any<void>([first.future, finished.future, stopped.future]);
-      if (operation.isCancelled) {
-        return ResolveResult.failed(
-            timedOut ? ResolveFailure.timeout : ResolveFailure.unknown);
+      while (true) {
+        if (operation.isCancelled) {
+          // Discovery near the deadline must not lose a media URL merely
+          // because its optional probe had no time left. Never cache this.
+          if (timedOut && seen.isNotEmpty && !(cancel?.isCancelled ?? false)) {
+            return ResolveResult.success(seen.values.toList(), verified: false);
+          }
+          return ResolveResult.failed(
+              timedOut ? ResolveFailure.timeout : ResolveFailure.unknown);
+        }
+        final pending = seen.values
+            .where((candidate) => !identical(tested[candidate.url], candidate))
+            .take(_maxCandidates)
+            .toList();
+        if (pending.isEmpty) {
+          if (fallback.isNotEmpty && (finished.isCompleted || fallbackReady)) {
+            return ResolveResult.success(fallback.values.toList(),
+                verified: false);
+          }
+          if (finished.isCompleted) {
+            return ResolveResult.failed(loadFailure ?? ResolveFailure.notFound);
+          }
+          changed = Completer<void>();
+          await Future.any<void>(
+              [changed.future, finished.future, stopped.future]);
+          continue;
+        }
+        // Keep the browser alive during probing. An HTML decoy discovered
+        // first must not suppress the actual video requested later.
+        await _waitOrCancel(_collectWindow, operation);
+        if (operation.isCancelled) continue;
+        final snapshot = seen.values
+            .where((candidate) => !identical(tested[candidate.url], candidate))
+            .take(_maxCandidates)
+            .toList();
+        final (ordered, verified) = await _verifyAll(snapshot, operation);
+        if (cancel?.isCancelled ?? false) {
+          return const ResolveResult.failed(ResolveFailure.unknown);
+        }
+        if (verified && ordered.isNotEmpty) {
+          return ResolveResult.success(ordered, verified: verified);
+        }
+        for (final candidate in snapshot) {
+          tested[candidate.url] = candidate;
+          fallback.remove(candidate.url);
+          if (!ordered.any((result) => result.url == candidate.url) &&
+              identical(seen[candidate.url], candidate)) {
+            seen.remove(candidate.url);
+          }
+        }
+        for (final candidate in ordered) {
+          fallback[candidate.url] = candidate;
+        }
+        if (fallback.isNotEmpty && fallbackTimer == null) {
+          fallbackTimer = Timer(_unverifiedWait, () {
+            fallbackReady = true;
+            if (!changed.isCompleted) changed.complete();
+          });
+        }
       }
-      if (seen.isEmpty) {
-        return ResolveResult.failed(loadFailure ?? ResolveFailure.notFound);
-      }
-      // Keep observing duplicates throughout the collection window so actual
-      // network headers can enrich an earlier JavaScript-only observation.
-      await _waitOrCancel(_collectWindow, operation);
-      discovery.cancel();
-      if (operation.isCancelled) {
-        return ResolveResult.failed(
-            timedOut ? ResolveFailure.timeout : ResolveFailure.unknown);
-      }
-      final (ordered, verified) =
-          await _verifyAll(seen.values.toList(), operation);
-      if (operation.isCancelled) {
-        return ResolveResult.failed(
-            timedOut ? ResolveFailure.timeout : ResolveFailure.unknown);
-      }
-      if (ordered.isEmpty) {
-        return ResolveResult.failed(loadFailure ?? ResolveFailure.notFound);
-      }
-      return ResolveResult.success(ordered, verified: verified);
     } finally {
       timer.cancel();
+      fallbackTimer?.cancel();
       cancel?.removeListener(stop);
       stop();
     }
@@ -452,6 +498,11 @@ class StreamResolver {
             sendTimeout: const Duration(seconds: 5),
           ));
       final code = response.statusCode ?? 0;
+      // Retry header variants before dropping explicit refused/expired URLs.
+      // Network failures and 5xx remain unverified playback fallbacks.
+      if (code == 403 || code == 404 || code == 410) {
+        return _ProbeOutcome.invalidMedia;
+      }
       if (code < 200 || code >= 300) return _ProbeOutcome.unreachable;
       final type = (response.headers.value(Headers.contentTypeHeader) ?? '')
           .toLowerCase();

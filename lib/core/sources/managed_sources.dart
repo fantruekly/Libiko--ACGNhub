@@ -1,11 +1,17 @@
+import 'package:flutter/services.dart';
+
 import '../video/video_source.dart';
 import '../video/rule_source.dart';
 import '../video/cancellation.dart';
+import '../video/webview_scraper.dart';
 import '../novel/novel_source.dart';
 import '../novel/models.dart';
 import '../game/game_source.dart';
 import '../game/models.dart';
 import 'source_preferences.dart';
+
+bool _localVideoFailure(Object error) =>
+    error is SourceQueueTimeoutException || error is PlatformException;
 
 class ManagedVideoSource implements VideoSource {
   ManagedVideoSource(this.source, this.health);
@@ -25,6 +31,7 @@ class ManagedVideoSource implements VideoSource {
     }
     return health.track(
         SourceKind.anime, id, () => source.search(keyword, cancel: cancel),
+        ignoreFailure: _localVideoFailure,
         cancelled: () => cancel?.isCancelled == true);
   }
 
@@ -37,6 +44,7 @@ class ManagedVideoSource implements VideoSource {
     }
     return health.track(
         SourceKind.anime, id, () => source.episodes(detailUrl, cancel: cancel),
+        ignoreFailure: _localVideoFailure,
         cancelled: () => cancel?.isCancelled == true);
   }
 }

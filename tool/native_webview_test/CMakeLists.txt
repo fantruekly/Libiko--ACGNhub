@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.14)
+project(webview_runtime_test LANGUAGES CXX)
+add_executable(webview_runtime_test main.cpp)
+target_compile_features(webview_runtime_test PRIVATE cxx_std_17)
+target_link_libraries(webview_runtime_test PRIVATE ole32)

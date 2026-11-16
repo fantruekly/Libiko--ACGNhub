@@ -14,6 +14,39 @@ const _rule = SourceRule(
 );
 
 void main() {
+  test('preferred line keeps identities, contiguous indexes and fallback', () {
+    final rule = SourceRule.fromJson({
+      'name': 'test',
+      'baseURL': 'https://test/',
+      'searchURL': 'https://test/search',
+      'searchList': '//div',
+      'searchName': '//a',
+      'searchResult': '//a',
+      'chapterRoads': '//ul',
+      'chapterResult': '//a',
+      'preferredLineIds': ['missing', 'road:1', 'road:1'],
+    });
+    final rows = [
+      {'title': '第1集', 'href': '/a1', 'lineId': 'road:0'},
+      {'title': '第2集', 'href': '/a2', 'lineId': 'road:0'},
+      {'title': '第1集', 'href': '/b1', 'lineId': 'road:1'},
+      {'title': '第2集', 'href': '/b2', 'lineId': 'road:1'},
+    ];
+    final episodes = RuleVideoSource.mapEpisodes(rule, rows);
+    expect(episodes.map((e) => e.lineId),
+        ['road:1', 'road:1', 'road:0', 'road:0']);
+    expect(episodes.map((e) => e.index), [0, 1, 2, 3]);
+    expect(episodes.map((e) => e.playUrl), [
+      'https://test/b1',
+      'https://test/b2',
+      'https://test/a1',
+      'https://test/a2'
+    ]);
+    expect(episodes[0].episodeKey, episodes[2].episodeKey);
+    expect(
+        RuleVideoSource.mapEpisodes(rule, rows.take(2).toList()).first.lineId,
+        'road:0');
+  });
   test('mapSearch resolves relative hrefs and drops empty rows', () {
     final items = RuleVideoSource.mapSearch(_rule, [
       {'name': '进击的巨人', 'href': '/vod/1.html'},

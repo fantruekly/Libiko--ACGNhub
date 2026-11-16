@@ -20,6 +20,13 @@ import '../../core/widgets/window_controls.dart';
 import 'novel_providers.dart';
 import 'novel_reader_page.dart';
 
+EdgeInsets _detailInsets(BuildContext context) {
+  final side = ((MediaQuery.sizeOf(context).width - 1120) / 2)
+      .clamp(16.0, double.infinity)
+      .toDouble();
+  return EdgeInsets.fromLTRB(side, 20, side, 28);
+}
+
 class NovelDetailPage extends ConsumerStatefulWidget {
   final String sourceKey;
   final String novelId;
@@ -67,7 +74,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   Widget _loading() {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: _detailInsets(context),
       children: [
         _infoCard(
           Novel(
@@ -106,7 +113,9 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface),
               ),
             ),
             if (isDesktop) const WindowControls(),
@@ -124,7 +133,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
         : ((widget.cover?.isNotEmpty ?? false) ? widget.cover : null);
     final history = _historyEntry();
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: _detailInsets(context),
       children: [
         _infoCard(novel, cover),
         if (history != null) ...[
@@ -135,30 +144,45 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
         if (detail.volumes.isEmpty)
           const SizedBox(
             height: 200,
-            child: EmptyState(
-                icon: Icons.menu_book_rounded, message: '暂无章节'),
+            child: EmptyState(icon: Icons.menu_book_rounded, message: '暂无章节'),
           )
         else
-          for (final vol in detail.volumes) ...[
+          for (final vol in detail.volumes)
             Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 8),
-              child: Text(vol.title,
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface)),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: GlassSurface(
+                blur: 0,
+                color: cs.surface,
+                padding: const EdgeInsets.all(20),
+                border: Border.all(
+                    color: cs.outlineVariant.withValues(alpha: 0.55)),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(vol.title,
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface)),
+                      const SizedBox(height: 14),
+                      ButtonGrid(
+                        children: [
+                          for (final ch in vol.chapters)
+                            PillButton(
+                                label: ch.title,
+                                onTap: () => _openChapter(ch, cover)),
+                        ],
+                      ),
+                    ]),
+              ),
             ),
-            ButtonGrid(
-              children: [
-                for (final ch in vol.chapters)
-                  PillButton(label: ch.title, onTap: () => _openChapter(ch, cover)),
-              ],
-            ),
-          ],
       ],
     );
   }
 
   Widget _infoCard(Novel novel, String? cover, {bool loading = false}) {
     final cs = Theme.of(context).colorScheme;
+    final compact = MediaQuery.sizeOf(context).width < 560;
     final summary = novel.summary ?? '';
     final status = novel.extra['status']?.toString();
     final tags = [
@@ -167,13 +191,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     ];
     return GlassSurface(
       blur: 0,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(16),
       padding: const EdgeInsets.all(16),
-      border: Border.all(color: cs.outlineVariant),
-      boxShadow: const [
-        BoxShadow(
-            color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
-      ],
+      border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -181,10 +202,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             tag: 'novel_${widget.sourceKey}_${widget.novelId}',
             child: RepaintBoundary(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(14),
                 child: SizedBox(
-                  width: 110,
-                  height: 147,
+                  width: compact ? 76 : 110,
+                  height: compact ? 104 : 147,
                   child: cover != null
                       ? CachedNetworkImage(
                           imageUrl: cover,
@@ -200,7 +221,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               ),
             ),
           ),
-          const SizedBox(width: 24),
+          SizedBox(width: compact ? 14 : 24),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,15 +231,13 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      height: 1.35),
+                      fontSize: 20, fontWeight: FontWeight.w600, height: 1.35),
                 ),
                 if (novel.author != null && novel.author!.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(novel.author!,
-                      style: TextStyle(
-                          fontSize: 13, color: cs.onSurfaceVariant)),
+                      style:
+                          TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
                 ],
                 const SizedBox(height: 14),
                 _favoriteButton(novel, cover),
@@ -245,8 +264,8 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   Widget _favoriteButton(Novel novel, String? cover) {
     final favorites = ref.watch(novelFavoritesProvider);
-    final isFavorite = favorites.any((f) =>
-        f.sourceKey == widget.sourceKey && f.novelId == widget.novelId);
+    final isFavorite = favorites.any(
+        (f) => f.sourceKey == widget.sourceKey && f.novelId == widget.novelId);
     final cs = Theme.of(context).colorScheme;
     return FilledButton.icon(
       style: isFavorite
@@ -306,7 +325,11 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     return null;
   }
 
-  Widget _coverPlaceholder() => Container(color: const Color(0xFFE8EAF6));
+  Widget _coverPlaceholder() => Container(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      alignment: Alignment.center,
+      child: Icon(Icons.auto_stories_outlined,
+          color: Theme.of(context).colorScheme.onPrimaryContainer));
 
   bool _summaryOverflows(
       String text, TextStyle style, double maxWidth, TextScaler textScaler) {
@@ -329,16 +352,17 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     }
     return LayoutBuilder(builder: (context, constraints) {
       final style = TextStyle(
-          fontSize: 13, height: 1.6, color: cs.onSurface.withValues(alpha: 0.7));
-      final overflows = _summaryOverflows(
-          summary, style, constraints.maxWidth, MediaQuery.textScalerOf(context));
+          fontSize: 13,
+          height: 1.6,
+          color: cs.onSurface.withValues(alpha: 0.7));
+      final overflows = _summaryOverflows(summary, style, constraints.maxWidth,
+          MediaQuery.textScalerOf(context));
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onTap: overflows
-                ? () => setState(() => _expanded = !_expanded)
-                : null,
+            onTap:
+                overflows ? () => setState(() => _expanded = !_expanded) : null,
             child: Text(summary,
                 maxLines: _expanded ? null : 3,
                 overflow: _expanded ? null : TextOverflow.ellipsis,

@@ -22,6 +22,14 @@ import 'comic_detail_skeleton.dart';
 import 'comic_providers.dart';
 import 'comic_reader_page.dart';
 
+EdgeInsets _detailInsets(BuildContext context,
+    {double top = 20, double bottom = 24}) {
+  final side = ((MediaQuery.sizeOf(context).width - 1120) / 2)
+      .clamp(16.0, double.infinity)
+      .toDouble();
+  return EdgeInsets.fromLTRB(side, top, side, bottom);
+}
+
 class ComicDetailPage extends ConsumerStatefulWidget {
   final String sourceKey;
   final String comicId;
@@ -153,17 +161,15 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
 
   Widget _infoCard(ComicDetails details) {
     final cs = Theme.of(context).colorScheme;
+    final compact = MediaQuery.sizeOf(context).width < 560;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      padding: _detailInsets(context, top: 20, bottom: 12),
       child: GlassSurface(
         blur: 0,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
-        ],
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -171,10 +177,10 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
               tag: 'comic_${widget.sourceKey}_${widget.comicId}',
               child: RepaintBoundary(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                   child: SizedBox(
-                    width: 110,
-                    height: 154,
+                    width: compact ? 76 : 110,
+                    height: compact ? 108 : 154,
                     child: details.cover != null && details.cover!.isNotEmpty
                         ? CachedNetworkImage(
                             imageUrl: details.cover!,
@@ -188,7 +194,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 24),
+            SizedBox(width: compact ? 14 : 24),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,16 +305,13 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
     final cs = Theme.of(context).colorScheme;
     final chapters = details.chapters.entries.toList();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: _detailInsets(context, top: 4, bottom: 12),
       child: GlassSurface(
         blur: 0,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.all(16),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 6)),
-        ],
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.55)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -361,7 +364,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
 
   Widget _continueReading(ComicHistoryEntry entry) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: _detailInsets(context, top: 4, bottom: 12),
       child: SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
@@ -405,7 +408,7 @@ class _ComicDetailPageState extends ConsumerState<ComicDetailPage> {
           end: Alignment.bottomRight,
           colors: [
             cs.primary.withValues(alpha: 0.1),
-            cs.tertiary.withValues(alpha: 0.05)
+            cs.primary.withValues(alpha: 0.04)
           ],
         ),
       ),

@@ -15,6 +15,7 @@ class SourceRule {
   final String? userAgent;
   final String? referer;
   final bool useLegacyParser;
+  final List<String> preferredLineIds;
   final String searchMode;
   final String chapterMode;
   final Map<String, dynamic>? searchApiConfig;
@@ -32,6 +33,7 @@ class SourceRule {
     this.userAgent,
     this.referer,
     this.useLegacyParser = false,
+    this.preferredLineIds = const [],
     this.searchMode = 'xpath',
     this.chapterMode = 'xpath',
     this.searchApiConfig,
@@ -81,6 +83,9 @@ class SourceRule {
           ? (json['referer'] as String).trim()
           : null,
       useLegacyParser: json['useLegacyParser'] == true,
+      preferredLineIds: json['preferredLineIds'] is List
+          ? (json['preferredLineIds'] as List).whereType<String>().toList()
+          : const [],
       searchMode: searchMode,
       chapterMode: chapterMode,
       searchApiConfig: apiConfig('searchApiConfig'),

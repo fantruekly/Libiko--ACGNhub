@@ -1,9 +1,27 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:libiko/core/video/api_rule.dart';
 import 'package:libiko/core/video/source_rule.dart';
+import 'package:libiko/core/video/cancellation.dart';
+
+class _HangingAdapter implements HttpClientAdapter {
+  bool cancelled = false;
+  final started = Completer<void>();
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options,
+      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) {
+    started.complete();
+    cancelFuture?.then((_) => cancelled = true);
+    return Completer<ResponseBody>().future;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 class _JsonAdapter implements HttpClientAdapter {
   RequestOptions? last;
@@ -47,6 +65,76 @@ ApiRuleClient _client(SourceRule rule, _JsonAdapter adapter) {
 }
 
 void main() {
+  test('search source template builds a chapter page without changing item ID',
+      () async {
+    final adapter = _JsonAdapter('{"items":[{"name":"作品","slug":"400602"}]}');
+    final rule = _apiRule(searchApiConfig: {
+      'request': {'url': 'https://api.test/search'},
+      'listPath': r'$.items[*]',
+      'namePath': r'$.name',
+      'sourcePath': r'$.slug',
+      'sourceTemplate': '/watch/@source/1',
+    }, chapterApiConfig: {});
+    final items = await _client(rule, adapter).search('作品');
+    expect(items.single.id, '400602');
+    expect(items.single.detailUrl, 'https://api.test/watch/400602/1');
+  });
+  test('shared episode IDs preserve the distinct route code for each source',
+      () async {
+    final adapter = _JsonAdapter('''{"sources":[
+      {"name":"A","code":"line-a","episodes":[{"title":"第1集","id":329}]},
+      {"name":"B","code":"line b&备用","episodes":[{"title":"第1集","id":329}]}
+    ]}''');
+    final rule = _apiRule(searchApiConfig: {
+      'request': {'url': 'https://api.test/search'}
+    }, chapterApiConfig: {
+      'request': {'url': 'https://api.test/detail/@source'},
+      'roadsPath': r'$.sources[*]',
+      'roadNamePath': r'$.name',
+      'roadCodePath': r'$.code',
+      'episodesPath': r'$.episodes[*]',
+      'episodeNamePath': r'$.title',
+      'episodeUrlPath': r'$.id',
+      'episodePage': {
+        'url': 'https://site.test/anime/@source/play/@episodeUrl',
+        'query': {'source': '@roadCode'}
+      }
+    });
+    final episodes = await _client(rule, adapter).episodes('26');
+    expect(episodes.map((e) => Uri.parse(e.playUrl).queryParameters['source']),
+        ['line-a', 'line b&备用']);
+    expect(episodes.map((e) => e.episodeKey), ['episode:1', 'episode:1']);
+    expect(episodes.map((e) => e.lineId).toSet(), hasLength(2));
+  });
+  test('cancelling an API search cancels its transport promptly', () async {
+    final rule = _apiRule(searchApiConfig: {
+      'request': {'url': '/search?q=@keyword'},
+    }, chapterApiConfig: {});
+    final adapter = _HangingAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    final cancel = CancellationToken();
+    final pending = ApiRuleClient(rule, dio: dio).search('x', cancel: cancel);
+    await adapter.started.future;
+    cancel.cancel();
+    expect(await pending.timeout(const Duration(seconds: 1)), isEmpty);
+    await Future<void>.delayed(Duration.zero);
+    expect(adapter.cancelled, isTrue);
+  });
+
+  test('API deadline cancels even a transport that never responds', () async {
+    final rule = _apiRule(searchApiConfig: {
+      'request': {'url': '/search?q=@keyword'},
+    }, chapterApiConfig: {});
+    final adapter = _HangingAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    await expectLater(
+        ApiRuleClient(rule, dio: dio, timeout: const Duration(milliseconds: 30))
+            .search('x'),
+        throwsA(isA<TimeoutException>()));
+    await Future<void>.delayed(Duration.zero);
+    expect(adapter.cancelled, isTrue);
+  });
+
   test('restricted jsonpath reads arrays and fields', () {
     final data = {
       'data': {

@@ -14,10 +14,9 @@ class GameSourcePage extends ConsumerWidget {
     final order = [for (final source in sources) source.id];
     return Scaffold(
       appBar: AppBar(title: const Text('游戏源')),
-      body: ListView(padding: const EdgeInsets.all(12), children: [
-        const Padding(
-            padding: EdgeInsets.all(8),
-            child: Text('禁用后不参与发现和搜索；仍可从历史记录手动打开。状态来自实际请求。')),
+      body: SourceManagementBody(
+          child: ListView(padding: const EdgeInsets.all(20), children: [
+        const SourceManagementHint('禁用后不参与发现和搜索；仍可从历史记录手动打开。状态来自实际请求。'),
         for (final source in sources)
           SourceManagementTile(
               kind: SourceKind.game,
@@ -25,7 +24,7 @@ class GameSourcePage extends ConsumerWidget {
               name: source.name,
               subtitle: source.baseUrl,
               order: order),
-      ]),
+      ])),
     );
   }
 }

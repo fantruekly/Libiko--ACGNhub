@@ -7,6 +7,7 @@ import 'package:libiko/core/novel/novel_favorite.dart';
 import 'package:libiko/core/novel/novel_history.dart';
 import 'package:libiko/core/novel/novel_source.dart';
 import 'package:libiko/core/storage/database.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/modules/novel/novel_home.dart';
 import 'package:libiko/modules/novel/novel_providers.dart';
 
@@ -106,5 +107,41 @@ void main() {
     await tester.tap(find.text('历史'));
     await tester.pumpAndSettle();
     expect(find.text('还没有阅读记录'), findsOneWidget);
+  });
+
+  testWidgets(
+      '320px enlarged library preserves favorite and history content without overflow',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          novelSourceManagerProvider
+              .overrideWithValue(NovelSourceManager(sources: [_FakeSource()])),
+          novelFavoritesProvider.overrideWith(_FavNotifier.new),
+          novelHistoryProvider.overrideWith(_HistNotifier.new),
+        ],
+        child: MaterialApp(
+            theme: buildAppDarkTheme(),
+            builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.linear(1.8)),
+                child: child!),
+            home: const Scaffold(body: NovelHomePage()))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('收藏'));
+    await tester.pumpAndSettle();
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    expect(
+        (grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount)
+            .crossAxisCount,
+        2);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('历史'));
+    await tester.pumpAndSettle();
+    expect(find.text('读到 第一章'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

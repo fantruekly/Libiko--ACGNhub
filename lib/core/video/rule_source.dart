@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'api_rule.dart';
+import 'browser_pool.dart';
 import 'cancellation.dart';
 import 'source_cache.dart';
 import 'source_rule.dart';
@@ -70,6 +71,7 @@ class RuleVideoSource implements VideoSource {
       final result = await _scraper.fetchJson(
         url: detailUrl,
         script: buildEpisodesScript(rule),
+        priority: BrowserPriority.foreground,
         userAgent: rule.userAgent,
         cancel: cancel,
       );
@@ -99,9 +101,17 @@ class RuleVideoSource implements VideoSource {
   @visibleForTesting
   static List<VideoEpisode> mapEpisodes(SourceRule rule, dynamic json) {
     if (json is! List) return const [];
+    // Preserve original line identities and episode order within each group.
+    // Unknown/missing preferred lines fall back to the site's original order.
+    final rows = json.whereType<Map>().toList();
+    final preferred = rule.preferredLineIds.toSet();
+    final ordered = [
+      for (final id in preferred)
+        ...rows.where((row) => row['lineId']?.toString() == id),
+      ...rows.where((row) => !preferred.contains(row['lineId']?.toString())),
+    ];
     final eps = <VideoEpisode>[];
-    for (final row in json) {
-      if (row is! Map) continue;
+    for (final row in ordered) {
       final href = (row['href'] ?? '').toString().trim();
       if (href.isEmpty) continue;
       final rawTitle = (row['title'] ?? '').toString().trim();

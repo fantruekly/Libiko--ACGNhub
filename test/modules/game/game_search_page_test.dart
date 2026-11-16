@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:libiko/core/theme/app_theme.dart';
 import 'package:libiko/core/game/game_source.dart';
 import 'package:libiko/core/game/models.dart';
 import 'package:libiko/modules/game/game_providers.dart';
@@ -33,15 +34,35 @@ class _FakeSource implements GameSource {
   }
 }
 
-Widget _app(List<Game> results) => ProviderScope(
+Widget _app(List<Game> results, {ThemeData? theme}) => ProviderScope(
       overrides: [
         gameSourceManagerProvider.overrideWithValue(
             GameSourceManager(sources: [_FakeSource(results)])),
       ],
-      child: const MaterialApp(home: GameSearchPage(initialKeyword: '关键词')),
+      child: MaterialApp(
+          theme: theme, home: const GameSearchPage(initialKeyword: '关键词')),
     );
 
 void main() {
+  for (final dark in [false, true]) {
+    testWidgets(
+        '320px ${dark ? "dark" : "light"} search uses a readable card with enlarged text',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.8;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(_app(const [
+        Game(id: '1', title: '测试游戏的长标题', extra: {'version': '典藏版'})
+      ], theme: dark ? buildAppDarkTheme() : buildAppTheme()));
+      await tester.pumpAndSettle();
+      expect(find.text('来源：fake'), findsOneWidget);
+      expect(find.text('版本：典藏版'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('renders results from the sources', (tester) async {
     await tester.pumpWidget(_app(const [Game(id: '1', title: '结果游戏')]));
     await tester.pump();
@@ -75,7 +96,7 @@ void main() {
           ],
         )),
       ],
-      child: const MaterialApp(home: GameSearchPage(initialKeyword: '关键词')),
+      child: MaterialApp(home: const GameSearchPage(initialKeyword: '关键词')),
     ));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));

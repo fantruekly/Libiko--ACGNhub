@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'headless_browser.dart';
+import 'windows_webview_runtime.dart';
 
 /// Injected before any page script runs: wraps `fetch`, `XMLHttpRequest` and
 /// the `HTMLMediaElement.src` setter and reports candidate media requests back
@@ -90,7 +91,8 @@ const String _mediaSnifferJs = r'''
 /// candidate media requests (including extension-less HLS URLs identified by
 /// MIME type), and [shouldInterceptRequest] checks every subresource URL
 /// against [looksLikeMediaUrl]. Returning null leaves the request untouched.
-class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
+class InAppWebViewHeadlessBrowser
+    implements HeadlessBrowser, CurrentDocumentBrowser {
   final _media = StreamController<MediaCandidate>.broadcast();
   HeadlessInAppWebView? _headless;
   Completer<void>? _loaded;
@@ -107,6 +109,7 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
 
   @override
   Future<void> start({String? userAgent, String? extraScript}) async {
+    await WindowsWebViewRuntime.ensureReady();
     _extraScript = extraScript;
     final headless = HeadlessInAppWebView(
       initialSettings: InAppWebViewSettings(
@@ -152,10 +155,13 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
       {Duration timeout = const Duration(seconds: 15)}) async {
     final session = ++_loadId;
     _acceptCandidates = false;
+    // The pool reads loadId synchronously when load() is called, before its
+    // first await, to bind candidate events to this navigation.
     final controller = _headless?.webViewController;
     if (controller == null) {
       throw const HeadlessLoadException('headless browser not started');
     }
+    await WindowsWebViewRuntime.ensureReady();
     await controller.stopLoading();
     if (_handlerName != null) {
       controller.removeJavaScriptHandler(handlerName: _handlerName!);
@@ -179,6 +185,11 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
     // Handler names are captured in each document's script. A delayed callback
     // from a previous document can no longer acquire the current loadId.
     await controller.addUserScripts(userScripts: [
+      UserScript(
+        source: 'window.__libikoDocumentSession = $session;',
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        forMainFrameOnly: true,
+      ),
       for (final script in [
         _mediaSnifferJs,
         if (_extraScript != null) _extraScript!
@@ -206,7 +217,20 @@ class InAppWebViewHeadlessBrowser implements HeadlessBrowser {
       _headless?.webViewController?.evaluateJavascript(source: script);
 
   @override
+  Future<dynamic> evalCurrentDocument(String script, {required int loadId}) {
+    if (loadId != _loadId) return Future.value();
+    return eval('''
+(function () {
+  if (window.__libikoDocumentSession !== $loadId) return null;
+  return ($script);
+})()
+''');
+  }
+
+  @override
   Future<void> dispose() async {
+    final pending = _loaded;
+    if (pending != null && !pending.isCompleted) pending.complete();
     _loaded = null;
     _acceptCandidates = false;
     _loadId++;
