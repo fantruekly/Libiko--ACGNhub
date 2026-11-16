@@ -97,7 +97,6 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     if (sourcesAsync.isLoading && !sourcesAsync.hasValue) {
       return const ShimmerLoader(
         crossAxisCount: 6,
-        mobileColumns: 3,
         mobileTitleExtent: 44,
         itemCount: 12,
         padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -134,7 +133,6 @@ class _ComicSearchPageState extends ConsumerState<ComicSearchPage> {
     if (!hasData && loading) {
       return const ShimmerLoader(
         crossAxisCount: 6,
-        mobileColumns: 3,
         mobileTitleExtent: 44,
         itemCount: 12,
         padding: EdgeInsets.fromLTRB(16, 8, 16, 24),

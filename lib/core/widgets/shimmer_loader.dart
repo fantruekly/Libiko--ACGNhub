@@ -17,7 +17,7 @@ class ShimmerLoader extends StatefulWidget {
     super.key,
     this.itemCount = 12,
     this.crossAxisCount = 5,
-    this.mobileColumns = 3,
+    this.mobileColumns = 2,
     this.aspectRatio = 0.60,
     this.padding = const EdgeInsets.all(16),
     this.mobileTitleExtent,

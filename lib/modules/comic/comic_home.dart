@@ -95,7 +95,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
     final sourcesAsync = ref.watch(comicSourcesProvider);
 
     return sourcesAsync.when(
-      loading: () => const ShimmerLoader(crossAxisCount: 6, mobileColumns: 3),
+      loading: () => const ShimmerLoader(crossAxisCount: 6),
       error: (_, __) => EmptyState(
         icon: Icons.cloud_off_rounded,
         message: '加载失败',
@@ -265,7 +265,6 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab>
             child: async.when(
               loading: () => const ShimmerLoader(
                 crossAxisCount: 6,
-                mobileColumns: 3,
                 mobileTitleExtent: 48,
                 itemCount: 12,
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 24),

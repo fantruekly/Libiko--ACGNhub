@@ -98,7 +98,6 @@ class _NovelSearchPageState extends ConsumerState<NovelSearchPage> {
     if (results.isEmpty && pending > 0) {
       return const ShimmerLoader(
         crossAxisCount: 6,
-        mobileColumns: 3,
         mobileTitleExtent: 84,
         itemCount: 12,
         aspectRatio: 0.58,
