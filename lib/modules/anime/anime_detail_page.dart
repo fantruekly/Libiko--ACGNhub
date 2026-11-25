@@ -13,7 +13,6 @@ import '../../core/services/cache_manager.dart';
 import '../../core/services/follow_manager.dart';
 import '../../core/services/watch_history.dart';
 import '../../core/sources/source_preferences.dart';
-import '../../core/ui/open_url.dart';
 import '../../core/widgets/button_grid.dart';
 import '../../core/widgets/desktop_drag_area.dart';
 import '../../core/widgets/glass_surface.dart';
@@ -939,25 +938,12 @@ class _AnimeDetailPageState extends ConsumerState<AnimeDetailPage> {
     if (!mounted || outcome.cancelled) return;
     final result = outcome.result;
     if (result == null || !result.ok) {
-      final page = Uri.tryParse(ep.playUrl);
-      final canOpenDm84 = ep.sourceId == 'rule:DM84' &&
-          page?.scheme == 'https' &&
-          page?.host == 'dmbus.cc';
       messenger.showSnackBar(SnackBar(
-        content: Text(resolveFailureMessage(sourceName, result?.failure)),
+        content: Text(resolveFailureMessage(
+            _expandedSource?.name ?? '', result?.failure)),
         action: SnackBarAction(
-          label: canOpenDm84 ? '打开原站' : '重试',
-          onPressed: () async {
-            if (!canOpenDm84) {
-              await _playEpisode(ep);
-              return;
-            }
-            if (!await openExternalUrl(ep.playUrl) && mounted) {
-              messenger.showSnackBar(
-                const SnackBar(content: Text('无法打开 DM84 原站')),
-              );
-            }
-          },
+          label: '重试',
+          onPressed: () => _playEpisode(ep),
         ),
       ));
       return;
