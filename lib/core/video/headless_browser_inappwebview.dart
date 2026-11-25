@@ -7,19 +7,38 @@ import 'windows_webview_runtime.dart';
 
 /// Injected before any page script runs: wraps `fetch`, `XMLHttpRequest` and
 /// the `HTMLMediaElement.src` setter and reports candidate media requests back
-/// through the `mediaSniffer` JavaScript handler. Needed because some HLS
-/// playlists are served from extension-less URLs, which a URL check alone
-/// cannot see.
+/// through the `mediaSniffer` JavaScript handler. Text already read by the
+/// page is also checked for HLS manifests with generic URLs and MIME types.
 const String _mediaSnifferJs = r'''
 (function () {
   if (window.__libikoSniffer) return;
   window.__libikoSniffer = true;
-  function report(url, mime) {
+  function report(url, mime, prefix) {
     try {
       if (!url) return;
       var absolute = new URL(String(url), document.baseURI).href;
-      window.flutter_inappwebview.callHandler('mediaSniffer', absolute, String(mime || ''));
+      window.flutter_inappwebview.callHandler(
+        'mediaSniffer', absolute, String(mime || ''), prefix || '');
     } catch (e) {}
+  }
+  function reportManifest(url, mime, text) {
+    if (typeof text !== 'string') return;
+    var prefix = text.slice(0, 128);
+    if (/^\s*#EXTM3U(?:\s|$)/.test(prefix)) report(url, mime, prefix);
+  }
+  if (window.Response && window.Response.prototype.text) {
+    var readText = window.Response.prototype.text;
+    window.Response.prototype.text = function () {
+      var response = this;
+      return readText.apply(response, arguments).then(function (text) {
+        try {
+          if (response.ok) {
+            reportManifest(response.url, response.headers.get('content-type'), text);
+          }
+        } catch (e) {}
+        return text;
+      });
+    };
   }
   function media(u, m) {
     m = String(m || '').toLowerCase();
@@ -62,7 +81,12 @@ const String _mediaSnifferJs = r'''
       xhr.addEventListener('load', function () {
         try {
           var mime = xhr.getResponseHeader('content-type') || '';
-          if (media(xhr.__libikoUrl, mime)) report(xhr.__libikoUrl, mime);
+          var url = xhr.responseURL || xhr.__libikoUrl;
+          if (media(url, mime)) report(url, mime);
+          if (xhr.status >= 200 && xhr.status < 300 &&
+              (!xhr.responseType || xhr.responseType === 'text')) {
+            reportManifest(url, mime, xhr.responseText);
+          }
         } catch (e) {}
       });
     } catch (e) {}
@@ -89,8 +113,8 @@ const String _mediaSnifferJs = r'''
 ///
 /// Media detection has two layers: the injected [_mediaSnifferJs] reports
 /// candidate media requests (including extension-less HLS URLs identified by
-/// MIME type), and [shouldInterceptRequest] checks every subresource URL
-/// against [looksLikeMediaUrl]. Returning null leaves the request untouched.
+/// MIME type or playlist signature), and [shouldInterceptRequest] checks
+/// subresource URLs against [looksLikeMediaUrl].
 class InAppWebViewHeadlessBrowser
     implements HeadlessBrowser, CurrentDocumentBrowser {
   final _media = StreamController<MediaCandidate>.broadcast();
@@ -177,8 +201,10 @@ class InAppWebViewHeadlessBrowser
           }
           final url = args.isNotEmpty ? (args[0] ?? '').toString() : '';
           final mime = args.length > 1 ? (args[1] ?? '').toString() : '';
-          final media =
-              looksLikeMediaResponse(url, mime) ? url : mediaUrlFromQuery(url);
+          final prefix = args.length > 2 ? (args[2] ?? '').toString() : '';
+          final media = looksLikeMediaResponse(url, mime, bodyPrefix: prefix)
+              ? url
+              : mediaUrlFromQuery(url);
           if (media != null) _media.add(MediaCandidate(media, loadId: session));
           return null;
         });
@@ -210,6 +236,29 @@ class InAppWebViewHeadlessBrowser
     } finally {
       if (identical(_loaded, completer)) _loaded = null;
     }
+    final page = Uri.tryParse(url);
+    if (page == null ||
+        page.scheme != 'https' ||
+        page.host != 'dmbus.cc' ||
+        !page.path.startsWith('/p/')) {
+      return;
+    }
+    // DM84 serves its player in a cross-origin frame. Make that same player
+    // the top document so its requests can be observed by the current WebView.
+    final frame = await evalCurrentDocument(
+        """document.querySelector('iframe[src^="https://hhjx.hhplayer.com/"]')?.src ?? ''""",
+        loadId: session);
+    final player = frame is String ? Uri.tryParse(frame) : null;
+    if (session != _loadId ||
+        player == null ||
+        player.scheme != 'https' ||
+        player.host != 'hhjx.hhplayer.com') {
+      return;
+    }
+    await controller.loadUrl(
+      urlRequest:
+          URLRequest(url: WebUri(player.toString()), headers: {'Referer': url}),
+    );
   }
 
   @override
