@@ -85,7 +85,8 @@ void main() {
     expect(delegate.mainAxisExtent, closeTo(1196, 1));
   });
 
-  testWidgets('responsive posters keep two phone columns and scale title space',
+  testWidgets(
+      'responsive posters keep three phone columns and scale title space',
       (tester) async {
     Future<void> render(double width, double scale, {bool desktop = false}) =>
         tester.pumpWidget(MaterialApp(
@@ -108,7 +109,7 @@ void main() {
     await render(320, 1);
     var delegate = tester.widget<GridView>(find.byType(GridView)).gridDelegate
         as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 2);
+    expect(delegate.crossAxisCount, 3);
     expect(delegate.crossAxisSpacing, 12);
     final baseExtent = delegate.mainAxisExtent!;
     await render(320, 2);

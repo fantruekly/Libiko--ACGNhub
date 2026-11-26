@@ -132,14 +132,19 @@ String? mediaUrlFromQuery(String url) {
   return null;
 }
 
-/// True when either the URL looks like a media file ([looksLikeMediaUrl]) or
-/// the response MIME type is a streaming media type. The MIME check exists
-/// because some HLS playlists are served from extension-less URLs.
-bool looksLikeMediaResponse(String url, String mime) {
+/// Recognizes media URLs and HLS manifests served without a file extension.
+bool looksLikeMediaResponse(String url, String mime, {String bodyPrefix = ''}) {
   final m = mime.toLowerCase();
   // MPEG-TS responses are individual HLS segments, not playlist candidates.
   if (m.contains('mp2t')) return false;
   if (m.contains('mpegurl')) return true;
+  final uri = Uri.tryParse(url);
+  if (uri != null &&
+      (uri.scheme == 'https' || uri.scheme == 'http') &&
+      uri.host.isNotEmpty &&
+      RegExp(r'^\s*#EXTM3U(?:\s|$)').hasMatch(bodyPrefix)) {
+    return true;
+  }
   return looksLikeMediaUrl(url);
 }
 

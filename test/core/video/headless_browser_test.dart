@@ -102,4 +102,24 @@ void main() {
     expect(looksLikeMediaResponse('https://cdn.test/seg001.ts', 'video/mp2t'),
         isFalse);
   });
+
+  test('identifies HLS from the first line of a generic HTTP response', () {
+    const url = 'https://cdn.test/watch?id=ab';
+    expect(
+        looksLikeMediaResponse(url, 'application/octet-stream',
+            bodyPrefix: '\uFEFF#EXTM3U\r\n#EXT-X-VERSION:3'),
+        isTrue);
+    expect(
+        looksLikeMediaResponse(url, 'text/plain',
+            bodyPrefix: '<html>#EXTM3U</html>'),
+        isFalse);
+    expect(
+        looksLikeMediaResponse(url, 'text/plain',
+            bodyPrefix: '#EXTM3U-invalid'),
+        isFalse);
+    expect(
+        looksLikeMediaResponse('blob:https://cdn.test/abc', '',
+            bodyPrefix: '#EXTM3U\n'),
+        isFalse);
+  });
 }
