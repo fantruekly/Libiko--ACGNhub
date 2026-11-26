@@ -1,27 +1,20 @@
 @echo off
-cd /d "%~dp0"
+setlocal
+set "APP_DIR=%~dp0build\windows-vs2026\runner\Release"
 
-set "FLUTTER_CMD=C:\flutter\bin\flutter.bat"
+if not exist "%APP_DIR%\libiko.exe" goto missing
+if not exist "%APP_DIR%\data\app.so" goto missing
 
-if not exist "%FLUTTER_CMD%" (
-    echo Flutter SDK was not detected at C:\flutter\bin\flutter.bat.
-    echo Please confirm the Flutter installation path.
-    echo.
-    echo You can also run this manually in a terminal:
-    echo   flutter run -d windows
-    echo.
-    pause
-    exit /b 1
-)
+start "" /D "%APP_DIR%" "%APP_DIR%\libiko.exe"
+if not errorlevel 1 exit /b 0
 
-echo Starting Libiko (Flutter Windows)...
-echo.
+echo Libiko could not start.
+pause
+exit /b 1
 
-call "%FLUTTER_CMD%" run -d windows
-
-if errorlevel 1 (
-    echo.
-    echo Launch failed. Please check the Flutter environment and project dependencies.
-    echo.
-    pause
-)
+:missing
+echo The Libiko acceptance build was not found:
+echo   "%APP_DIR%"
+echo Build the Windows Release target before using this launcher.
+pause
+exit /b 1
